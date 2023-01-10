@@ -59,8 +59,9 @@ def proxy(url):
 
 	resp_headers['Content-Length'] = req.headers['Content-Length']
 
-	if 'Range' in flask.request.headers:
+	if 'Range' in flask.request.headers and req.status_code == 206:
 		resp_headers['Content-Range'] = req.headers['Content-Range']
+	
 	return flask.Response(flask.stream_with_context(req.iter_content(8192)),
 	                      content_type = req.headers['Content-Type'],
 	                      status = req.status_code,
