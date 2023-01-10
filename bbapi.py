@@ -33,9 +33,16 @@ sess = requests.Session()
 sess.headers.update(safe_headers)
 sess.cookies.update(cookies)
 
-"""Get vidio info from BVid"""
+"""Get video info from BVid"""
 def bbapi_info_from_bvid(bvid = default_bvid):
 	req = requests.get('http://api.bilibili.com/x/web-interface/view',
+	                   params = { 'bvid': bvid },
+	                   headers = safe_headers)
+	return req.json()
+
+"""Get subvideos from BVid"""
+def bbapi_subvid_from_bvid(bvid = default_bvid):
+	req = requests.get('http://api.bilibili.com/x/player/pagelist',
 	                   params = { 'bvid': bvid },
 	                   headers = safe_headers)
 	return req.json()

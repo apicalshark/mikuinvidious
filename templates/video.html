@@ -26,7 +26,7 @@
 	<script>window.srcinfo = {};</script>
 	{% for fmt in srcinfo['support_formats'] %}
 	<script type="application/javascript"
-		src="{{ url_for('video_view_info', vid = vidinfo['bvid'], cid = vidinfo['cid'], qn = fmt['quality']) }}"
+		src="{{ url_for('video_view_info', vid = vidinfo['bvid'], cid = cid, qn = fmt['quality']) }}"
 	></script>
 	{% endfor %}
 </head>
@@ -34,10 +34,38 @@
 	{% include 'toolbar.html' %}
 
 	<div class="mdui-container mdui-typo">
-		<video id="video-player" class="mdui-center" width="640" height="360" controls poster="{{ vidinfo['pic'] }}">
-			<source id="video-source" src="/proxy/vid/{{ srcinfo['durl'][0]['url'] }}" type="video/mp4">
-			<p>要观看本视频，您需要先启用 JavaScript 并考虑更新到一个 <a href="https://videojs.com/html5-video-support/" target="_blank">支持 html5 视频的浏览器</a>。</p>
-		</video>
+		<div class="mdui-row" style="display: flex; align-items: stretch;">
+			<!-- Video -->
+			{% if vidinfo['videos'] > 1 %}
+			<div class="mdui-col-sm-9">
+			{% endif %}
+				<video id="video-player" class="mdui-center" width="640" height="360" controls poster="{{ vidinfo['pic'] }}">
+					<source id="video-source" src="/proxy/vid/{{ srcinfo['durl'][0]['url'] }}" type="video/mp4">
+					<p>要观看本视频，您需要先启用 JavaScript 并考虑更新到一个 <a href="https://videojs.com/html5-video-support/" target="_blank">支持 html5 视频的浏览器</a>。</p>
+				</video>
+			{% if vidinfo['videos'] > 1 %}
+			</div>
+			{% endif %}
+
+			<!-- Playlist -->
+			{% if vidinfo['videos'] > 1 %}
+			<div class="mdui-col-sm-3 subvid-col mdui-shadow-8">
+				<ul class="mdui-list clearlr-padding">
+					{% for subvid in subvids %}
+					
+					{% if subvid['cid'] == cid|int %}
+					<li class="mdui-list-item mdui-color-theme">{{ subvid['page'] }}. {{ subvid['part'] }}</li>
+					{% else %}
+					<li class="mdui-list-item mdui-ripple">
+						<a href="/video/{{ vidinfo['bvid'] }}:{{ subvid['cid'] }}">{{ subvid['page'] }}. {{ subvid['part'] }}</a>
+					</li>
+					{% endif %}
+
+					{% endfor %}
+				</ul>
+			</div>
+			{% endif %}
+		</div>
 
 		<h1>{{ vidinfo['title'] }} <small><code>{{ vidinfo['bvid'] }}</code></small></h1>
 

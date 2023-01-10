@@ -117,7 +117,6 @@ def search_page(kw = '', pn = 1):
 		return 'oops', 404
 
 	vids = bbapi_vids_from_kward(kw, pn)
-	print(vids['data'])
 	return flask.render_template('search.html', result = vids['data'], kw = kw)
 
 @app.route('/space/<mid>')
@@ -137,7 +136,9 @@ def member_page(mid, page_num = 1):
 
 @app.route('/video/<vid>')
 @app.route('/video/<vid>/')
-def video_page(vid):
+@app.route('/video/<vid>:<cid>')
+@app.route('/video/<vid>:<cid>:<qn>')
+def video_page(vid, cid = 0, qn = 16):
 	# Convert AVid to BVid to simplify handling.
 	if vid.lower().startswith('av'):
 		vid = av2bv(int(vid[2:]))
@@ -145,6 +146,12 @@ def video_page(vid):
 	vidinfo = bbapi_info_from_bvid(vid)
 	if vidinfo['code'] != 0:
 		return flask.redirect(flask.url_for('error', code = vidinfo['code'], id = vid))	
+
+	subvids = []
+	if vidinfo['data']['videos'] > 1:
+		subvids_result = bbapi_subvid_from_bvid(vid)
+		if subvids_result['code'] == 0:
+			subvids = subvids_result['data']
 
 	relatedvids = bbapi_related_from_bvid(vid)
 	if relatedvids['code'] != 0:
@@ -165,15 +172,17 @@ def video_page(vid):
 
 	if 'qn' in flask.request.args:
 		qn = flask.request.args['qn']
-	else:
-		qn = 16 # 320P
 
-	srcinfo = bbapi_src_from_bvid(vidinfo['data']['cid'], vid, qn)
+	if cid == 0:
+		cid = vidinfo['data']['cid']
+
+	srcinfo = bbapi_src_from_bvid(cid, vid, qn)
 	if srcinfo['code'] != 0:
 		return flask.redirect(flask.url_for('error', code = srcinfo['code'], id = vid))	 
 
 	return flask.render_template('video.html', vidinfo = vidinfo['data'], srcinfo = srcinfo['data'],
-	                             relatedvids = relatedvids['data'], comments = cums['data'])
+	                             relatedvids = relatedvids['data'], comments = cums['data'],
+	                             subvids = subvids, cid = cid)
 
 # Template filiters
 @app.template_filter('date')
