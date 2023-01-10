@@ -44,7 +44,11 @@ def add_cache_control(resp):
 @app.route('/proxy/vid/<path:url>')
 def proxy(url):
 	netloc = urlparse(url).netloc
-	if not (netloc.endswith('.bilivideo.com') or netloc.endswith('-mirrorakam.akamaized.net')):
+
+	if netloc.endswith('-mirrorakam.akamaized.net'):
+		return flask.redirect(url)
+
+	if not netloc.endswith('.bilivideo.com'):
 		return 'bad', 404
 
 	resp_headers = { 'Accept-Ranges': 'bytes', }
@@ -61,7 +65,7 @@ def proxy(url):
 
 	if 'Range' in flask.request.headers and req.status_code == 206:
 		resp_headers['Content-Range'] = req.headers['Content-Range']
-	
+
 	return flask.Response(flask.stream_with_context(req.iter_content(8192)),
 	                      content_type = req.headers['Content-Type'],
 	                      status = req.status_code,
