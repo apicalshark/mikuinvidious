@@ -46,7 +46,8 @@ def proxy(url):
 	netloc = urlparse(url).netloc
 
 	if netloc.endswith('-mirrorakam.akamaized.net'):
-		return flask.redirect(url)
+		rdrt = url + flask.request.url.strip(flask.request.base_url)
+		return flask.redirect(rdrt)
 
 	if not netloc.endswith('.bilivideo.com'):
 		return 'bad', 404
