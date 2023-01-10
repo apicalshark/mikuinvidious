@@ -105,20 +105,20 @@ def video_view_info(vid, cid, qn = 16):
 	return f'window.srcinfo[{qn}] = ' + json.dumps(srcinfo['data']) + ';'
 
 @app.route('/search')
-@app.route('/search/<kwards>')
-def search_page(kwards = None):
-	pn = 1
+@app.route('/search/<kw>')
+@app.route('/search/<kw>:<pn>')
+def search_page(kw = '', pn = 1):
 	if 'pn' in flask.request.args:
 		pn = flask.request.args['pn']
 
 	if 'kwards' in flask.request.args:
-		vids = bbapi_vids_from_kward(flask.request.args['kwards'], pn)
-	elif kwards:
-		vids = bbapi_vids_from_kward(kwards, pn)
-	else:
+		kw = flask.request.args['kwards']
+	elif kw == '':
 		return 'oops', 404
 
-	return flask.render_template('search.html', result=vids['data'])
+	vids = bbapi_vids_from_kward(kw, pn)
+	print(vids['data'])
+	return flask.render_template('search.html', result = vids['data'], kw = kw)
 
 @app.route('/space/<mid>')
 @app.route('/space/<mid>:<page_num>')

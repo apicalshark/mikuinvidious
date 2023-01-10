@@ -26,7 +26,26 @@
 <body class="mdui-theme-primary-pink mdui-theme-layout-auto">
 	{% include 'toolbar.html' %}
 	<div class="mdui-container mdui-typo">
-		<h2>第 {{ result['page'] }} 页，共 {{ result['numPages'] }} 页。</h2>
+		<h2>有关「{{ kw }}」的搜索结果。第 {{ result['page'] }} 页，共 {{ result['numPages'] }} 页。</h2>
+		
+		<div>
+		{% if result['page']-1 != 0 %}
+		<a href="/search/{{ kw }}:{{ result['page'] -1 }}">
+			<button class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme mdui-valign">
+				上一页
+			</button>
+		</a>
+		{% endif %}
+
+		{% if result['page']+1 <= result['numPages'] %}
+		<a href="/search/{{ kw }}:{{ result['page'] +1 }}">
+			<button class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme mdui-valign">
+				下一页
+			</button>
+		</a>
+		{% endif %}
+		</div>
+
 		<div class="mdui-row-xl-8 mdui-row-lg-6 mdui-row-md-4 mdui-col-sm-2" style="padding-top: 2em; width: 100%;">
 			{% for vid in result['result'] %}
 			<div class="mdui-col vidcol">
@@ -46,6 +65,24 @@
 				</div>	
 			</div>
 			{% endfor %}
+		</div>
+
+		<div class="mdui-float-right" style="padding-bottom: 2em;">
+		{% if result['page']-1 != 0 %}
+		<a href="/search/{{ kw }}:{{ result['page'] -1 }}">
+			<button class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme mdui-valign">
+				上一页
+			</button>
+		</a>
+		{% endif %}
+
+		{% if result['page']+1 <= result['numPages'] %}
+		<a href="/search/{{ kw }}:{{ result['page'] +1 }}">
+			<button class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme mdui-valign">
+				下一页
+			</button>
+		</a>
+		{% endif %}
 		</div>
 	</div>
 </body>
