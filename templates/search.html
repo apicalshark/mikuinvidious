@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="referrer" content="never">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>首页 - MikuInvidious</title>
+
+	<!-- MDUI CSS -->
+	<link
+	  rel="stylesheet"
+	  href="https://cdn.jsdelivr.net/npm/mdui@1.0.1/dist/css/mdui.min.css"
+	  integrity="sha384-cLRrMq39HOZdvE0j6yBojO4+1PrHfB7a9l5qLcmRm/fiWXYY+CndJPmyu5FV/9Tw"
+	  crossorigin="anonymous"
+	/>
+
+	<!-- MDUI JavaScript -->
+	<script
+	  src="https://cdn.jsdelivr.net/npm/mdui@1.0.1/dist/js/mdui.min.js"
+	  integrity="sha384-gCMZcshYKOGRX9r6wbDrvF+TcCCswSHFucUzUPwka+Gr+uHgjlYvkABr95TCOz3A"
+	  crossorigin="anonymous"
+	></script>
+
+	<link rel="stylesheet" href="/static/css/search.css" />
+</head>
+<body class="mdui-theme-primary-pink mdui-theme-layout-auto">
+	{% include 'toolbar.html' %}
+	<div class="mdui-container mdui-typo">
+		<h2>第 {{ result['page'] }} 页，共 {{ result['numPages'] }} 页。</h2>
+		<div class="mdui-row-xl-8 mdui-row-lg-6 mdui-row-md-4 mdui-col-sm-2" style="padding-top: 2em; width: 100%;">
+			{% for vid in result['result'] %}
+			<div class="mdui-col vidcol">
+				<div class="mdui-card preview-card">
+					<div class="mdui-card-media">
+						<img class="preview-pic" src="{{ vid['pic'] }}"/>
+						<div class="mdui-card-media-covered mdui-card-media-covered-transparent">
+							<div class="mdui-card-primary">
+								<div class="mdui-card-primary-subtitle">UP：{{ vid['author'] }}</div>
+								<div class="mdui-card-primary-subtitle">播放：{{ vid['play'] }}</div>
+							</div>
+						</div>
+					</div>
+					<div class="mdui-card-actions">
+						<a href="/video/{{ vid['bvid'] }}">{{ vid['title']|safe }}</a>
+					</div>
+				</div>	
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+</body>
+</html>

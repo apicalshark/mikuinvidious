@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<meta name="referrer" content="never">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>{{ vidinfo['title'] }} - MikuInvidious</title>
+	<link rel="stylesheet" href="/static/css/video.css">
+
+	<!-- MDUI CSS -->
+	<link
+	  rel="stylesheet"
+	  href="https://cdn.jsdelivr.net/npm/mdui@1.0.1/dist/css/mdui.min.css"
+	  integrity="sha384-cLRrMq39HOZdvE0j6yBojO4+1PrHfB7a9l5qLcmRm/fiWXYY+CndJPmyu5FV/9Tw"
+	  crossorigin="anonymous"
+	/>
+
+	<!-- MDUI JavaScript -->
+	<script
+	  src="https://cdn.jsdelivr.net/npm/mdui@1.0.1/dist/js/mdui.min.js"
+	  integrity="sha384-gCMZcshYKOGRX9r6wbDrvF+TcCCswSHFucUzUPwka+Gr+uHgjlYvkABr95TCOz3A"
+	  crossorigin="anonymous"
+	></script>
+
+	<script>window.srcinfo = {};</script>
+	{% for fmt in srcinfo['support_formats'] %}
+	<script type="application/javascript"
+		src="{{ url_for('video_view_info', vid = vidinfo['bvid'], cid = vidinfo['cid'], qn = fmt['quality']) }}"
+	></script>
+	{% endfor %}
+</head>
+<body class="mdui-theme-primary-pink mdui-theme-layout-auto">
+	{% include 'toolbar.html' %}
+
+	<div class="mdui-container mdui-typo">
+		<video id="video-player" class="mdui-center" width="640" height="360" controls poster="{{ vidinfo['pic'] }}">
+			<source id="video-source" src="/proxy/vid/{{ srcinfo['durl'][0]['url'] }}" type="video/mp4">
+			<p>要观看本视频，您需要先启用 JavaScript 并考虑更新到一个 <a href="https://videojs.com/html5-video-support/" target="_blank">支持 html5 视频的浏览器</a>。</p>
+		</video>
+
+		<h1>{{ vidinfo['title'] }} <small><code>{{ vidinfo['bvid'] }}</code></small></h1>
+
+		<div class="mdui-row">
+			<div class="mdui-col-sm-2">
+				<div class="mdui-typo-subheading">
+					<!-- Actions -->
+					<a href="https://bilibili.com/video/{{ vidinfo['bvid'] }}/">在哔哩哔哩观看</a>
+					<br/>
+					<a href="/switch">切换 MikuInvidious 实例</a>
+					<br/>
+					<a href="/embed/{{ vidinfo['bvid'] }}">嵌入式播放器</a>
+					<br/>
+					<div class="js-only mdui-hidden">
+						<button class="mdui-btn mdui-color-theme" mdui-menu="{target: '#qnselector'}">切换画质</button>
+						<ul class="mdui-menu" id="qnselector">
+							{% for fmt in srcinfo['support_formats'] %}
+							<li class="mdui-menu-item"><a href="javascript:switch_qn({{ fmt['quality'] }});">{{ fmt['new_description'] }}</a></li>
+							{% endfor %}
+						</ul>
+					</div>
+					<div class="nojs-only">
+						<form>
+						<label for="qn">可用画质：</label>
+						<select name="qn" class="mdui-btn">
+							{% for fmt in srcinfo['support_formats'] %}
+								{% if srcinfo['quality'] != fmt['quality'] %}
+								<option value="{{ fmt['quality'] }}">{{ fmt['new_description'] }}</option>
+								{% else %}
+								<option selected value="{{ fmt['quality'] }}">{{ fmt['new_description'] }}</option>
+								{% endif %}
+							{% endfor %}
+						</select>
+						<input class="mdui-btn mdui-color-theme" type="submit" value="更换画质">
+						</form>
+					</div>
+					<br/>
+					<!-- Infomation -->
+					<i class="mdui-icon material-icons">&#xe8dc;</i> {{ vidinfo['stat']['like'] }} <br/>
+					<i class="mdui-icon material-icons">&#xe885;</i> {{ vidinfo['stat']['favorite'] }} <br/>
+					<i class="mdui-icon material-icons">&#xe263;</i> {{ vidinfo['stat']['coin'] }} <br/>
+					<i class="mdui-icon material-icons">&#xe80d;</i> {{ vidinfo['stat']['coin'] }} <br/>
+				</div>
+			</div>
+
+			<div class="mdui-col-sm-7">
+				<div class="mdui-row">
+					<a href="/space/{{ vidinfo['owner']['mid'] }}">
+						<div class="mdui-chip">
+							<img class="mdui-chip-icon" src="{{ vidinfo['owner']['face'] }}"/>
+							<span class="mdui-chip-title">
+								{{ vidinfo['owner']['name'] }}
+								<code>{{ vidinfo['owner']['mid'] }}</code>
+							</span>
+						</div>
+					</a>
+					<div class="mdui-chip">
+						<span class="mdui-chip-icon mdui-color-theme">
+							<i class="mdui-icon material-icons">high_quality</i>
+						</span>
+						<span class="mdui-chip-title" id="quality-text">
+							{% for fmt in srcinfo['support_formats'] %}
+							{% if srcinfo['quality'] == fmt['quality'] %}
+							{{ fmt['new_description'] }}
+							{% endif %}
+							{% endfor %}
+						</span>
+					</div>
+					<div id="subform">
+						<form>
+							<button class="mdui-btn mdui-btn-raised" style="margin-right: 2em;" disabled>关注</button>
+						</form>
+					</div>
+				</div>
+
+				<h6>投稿于 {{ vidinfo['pubdate']|date }}</h6>
+				<p class="normalspace">{{ vidinfo['desc'] }}</p>
+
+				<div class="mdui-panel" mdui-panel>
+					<div class="mdui-panel-item mdui-panel-item-open">
+						<div class="mdui-panel-item-header">查看总共 {{ vidinfo['stat']['reply'] }} 条评论</div>
+						<div class="mdui-panel-item-body clearlr-padding">
+							<ul class="mdui-list clearlr-padding">
+								{% for comm in comments['replies'] %}
+								{% if not comm['root'] %}
+								<li class="mdui-list-item clearlr-padding">
+									<div class="mdui-card mdui-hoverable" style="width: 100%">
+										<div class="mdui-card-header">
+											<img class="mdui-card-header-avatar" src="{{ comm['member']['avatar'] }}"/>
+											<div class="mdui-card-header-title">
+												<a href="/space/{{ comm['member']['mid'] }}">{{ comm['member']['uname'] }}</a>
+											</div>
+											<div class="mdui-card-header-subtitle">
+												{% set level = comm['member']['level_info']['current_level'] %}
+												{% include 'level.html' %}
+
+												{% if comm['member']['fans_detail'] %}
+												{% set level = comm['member']['fans_detail']['level'] %}
+												{% set medal_name = comm['member']['fans_detail']['medal_name'] %}
+												{% include 'fans.html' %}
+												{% endif %}
+											</div>
+										</div>
+										<div class="mdui-card-content normalspace">{{ comm['content']['message']|safe }}</div>
+									</div>
+								</li>
+								{% endif %}
+								{% endfor %}
+							</ul>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="mdui-col-sm-3">
+				<div class="mdui-row-xl-2 mdui-row-lg-1">
+				<div class="js-only mdui-hidden">
+					<label class="mdui-switch">
+						自动连播：
+						<input type="checkbox" id='autonext-check' onclick="localStorage.setItem('autonext', this.checked ? 'yes' : 'no');"/>
+  						<i class="mdui-switch-icon"></i>
+					</label>
+				</div>
+				<div class="mdui-divider"></div>
+
+				{% for vid in relatedvids %}
+				<div class="mdui-col">
+				<div class="mdui-card relatedvid">
+					<div class="mdui-card-media">
+						<img src="{{ vid['pic'] }}"/>
+						<div class="mdui-card-media-covered mdui-card-media-covered-transparent">
+							<div class="mdui-card-primary">
+								<div class="mdui-card-primary-subtitle">UP: {{ vid['owner']['name'] }}</div>
+								<div class="mdui-card-primary-subtitle">播放：{{ vid['stat']['view'] }}</div>
+							</div>
+						</div>
+					</div>
+					<div class="mdui-card-actions">
+						<a href="/video/av{{ vid['aid'] }}">{{ vid['title'] }}</a>
+					</div>
+				</div>
+				</div>
+				{% endfor %}
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script src="/static/js/video.js"></script>
+</body>
+</html>

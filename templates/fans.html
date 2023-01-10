@@ -1,0 +1,18 @@
+{% if level == 0 %}
+<div class="mdui-chip mdui-color-grey">
+{% elif level == 1 %}
+<div class="mdui-chip mdui-color-cyan">
+{% elif level == 2 %}
+<div class="mdui-chip mdui-color-teal">
+{% elif level == 3 %}
+<div class="mdui-chip mdui-color-light-green">
+{% elif level == 4 %}
+<div class="mdui-chip mdui-color-green">
+{% elif level == 5 %}
+<div class="mdui-chip mdui-color-yellow">
+{% elif level == 6 %}
+<div class="mdui-chip mdui-color-deep-orange">
+{% endif %}
+	<span class="mdui-chip-title">{{ medal_name }}</span>
+	<span class="mdui-chip-icon">{{ level }}</span>
+</div>
