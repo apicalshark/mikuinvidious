@@ -1,0 +1,92 @@
+{% extends 'themes/wayback/base.html' %}
+
+{% block head %}
+<title>搜索 - MikuInvidious</title>
+<meta name="referrer" content="never">
+<link rel="stylesheet" href="/static/themes/wayback/css/search.css">
+{% endblock %}
+
+{% block content %}
+<div class="h-box">
+  搜索类别：
+  <a href="/search?q={{q}}&t=video">[视频]</a>
+  <a href="/search?q={{q}}&t=article">[专栏]</a>
+  <a href="/search?q={{q}}&t=user">[UP主]</a>
+</div>
+
+<div class="h-box">
+  排序方式：
+  <a href="/search?q={{q}}&sort=rank">[综合排序]</a>
+  <a href="/search?q={{q}}&sort=click">[最多点击]</a>
+  <a href="/search?q={{q}}&sort=pubdate">[最新发布]</a>
+  <a href="/search?q={{q}}&sort=dm">[最多弹幕]</a>
+  <a href="/search?q={{q}}&sort=stow">[最多收藏]</a>
+  <a href="/search?q={{q}}&sort=scores">[最多评论]</a>
+</div>
+
+<div class="pure-g h-box v-box">
+  <div class="pure-u-1 pure-u-lg-1-5">
+    {% if sinfo['page'] > 1 %}
+    <a href="/search?q={{q}}&i={{sinfo['page']-1}}&sort={{sort}}">上一页</a>
+    {% endif %}
+  </div>
+  <div class="pure-u-1 pure-u-lg-3-5"></div>
+  <div class="pure-u-1 pure-u-lg-1-5" style="text-align:right">
+    {% if sinfo['numPages'] > sinfo['page'] %}
+    <a href="/search?q={{q}}&i={{sinfo['page']+1}}&sort={{sort}}">下一页</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if sinfo['numResults'] == 0 %}
+<div class="h-box no-results-error">
+    <div>
+        没有搜索到相关视频
+    </div>
+</div>
+{% else %}
+<div class="pure-g">
+  {% for v in rs %}
+  <div class="pure-u-1 pure-u-md-1-4">
+    <div class="h-box">
+      <a style="width:100%" href="/video/{{ v['bvid'] }}">
+        <div class="thumbnail">
+          <img width="320" height="180" loading="lazy" tabindex="-1" class="thumbnail" src="{{ "{}@320w".format(v['pic'])|pic }}" alt="">
+          <p class="length">{{ v['duration'] }}</p>
+        </div>
+        <p dir="auto">
+	  {{ v['title']|safe }}
+	</p>
+      </a>
+
+      <div class="video-card-row flexible">
+        <div class="flex-left"><a href="/space/{{ v['mid'] }}">
+            <p class="channel-name" dir="auto">{{ v['author'] }}</p>
+        </a></div>
+        <div class="flex-right">
+	  <div class="icon-buttons">
+            <a title="在哔哩哔哩上观看" href="https://www.bilibili.com/video/{{ v['bvid'] }}">
+              <i class="icon ion-logo-youtube"></i>
+            </a>
+            <a title="音频模式" href="/video/{{ v['bvid'] }}?listen=1">
+              <i class="icon ion-md-headset"></i>
+            </a>
+	  </div>
+	</div>
+      </div>
+
+      <div class="video-card-row flexible">
+        <div class="flex-left">
+          <p class="video-data" dir="auto">{{ v['pubdate']|date }}</p>
+        </div>
+        <div class="flex-right">
+          <p class="video-data" dir="auto">{{ v['play']|intsep }} 次播放</p>
+        </div>
+      </div>      
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends 'themes/wayback/base.html' %}
+
+{% block head %}
+  <link rel="alternate" href="https://www.bilibili.com/read/{{ cid }}">
+  <meta name="referrer" content="never">
+  <title>专栏 - MikuInvidious</title>
+  <style>
+    @media only screen and (min-width: 600px) {
+	figure > img {
+	    max-width: 55% !important;
+	}
+    }
+    
+    figure > img {
+	max-width: 100%;
+	display: block;
+	margin-left: auto;
+	margin-right: auto;
+	width: auto;
+	height: auto;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="h-box">
+    <h1>
+      {{ arinfo['title'] }}
+    </h1>
+  </div>
+  <div class="h-box">
+    <a href="/space/{{ arinfo['author']['mid'] }}" style="display:block;width:fit-content;width:-moz-fit-content">
+      <div class="channel-profile">
+	<img src="{{ arinfo['author']['face']|pic }}" alt="" />
+	<span id="channel-name">{{ arinfo['author']['name'] }}</span>
+      </div>
+    </a>
+    <p id="published-date">
+      投稿于 {{ arinfo['publish_time']|date }}
+    </p>
+      <i class="icon ion-ios-eye"></i> {{ arinfo['stats']['view']|intsep }}
+      <i class="icon ion-ios-thumbs-up"></i> {{ arinfo['stats']['like']|intsep }}
+      <i class="icon ion-logo-bitcoin"></i> {{ arinfo['stats']['coin']|intsep }}
+      <i class="icon ion-ios-bookmark"></i> {{ arinfo['stats']['favorite']|intsep }}
+      <i class="icon ion-md-share"></i> {{ arinfo['stats']['share']|intsep }}
+  </div>
+  <hr>
+  <div class="typo">
+    {{ article_content|safe }}
+  </div>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends 'themes/wayback/base.html' %}
+
+{% block head %}
+<title>{{ uinfo['name'] }} - MikuInvidious</title>
+<meta name="referrer" content="never">
+<meta name="description" content="{{ uinfo['sign'] }}">
+<meta property="og:site_name" content="MikuInvidious">
+<meta property="og:url" content="{{ site_url }}/space/{{ uinfo['mid'] }}">
+<meta property="og:title" content="{{ uinfo['name'] }}">
+<meta property="og:image" content="{{ uinfo['face']|pic }}">
+<meta property="og:description" content="{{ uinfo['sign'] }}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:url" content="{{ site_url }}/space/{{ uinfo['mid'] }}">
+<meta name="twitter:title" content="{{ uinfo['name'] }}">
+<meta name="twitter:description" content="{{ uinfo['sign'] }}">
+<meta name="twitter:image" content="{{ uinfo['face']|pic }}">
+<link rel="alternate" href="https://space.bilibili.com/{{ uinfo['mid'] }}">
+{% endblock %}
+
+{% block content %}
+<div class="pure-g h-box">
+  <div class="pure-u-2-3">
+    <div class="channel-profile">
+      <img src="{{ uinfo['face']|pic }}" alt="" />
+      <span>{{ uinfo['name'] }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="h-box">
+  <div id="descriptionWrapper">
+    <p><span style="white-space:pre-wrap">{{ uinfo['sign'] }}</span></p>
+  </div>
+</div>
+
+<div class="pure-g h-box">
+  <div class="pure-u-1-2">
+    <div class="pure-u-1 pure-md-1-3">
+      <a href="https://space.bilibili.com/{{ uinfo['mid'] }}">在哔哩哔哩上浏览</a>
+    </div>
+    <div class="pure-u-1 pure-md-1-3">
+      <a href="/space/{{ uinfo['mid'] }}">浏览发布的视频</a>
+    </div>
+  </div>
+</div>
+
+<div class="h-box">
+    <hr>
+</div>
+
+{% if uarts['articles'] %}
+<div class="pure-g h-box v-box">
+  <div class="pure-u-1 pure-u-lg-1-5">
+    {% if uarts['pn'] > 1 %}
+    <a href="/author/{{ uinfo['mid'] }}?i={{ uarts['pn'] - 1 }}">上一页</a>
+    {% endif %}
+  </div>
+  <div class="pure-u-1 pure-u-lg-3-5"></div>
+  <div class="pure-u-1 pure-u-lg-1-5" style="text-align:right">
+    {% if (uarts['pn']+1)*(uarts['ps']) < uarts['count'] %}
+    <a href="/author/{{ uinfo['mid'] }}?i={{ uarts['pn'] + 1 }}">下一页</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="pure-g">
+  {% for a in uarts['articles'] %}
+  <div class="pure-u-1 pure-u-md-1-4">
+    <div class="h-box">
+      <a style="width:100%" href="/read/cv{{ a['id'] }}">
+        <div class="thumbnail">
+          <img width="320" height="180" loading="lazy" tabindex="-1" class="thumbnail" src="{{ "{}@320w".format(a['image_urls'][0])|pic }}" alt="">
+        </div>
+        <p dir="auto">
+	  {{ a['title']|safe }}
+	</p>
+      </a>
+
+      <div class="video-card-row flexible">
+        <div class="flex-left"><a href="/space/{{ a['author']['mid'] }}">
+            <p class="channel-name" dir="auto">{{ a['author']['name'] }}</p>
+        </a></div>
+        <div class="flex-right">
+	  <div class="icon-buttons">
+            <a title="在哔哩哔哩上阅读" href="https://www.bilibili.com/read/cv{{ a['id'] }}">
+              <i class="icon ion-logo-youtube"></i>
+            </a>
+	  </div>
+	</div>
+      </div>
+
+      <div class="video-card-row flexible">
+        <div class="flex-left">
+          <p class="video-data" dir="auto">{{ a['publish_time']|date }}</p>
+        </div>
+        <div class="flex-right">
+          <p class="video-data" dir="auto">{{ a['stats']['view']|intsep }} 次播放</p>
+        </div>
+      </div>      
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

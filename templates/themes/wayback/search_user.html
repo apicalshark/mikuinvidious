@@ -1,0 +1,56 @@
+{% extends 'themes/wayback/base.html' %}
+
+{% block head %}
+<title>搜索 - MikuInvidious</title>
+<meta name="referrer" content="never">
+<link rel="stylesheet" href="/static/themes/wayback/css/search.css">
+{% endblock %}
+
+{% block content %}
+<div class="h-box">
+  搜索类别：
+  <a href="/search?q={{q}}&t=video">[视频]</a>
+  <a href="/search?q={{q}}&t=article">[专栏]</a>
+  <a href="/search?q={{q}}&t=user">[UP主]</a>
+</div>
+
+<div class="h-box">
+  排序方式：
+  <a href="/search?q={{q}}&t=user&sort=fans">[最多粉丝]</a>
+  <a href="/search?q={{q}}&t=user&sort=level">[最高等级]</a>
+</div>
+
+<div class="pure-g h-box v-box">
+  <div class="pure-u-1 pure-u-lg-1-5">
+    {% if sinfo['page'] > 1 %}
+    <a href="/search?q={{q}}&i={{sinfo['page']-1}}&t=user&sort={{ sort or 'fans' }}">上一页</a>
+    {% endif %}
+  </div>
+  <div class="pure-u-1 pure-u-lg-3-5"></div>
+  <div class="pure-u-1 pure-u-lg-1-5" style="text-align:right">
+    {% if sinfo['numPages'] > sinfo['page'] %}
+    <a href="/search?q={{q}}&i={{sinfo['page']+1}}&t=user&{{ sort or 'fans' }}">下一页</a>
+    {% endif %}
+  </div>
+</div>
+
+{% if sinfo['numResults'] == 0 %}
+<div class="h-box no-results-error">
+    <div>
+        没有搜索到相关用户
+    </div>
+</div>
+{% else %}
+<div class="pure-g">
+  {% for u in rs %}
+  <a href="/space/{{ u['mid'] }}" style="margin-bottom: 1em;" class="pure-u-1 pure-u-sm-1-2 pure-u-md-1-3">
+    <div class="channel-profile">
+      <img src="{{ u['upic']|pic }}" alt="">
+      <span>{{ u['uname'] }}</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}

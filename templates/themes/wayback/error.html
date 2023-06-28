@@ -1,0 +1,18 @@
+{% extends 'themes/wayback/base.html' %}
+
+{% block head %}
+<title>错误 - MikuInvidious</title>
+<style>
+  h1, h2, p {
+      text-align: center !important;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div>
+  <h1>{{ status }}</h1>
+  <p><b>{{ desc }}</b></p>
+  <p>{{ suggest or "请检查您的请求。如果您认为这是站点问题，请联系网站管理员。如果您是网站管理员，请考虑在下方的源代码链接中报告问题。" }}</p>
+</div>
+{% endblock %}

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  {% block head %}
+  {% endblock %}
+
+  <link rel="stylesheet" href="/static/themes/wayback/css/pure-min.css">
+  <link rel="stylesheet" href="/static/themes/wayback/css/grids-responsive-min.css">
+  <link rel="stylesheet" href="/static/themes/wayback/css/ionicons.min.css">
+  <link rel="stylesheet" href="/static/themes/wayback/css/default.css">
+
+  <script src="/static/themes/wayback/js/_helpers.js"></script>
+</head>
+<body class="{{ 'dark' if dark_mode else 'light' }}-theme">
+  <span style="display:none" id="dark_mode_pref">{{ 'dark' if dark_mode else 'light' }}</span>
+  <div class="pure-g">
+    <div class="pure-u-1 pure-u-md-2-24"></div>
+
+    <div class="pure-u-1 pure-u-md-20-24" id="contents">
+      <div class="pure-g navbar h-box">
+        <div class="pure-u-1 pure-u-md-4-24">
+          <a href="/" class="index-link pure-menu-heading">MikuInvidious</a>
+        </div>
+
+        <div class="pure-u-1 pure-u-md-12-24 searchbar">
+          <form class="pure-form" action="/search" method="get">
+            <fieldset>
+              <input type="search" id="searchbox" autocomplete="off" autocorrect="off"
+              autocapitalize="none" spellcheck="false" name="q" placeholder="想要搜索点什么？" {{ ('value=%s' % q)  if q else '' }} %>
+            </fieldset>
+          </form>
+        </div>
+
+        <div class="pure-u-1 pure-u-md-8-24 user-field">
+            <div class="pure-u-1-3">
+              <a id="toggle_theme" href="/toggle_theme" class="pure-menu-heading">
+                  <i class="icon ion-ios-moon"></i>
+              </a>
+            </div>
+
+            <div class="pure-u-1-3">
+              <a title="偏好设置" href="/preferences" class="pure-menu-heading">
+                <i class="icon ion-ios-cog"></i>
+              </a>
+            </div>
+        </div>
+      </div>
+
+      {% block content %}
+      {% endblock %}
+
+      <footer>
+        <div class="pure-g">
+            <div class="pure-u-1 pure-u-md-1-3">
+              <span>
+                <i class="icon ion-logo-github"></i>
+                {% if site_modified_source_code_url %}
+                <a href="https://0xacab.org/johnxina/mikuinvidious">原始项目源代码</a>&nbsp;/
+                <a href="{{ site_modified_source_code_url }}">修改后的源代码</a>
+                {% else %}
+                <a href="https://0xacab.org/johnxina/mikuinvidious">源代码</a>
+                {% endif %}
+              </span>
+              <span>
+                  <i class="icon ion-ios-paper"></i>
+                  <a href="https://mi.resrv.org/">文档</a>
+              </span>
+            </div>
+
+            <div class="pure-u-1 pure-u-md-1-3">
+                <span>
+                    <a href="https://0xacab.org/johnxina/mikuinvidious/-/blob/no-masters/LICENSE">自豪地以 AGPLv3 释出</a>
+                </span>
+                <span>
+                    <i class="icon ion-logo-javascript"></i>
+                    <a rel="jslicense" href="/licenses" rel="jslicense">查看 JavaScript 许可证</a>
+                </span>
+                <span>
+                    <i class="icon ion-ios-paper"></i>
+                    <a href="/privacy">隐私条款</a>
+                </span>
+            </div>
+
+            <div class="pure-u-1 pure-u-md-1-3">
+                <span>
+                    <i class="icon ion-ios-wallet"></i>
+                    <a href="https://mi.resrv.org/docs/donate">赞助我们</a>
+                </span>
+                <span>版本信息当前不可用 :-(</span>
+            </div>
+          </div>
+      </footer>
+    </div>
+    <div class="pure-u-1 pure-u-md-2-24"></div>
+  </div>
+
+  <script src="/static/themes/wayback/js/themes.js"></script>
+
+  {% block lowerbody %}
+  {% endblock %}
+</body>
+</html>
