@@ -17,7 +17,7 @@ import requests
 from urllib.parse import urlparse
 
 import asyncio
-from aioflask import request, make_response, redirect, url_for
+from aioflask import request, make_response, redirect, url_for, send_from_directory
 
 import subprocess
 from bs4 import BeautifulSoup
@@ -89,6 +89,15 @@ async def test_view():
     resp = make_response(theme)
     resp.set_cookie('theme', 'default')
     return resp
+
+@app.route('/robots.txt')
+def robots_txt():
+    policy = appconf['site'].get('robots_policy') or 'strict'
+    
+    if policy == 'PLEASE_INDEX_EVERYTHING':
+        return '', 404
+    
+    return send_from_directory(f'static/rules', f'robots_{policy}.txt')
 
 ##########################################
 # Error handling

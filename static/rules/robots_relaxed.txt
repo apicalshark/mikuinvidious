@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /vv/
+Disallow: /space/
+Disallow: /author/
+Disallow: /video_listen/
+Disallow: /video/

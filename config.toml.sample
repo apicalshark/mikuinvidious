@@ -12,6 +12,14 @@ site_allow_download = true
 # This will allow (potentially unsafe) error response to be showed directly on site.
 site_show_unsafe_error_response = false
 
+# This controls whether the search engines will index your site or not.
+# Available options:
+#    - 'strict', indexing is disallowed.
+#	 - 'relexed', search engines can index articles and search page.
+#    - 'PLEASE_INDEX_EVERYTHING', a VERY DANGEROUS option, may give you a lawsuit.
+# Default to 'strict'.
+robots_policy = 'strict'
+
 [flask]
 host = '0.0.0.0'
 
