@@ -80,7 +80,7 @@
         <a href="https://www.bilibili.com/video/{{ vinfo['bvid'] }}">在哔哩哔哩上观看</a>
       </span>
 
-      {% if site_modified_source_code_url %}
+      {% if site_allow_download %}
       <form class="pure-form pure-form-stacked" action="/download" method="post" rel="noopener" target="_blank">
 	<input type="hidden" name="id" value="{{ vinfo['bvid'] }}">
 	<input type="hidden" name="cvid" value="{{ idx }}">
