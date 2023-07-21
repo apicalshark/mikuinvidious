@@ -47,15 +47,21 @@ def article_to_html(article_text):
             continue
 
         if child.name == 'a':
+            if 'href' not in child:
+                continue
+            
             child['href'] = child['href'].split('//')[1].strip('www.bilibili.com')
             continue
         elif child.name == 'img':
-            if appconf['proxy']['image']:
-                child['src'] = '/proxy/pic/' + child['data-src'].split('//')[1]
-            else:
-                child['src'] = child['data-src']
-            del child['data-src']
-            del child['data-size']
+            try:
+                if appconf['proxy']['image']:
+                    child['src'] = '/proxy/pic/' + child['data-src'].split('//')[1]
+                else:
+                    child['src'] = child['data-src']
+                    del child['data-src']
+                    del child['data-size']
+            except:
+                pass
             continue
         elif child.name == 'span' and not child.parent in purge_elems:
             purge_elems.append(child.parent)
