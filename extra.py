@@ -95,7 +95,6 @@ async def video_get_src_for_qn(vi, idx, quality = 16):
     api = Api('https://api.bilibili.com/x/player/playurl', 'GET',
               verify=True, credential=vi.credential)
     api.params={ 'avid': vi.get_aid(), 'cid': cid, 'qn': quality }
-    print(api)
     return await api.request()
 
 async def video_get_dash_for_qn(vi, idx):
