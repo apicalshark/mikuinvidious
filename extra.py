@@ -17,7 +17,7 @@
 
 import subprocess
 
-from bilibili_api.utils.network_httpx import request
+from bilibili_api.utils.network import Api
 from bilibili_api.exceptions import ArgsException
 
 from bs4 import BeautifulSoup
@@ -92,16 +92,19 @@ def article_to_any(article_text, dest_fmt):
 async def video_get_src_for_qn(vi, idx, quality = 16):
     '''Get a specific available source for video.'''
     cid = await vi.get_cid(idx)
-    return await request('GET', 'https://api.bilibili.com/x/player/playurl',
-                         params={ 'avid': vi.get_aid(), 'cid': cid, 'qn': quality },
-                         credential=vi.credential)
+    api = Api('https://api.bilibili.com/x/player/playurl', 'GET',
+              verify=True, credential=vi.credential)
+    api.params={ 'avid': vi.get_aid(), 'cid': cid, 'qn': quality }
+    print(api)
+    return await api.request()
 
 async def video_get_dash_for_qn(vi, idx):
     '''Get a specific available source for video.'''
     cid = await vi.get_cid(idx)
-    return await request('GET', 'https://api.bilibili.com/x/player/playurl',
-                         params={ 'avid': vi.get_aid(), 'cid': cid, 'fnval': '16' },
-                         credential=vi.credential)
+    api = Api('https://api.bilibili.com/x/player/playurl', 'GET',
+              verify=True, json_body=True, credential=vi.credential)
+    api.params = { 'avid': vi.get_aid(), 'cid': cid, 'fnval': '16' }
+    return await api.request()
 
 # The following algorithm is adopted from bilibili-API-collect.
 # https://github.com/SocialSisterYi/bilibili-API-collect/blob/master/other/bvid_desc.md
