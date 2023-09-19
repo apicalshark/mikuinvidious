@@ -19,6 +19,8 @@ from aioflask import request, render_template, Flask
 from flask_caching import Cache
 from bilibili_api import Credential
 
+from refresher import renew_cookies
+
 try:
 	appconf = toml.load('config.toml')
 except FileNotFoundError:
@@ -36,10 +38,22 @@ appcache = Cache(app, config={'CACHE_TYPE': 'RedisCache'})
 
 # Initilize credentials for bilibili API.
 if appconf['credential']['use_cred']:
-    appcred = Credential(sessdata=appconf['credential']['sessdata'],
-                         bili_jct=appconf['credential']['bili_jct'],
-                         buvid3=appconf['credential']['buvid3'],
-                         dedeuserid=appconf['credential']['dedeuserid'])
+    credstore = appconf['updatedcred'] if 'updatedcred' in appconf else \
+        appconf['credential']
+    appcred = Credential(sessdata=credstore['sessdata'],
+                         bili_jct=credstore['bili_jct'],
+                         buvid3=credstore['buvid3'],
+                         dedeuserid=credstore['dedeuserid'],
+                         ac_time_value=credstore['ac_time_value'])
+
+    if renew_cookies(appcred):
+        appconf = toml.load('config.toml')
+        credstore = appconf['updatedcred']
+        appcred = Credential(sessdata=credstore['sessdata'],
+                             bili_jct=credstore['bili_jct'],
+                             buvid3=credstore['buvid3'],
+                             dedeuserid=credstore['dedeuserid'],
+                             ac_time_value=credstore['ac_time_value'])
 else:
     appcred = None
 

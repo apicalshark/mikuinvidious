@@ -37,6 +37,9 @@ bili_jct   = ''
 buvid3     = ''
 dedeuserid = ''
 
+# Refresh token, can be obtained from the main page by examing `window.localStorage.ac_time_value'.
+ac_time_value = ''
+
 [proxy]
 # If your server is located in China, videos and audo-only videos may likely break if not using proxy.
 video = true
