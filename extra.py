@@ -93,7 +93,8 @@ async def video_get_src_for_qn(vi, idx, quality = 16):
     '''Get a specific available source for video.'''
     cid = await vi.get_cid(idx)
     api = Api('https://api.bilibili.com/x/player/playurl', 'GET',
-              verify=True, credential=vi.credential)
+              verify=(not not vi.credential.sessdata),
+              credential=vi.credential)
     api.params={ 'avid': vi.get_aid(), 'cid': cid, 'qn': quality }
     return await api.request()
 
@@ -101,7 +102,9 @@ async def video_get_dash_for_qn(vi, idx):
     '''Get a specific available source for video.'''
     cid = await vi.get_cid(idx)
     api = Api('https://api.bilibili.com/x/player/playurl', 'GET',
-              verify=True, json_body=True, credential=vi.credential)
+              verify=(not not vi.credential.sessdata),
+              json_body=True,
+              credential=vi.credential)
     api.params = { 'avid': vi.get_aid(), 'cid': cid, 'fnval': '16' }
     return await api.request()
 
