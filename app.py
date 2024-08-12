@@ -17,7 +17,7 @@ import requests
 from urllib.parse import urlparse
 
 import asyncio
-from aioflask import request, make_response, redirect, url_for, send_from_directory
+from flask import request, make_response, redirect, url_for, send_from_directory
 
 import subprocess
 from bs4 import BeautifulSoup

@@ -15,7 +15,7 @@
 
 import toml, redis
 
-from aioflask import request, render_template, Flask
+from flask import request, render_template, Flask
 from flask_caching import Cache
 from bilibili_api import Credential
 
@@ -27,7 +27,7 @@ except FileNotFoundError:
 	print('Configuration file not found, maybe you forgot to copy `config.toml.sample\' to `config.toml\'?')
 
 # Connect to our nice redis database.
-appredis = redis.Redis()
+appredis = redis.Redis(**appconf['redis'])
 
 # Initialize the flask app.
 app = Flask('app')
@@ -70,7 +70,7 @@ def detect_theme():
     else:
         return 'default'
 
-def render_template_with_theme(fp, **kwargs):
+async def render_template_with_theme(fp, **kwargs):
     """Render a template with theming support."""
     t = detect_theme()
 

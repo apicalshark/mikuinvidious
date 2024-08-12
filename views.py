@@ -14,7 +14,7 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio, requests
-from aioflask import render_template, request
+from flask import render_template, request
 from bilibili_api import user, video, article, comment, search, homepage, video_zone
 
 from shared import *

@@ -14,7 +14,7 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
-from aioflask import jsonify
+from flask import jsonify
 from danmaku import danmaku_xml_conv
 from xml.dom import minidom
 from bilibili_api import video
@@ -24,4 +24,5 @@ from shared import *
 @app.route('/res/danmaku/<vid>:<idx>')
 async def danmaku_res(vid, idx=0):
     v = video.Video(bvid=vid)
+    print(await v.get_danmaku_xml(int(idx)))
     return jsonify(danmaku_xml_conv(minidom.parseString(await v.get_danmaku_xml(int(idx)))))

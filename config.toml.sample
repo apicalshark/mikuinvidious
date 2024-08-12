@@ -21,10 +21,16 @@ site_show_unsafe_error_response = false
 robots_policy = 'strict'
 
 [flask]
-host = '0.0.0.0'
+# Flask Framework Configuration
 
-# Due to limitation of twisted and flask, this takes up N port and N+1 port.
-# The N port is what you need to use for reverse proxies and so.
+[twisted]
+# Network interface to listen on:
+#    - local only, use 'localhost'
+#    - ipv4 only, use '0.0.0.0'
+#    - both ipv4 or ipv6, use '::'
+host = '::'
+
+# Port to listen. Unlike old versions, only this port is used.
 port = 8888
 
 [credential]
@@ -51,3 +57,9 @@ article_allowed_formats = ['markdown', 'plain', 'html']
 
 [display]
 default_theme = 'wayback'
+
+[redis]
+host = 'localhost'
+port = 6379
+#username = ''
+#password = ''

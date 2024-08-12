@@ -22,9 +22,10 @@ from http.cookies import BaseCookie
 from urllib.parse import quote as urlquote, urlparse, urlunparse
 from twisted.web.http import _QUEUED_SENTINEL, HTTPChannel, HTTPClient, Request
 from twisted.web.resource import Resource
+from twisted.web.wsgi import WSGIResource
 from twisted.web import proxy, server
 from twisted.internet.protocol import ClientFactory
-from twisted.internet import reactor, utils, ssl
+from twisted.internet import reactor, utils, ssl, tcp
 
 plain_cookies = {}
 
@@ -125,10 +126,10 @@ class ReverseProxyResource(Resource):
             request.content.read(),
             request,
         )
-        
+
         self.reactor.connectSSL(domain, 443, clientFactory, ssl.ClientContextFactory())
         return server.NOT_DONE_YET
-        
+
     def render(self, request):
         # Justify the request path.
         req_path = self.path.decode('utf-8')
@@ -139,15 +140,15 @@ class ReverseProxyResource(Resource):
         else:
             request.setResponseCode(418, b'I\'m a teapot')
             return
-                
+
         # Parse and retrive the URL info.
         vid, vidx, vqn = req_path.lstrip('/proxy/video/').split('_')
-        
+
         url = appredis.get(f'mikuinv_{vid}_{vidx}_{vqn}')
         if not url:
             request.setResponseCode(404, b'Not found')
             return
-        
+
         url = url.decode()
         urlp = urlparse(url)
 
@@ -177,7 +178,7 @@ class ReverseProxyResource(Resource):
         )
 
         request.notifyFinish().addErrback(lambda x: clientFactory.doStop())
-        
+
         nethost = urlp.netloc.split(':')[0] if ':' in urlp.netloc else urlp.netloc
         netport = int(urlp.netloc.split(':')[1]) if ':' in urlp.netloc else (80 if urlp.scheme == 'http' else 443)
 
@@ -190,8 +191,19 @@ class ReverseProxyResource(Resource):
 
 ################################################################################
 
-# To start this function for testing: python -c 'import main; main.twisted_start()'
-def twisted_start():
+class MikuInvidiousResource(Resource):
+    isLeaf = True
+
+    def __init__(self):
+        super().__init__()
+        self.wsgi = WSGIResource(reactor, reactor.getThreadPool(), app)
+
+    def render(self, request):
+        if request.uri.startswith(b'/proxy'):
+            return ReverseProxyResource(request.uri).render(request)
+        return self.wsgi.render(request)
+
+def main():
     # Intialize cookies.
     plain_cookies = appconf['credential']
     if plain_cookies['use_cred']:
@@ -203,21 +215,11 @@ def twisted_start():
     else:
         plain_cookies = False
 
-    flask_res = proxy.ReverseProxyResource('127.0.0.1', appconf['flask']['port']+1, b'')
-    flask_res.putChild(b'proxy', ReverseProxyResource(b'/proxy'))
-
-    site = server.Site(flask_res)
-    reactor.listenTCP(appconf['flask']['port'], site)
+    site = server.Site(MikuInvidiousResource())
+    # reactor.listenTCP(appconf['twisted']['port'], site)  # only listens on ipv4
+    port = tcp.Port(appconf['twisted']['port'], site, 50, appconf['twisted']['host'], reactor)
+    port.startListening()
     reactor.run()
 
-# To start this function for testing: python -c 'import main; main.flask_start()'
-def flask_start():
-    appconf['flask']['port'] += 1
-    app.run(**appconf['flask'])
-
-# If we're executed directly, also start the flask daemon.
 if __name__ == '__main__':
-    flask_task = multiprocessing.Process(target=flask_start)
-    flask_task.daemon = True # Exit the child if the parent was killed :-(
-    flask_task.start()
-    twisted_start()
+    main()

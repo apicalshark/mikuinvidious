@@ -3,3 +3,4 @@ venv
 config.toml
 *~
 *.rdb
+.vscode
