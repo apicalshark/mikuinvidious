@@ -4,3 +4,7 @@ config.toml
 *~
 *.rdb
 .vscode
+.env
+
+wgcf/
+warp_data/

@@ -1,0 +1,45 @@
+services:
+  # --- 1. THE WARP TUNNEL (Network Master) ---
+  wgcf:
+    image: neilpang/wgcf-docker:alpine
+    volumes:
+      - ./wgcf:/wgcf
+      - /lib/modules:/lib/modules
+    privileged: true
+    sysctls:
+      net.ipv6.conf.all.disable_ipv6: 0
+    cap_add:
+      - NET_ADMIN
+
+  # --- 2. THE PYTHON APP ---
+  app:
+    build: .
+    container_name: miku_app
+    # This forces the app to use the WARP tunnel for ALL traffic
+    network_mode: "service:wgcf"
+    depends_on:
+      - wgcf
+      - redis
+    restart: always
+    environment:
+      # Site Config
+      - SITE_NAME=MikuInvidious
+      - SITE_URL=http://localhost:8000
+      - FLASK_SECRET_KEY=000000000011111112222223333343453464464633452
+      
+      # Redis connection (it can still find 'redis' by name)
+      - REDIS_URL=redis://redis:6379
+      - NO_PROXY=false
+      
+      # Bilibili Credentials
+      - USE_CRED=false
+      - SESSDATA=
+      - BILI_JCT=
+      - BUVID3=
+      - DEDEUSERID=
+
+  # --- 3. REDIS ---
+  redis:
+    image: redis:alpine
+    container_name: miku_redis
+    restart: always
