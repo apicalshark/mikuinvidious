@@ -8,8 +8,6 @@ httpx
 aiohttp
 redis
 toml
-gunicorn
-uvicorn
 twisted
 service-identity
 pyOpenSSL
