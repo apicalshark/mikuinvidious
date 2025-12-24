@@ -108,6 +108,10 @@ def dl_redirect():
 # Misc
 ##########################################
 
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
 @app.route('/preferences')
 async def pref_view():
     return await render_template_with_theme('pref.html')
