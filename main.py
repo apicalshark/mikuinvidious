@@ -137,11 +137,6 @@ class ReverseProxyResource(Resource):
         if req_path.startswith('/proxy/video/'):
             pass
         elif req_path.startswith('/proxy/pic/'):
-            if not appconf['proxy']['use_proxy']:
-                request.setResponseCode(302)
-                request.setHeader('Location', 'https://' + req_path[11:])
-                return b'Redirecting...'
-
             return self.render_proxy_pic(request, req_path)
         else:
             request.setResponseCode(418, b'I\'m a teapot')
@@ -158,9 +153,8 @@ class ReverseProxyResource(Resource):
         url = url.decode()
         urlp = urlparse(url)
 
-        # Only redirect if it's an Akamai mirror (safe for direct connect).
-        # Otherwise, we MUST proxy to inject headers and avoid 403.
-        if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
+        # Only redirect if Direct Mode is on AND it's a safe Akamai mirror.
+        if not appconf['proxy']['use_proxy'] and urlp.netloc.endswith('-mirrorakam.akamaized.net'):
             request.setResponseCode(302)
             request.setHeader('Location', url)
             return b'Redirecting...'

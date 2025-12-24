@@ -54,12 +54,7 @@ def article_to_html(article_text):
             continue
         elif child.name == 'img':
             try:
-                if appconf['proxy']['use_proxy']:
-                    child['src'] = '/proxy/pic/' + child['data-src'].split('//')[1]
-                else:
-                    child['src'] = child['data-src']
-                    del child['data-src']
-                    del child['data-size']
+                child['src'] = '/proxy/pic/' + child['data-src'].split('//')[1]
             except:
                 pass
             continue

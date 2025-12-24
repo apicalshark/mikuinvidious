@@ -49,7 +49,7 @@ def proxy_main(subpath):
 
         urlp = urlparse(url)
 
-        if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
+        if not appconf['proxy']['use_proxy'] and urlp.netloc.endswith('-mirrorakam.akamaized.net'):
             return Response(status=302, headers={'Location': url})
         
         plain_cookies = appconf['credential']
@@ -68,8 +68,6 @@ def proxy_main(subpath):
         return Response(resp.iter_content(chunk_size=1024), status=resp.status_code, content_type=resp.headers.get('content-type'))
 
     elif req_path.startswith('/proxy/pic/'):
-        if not appconf['proxy']['use_proxy']:
-            return Response(status=302, headers={'Location': f'https://{req_path[11:]}'})
         return render_proxy_pic(req_path)
     else:
         return Response('I\'m a teapot', status=418)
