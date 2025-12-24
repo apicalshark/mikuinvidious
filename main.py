@@ -158,7 +158,7 @@ class ReverseProxyResource(Resource):
         url = url.decode()
         urlp = urlparse(url)
 
-        if not appconf['proxy']['use_proxy']:
+        if not appconf['proxy']['use_proxy'] or urlp.netloc.endswith('-mirrorakam.akamaized.net'):
             request.setResponseCode(302)
             request.setHeader('Location', url)
             return b'Redirecting...'

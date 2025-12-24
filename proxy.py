@@ -49,7 +49,7 @@ def proxy_main(subpath):
 
         urlp = urlparse(url)
 
-        if not appconf['proxy']['use_proxy']:
+        if not appconf['proxy']['use_proxy'] or urlp.netloc.endswith('-mirrorakam.akamaized.net'):
             return Response(status=302, headers={'Location': url})
         
         plain_cookies = appconf['credential']
