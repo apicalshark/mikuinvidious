@@ -122,5 +122,6 @@ async def render_template_with_theme(fp, **kwargs):
     dark_theme = request.cookies.get('dark-theme') == '1'
 
     return render_template(f'themes/{t}/{fp}', dark_mode=dark_theme,
+                           proxy_status=appconf['proxy'],
                            **appconf['site'],
                            **kwargs)
