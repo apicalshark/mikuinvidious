@@ -13,6 +13,11 @@
   <link rel="stylesheet" href="/static/themes/wayback/css/default.css">
 
   <script src="/static/themes/wayback/js/_helpers.js"></script>
+
+  <script>
+    window.va = window.va || function () { (window.va.q = window.va.q || []).push(arguments); };
+  </script>
+  <script src="/_vercel/insights/script.js" defer></script>
 </head>
 <body class="{{ 'dark' if dark_mode else 'light' }}-theme">
   <span style="display:none" id="dark_mode_pref">{{ 'dark' if dark_mode else 'light' }}</span>
