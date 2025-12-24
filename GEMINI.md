@@ -49,4 +49,4 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 - **Theming:** Templates are organized under `templates/themes/`. The default theme is `wayback`.
 - **Static Assets:** Located in `static/`, including customized versions of `video.js` and `danmaku.js`.
 - **Async:** The project uses `flask[async]` and `asyncio` for non-blocking Bilibili API calls. Always use `async def` for view functions that perform I/O.
-- **Proxying:** Video and image proxying is crucial for bypassing geo-restrictions. Ensure Redis is correctly configured as it stores temporary video stream URLs.
+- **Proxying:** Video and image proxying is enabled by default to bypass geo-restrictions. To disable proxying and use direct connections, set the `NO_PROXY` environment variable to `1` or `true`. Ensure Redis is correctly configured as it stores temporary video stream URLs.
