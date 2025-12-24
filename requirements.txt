@@ -4,6 +4,8 @@ Flask_Caching
 bilibili-api-python
 requests
 beautifulsoup4
+httpx
+aiohttp
 redis
 toml
 twisted
