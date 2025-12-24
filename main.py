@@ -158,7 +158,9 @@ class ReverseProxyResource(Resource):
         url = url.decode()
         urlp = urlparse(url)
 
-        if not appconf['proxy']['use_proxy'] or urlp.netloc.endswith('-mirrorakam.akamaized.net'):
+        # Only redirect if it's an Akamai mirror (safe for direct connect).
+        # Otherwise, we MUST proxy to inject headers and avoid 403.
+        if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
             request.setResponseCode(302)
             request.setHeader('Location', url)
             return b'Redirecting...'

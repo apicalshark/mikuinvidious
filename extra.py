@@ -95,7 +95,7 @@ async def video_get_src_for_qn(vi, idx, quality = 16):
     api = Api('https://api.bilibili.com/x/player/playurl', 'GET',
               verify=(not not vi.credential.sessdata),
               credential=vi.credential)
-    api.params={ 'avid': vi.get_aid(), 'cid': cid, 'qn': quality }
+    api.params={ 'avid': vi.get_aid(), 'cid': cid, 'qn': quality, 'platform': 'html5', 'high_quality': 1 }
     return await api.request()
 
 async def video_get_dash_for_qn(vi, idx):
@@ -105,7 +105,7 @@ async def video_get_dash_for_qn(vi, idx):
               verify=(not not vi.credential.sessdata),
               json_body=True,
               credential=vi.credential)
-    api.params = { 'avid': vi.get_aid(), 'cid': cid, 'fnval': '16' }
+    api.params = { 'avid': vi.get_aid(), 'cid': cid, 'fnval': '16', 'platform': 'html5', 'high_quality': 1 }
     return await api.request()
 
 # The following algorithm is adopted from bilibili-API-collect.
