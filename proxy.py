@@ -71,6 +71,8 @@ def proxy_main(subpath):
         return Response(resp.iter_content(chunk_size=1024), status=resp.status_code, content_type=resp.headers.get('content-type'))
 
     elif req_path.startswith('/proxy/pic/'):
+        if not appconf['proxy']['image'] and not session.get('is_admin'):
+            return Response('Forbidden', status=403)
         return render_proxy_pic(req_path)
     else:
         return Response('I\'m a teapot', status=418)

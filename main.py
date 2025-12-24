@@ -137,6 +137,22 @@ class ReverseProxyResource(Resource):
         if req_path.startswith('/proxy/video/'):
             pass
         elif req_path.startswith('/proxy/pic/'):
+            if not appconf['proxy']['image']:
+                is_admin = False
+                cookie = request.getCookie(b'session')
+                if cookie:
+                    try:
+                        session_interface = SecureCookieSessionInterface()
+                        signing_serializer = session_interface.get_signing_serializer(app)
+                        data = signing_serializer.loads(cookie)
+                        if data.get('is_admin'):
+                            is_admin = True
+                    except:
+                        pass
+                
+                if not is_admin:
+                    request.setResponseCode(403)
+                    return b'Forbidden'
             return self.render_proxy_pic(request, req_path)
         else:
             request.setResponseCode(418, b'I\'m a teapot')
