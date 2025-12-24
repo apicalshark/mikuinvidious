@@ -148,7 +148,7 @@ async def video_listen_view(vid, idx=0):
         for attempt in range(5):  # Retry up to 3 times
             vsrc = await video_get_dash_for_qn(v, idx)
 
-            # selected_audio_url = vsrc['dash']['audio'][0]['baseUrl']
+            selected_audio_url = vsrc['dash']['audio'][0]['baseUrl']
             found = False
             # Search for Akamai in the audio list
             for audio in vsrc['dash']['audio']:
