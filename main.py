@@ -153,11 +153,16 @@ class ReverseProxyResource(Resource):
         url = url.decode()
         urlp = urlparse(url)
 
-        # In Direct Mode (use_proxy=False), always redirect video requests.
+        # Direct Mode (use_proxy=False): Only Akamai is allowed (via redirect).
+        # Non-Akamai mirrors are blocked because they require proxying to work.
         if not appconf['proxy']['use_proxy']:
-            request.setResponseCode(302)
-            request.setHeader('Location', url)
-            return b'Redirecting...'
+            if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
+                request.setResponseCode(302)
+                request.setHeader('Location', url)
+                return b'Redirecting...'
+            else:
+                request.setResponseCode(403)
+                return b'Forbidden: Direct connection only allowed for Akamai mirrors. Disable NO_PROXY to use server proxy.'
 
         request.requestHeaders.setRawHeaders(b'host', [urlp.netloc.encode("ascii")])
         if plain_cookies:

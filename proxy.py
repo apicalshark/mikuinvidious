@@ -50,7 +50,10 @@ def proxy_main(subpath):
         urlp = urlparse(url)
 
         if not appconf['proxy']['use_proxy']:
-            return Response(status=302, headers={'Location': url})
+            if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
+                return Response(status=302, headers={'Location': url})
+            else:
+                return Response('Forbidden: Direct connection only allowed for Akamai mirrors.', status=403)
         
         plain_cookies = appconf['credential']
         cookie_jar = {}
