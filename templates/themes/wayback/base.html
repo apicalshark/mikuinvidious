@@ -53,8 +53,8 @@
             </div>
 
             <div class="pure-u-1-5">
-              {% if proxy_status.video %}
-              <a title="视频代理已开启 (Video Proxy On)" class="pure-menu-heading" style="color: #3498db;">
+              {% if proxy_status.video or session.get('is_admin') %}
+              <a title="视频代理已为您的会话开启 (Video Proxy On for your session)" class="pure-menu-heading" style="color: #3498db;">
                 <i class="icon ion-ios-cloud"></i>
               </a>
               {% else %}
@@ -65,8 +65,8 @@
             </div>
 
             <div class="pure-u-1-5">
-              {% if proxy_status.image %}
-              <a title="图片代理已开启 (Image Proxy On)" class="pure-menu-heading" style="color: #3498db;">
+              {% if proxy_status.image or session.get('is_admin') %}
+              <a title="图片代理已为您的会话开启 (Image Proxy On for your session)" class="pure-menu-heading" style="color: #3498db;">
                 <i class="icon ion-ios-camera"></i>
               </a>
               {% else %}
