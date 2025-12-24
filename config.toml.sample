@@ -63,3 +63,9 @@ host = 'localhost'
 port = 6379
 #username = ''
 #password = ''
+
+[admin]
+# Administrator credentials for accessing restricted features
+username = ''
+password = ''
+secret_key = 'CHANGE_THIS_TO_A_RANDOM_SECRET_STRING'

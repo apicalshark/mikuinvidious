@@ -14,7 +14,7 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import requests
-from flask import Blueprint, request, Response
+from flask import Blueprint, request, Response, session
 from urllib.parse import urlparse
 from shared import appredis, appconf
 
@@ -49,7 +49,7 @@ def proxy_main(subpath):
 
         urlp = urlparse(url)
 
-        if not appconf['proxy']['video']:
+        if not appconf['proxy']['video'] and not session.get('is_admin'):
             if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
                 return Response(status=302, headers={'Location': url})
             else:

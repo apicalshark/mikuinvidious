@@ -17,6 +17,7 @@ import multiprocessing
 
 from shared import *
 from app import app
+from flask.sessions import SecureCookieSessionInterface
 
 from http.cookies import BaseCookie
 from urllib.parse import quote as urlquote, urlparse, urlunparse
@@ -153,13 +154,26 @@ class ReverseProxyResource(Resource):
         urlp = urlparse(url)
 
         if not appconf['proxy']['video']:
-            if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
-                request.setResponseCode(302)
-                request.setHeader('Location', url)
-                return b'oops'
-            else:
-                request.setResponseCode(401)
-                return
+            is_admin = False
+            cookie = request.getCookie(b'session')
+            if cookie:
+                try:
+                    session_interface = SecureCookieSessionInterface()
+                    signing_serializer = session_interface.get_signing_serializer(app)
+                    data = signing_serializer.loads(cookie)
+                    if data.get('is_admin'):
+                        is_admin = True
+                except:
+                    pass
+
+            if not is_admin:
+                if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
+                    request.setResponseCode(302)
+                    request.setHeader('Location', url)
+                    return b'oops'
+                else:
+                    request.setResponseCode(401)
+                    return
 
         request.requestHeaders.setRawHeaders(b'host', [urlp.netloc.encode("ascii")])
         if plain_cookies:

@@ -15,10 +15,18 @@
 
 import os
 import redis
+import toml
 from flask import request, render_template, Flask
 from flask_caching import Cache
 from bilibili_api import Credential
 from refresher import renew_cookies
+
+def deep_update(base_dict, update_dict):
+    for key, value in update_dict.items():
+        if isinstance(value, dict) and key in base_dict and isinstance(base_dict[key], dict):
+            deep_update(base_dict[key], value)
+        else:
+            base_dict[key] = value
 
 appconf = {
     "site": {
@@ -54,8 +62,16 @@ appconf = {
         "port": int(os.environ.get("REDIS_PORT", 6379)),
         "username": os.environ.get("REDIS_USERNAME"),
         "password": os.environ.get("REDIS_PASSWORD"),
+    },
+    "admin": {
+        "username": os.environ.get("ADMIN_USERNAME"),
+        "password": os.environ.get("ADMIN_PASSWORD"),
+        "secret_key": os.environ.get("FLASK_SECRET_KEY", os.urandom(24).hex()),
     }
 }
+
+if os.path.exists('config.toml'):
+    deep_update(appconf, toml.load('config.toml'))
 
 # Connect to our nice redis database.
 appredis = redis.Redis(

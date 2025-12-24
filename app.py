@@ -17,7 +17,7 @@ import requests
 from urllib.parse import urlparse
 
 import asyncio
-from flask import request, make_response, redirect, url_for, send_from_directory
+from flask import request, make_response, redirect, url_for, send_from_directory, session
 
 import subprocess
 from bs4 import BeautifulSoup
@@ -31,6 +31,32 @@ from proxy import proxy_bp
 
 import traceback
 from bilibili_api import exceptions
+
+app.secret_key = appconf['admin']['secret_key']
+
+@app.route('/login', methods=['GET', 'POST'])
+def login_view():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        if (appconf['admin']['username'] and 
+            username == appconf['admin']['username'] and 
+            password == appconf['admin']['password']):
+            session['is_admin'] = True
+            return redirect('/')
+        return 'Invalid credentials', 401
+    return '''
+        <form method="post">
+            <p><input type=text name=username placeholder=Username>
+            <p><input type=password name=password placeholder=Password>
+            <p><input type=submit value=Login>
+        </form>
+    '''
+
+@app.route('/logout')
+def logout_view():
+    session.pop('is_admin', None)
+    return redirect('/')
 
 app.register_blueprint(proxy_bp)
 
