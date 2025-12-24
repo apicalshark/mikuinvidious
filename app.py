@@ -27,9 +27,12 @@ from views import *
 from res import *
 from filters import *
 from extra import video_get_src_for_qn, video_get_dash_for_qn, bv2av, av2bv
+from proxy import proxy_bp
 
 import traceback
 from bilibili_api import exceptions
+
+app.register_blueprint(proxy_bp)
 
 ##########################################
 # APIs

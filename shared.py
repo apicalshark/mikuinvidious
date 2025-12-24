@@ -13,49 +13,79 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import toml, redis
-
+import os
+import redis
 from flask import request, render_template, Flask
 from flask_caching import Cache
 from bilibili_api import Credential
-
 from refresher import renew_cookies
 
-try:
-	appconf = toml.load('config.toml')
-except FileNotFoundError:
-	print('Configuration file not found, maybe you forgot to copy `config.toml.sample\' to `config.toml\'?')
+appconf = {
+    "site": {
+        "site_name": os.environ.get("SITE_NAME", "MikuInvidious"),
+        "site_url": os.environ.get("SITE_URL", "https://example.org"),
+        "site_modified_source_code_url": os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "false").lower() == "true",
+        "site_allow_download": os.environ.get("SITE_ALLOW_DOWNLOAD", "true").lower() == "true",
+        "site_show_unsafe_error_response": os.environ.get("SITE_SHOW_UNSAFE_ERROR_RESPONSE", "false").lower() == "true",
+        "robots_policy": os.environ.get("ROBOTS_POLICY", "strict"),
+    },
+    "flask": {},
+    "credential": {
+        "use_cred": os.environ.get("USE_CRED", "false").lower() == "true",
+        "sessdata": os.environ.get("SESSDATA"),
+        "bili_jct": os.environ.get("BILI_JCT"),
+        "buvid3": os.environ.get("BUVID3"),
+        "dedeuserid": os.environ.get("DEDEUSERID"),
+        "ac_time_value": os.environ.get("AC_TIME_VALUE"),
+    },
+    "proxy": {
+        "video": os.environ.get("PROXY_VIDEO", "true").lower() == "true",
+        "image": os.environ.get("PROXY_IMAGE", "true").lower() == "true",
+    },
+    "render": {
+        "use_pandoc": os.environ.get("USE_PANDOC", "false").lower() == "true",
+        "article_allowed_formats": os.environ.get("ARTICLE_ALLOWED_FORMATS", "markdown,plain,html").split(","),
+    },
+    "display": {
+        "default_theme": os.environ.get("DEFAULT_THEME", "wayback"),
+    },
+    "redis": {
+        "host": os.environ.get("REDIS_HOST", "localhost"),
+        "port": int(os.environ.get("REDIS_PORT", 6379)),
+        "username": os.environ.get("REDIS_USERNAME"),
+        "password": os.environ.get("REDIS_PASSWORD"),
+    }
+}
 
 # Connect to our nice redis database.
-appredis = redis.Redis(**appconf['redis'])
+appredis = redis.Redis(
+    host=appconf['redis']['host'], 
+    port=appconf['redis']['port'], 
+    username=appconf['redis']['username'], 
+    password=appconf['redis']['password'], 
+    decode_responses=True
+)
 
 # Initialize the flask app.
 app = Flask('app')
 app.config.from_mapping(appconf['flask'])
 
 # And also configure the flask_cache module.
-appcache = Cache(app, config={'CACHE_TYPE': 'RedisCache'})
+appcache = Cache(app, config={'CACHE_TYPE': 'RedisCache', 'CACHE_REDIS': appredis})
 
-# Initilize credentials for bilibili API.
+# Initialize credentials for bilibili API.
+appcred = None
 if appconf['credential']['use_cred']:
-    credstore = appconf['updatedcred'] if 'updatedcred' in appconf else \
-        appconf['credential']
-    appcred = Credential(sessdata=credstore['sessdata'],
-                         bili_jct=credstore['bili_jct'],
-                         buvid3=credstore['buvid3'],
-                         dedeuserid=credstore['dedeuserid'],
-                         ac_time_value=credstore['ac_time_value'])
-
-    if renew_cookies(appcred):
-        appconf = toml.load('config.toml')
-        credstore = appconf['updatedcred']
-        appcred = Credential(sessdata=credstore['sessdata'],
-                             bili_jct=credstore['bili_jct'],
-                             buvid3=credstore['buvid3'],
-                             dedeuserid=credstore['dedeuserid'],
-                             ac_time_value=credstore['ac_time_value'])
-else:
-    appcred = None
+    credstore = appconf['credential']
+    appcred = Credential(
+        sessdata=credstore['sessdata'],
+        bili_jct=credstore['bili_jct'],
+        buvid3=credstore['buvid3'],
+        dedeuserid=credstore['dedeuserid'],
+        ac_time_value=credstore['ac_time_value']
+    )
+    # Note: The automatic cookie refresher which writes to config.toml is not compatible with a serverless environment.
+    # You will need to manually update your credential environment variables when they expire.
 
 ##########################################
 # Util functions
@@ -63,24 +93,15 @@ else:
 
 def detect_theme():
     """Determine the theme of the users' request."""
-    if theme := request.args.get('theme'):
-        return theme
-    elif theme := request.cookies.get('theme'):
-        return theme
-    else:
-        return 'default'
+    theme = request.args.get('theme') or request.cookies.get('theme') or appconf['display']['default_theme']
+    return theme
 
 async def render_template_with_theme(fp, **kwargs):
     """Render a template with theming support."""
     t = detect_theme()
 
-    if dark_theme := request.cookies.get('dark-theme'):
-        dark_theme = int(dark_theme)
-    else:
-        dark_theme = False
+    dark_theme = request.cookies.get('dark-theme') == '1'
 
-    if t == 'default':
-        t = appconf['display']['default_theme']
     return render_template(f'themes/{t}/{fp}', dark_mode=dark_theme,
                            **appconf['site'],
                            **kwargs)
