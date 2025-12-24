@@ -2,6 +2,8 @@ flask[async]
 werkzeug
 Flask_Caching
 bilibili-api-python
+requests
+beautifulsoup4
 redis
 toml
 twisted
