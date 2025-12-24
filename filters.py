@@ -35,7 +35,7 @@ def __jinja2_filter_secdur(delta_t):
 # Convert a url of a photo asset to MikuInvidious proxy url.
 @app.template_filter('pic')
 def __jinja2_filter_pic(url):
-        if appconf['proxy']['image']:        
+        if appconf['proxy']['use_proxy']:        
                 return '/proxy/pic/' + url.split('//')[1]
         else:
                 return url.replace('http://', 'https://')

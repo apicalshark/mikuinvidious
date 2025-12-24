@@ -40,45 +40,33 @@
         </div>
 
         <div class="pure-u-1 pure-u-md-8-24 user-field">
-            <div class="pure-u-1-{{ '3' if proxy_status.no_proxy else '5' }}">
+            <div class="pure-u-1-{{ '5' if proxy_status.use_proxy else '3' }}">
               <a id="toggle_theme" href="/toggle_theme" class="pure-menu-heading">
                   <i class="icon ion-ios-moon"></i>
               </a>
             </div>
 
-            <div class="pure-u-1-{{ '3' if proxy_status.no_proxy else '5' }}">
+            <div class="pure-u-1-{{ '5' if proxy_status.use_proxy else '3' }}">
               <a title="偏好设置" href="/preferences" class="pure-menu-heading">
                 <i class="icon ion-ios-cog"></i>
               </a>
             </div>
 
-            {% if not proxy_status.no_proxy %}
+            {% if proxy_status.use_proxy %}
             <div class="pure-u-1-5">
-              {% if proxy_status.video or session.get('is_admin') %}
               <a title="视频会话开启" class="pure-menu-heading" style="color: #3498db;">
                 <i class="icon ion-ios-cloud"></i>
               </a>
-              {% else %}
-              <a title="视频会话已关闭" class="pure-menu-heading">
-                <i class="icon ion-ios-cloud-outline"></i>
-              </a>
-              {% endif %}
             </div>
 
             <div class="pure-u-1-5">
-              {% if proxy_status.image or session.get('is_admin') %}
               <a title="图片会话开启" class="pure-menu-heading" style="color: #3498db;">
                 <i class="icon ion-ios-camera"></i>
               </a>
-              {% else %}
-              <a title="图片会话已关闭 (Image Proxy Off)" class="pure-menu-heading">
-                <i class="icon ion-ios-camera-outline"></i>
-              </a>
-              {% endif %}
             </div>
             {% endif %}
 
-            <div class="pure-u-1-{{ '3' if proxy_status.no_proxy else '5' }}">
+            <div class="pure-u-1-{{ '5' if proxy_status.use_proxy else '3' }}">
               {% if session.get('is_admin') %}
               <a title="登出" href="/logout" class="pure-menu-heading">
                 <i class="icon ion-ios-log-out"></i>

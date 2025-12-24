@@ -48,8 +48,7 @@ ac_time_value = ''
 
 [proxy]
 # If your server is located in China, videos and audo-only videos may likely break if not using proxy.
-video = true
-image = true
+use_proxy = true
 
 [render]
 use_pandoc = false

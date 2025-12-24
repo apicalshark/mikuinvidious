@@ -137,27 +137,11 @@ class ReverseProxyResource(Resource):
         if req_path.startswith('/proxy/video/'):
             pass
         elif req_path.startswith('/proxy/pic/'):
-            if appconf['proxy']['no_proxy']:
+            if not appconf['proxy']['use_proxy']:
                 request.setResponseCode(302)
                 request.setHeader('Location', 'https://' + req_path[11:])
                 return b'Redirecting...'
 
-            if not appconf['proxy']['image']:
-                is_admin = False
-                cookie = request.getCookie(b'session')
-                if cookie:
-                    try:
-                        session_interface = SecureCookieSessionInterface()
-                        signing_serializer = session_interface.get_signing_serializer(app)
-                        data = signing_serializer.loads(cookie)
-                        if data.get('is_admin'):
-                            is_admin = True
-                    except:
-                        pass
-                
-                if not is_admin:
-                    request.setResponseCode(403)
-                    return b'Forbidden'
             return self.render_proxy_pic(request, req_path)
         else:
             request.setResponseCode(418, b'I\'m a teapot')
@@ -174,32 +158,10 @@ class ReverseProxyResource(Resource):
         url = url.decode()
         urlp = urlparse(url)
 
-        if appconf['proxy']['no_proxy']:
+        if not appconf['proxy']['use_proxy']:
             request.setResponseCode(302)
             request.setHeader('Location', url)
             return b'Redirecting...'
-
-        if not appconf['proxy']['video']:
-            is_admin = False
-            cookie = request.getCookie(b'session')
-            if cookie:
-                try:
-                    session_interface = SecureCookieSessionInterface()
-                    signing_serializer = session_interface.get_signing_serializer(app)
-                    data = signing_serializer.loads(cookie)
-                    if data.get('is_admin'):
-                        is_admin = True
-                except:
-                    pass
-
-            if not is_admin:
-                if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
-                    request.setResponseCode(302)
-                    request.setHeader('Location', url)
-                    return b'oops'
-                else:
-                    request.setResponseCode(401)
-                    return
 
         request.requestHeaders.setRawHeaders(b'host', [urlp.netloc.encode("ascii")])
         if plain_cookies:
