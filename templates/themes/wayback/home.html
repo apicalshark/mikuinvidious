@@ -11,6 +11,14 @@
   <h1>嘿，这里是 MikuInvidious！<small>MikuInvidious 是自由的哔哩哔哩前端。</small></h1>
   <p>要把哔哩哔哩链接转换成 MikuInvidious，你需要把 <code>www.bilibili.com</code> 和 <code>b23.tv</code> 替换成 MikuInvidious 实例的域名。</p>
   <p>个人空间需要把 <code>space.bilibili.com</code> 后的数字粘贴到实例域名 + <code>/space/</code> 后面。</p>
+  <p>
+    <i class="icon ion-ios-information-circle-outline"></i>
+    {% if not proxy_status.use_proxy %}
+    <b>直接连接模式已开启：</b>视频将优先从 Akamai 镜像站加载，从而节省服务器带宽并提供更快的速度。
+    {% else %}
+    <b>服务器代理模式已开启：</b>所有视频流量都将通过本服务器进行中转。
+    {% endif %}
+  </p>
 </div>
 
 <hr>
