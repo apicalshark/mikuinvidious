@@ -1,35 +1,49 @@
 services:
-  # --- 1. THE WARP TUNNEL (Network Master) ---
+  # --- 1. THE WARP TUNNEL & PROXY SERVER ---
   wgcf:
     image: neilpang/wgcf-docker:alpine
+    container_name: miku_wgcf
+    restart: always
     volumes:
-      - ./wgcf:/wgcf
+      - ./wgcf_data:/wgcf
       - /lib/modules:/lib/modules
     privileged: true
-    sysctls:
-      net.ipv6.conf.all.disable_ipv6: 0
     cap_add:
       - NET_ADMIN
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+    # We inject 'gost' into the neilpang image to create the HTTP Proxy bridge
+    entrypoint: >
+      sh -c "
+      apk add --no-cache curl &&
+      curl -L https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-linux-amd64-2.11.5.gz | gunzip > /usr/bin/gost &&
+      chmod +x /usr/bin/gost &&
+      /usr/bin/gost -L :1080 & 
+      /entrypoint.sh -4
+      "
 
   # --- 2. THE PYTHON APP ---
   app:
     build: .
     container_name: miku_app
-    # This forces the app to use the WARP tunnel for ALL traffic
-    network_mode: "service:wgcf"
+    restart: always
+    ports:
+      - "8000:8000"
     depends_on:
       - wgcf
       - redis
-    restart: always
     environment:
-      # Site Config
+      # Site Configuration
       - SITE_NAME=MikuInvidious
       - SITE_URL=http://localhost:8000
-      - FLASK_SECRET_KEY=000000000011111112222223333343453464464633452
+      - FLASK_SECRET_KEY=yoursecretkey12345
       
-      # Redis connection (it can still find 'redis' by name)
+      # PROXY CONFIGURATION (Points to the 'wgcf' service)
+      - HTTP_PROXY=http://wgcf:1080
+      - HTTPS_PROXY=http://wgcf:1080
+      
+      # Redis Configuration
       - REDIS_URL=redis://redis:6379
-      - NO_PROXY=false
       
       # Bilibili Credentials
       - USE_CRED=false
