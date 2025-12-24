@@ -46,6 +46,18 @@
                 <i class="icon ion-ios-cog"></i>
               </a>
             </div>
+
+            <div class="pure-u-1-3">
+              {% if session.get('is_admin') %}
+              <a title="登出" href="/logout" class="pure-menu-heading">
+                <i class="icon ion-ios-log-out"></i>
+              </a>
+              {% else %}
+              <a title="登录" href="/login" class="pure-menu-heading">
+                <i class="icon ion-ios-person"></i>
+              </a>
+              {% endif %}
+            </div>
         </div>
       </div>
 
