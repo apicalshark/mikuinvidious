@@ -145,7 +145,7 @@ async def video_listen_view(vid, idx=0):
 
     # Store the download urls for proxies to use.
     if not appredis.exists(f'mikuinv_{vid}_{idx}_0'):
-        for attempt in range(3):  # Retry up to 3 times
+        for attempt in range(5):  # Retry up to 3 times
             vsrc = await video_get_dash_for_qn(v, idx)
             selected_audio_url = vsrc['dash']['audio'][0]['baseUrl']
         
@@ -162,7 +162,7 @@ async def video_listen_view(vid, idx=0):
         
             # If not found and not on the last attempt, wait briefly before trying again
             if attempt < 2:
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
         
 
     return await render_template_with_theme('video_listen.html', vid=vid, vinfo=vinfo, vrelated=vrelated[:10], vcomments=vcomments,
