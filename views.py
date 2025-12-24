@@ -146,7 +146,12 @@ async def video_listen_view(vid, idx=0):
     # Store the download urls for proxies to use.
     if not appredis.exists(f'mikuinv_{vid}_{idx}_0'):
         vsrc = await video_get_dash_for_qn(v, idx)
-        appredis.setex(f'mikuinv_{vid}_{idx}_0', 1800, vsrc['dash']['audio'][0]['baseUrl'])
+        selected_audio_url = vsrc['dash']['audio'][0]['baseUrl']
+        for audio in vsrc['dash']['audio']:
+            if 'akamai' in audio['baseUrl'] or 'akamaized.net' in audio['baseUrl']:
+                selected_audio_url = audio['baseUrl']
+                break
+        appredis.setex(f'mikuinv_{vid}_{idx}_0', 1800, selected_audio_url)
 
     return await render_template_with_theme('video_listen.html', vid=vid, vinfo=vinfo, vrelated=vrelated[:10], vcomments=vcomments,
                                             keywords = ','.join(map(lambda x: x['tag_name'], vtags)), ato=ato, idx=idx, vset=vset)
@@ -176,7 +181,13 @@ async def video_view(vid, idx=0):
     if not appredis.exists(f'mikuinv_{vid}_{idx}_16'):
         for vsrc in await asyncio.gather(*[video_get_src_for_qn(v, idx, fmt['quality']) for fmt in v_supported_src]):
             qn = vsrc['quality']
-            appredis.setex(f'mikuinv_{vid}_{idx}_{qn}', 1800, vsrc['durl'][0]['url'])
+            # Prioritize Akamai mirrors for better direct connection compatibility
+            selected_url = vsrc['durl'][0]['url']
+            for durl in vsrc['durl']:
+                if 'akamai' in durl['url'] or 'akamaized.net' in durl['url']:
+                    selected_url = durl['url']
+                    break
+            appredis.setex(f'mikuinv_{vid}_{idx}_{qn}', 1800, selected_url)
         for vsrc in v_supported_src:
             qn = vsrc['quality']
             if not appredis.exists(f'mikuinv_{vid}_{idx}_{qn}'):
