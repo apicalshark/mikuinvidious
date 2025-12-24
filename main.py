@@ -153,8 +153,8 @@ class ReverseProxyResource(Resource):
         url = url.decode()
         urlp = urlparse(url)
 
-        # Only redirect if Direct Mode is on AND it's a safe Akamai mirror.
-        if not appconf['proxy']['use_proxy'] and urlp.netloc.endswith('-mirrorakam.akamaized.net'):
+        # In Direct Mode (use_proxy=False), always redirect video requests.
+        if not appconf['proxy']['use_proxy']:
             request.setResponseCode(302)
             request.setHeader('Location', url)
             return b'Redirecting...'
