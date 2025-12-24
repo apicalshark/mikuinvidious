@@ -137,7 +137,7 @@ class ReverseProxyResource(Resource):
         if req_path.startswith('/proxy/video/'):
             pass
         elif req_path.startswith('/proxy/pic/'):
-            if not appconf['proxy']['image']:
+            if not appconf['proxy']['image'] or appconf['proxy']['no_proxy']:
                 is_admin = False
                 cookie = request.getCookie(b'session')
                 if cookie:
@@ -150,7 +150,7 @@ class ReverseProxyResource(Resource):
                     except:
                         pass
                 
-                if not is_admin:
+                if not is_admin or appconf['proxy']['no_proxy']:
                     request.setResponseCode(403)
                     return b'Forbidden'
             return self.render_proxy_pic(request, req_path)
@@ -169,7 +169,7 @@ class ReverseProxyResource(Resource):
         url = url.decode()
         urlp = urlparse(url)
 
-        if not appconf['proxy']['video']:
+        if not appconf['proxy']['video'] or appconf['proxy']['no_proxy']:
             is_admin = False
             cookie = request.getCookie(b'session')
             if cookie:
@@ -182,7 +182,7 @@ class ReverseProxyResource(Resource):
                 except:
                     pass
 
-            if not is_admin:
+            if not is_admin or appconf['proxy']['no_proxy']:
                 if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
                     request.setResponseCode(302)
                     request.setHeader('Location', url)

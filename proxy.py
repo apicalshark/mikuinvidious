@@ -49,7 +49,7 @@ def proxy_main(subpath):
 
         urlp = urlparse(url)
 
-        if not appconf['proxy']['video'] and not session.get('is_admin'):
+        if (not appconf['proxy']['video'] and not session.get('is_admin')) or appconf['proxy']['no_proxy']:
             if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
                 return Response(status=302, headers={'Location': url})
             else:
@@ -71,7 +71,7 @@ def proxy_main(subpath):
         return Response(resp.iter_content(chunk_size=1024), status=resp.status_code, content_type=resp.headers.get('content-type'))
 
     elif req_path.startswith('/proxy/pic/'):
-        if not appconf['proxy']['image'] and not session.get('is_admin'):
+        if (not appconf['proxy']['image'] and not session.get('is_admin')) or appconf['proxy']['no_proxy']:
             return Response('Forbidden', status=403)
         return render_proxy_pic(req_path)
     else:

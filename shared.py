@@ -47,8 +47,9 @@ appconf = {
         "ac_time_value": os.environ.get("AC_TIME_VALUE"),
     },
     "proxy": {
-        "video": os.environ.get("PROXY_VIDEO", "true").lower() == "true",
-        "image": os.environ.get("PROXY_IMAGE", "true").lower() == "true",
+        "video": os.environ.get("PROXY_VIDEO", "true").lower() == "true" and not os.environ.get("NO_PROXY"),
+        "image": os.environ.get("PROXY_IMAGE", "true").lower() == "true" and not os.environ.get("NO_PROXY"),
+        "no_proxy": os.environ.get("NO_PROXY") is not None,
     },
     "render": {
         "use_pandoc": os.environ.get("USE_PANDOC", "false").lower() == "true",
