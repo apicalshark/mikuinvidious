@@ -18,8 +18,7 @@ services:
       apk add --no-cache curl &&
       curl -L https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-linux-amd64-2.11.5.gz | gunzip > /usr/bin/gost &&
       chmod +x /usr/bin/gost &&
-      /usr/bin/gost -L :1080 & 
-      /entrypoint.sh -4
+      /usr/bin/gost -L :1080 & /entry.sh
       "
 
   # --- 2. THE PYTHON APP ---
