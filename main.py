@@ -150,7 +150,8 @@ class ReverseProxyResource(Resource):
             request.setResponseCode(404, b'Not found')
             return
 
-        url = url.decode()
+        if isinstance(url, bytes):
+            url = url.decode()
         urlp = urlparse(url)
 
         # Direct Mode (use_proxy=False): Only Akamai is allowed (via redirect).

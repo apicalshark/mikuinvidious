@@ -38,6 +38,10 @@ appconf = {
         "robots_policy": os.environ.get("ROBOTS_POLICY", "strict"),
     },
     "flask": {},
+    "twisted": {
+        "host": os.environ.get("TWISTED_HOST", "0.0.0.0"),
+        "port": int(os.environ.get("TWISTED_PORT", 8888)),
+    },
     "credential": {
         "use_cred": os.environ.get("USE_CRED", "false").lower() == "true",
         "sessdata": os.environ.get("SESSDATA"),

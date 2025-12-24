@@ -27,7 +27,7 @@ services:
     container_name: miku_app
     restart: always
     ports:
-      - "8000:8000"
+      - "8000:8888"
     depends_on:
       - wgcf
       - redis
@@ -43,6 +43,7 @@ services:
       
       # Redis Configuration
       - REDIS_URL=redis://redis:6379
+      - NO_PROXY=0
       
       # Bilibili Credentials
       - USE_CRED=false
