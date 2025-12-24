@@ -145,24 +145,13 @@ async def video_listen_view(vid, idx=0):
 
     # Store the download urls for proxies to use.
     if not appredis.exists(f'mikuinv_{vid}_{idx}_0'):
-        for attempt in range(5):  # Retry up to 3 times
-            vsrc = await video_get_dash_for_qn(v, idx)
-
-            selected_audio_url = vsrc['dash']['audio'][0]['baseUrl']
-            found = False
-            # Search for Akamai in the audio list
-            for audio in vsrc['dash']['audio']:
-                if 'akamai' in audio['baseUrl'] or 'akamaized.net' in audio['baseUrl']:
-                    selected_audio_url = audio['baseUrl']
-                    appredis.setex(f'mikuinv_{vid}_{idx}_0', 1800, selected_audio_url)
-                    found = True
-                    break
-
-            # If not found and not on the last attempt, wait briefly before trying again
-            if attempt < 2 and not found:
-                await asyncio.sleep(2)
-            else:
+        vsrc = await video_get_dash_for_qn(v, idx)
+        selected_audio_url = vsrc['dash']['audio'][0]['baseUrl']
+        for audio in vsrc['dash']['audio']:
+            if 'akamai' in audio['baseUrl'] or 'akamaized.net' in audio['baseUrl']:
+                selected_audio_url = audio['baseUrl']
                 break
+        appredis.setex(f'mikuinv_{vid}_{idx}_0', 1800, selected_audio_url)
         
 
     return await render_template_with_theme('video_listen.html', vid=vid, vinfo=vinfo, vrelated=vrelated[:10], vcomments=vcomments,
