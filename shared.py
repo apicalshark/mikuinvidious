@@ -74,13 +74,16 @@ if os.path.exists('config.toml'):
     deep_update(appconf, toml.load('config.toml'))
 
 # Connect to our nice redis database.
-appredis = redis.Redis(
-    host=appconf['redis']['host'], 
-    port=appconf['redis']['port'], 
-    username=appconf['redis']['username'], 
-    password=appconf['redis']['password'], 
-    decode_responses=True
-)
+if os.environ.get("REDIS_URL"):
+    appredis = redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+else:
+    appredis = redis.Redis(
+        host=appconf['redis']['host'],
+        port=appconf['redis']['port'],
+        username=appconf['redis']['username'],
+        password=appconf['redis']['password'],
+        decode_responses=True
+    )
 
 # Initialize the flask app.
 app = Flask('app')
