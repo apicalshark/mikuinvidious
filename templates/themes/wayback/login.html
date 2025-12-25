@@ -1,0 +1,29 @@
+{% extends 'themes/wayback/base.html' %}
+
+{% block head %}
+<title>登录 - MikuInvidious</title>
+{% endblock %}
+
+{% block content %}
+<div class="h-box">
+  <h1 style="text-align:center">Login</h1>
+  {% if error %}
+  <p style="color:red;text-align:center">{{ error }}</p>
+  {% endif %}
+  <form class="pure-form pure-form-aligned" method="post" style="text-align:center">
+      <fieldset>
+          <div class="pure-control-group">
+              <label for="username">Username</label>
+              <input type="text" id="username" name="username" placeholder="Username">
+          </div>
+          <div class="pure-control-group">
+              <label for="password">Password</label>
+              <input type="password" id="password" name="password" placeholder="Password">
+          </div>
+          <div class="pure-controls">
+              <button type="submit" class="pure-button pure-button-primary">Login</button>
+          </div>
+      </fieldset>
+  </form>
+</div>
+{% endblock %}

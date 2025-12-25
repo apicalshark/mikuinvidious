@@ -1,25 +1,32 @@
 services:
-  # --- 1. THE WARP TUNNEL & PROXY SERVER ---
-  wgcf:
-    image: neilpang/wgcf-docker:alpine
-    container_name: miku_wgcf
+  warp:
+    image: caomingjun/warp
+    container_name: warp
     restart: always
-    volumes:
-      - ./wgcf_data:/wgcf
-      - /lib/modules:/lib/modules
-    privileged: true
+    # add removed rule back (https://github.com/opencontainers/runc/pull/3468)
+    device_cgroup_rules:
+      - 'c 10:200 rwm'
+    ports:
+      - "1080:1080"
+    environment:
+      - WARP_SLEEP=2
+      # - WARP_LICENSE_KEY= # optional
+      # - WARP_ENABLE_NAT=1 # enable nat
     cap_add:
+      # Docker already have them, these are for podman users
+      - MKNOD
+      - AUDIT_WRITE
+      # additional required cap for warp, both for podman and docker
       - NET_ADMIN
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=0
-    # We inject 'gost' into the neilpang image to create the HTTP Proxy bridge
-    entrypoint: >
-      sh -c "
-      apk add --no-cache curl &&
-      curl -L https://github.com/ginuerzh/gost/releases/download/v2.12.0/gost-linux-amd64-2.12.0.gz | gunzip > /usr/bin/gost &&
-      chmod +x /usr/bin/gost &&
-      /usr/bin/gost -L=:8118 & /entry.sh -4
-      "
+      - net.ipv4.conf.all.src_valid_mark=1
+      # uncomment for nat
+      # - net.ipv4.ip_forward=1
+      # - net.ipv6.conf.all.forwarding=1
+      # - net.ipv6.conf.all.accept_ra=2
+    volumes:
+      - /data:/var/lib/cloudflare-warp
 
   # --- 2. THE PYTHON APP ---
   app:
@@ -29,7 +36,7 @@ services:
     ports:
       - "8000:8888"
     depends_on:
-      - wgcf
+      - warp
       - redis
     environment:
       # Site Configuration
@@ -37,9 +44,9 @@ services:
       - SITE_URL=http://localhost:8000
       - FLASK_SECRET_KEY=yoursecretkey12345
       
-      # PROXY CONFIGURATION (Points to the 'wgcf' service)
-      - HTTP_PROXY=http://wgcf:8118
-      - HTTPS_PROXY=http://wgcf:8118
+      # PROXY CONFIGURATION
+      - HTTP_PROXY=socks5://warp:1080
+      - HTTPS_PROXY=socks5://warp:1080
       
       # Redis Configuration
       - REDIS_URL=redis://redis:6379

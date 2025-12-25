@@ -1,0 +1,45 @@
+{% extends 'themes/modern/base.html' %}
+
+{% block head %}
+<title>JavaScript Licenses - MikuInvidious</title>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto space-y-6">
+  <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-8 md:p-12 shadow-sm ring-1 ring-surface-variant/20">
+    <h1 class="text-3xl font-bold text-on-surface mb-6">JavaScript 许可证信息</h1>
+    <p class="text-on-surface-variant mb-8">
+      本站使用的自由 JavaScript 软件的许可证信息如下。
+    </p>
+
+    <div class="overflow-x-auto rounded-xl border border-surface-variant/30">
+      <table id="jslicense-labels1" class="w-full text-left text-sm">
+        <thead class="bg-surface-variant/20 text-on-surface font-bold">
+          <tr>
+            <th class="p-4 border-b border-surface-variant/30">脚本文件</th>
+            <th class="p-4 border-b border-surface-variant/30">许可证</th>
+            <th class="p-4 border-b border-surface-variant/30">源代码</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-surface-variant/20 bg-surface dark:bg-surface-variant/10 text-on-surface-variant">
+          <tr class="hover:bg-surface-variant/10 transition-colors">
+            <td class="p-4"><a href="/static/vjs/video.min.js" class="text-primary hover:underline">video.min.js</a></td>
+            <td class="p-4"><a href="http://www.apache.org/licenses/LICENSE-2.0" class="text-primary hover:underline">Apache-2.0-only</a></td>
+            <td class="p-4"><a href="/static/vjs/video.min.js" class="text-primary hover:underline">/static/vjs/video.min.js</a></td>
+          </tr>
+          <tr class="hover:bg-surface-variant/10 transition-colors">
+            <td class="p-4"><a href="/static/vjs/videojs-resolution-switcher.js" class="text-primary hover:underline">videojs-resolution-switcher.js</a></td>
+            <td class="p-4"><a href="http://www.apache.org/licenses/LICENSE-2.0" class="text-primary hover:underline">Apache-2.0-only</a></td>
+            <td class="p-4"><a href="/static/vjs/videojs-resolution-switcher.js" class="text-primary hover:underline">/static/vjs/videojs-resolution-switcher.js</a></td>
+          </tr>
+          <tr class="hover:bg-surface-variant/10 transition-colors">
+            <td class="p-4"><a href="/static/danmakujs/danmaku.min.js" class="text-primary hover:underline">danmaku.min.js</a></td>
+            <td class="p-4"><a href="http://www.jclark.com/xml/copying.txt" class="text-primary hover:underline">Expat</a></td>
+            <td class="p-4"><a href="https://github.com/weizhenye/Danmaku/archive/refs/tags/v2.0.6.tar.gz" class="text-primary hover:underline">v2.0.6.tar.gz</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

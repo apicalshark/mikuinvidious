@@ -11,3 +11,6 @@ toml
 twisted
 service-identity
 pyOpenSSL
+pysocks
+aiohttp-socks
+httpx[socks]

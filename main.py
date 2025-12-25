@@ -14,6 +14,7 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import multiprocessing
+import struct
 
 from shared import *
 from app import app
@@ -25,10 +26,105 @@ from twisted.web.http import _QUEUED_SENTINEL, HTTPChannel, HTTPClient, Request
 from twisted.web.resource import Resource
 from twisted.web.wsgi import WSGIResource
 from twisted.web import proxy, server
-from twisted.internet.protocol import ClientFactory
+from twisted.internet.protocol import ClientFactory, Protocol
 from twisted.internet import reactor, utils, ssl, tcp
 
 plain_cookies = {}
+
+################################################################################
+# SOCKS5 Proxy Implementation
+################################################################################
+
+class Socks5Client(Protocol):
+    def __init__(self, host, port, original_factory, context_factory=None):
+        self.host = host
+        self.port = port
+        self.original_factory = original_factory
+        self.context_factory = context_factory
+        self.state = 0 # 0: Init, 1: Connecting, 2: Connected
+        self._buffer = b''
+        self.protocol = None
+
+    def connectionMade(self):
+        # 1. Send Hello (Version 5, 1 auth method: No Auth)
+        self.transport.write(b'\x05\x01\x00')
+
+    def dataReceived(self, data):
+        if self.state == 2:
+            if self.protocol:
+                self.protocol.dataReceived(data)
+            return
+
+        self._buffer += data
+        
+        if self.state == 0:
+            if len(self._buffer) < 2: return
+            ver, method = self._buffer[0], self._buffer[1]
+            self._buffer = self._buffer[2:]
+            
+            if ver != 5 or method != 0:
+                self.transport.loseConnection()
+                return
+            
+            # 2. Request Connect
+            # VER CMD RSV ATYP DST.ADDR DST.PORT
+            # ATYP: 0x03 (Domain name)
+            host_bytes = self.host.encode()
+            req = b'\x05\x01\x00\x03' + bytes([len(host_bytes)]) + host_bytes + struct.pack('!H', self.port)
+            self.transport.write(req)
+            self.state = 1
+            
+        elif self.state == 1:
+            if len(self._buffer) < 4: return
+            ver, rep, rsv, atyp = self._buffer[0], self._buffer[1], self._buffer[2], self._buffer[3]
+            
+            resp_len = 4
+            if atyp == 1: resp_len += 6 # IPv4
+            elif atyp == 3: 
+                if len(self._buffer) < 5: return
+                resp_len += 1 + self._buffer[4] + 2
+            elif atyp == 4: resp_len += 18 # IPv6
+            
+            if len(self._buffer) < resp_len: return
+            
+            # Consume response
+            extra_data = self._buffer[resp_len:]
+            self._buffer = b''
+            
+            if rep != 0:
+                self.transport.loseConnection()
+                return
+            
+            # Handshake success.
+            self.state = 2
+            
+            # If TLS is required, start it now over the tunnel
+            if self.context_factory:
+                self.transport.startTLS(self.context_factory)
+            
+            # Build the wrapped protocol
+            self.protocol = self.original_factory.buildProtocol(self.transport.getPeer())
+            self.protocol.makeConnection(self.transport)
+            
+            if extra_data:
+                self.protocol.dataReceived(extra_data)
+
+    def connectionLost(self, reason):
+        if self.protocol:
+            self.protocol.connectionLost(reason)
+
+class Socks5ClientFactory(ClientFactory):
+    def __init__(self, host, port, original_factory, context_factory=None):
+        self.host = host
+        self.port = port
+        self.original_factory = original_factory
+        self.context_factory = context_factory
+
+    def buildProtocol(self, addr):
+        return Socks5Client(self.host, self.port, self.original_factory, self.context_factory)
+
+    def clientConnectionFailed(self, connector, reason):
+        self.original_factory.clientConnectionFailed(connector, reason)
 
 ################################################################################
 # Modified Dynamic Proxy (from twisted)
@@ -107,6 +203,30 @@ class ReverseProxyResource(Resource):
             self.reactor
         )
 
+    def _connect_to_remote(self, host, port, factory, context_factory=None):
+        proxy_url = os.environ.get('HTTP_PROXY')
+        use_socks = False
+        socks_host = ''
+        socks_port = 1080
+
+        if appconf['proxy']['use_proxy'] and proxy_url and proxy_url.startswith('socks5://'):
+             try:
+                 use_socks = True
+                 p = urlparse(proxy_url)
+                 socks_host = p.hostname
+                 socks_port = p.port or 1080
+             except:
+                 use_socks = False
+
+        if use_socks:
+             sf = Socks5ClientFactory(host, port, factory, context_factory)
+             self.reactor.connectTCP(socks_host, socks_port, sf)
+        else:
+             if context_factory:
+                 self.reactor.connectSSL(host, port, factory, context_factory)
+             else:
+                 self.reactor.connectTCP(host, port, factory)
+
     def render_proxy_pic(self, request, req_path):
         req_path = req_path[11:]
         domain = req_path.split('/')[0]
@@ -128,7 +248,7 @@ class ReverseProxyResource(Resource):
             request,
         )
 
-        self.reactor.connectSSL(domain, 443, clientFactory, ssl.ClientContextFactory())
+        self._connect_to_remote(domain, 443, clientFactory, ssl.ClientContextFactory())
         return server.NOT_DONE_YET
 
     def render(self, request):
@@ -186,10 +306,11 @@ class ReverseProxyResource(Resource):
         nethost = urlp.netloc.split(':')[0] if ':' in urlp.netloc else urlp.netloc
         netport = int(urlp.netloc.split(':')[1]) if ':' in urlp.netloc else (80 if urlp.scheme == 'http' else 443)
 
-        if urlp.scheme == 'http':
-            self.reactor.connectTCP(nethost, netport, clientFactory)
-        elif urlp.scheme == 'https':
-            self.reactor.connectSSL(nethost, netport, clientFactory, ssl.ClientContextFactory())
+        context_factory = None
+        if urlp.scheme == 'https':
+            context_factory = ssl.ClientContextFactory()
+        
+        self._connect_to_remote(nethost, netport, clientFactory, context_factory)
 
         return server.NOT_DONE_YET
 

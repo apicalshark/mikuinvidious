@@ -217,37 +217,6 @@ div.watched-indicator {
   display: inline;
 }
 
-.searchbar .pure-form fieldset { padding: 0; }
-
-.searchbar input[type="search"] {
-	width: 100%;
-	margin: 1px;
-
-	border: 1px solid;
-	border-color: rgba(0,0,0,0);
-	border-bottom-color: #CCC;
-	border-radius: 0;
-
-	box-shadow: none;
-	-webkit-appearance: none;
-}
-
-.searchbar input[type="search"]:focus {
-	margin: 0;
-	border: 2px solid;
-	border-color: rgba(0,0,0,0);
-	border-bottom-color: #FED;
-}
-
-/* https://stackoverflow.com/a/55170420 */
-input[type="search"]::-webkit-search-cancel-button {
-  -webkit-appearance: none;
-  height: 14px;
-  width: 14px;
-  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAeCAYAAAA7MK6iAAAAn0lEQVR42u3UMQrDMBBEUZ9WfQqDmm22EaTyjRMHAlM5K+Y7lb0wnUZPIKHlnutOa+25Z4D++MRBX98MD1V/trSppLKHqj9TTBWKcoUqffbUcbBBEhTjBOV4ja4l4OIAZThEOV6jHO8ARXD+gPPvKMABinGOrnu6gTNUawrcQKNCAQ7QeTxORzle3+sDfjJpPCqhJh7GixZq4rHcc9l5A9qZ+WeBhgEuAAAAAElFTkSuQmCC);
-  background-size: 14px;
-}
-
 .user-field {
   display: flex;
   flex-direction: row;
@@ -361,29 +330,29 @@ span > select {
  * Light theme
  */
 
-.light-theme a:hover,
-.light-theme a:active,
-.light-theme summary:hover {
+html:not(.dark) a:hover,
+html:not(.dark) a:active,
+html:not(.dark) summary:hover {
   color: #075A9E !important;
 }
 
-.light-theme a.pure-button-primary:hover {
+html:not(.dark) a.pure-button-primary:hover {
   color: #fff !important;
 }
 
-.light-theme a {
+html:not(.dark) a {
   color: #335d7a;
   text-decoration: none;
 }
 
 /* All links that do not fit with the default color goes here */
-.light-theme a:not([data-id]) > .icon,
-.light-theme .pure-u-lg-1-5 > .h-box > a[href^="/watch?"],
-.light-theme .playlist-restricted > ol > li > a {
+html:not(.dark) a:not([data-id]) > .icon,
+html:not(.dark) .pure-u-lg-1-5 > .h-box > a[href^="/watch?"],
+html:not(.dark) .playlist-restricted > ol > li > a {
   color: #303030;
 }
 
-.light-theme .pure-menu-heading {
+html:not(.dark) .pure-menu-heading {
   color: #565d64;
 }
 
@@ -410,7 +379,7 @@ span > select {
     color: #303030;
   }
 
-  .light-theme .pure-menu-heading {
+  html:not(.dark) .pure-menu-heading {
     color: #565d64;
   }
 }
@@ -419,43 +388,38 @@ span > select {
  * Dark theme
  */
 
-.dark-theme a:hover,
-.dark-theme a:active,
-.dark-theme summary:hover {
+.dark a:hover,
+.dark a:active,
+.dark summary:hover {
   color: rgb(0, 182, 240);
 }
 
-.dark-theme a {
+.dark a {
   color: #a0a0a0;
   text-decoration: none;
 }
 
-body.dark-theme {
+html.dark body {
   background-color: rgba(35, 35, 35, 1);
   color: #f0f0f0;
 }
 
-.dark-theme .pure-form legend {
+.dark .pure-form legend {
   color: #f0f0f0;
 }
 
-.dark-theme .pure-menu-heading {
+.dark .pure-menu-heading {
   color: #f0f0f0;
 }
 
-.dark-theme input,
-.dark-theme select,
-.dark-theme textarea {
+.dark input,
+.dark select,
+.dark textarea {
   color: rgba(35, 35, 35, 1);
 }
 
-.dark-theme .pure-form input[type="file"] {
+.dark .pure-form input[type="file"] {
   color: #f0f0f0;
-}
-
-.dark-theme .searchbar input {
-  /* background-color: inherit; */
-  color: inherit;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -490,11 +454,6 @@ body.dark-theme {
 
   .no-theme .pure-form input[type="file"] {
     color: #f0f0f0;
-  }
-
-  .no-theme .searchbar input {
-    /* background-color: inherit; */
-    color: inherit;
   }
 }
 
@@ -569,9 +528,9 @@ p,
 }
 
 /* Select all the music items except the first one */
-/* .music-item + .music-item {
-  border-top: 1px solid #181818;
-} */
+.music-item + .music-item {
+  border-top: 1px solid #ffffff;
+}
 
 /* Center the "invidious" logo on the search page */
 #logo > h1 { text-align: center; }

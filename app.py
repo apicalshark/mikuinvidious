@@ -35,7 +35,7 @@ from bilibili_api import exceptions
 app.secret_key = appconf['admin']['secret_key']
 
 @app.route('/login', methods=['GET', 'POST'])
-def login_view():
+async def login_view():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
@@ -44,14 +44,8 @@ def login_view():
             password == appconf['admin']['password']):
             session['is_admin'] = True
             return redirect('/')
-        return 'Invalid credentials', 401
-    return '''
-        <form method="post">
-            <p><input type=text name=username placeholder=Username>
-            <p><input type=password name=password placeholder=Password>
-            <p><input type=submit value=Login>
-        </form>
-    '''
+        return await render_template_with_theme('login.html', error='Invalid credentials'), 401
+    return await render_template_with_theme('login.html')
 
 @app.route('/logout')
 def logout_view():

@@ -1,0 +1,79 @@
+{% extends 'themes/modern/base.html' %}
+
+{% block head %}
+<title>分区 - MikuInvidious</title>
+<meta name="referrer" content="never">
+{% endblock %}
+
+{% block content %}
+<div class="mb-8 flex items-center justify-between">
+    <div class="flex items-center gap-4">
+         <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+             <i class="icon ion-ios-albums text-2xl"></i>
+         </div>
+         <h1 class="text-2xl md:text-3xl font-bold text-on-surface">{{ info['archives'][0]['tname'] }}</h1>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+  {% for v in info['archives'] %}
+  <div class="group bg-surface dark:bg-surface-variant/20 rounded-2xl overflow-hidden hover:bg-surface-variant/30 flex flex-col transition-all duration-300 hover:shadow-[0_0_20px_rgba(156,65,116,0.15)] dark:hover:shadow-[0_0_20px_rgba(255,177,218,0.1)] hover:-translate-y-1">
+    <!-- Thumbnail -->
+    <a href="/video/{{ v['bvid'] }}" class="relative block aspect-video overflow-hidden">
+        <img loading="lazy" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="{{ "{}@320w".format(v['pic'])|pic }}" alt="">
+        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        <p class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg font-medium shadow-sm">{{ v['duration']|secdur }}</p>
+    </a>
+    
+    <!-- Content -->
+    <div class="p-4 flex flex-col flex-grow">
+        <a href="/video/{{ v['bvid'] }}" class="block mb-3">
+            <p dir="auto" class="font-bold text-base text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+              {{ v['title']|safe }}
+            </p>
+        </a>
+
+        <div class="mt-auto space-y-3">
+            <div class="flex justify-between items-center text-xs text-on-surface-variant">
+                <a href="/space/{{ v['mid'] }}" class="hover:text-primary truncate max-w-[65%] flex items-center gap-1.5 transition-colors">
+                    <div class="w-5 h-5 rounded-full bg-surface-variant/50 flex items-center justify-center">
+                        <i class="icon ion-ios-person text-sm"></i>
+                    </div>
+                    <span dir="auto" class="font-medium">{{ v['author'] }}</span>
+                </a>
+                
+                <div class="flex gap-3">
+                    <a title="在哔哩哔哩上观看" href="https://www.bilibili.com/video/{{ v['bvid'] }}" class="text-on-surface-variant/70 hover:text-red-500 transition-colors">
+                      <i class="icon ion-logo-youtube text-lg"></i>
+                    </a>
+                    <a title="音频模式" href="/video/{{ v['bvid'] }}?listen=1" class="text-on-surface-variant/70 hover:text-primary transition-colors">
+                      <i class="icon ion-md-headset text-lg"></i>
+                    </a>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
+                <p dir="auto">{{ v['pubdate']|date }}</p>
+                <p dir="auto">{{ v['stat']['view']|intsep }} 次播放</p>
+            </div>
+        </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Pagination -->
+<div class="mt-10 flex items-center justify-center gap-4">
+    {% if info['page']['num'] > 1 %}
+    <a href="/vv/{{ info['archives'][0]['tid'] }}?i={{info['page']['num']-1}}" class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
+        <i class="icon ion-ios-arrow-back"></i> 上一页
+    </a>
+    {% endif %}
+    
+    {% if (info['page']['num']+1)*(info['page']['size']) < info['page']['count'] %}
+    <a href="/vv/{{ info['archives'][0]['tid'] }}?i={{info['page']['num']+1}}" class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
+        下一页 <i class="icon ion-ios-arrow-forward"></i>
+    </a>
+    {% endif %}
+</div>
+{% endblock %}
