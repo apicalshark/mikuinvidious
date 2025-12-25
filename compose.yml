@@ -16,9 +16,9 @@ services:
     entrypoint: >
       sh -c "
       apk add --no-cache curl &&
-      curl -L https://github.com/ginuerzh/gost/releases/download/v2.11.5/gost-linux-amd64-2.11.5.gz | gunzip > /usr/bin/gost &&
+      curl -L https://github.com/ginuerzh/gost/releases/download/v2.12.0/gost-linux-amd64-2.12.0.gz | gunzip > /usr/bin/gost &&
       chmod +x /usr/bin/gost &&
-      /usr/bin/gost -L :1080 & /entry.sh -4
+      /usr/bin/gost -L=:8118 & /entry.sh -4
       "
 
   # --- 2. THE PYTHON APP ---
@@ -38,8 +38,8 @@ services:
       - FLASK_SECRET_KEY=yoursecretkey12345
       
       # PROXY CONFIGURATION (Points to the 'wgcf' service)
-      - HTTP_PROXY=http://wgcf:1080
-      - HTTPS_PROXY=http://wgcf:1080
+      - HTTP_PROXY=http://wgcf:8118
+      - HTTPS_PROXY=http://wgcf:8118
       
       # Redis Configuration
       - REDIS_URL=redis://redis:6379
