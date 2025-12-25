@@ -140,7 +140,7 @@
             </div>
 
             <!-- Description -->
-            <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed whitespace-pre-wrap break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
+            <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed  break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
                 {{ vinfo['desc'] }}
             </div>
         </div>
@@ -165,7 +165,7 @@
                          <a href="/space/{{ rep['member']['mid'] }}" class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
                          <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
                     </div>
-                    <p class="text-sm text-on-surface-variant leading-relaxed whitespace-pre-wrap break-words">{{ rep['content']['message'] }}</p>
+                    <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message'] }}</p>
                     <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
                         <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
                     </div>

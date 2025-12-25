@@ -19,7 +19,7 @@
 
 {% block content %}
 <!-- Profile Header -->
-<div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-10 mb-8 shadow-sm relative overflow-hidden ring-1 ring-surface-variant/20">
+<div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-10 mb-8 shadow-sm relative overflow-hidden ">
     <!-- Decorative Background/Pattern could go here -->
     <div class="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-primary/10 to-secondary/10"></div>
 
@@ -36,7 +36,7 @@
                 <p class="text-sm font-mono text-on-surface-variant opacity-70">MID: {{ uinfo['mid'] }}</p>
             </div>
             
-            <div class="bg-surface-variant/20 rounded-xl p-4 text-on-surface-variant text-sm whitespace-pre-wrap leading-relaxed max-w-3xl">
+            <div class="bg-surface-variant/20 rounded-xl p-4 text-on-surface-variant text-sm  leading-relaxed max-w-3xl">
                 {{ uinfo['sign'] or "这个人很懒，什么都没有写。" }}
             </div>
 
