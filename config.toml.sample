@@ -55,7 +55,7 @@ use_pandoc = false
 article_allowed_formats = ['markdown', 'plain', 'html']
 
 [display]
-default_theme = 'wayback'
+default_theme = 'modern'
 
 [redis]
 host = 'localhost'
