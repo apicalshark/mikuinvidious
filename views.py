@@ -18,7 +18,7 @@ from flask import render_template, request
 from bilibili_api import user, video, article, comment, search, homepage, video_zone
 
 from shared import *
-from extra import video_get_src_for_qn, video_get_dash_for_qn, bv2av, av2bv, article_to_html, article_to_any
+from extra import video_get_src_for_qn, video_get_dash_for_qn, bv2av, av2bv, article_to_html, article_to_any, get_article_info
 
 @app.route('/licenses')
 async def static_licenses_view():
@@ -120,12 +120,26 @@ async def read_view(cid):
     else:
         ar = article.Article(cid[2:])
         try:
-            return await render_template_with_theme('read.html', cid=cid, arinfo = (await ar.get_all())['readInfo'], article_content=article_to_html(req.text))
-        except TypeError:
+            # Use INITIAL_STATE for most info as bilibili_api's get_all is broken
+            arinfo = get_article_info(req.text, cid)
+            
+            # Supplement with get_info() for stats if possible
+            try:
+                api_info = await ar.get_info()
+                if api_info.get('stats'):
+                    arinfo['stats'].update(api_info['stats'])
+                if api_info.get('title') and not arinfo['title']:
+                    arinfo['title'] = api_info['title']
+            except:
+                pass
+
+            return await render_template_with_theme('read.html', cid=cid, arinfo = arinfo, article_content=article_to_html(req.text))
+        except Exception as e:
+            print(f"Error rendering article: {e}")
             return await render_template_with_theme('error.html',
                                                     status='没有找到文章',
-                                                    desc='文章不存在',
-                                                    sg = '这很可能说明您访问的文章不存在，请检查您的请求。'), 404
+                                                    desc='文章不存在或解析错误',
+                                                    sg = '這很可能說明您訪問的文章不存在，請檢查您的請求。'), 404
 
 @app.route('/video_listen/<vid>')
 @app.route('/video_listen/<vid>:<idx>')

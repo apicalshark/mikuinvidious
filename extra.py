@@ -20,14 +20,97 @@ import subprocess
 from bilibili_api.utils.network import Api
 from bilibili_api.exceptions import ArgsException
 
+import requests, re, json
+
 from bs4 import BeautifulSoup
 
 from shared import appconf
+
+def get_article_info(article_text, cid):
+    '''Extract article info from INITIAL_STATE in HTML.'''
+    pattern = re.compile(r'window\.__INITIAL_STATE__\s*=\s*({.*?});', re.DOTALL)
+    match = pattern.search(article_text)
+    
+    arinfo = {
+        'title': '',
+        'author': {'mid': 0, 'face': '', 'name': ''},
+        'publish_time': 0,
+        'stats': {'view': 0, 'like': 0, 'coin': 0, 'favorite': 0, 'share': 0}
+    }
+
+    if match:
+        state = json.loads(match.group(1))
+        detail = state.get('detail', {})
+        
+        # Try to find modules
+        modules = detail.get('modules', [])
+        for module in modules:
+            m_type = module.get('module_type')
+            if m_type == 'MODULE_TYPE_TITLE':
+                arinfo['title'] = module.get('module_title', {}).get('text', '')
+            elif m_type == 'MODULE_TYPE_AUTHOR':
+                author = module.get('module_author', {})
+                arinfo['author']['mid'] = author.get('mid')
+                arinfo['author']['name'] = author.get('name')
+                arinfo['author']['face'] = author.get('face')
+                arinfo['publish_time'] = author.get('pub_ts', 0)
+            elif m_type == 'MODULE_TYPE_STAT':
+                stat = module.get('module_stat', {})
+                arinfo['stats']['like'] = stat.get('like', {}).get('count', 0)
+                arinfo['stats']['coin'] = stat.get('coin', {}).get('count', 0)
+                arinfo['stats']['favorite'] = stat.get('favorite', {}).get('count', 0)
+                arinfo['stats']['share'] = stat.get('forward', {}).get('count', 0) # forward is share?
+
+        if not arinfo['title'] and 'basic' in detail:
+            arinfo['title'] = detail['basic'].get('title', '').replace(' - 哔哩哔哩', '')
+        
+        if not arinfo['author']['mid'] and 'basic' in detail:
+            arinfo['author']['mid'] = detail['basic'].get('uid', 0)
+
+    return arinfo
 
 '''Format the result returned by cv link.'''
 def article_to_html(article_text):
     article_soup = BeautifulSoup(article_text, features='lxml')
     article_body = article_soup.find('div', id='read-article-holder')
+    
+    if not article_body:
+        # Try to parse from INITIAL_STATE if it's a new format article
+        pattern = re.compile(r'window\.__INITIAL_STATE__\s*=\s*({.*?});', re.DOTALL)
+        match = pattern.search(article_text)
+        if match:
+            try:
+                state = json.loads(match.group(1))
+                modules = state.get('detail', {}).get('modules', [])
+                content_html = ""
+                for module in modules:
+                    if module.get('module_type') == 'MODULE_TYPE_CONTENT':
+                        paragraphs = module.get('module_content', {}).get('paragraphs', [])
+                        for p in paragraphs:
+                            p_type = p.get('para_type')
+                            if p_type == 1: # Text
+                                text_nodes = p.get('text', {}).get('nodes', [])
+                                p_content = ""
+                                for node in text_nodes:
+                                    if node.get('type') == 'TEXT_NODE_TYPE_WORD':
+                                        p_content += node.get('word', {}).get('words', '')
+                                content_html += f"<p>{p_content}</p>"
+                            elif p_type == 2: # Image
+                                pics = p.get('pic', {}).get('pics', [])
+                                for pic in pics:
+                                    img_url = pic.get('url')
+                                    if img_url:
+                                        # Use proxy for images as per project convention
+                                        proxied_url = '/proxy/pic/' + img_url.split('//')[1]
+                                        content_html += f'<img src="{proxied_url}">'
+                
+                if content_html:
+                    # Wrap in a div to match expected structure
+                    return f'<div id="main-article">{content_html}</div>'
+            except:
+                pass
+        return '<p>無法解析文章內容。</p>'
+
     article_body.attrs = {}
     article_body['id'] = 'main-article'
 
