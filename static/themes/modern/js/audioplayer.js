@@ -5,7 +5,7 @@
     var player = document.getElementById('player');
     var indicator = document.getElementById('audio-buffering');
     var progressText = document.getElementById('audio-progress-text');
-    var targetBuffer = 5.0;
+    var targetBuffer = 15.0;
     var checkInterval = null;
 
     function checkBuffer() {
