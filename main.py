@@ -198,8 +198,11 @@ class ReverseProxyResource(Resource):
         Resource.__init__(self)
         self.path = path
         self.reactor = reactor
+        # Disable connection pooling (persistent=False) to ensure SOCKS5 handshake for every request
+        self.pool = HTTPConnectionPool(self.reactor, persistent=False)
         self.agent = Agent.usingEndpointFactory(self.reactor, 
-                                                Socks5EndpointFactory(self.reactor, os.environ.get('HTTP_PROXY')))
+                                                Socks5EndpointFactory(self.reactor, os.environ.get('HTTP_PROXY')),
+                                                pool=self.pool)
 
     def getChild(self, path, request):
         return ReverseProxyResource(
@@ -209,7 +212,18 @@ class ReverseProxyResource(Resource):
 
     def _cbResponse(self, response, request):
         request.setResponseCode(response.code)
+        
+        # Hop-by-hop headers that should not be forwarded
+        hop_by_hop = [
+            b"connection", b"keep-alive", b"proxy-authenticate", 
+            b"proxy-authorization", b"te", b"trailers", 
+            b"transfer-encoding", b"upgrade"
+        ]
+
         for name, values in response.headers.getAllRawHeaders():
+            if name.lower() in hop_by_hop:
+                continue
+            
             if name.lower() in [b"server", b"date", b"content-type"]:
                 request.responseHeaders.setRawHeaders(name, values)
             else:
