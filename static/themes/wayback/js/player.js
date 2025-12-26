@@ -4,10 +4,24 @@ if (ato) {
     window.player = videojs('player', {
 	'aspectRatio': '16:9',
 	'autoplay': 'any',
+        'preload': 'metadata',
+        'controlBar': {
+            'currentTimeDisplay': true,
+            'timeDivider': true,
+            'durationDisplay': true,
+            'remainingTimeDisplay': false
+        }
     })
 } else {
     window.player = videojs('player', {
 	'aspectRatio': '16:9',
+        'preload': 'metadata',
+        'controlBar': {
+            'currentTimeDisplay': true,
+            'timeDivider': true,
+            'durationDisplay': true,
+            'remainingTimeDisplay': false
+        }
     })
 }
 

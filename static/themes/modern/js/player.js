@@ -4,12 +4,24 @@ if (ato) {
     window.player = videojs('player', {
 	'aspectRatio': '16:9',
 	'autoplay': 'any',
-        'preload': 'metadata'
+        'preload': 'metadata',
+        'controlBar': {
+            'currentTimeDisplay': true,
+            'timeDivider': true,
+            'durationDisplay': true,
+            'remainingTimeDisplay': false
+        }
     })
 } else {
     window.player = videojs('player', {
 	'aspectRatio': '16:9',
-        'preload': 'metadata'
+        'preload': 'metadata',
+        'controlBar': {
+            'currentTimeDisplay': true,
+            'timeDivider': true,
+            'durationDisplay': true,
+            'remainingTimeDisplay': false
+        }
     })
 }
 
@@ -22,7 +34,7 @@ window.player.ready(function() {
     overlay.className = 'vjs-buffering-overlay';
     player.el().appendChild(overlay);
 
-    var targetBuffer = 2.5;
+    var targetBuffer = 4.0;
     var checkInterval = null;
     var userPaused = false;
 

@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import requests
 from urllib.parse import urlparse
 
 import asyncio
@@ -88,20 +87,38 @@ def toggle_opencc_api():
 
 @app.route('/<b32tvid>')
 async def b32tv_redirect(b32tvid):
-    req = requests.get(f'https://b23.tv/{b32tvid}', allow_redirects=False)
+    client = get_global_httpx_client()
+    try:
+        req = await client.get(f'https://b23.tv/{b32tvid}', follow_redirects=False)
+    except Exception as e:
+        return await render_template_with_theme('error.html',
+                                          status = '网络错误',
+                                          desc = str(e),
+                                          suggest='請檢查您的網絡連接或代理設置。'), 500
     
     if req.status_code != 302:
-        e = req.json()
+        try:
+            e = req.json()
+            msg = e.get('message', 'Unknown error')
+            code = e.get('code', 500)
+        except:
+            msg = 'Unknown error'
+            code = 500
         return await render_template_with_theme('error.html',
-                                          status = e['message'],
-                                          desc = e['message'],
-                                          suggest='请检查您的请求并重试。'),  -e['code']
+                                          status = msg,
+                                          desc = msg,
+                                          suggest='请检查您的请求并重试。'),  abs(code)
 
     url = urlparse(req.headers['Location'])
     if url.path.startswith('/read/mobile'):
         return redirect(url_for('read_view', cid = f'cv{url.path[13:]}'))
     elif url.path.startswith('/video/'):
         return redirect(url_for('video_view', vid = req.headers['Location'].split('/')[-1][:12]))
+    elif '/audio/au' in url.path:
+        return redirect(url_for('audio_view', auid = 'au' + url.path.split('/audio/au')[-1].split('?')[0]))
+    elif '/audio/am' in url.path:
+        return redirect(url_for('audio_list_view', amid = 'am' + url.path.split('/audio/am')[-1].split('?')[0]))
+
 
 @app.route('/download', methods=['POST'])
 def dl_redirect():

@@ -1,9 +1,14 @@
 {% extends 'themes/wayback/base.html' %}
 
 {% block head %}
+  {% if is_opus %}
+  <link rel="alternate" href="https://www.bilibili.com/opus/{{ cid }}">
+  <title>{{ arinfo['title'] }} - 图文 - MikuInvidious</title>
+  {% else %}
   <link rel="alternate" href="https://www.bilibili.com/read/{{ cid }}">
-  <meta name="referrer" content="never">
   <title>{{ arinfo['title'] }} - 专栏 - MikuInvidious</title>
+  {% endif %}
+  <meta name="referrer" content="never">
   <style>
     @media only screen and (min-width: 600px) {
 	figure > img {
@@ -54,6 +59,23 @@
         padding-left: 1em;
         margin-left: 0;
         color: #666;
+    }
+    .typo pre {
+        background: #f4f4f4;
+        padding: 1em;
+        overflow-x: auto;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+    }
+    .typo code {
+        font-family: monospace;
+        background: #f4f4f4;
+        padding: 0.2em 0.4em;
+        border-radius: 3px;
+    }
+    .typo pre code {
+        padding: 0;
+        background: transparent;
     }
   </style>
 {% endblock %}

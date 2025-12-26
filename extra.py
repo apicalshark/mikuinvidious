@@ -20,7 +20,7 @@ import subprocess
 from bilibili_api.utils.network import Api
 from bilibili_api.exceptions import ArgsException
 
-import requests, re, json
+import re, json
 
 from bs4 import BeautifulSoup
 
@@ -44,28 +44,43 @@ def get_article_info(article_text, cid):
         
         # Try to find modules
         modules = detail.get('modules', [])
+        if not modules and 'item' in detail:
+            modules = detail['item'].get('modules', [])
+            
         for module in modules:
             m_type = module.get('module_type')
-            if m_type == 'MODULE_TYPE_TITLE':
-                arinfo['title'] = module.get('module_title', {}).get('text', '')
-            elif m_type == 'MODULE_TYPE_AUTHOR':
+            
+            # Title
+            if m_type == 'MODULE_TYPE_TITLE' or module.get('module_title'):
+                title_obj = module.get('module_title', {})
+                arinfo['title'] = title_obj.get('text', '')
+            
+            # Author
+            elif m_type == 'MODULE_TYPE_AUTHOR' or module.get('module_author'):
                 author = module.get('module_author', {})
                 arinfo['author']['mid'] = author.get('mid')
                 arinfo['author']['name'] = author.get('name')
                 arinfo['author']['face'] = author.get('face')
                 arinfo['publish_time'] = author.get('pub_ts', 0)
-            elif m_type == 'MODULE_TYPE_STAT':
+            
+            # Stats
+            elif m_type == 'MODULE_TYPE_STAT' or module.get('module_stat'):
                 stat = module.get('module_stat', {})
                 arinfo['stats']['like'] = stat.get('like', {}).get('count', 0)
                 arinfo['stats']['coin'] = stat.get('coin', {}).get('count', 0)
                 arinfo['stats']['favorite'] = stat.get('favorite', {}).get('count', 0)
-                arinfo['stats']['share'] = stat.get('forward', {}).get('count', 0) # forward is share?
+                arinfo['stats']['share'] = stat.get('forward', {}).get('count', 0)
+                if 'view' in stat:
+                    arinfo['stats']['view'] = stat.get('view', {}).get('count', 0)
 
         if not arinfo['title'] and 'basic' in detail:
             arinfo['title'] = detail['basic'].get('title', '').replace(' - 哔哩哔哩', '')
         
         if not arinfo['author']['mid'] and 'basic' in detail:
             arinfo['author']['mid'] = detail['basic'].get('uid', 0)
+            
+        if not arinfo['stats']['view'] and 'basic' in detail:
+            arinfo['stats']['view'] = detail['basic'].get('view_count', 0)
 
     return arinfo
 
@@ -81,10 +96,14 @@ def article_to_html(article_text):
         if match:
             try:
                 state = json.loads(match.group(1))
-                modules = state.get('detail', {}).get('modules', [])
+                detail = state.get('detail', {})
+                modules = detail.get('modules', [])
+                if not modules and 'item' in detail:
+                    modules = detail['item'].get('modules', [])
+                
                 content_html = ""
                 for module in modules:
-                    if module.get('module_type') == 'MODULE_TYPE_CONTENT':
+                    if module.get('module_type') == 'MODULE_TYPE_CONTENT' or module.get('module_content'):
                         paragraphs = module.get('module_content', {}).get('paragraphs', [])
                         for p in paragraphs:
                             p_type = p.get('para_type')
@@ -92,32 +111,63 @@ def article_to_html(article_text):
                                 text_nodes = p.get('text', {}).get('nodes', [])
                                 p_content = ""
                                 for node in text_nodes:
-                                    node_type = node.get('type')
-                                    word = node.get('word', {})
-                                    text = word.get('words', '')
+                                    text = ""
+                                    url = None
+                                    is_bold = False
+                                    is_italic = False
+                                    color = None
                                     
-                                    # Handle styles
-                                    if word.get('bold'):
-                                        text = f"<strong>{text}</strong>"
-                                    if word.get('italic'):
-                                        text = f"<em>{text}</em>"
-                                    if word.get('color'):
+                                    if node.get('rich'):
+                                        rich = node['rich']
+                                        text = rich.get('text', '')
+                                        url = rich.get('jump_url')
+                                        if rich.get('emoji'):
+                                            emoji_url = rich['emoji'].get('icon_url')
+                                            if emoji_url:
+                                                if emoji_url.startswith('//'):
+                                                    emoji_url = 'https:' + emoji_url
+                                                proxied_emoji = '/proxy/pic/' + emoji_url.split('//')[1]
+                                                text = f'<img src="{proxied_emoji}" style="width: 1.2em; height: 1.2em; display: inline-block; vertical-align: middle;" alt="{text}">'
+                                    elif node.get('word'):
+                                        word = node['word']
+                                        text = word.get('words', '')
+                                        if word.get('style'):
+                                            is_bold = word['style'].get('bold')
+                                            is_italic = word['style'].get('italic')
+                                            color = word['style'].get('color')
+                                    
+                                    # Fallback for older format if necessary
+                                    if not text and node.get('type') == 'TEXT_NODE_TYPE_WORD':
+                                        word = node.get('word', {})
+                                        text = word.get('words', '')
+                                        is_bold = word.get('bold')
+                                        is_italic = word.get('italic')
                                         color = word.get('color')
+                                    elif not text and node.get('type') == 'TEXT_NODE_TYPE_HYPERLINK':
+                                        word = node.get('word', {})
+                                        text = word.get('words', '')
+                                        url = node.get('link', {}).get('url')
+
+                                    if is_bold:
+                                        text = f"<strong>{text}</strong>"
+                                    if is_italic:
+                                        text = f"<em>{text}</em>"
+                                    if color:
                                         if not color.startswith('#'):
                                             color = f"#{color}"
                                         text = f'<span style="color: {color};">{text}</span>'
                                     
-                                    if node_type == 'TEXT_NODE_TYPE_WORD':
-                                        p_content += text
-                                    elif node_type == 'TEXT_NODE_TYPE_HYPERLINK':
-                                        url = node.get('link', {}).get('url', '#')
-                                        p_content += f'<a href="{url}">{text}</a>'
+                                    if url:
+                                        text = f'<a href="{url}">{text}</a>'
+                                    
+                                    p_content += text
                                 
                                 # Alignment
                                 align_style = ""
-                                if p.get('align') == 2: # Center
+                                align = p.get('align')
+                                if align == 2 or align == 1: # Center (opus uses 1 for center sometimes?)
                                     align_style = ' style="text-align: center;"'
-                                elif p.get('align') == 3: # Right
+                                elif align == 3: # Right
                                     align_style = ' style="text-align: right;"'
                                     
                                 content_html += f"<p{align_style}>{p_content}</p>"
@@ -128,10 +178,19 @@ def article_to_html(article_text):
                                     if img_url:
                                         proxied_url = '/proxy/pic/' + img_url.split('//')[1]
                                         content_html += f'<figure style="text-align: center;"><img src="{proxied_url}" class="mx-auto"></figure>'
+                            elif p_type == 7: # Code
+                                code = p.get('code', {})
+                                lang = code.get('lang', '').replace('language-', '')
+                                content = code.get('content', '')
+                                # Use html.escape if available, or just a simple replacement
+                                import html as html_lib
+                                content = html_lib.escape(content)
+                                content_html += f'<pre><code class="language-{lang}">{content}</code></pre>'
                 
                 if content_html:
                     return translate_text(f'<div id="main-article">{content_html}</div>')
-            except:
+            except Exception as e:
+                print(f"Error parsing opus INITIAL_STATE: {e}")
                 pass
         return '<p>無法解析文章內容。</p>'
 

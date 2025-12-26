@@ -16,10 +16,51 @@
 import os
 import redis
 import toml
+import httpx
 from flask import request, render_template, Flask
 from flask_caching import Cache
 from bilibili_api import Credential
 from refresher import renew_cookies
+
+def get_proxy_settings():
+    proxy_url = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+    if appconf['proxy']['use_proxy'] and proxy_url:
+        return proxy_url
+    return None
+
+def get_httpx_client(async_client=True):
+    proxy_url = get_proxy_settings()
+    if async_client:
+        return httpx.AsyncClient(proxy=proxy_url, trust_env=False)
+    else:
+        return httpx.Client(proxy=proxy_url, trust_env=False)
+
+# Global clients for connection pooling
+_httpx_async_client = None
+_httpx_sync_client = None
+
+def get_global_httpx_client(async_client=True):
+    global _httpx_async_client, _httpx_sync_client
+    if async_client:
+        # Check if we need to create or recreate the client
+        recreate = False
+        if _httpx_async_client is None:
+            recreate = True
+        else:
+            try:
+                # Try to access a property that might fail if loop is closed
+                if _httpx_async_client.is_closed:
+                    recreate = True
+            except:
+                recreate = True
+
+        if recreate:
+            _httpx_async_client = get_httpx_client(async_client=True)
+        return _httpx_async_client
+    else:
+        if _httpx_sync_client is None:
+            _httpx_sync_client = get_httpx_client(async_client=False)
+        return _httpx_sync_client
 
 def deep_update(base_dict, update_dict):
     for key, value in update_dict.items():

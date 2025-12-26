@@ -1,9 +1,14 @@
 {% extends 'themes/modern/base.html' %}
 
 {% block head %}
+  {% if is_opus %}
+  <link rel="alternate" href="https://www.bilibili.com/opus/{{ cid }}">
+  <title>{{ arinfo['title']|translate }} - {{ '图文'|translate }} - MikuInvidious</title>
+  {% else %}
   <link rel="alternate" href="https://www.bilibili.com/read/{{ cid }}">
-  <meta name="referrer" content="never">
   <title>{{ arinfo['title']|translate }} - {{ '专栏'|translate }} - MikuInvidious</title>
+  {% endif %}
+  <meta name="referrer" content="never">
 {% endblock %}
 
 {% block content %}

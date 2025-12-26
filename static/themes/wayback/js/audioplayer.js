@@ -5,9 +5,11 @@ if (total_pages > 1) {
     document.getElementById('continue').checked = ato
 
     document.getElementById('continue').addEventListener('click', function () {
-	var url = '/video/' + current_vid + ':' + idx + '?listen=0'
+	var prefix = current_vid.startsWith('am') ? '/audio_list/' : '/video/'
+	var url = prefix + current_vid + ':' + idx
+	if (prefix === '/video/') url += '?listen=0'
 	if (document.getElementById('continue').checked)
-	    url += '&ato=1'
+	    url += (url.includes('?') ? '&' : '?') + 'ato=1'
 	document.getElementById('avswitch').href = url
     })
 
@@ -18,8 +20,17 @@ if (total_pages > 1) {
 	if (++idx == total_pages)
 	    return
 	
-	window.location.href = '/video/' + current_vid + ':' + idx + '?listen=1&ato=1'
+	var prefix = current_vid.startsWith('am') ? '/audio_list/' : '/video/'
+	var url = prefix + current_vid + ':' + idx + '?listen=1&ato=1'
+	if (current_vid.startsWith('am')) url = prefix + current_vid + ':' + idx + '?ato=1'
+	window.location.href = url
     })
 }
+
+if (current_vid.startsWith('au') || current_vid.startsWith('am')) {
+    var avswitch = document.getElementById('avswitch');
+    if (avswitch) avswitch.style.display = 'none';
+}
+
 
 /* @license-end */

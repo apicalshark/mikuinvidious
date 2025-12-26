@@ -13,15 +13,14 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import requests
-from flask import Blueprint, request, Response, session
+import httpx
+from flask import Blueprint, request, Response
 from urllib.parse import urlparse
-from shared import appredis, appconf
+from shared import appredis, appconf, get_global_httpx_client
 
 proxy_bp = Blueprint('proxy', __name__)
-proxy_session = requests.Session()
 
-def render_proxy_pic(req_path):
+async def render_proxy_pic(req_path):
     req_path = req_path[11:]
     domain = req_path.split('/')[0]
 
@@ -34,16 +33,21 @@ def render_proxy_pic(req_path):
         'User-Agent': 'Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)'
     }
     url = f'https://{req_path}'
-    resp = proxy_session.get(url, headers=headers, stream=True)
     
-    return Response(resp.iter_content(chunk_size=1024*128), status=resp.status_code, content_type=resp.headers.get('content-type'))
+    client = get_global_httpx_client()
+    resp = await client.get(url, headers=headers, follow_redirects=True)
+    return Response(resp.content, status=resp.status_code, content_type=resp.headers.get('content-type'))
 
 @proxy_bp.route('/proxy/<path:subpath>')
-def proxy_main(subpath):
+async def proxy_main(subpath):
     req_path = f'/proxy/{subpath}'
 
     if req_path.startswith('/proxy/video/'):
-        vid, vidx, vqn = req_path.lstrip('/proxy/video/').split('_')
+        try:
+            vid, vidx, vqn = req_path.lstrip('/proxy/video/').split('_')
+        except ValueError:
+            return Response('Bad Request', status=400)
+            
         url = appredis.get(f'mikuinv_{vid}_{vidx}_{vqn}')
         if not url:
             return Response('Not Found', status=404)
@@ -59,7 +63,6 @@ def proxy_main(subpath):
         plain_cookies = appconf['credential']
         cookie_jar = {}
         if plain_cookies['use_cred']:
-            # Use a copy to avoid deleting from config
             cookie_jar = {k: v for k, v in plain_cookies.items() if k != 'use_cred'}
 
         headers = {
@@ -68,10 +71,19 @@ def proxy_main(subpath):
             'User-Agent': 'Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)'
         }
         
-        resp = proxy_session.get(url, headers=headers, cookies=cookie_jar, stream=True)
-        return Response(resp.iter_content(chunk_size=1024*128), status=resp.status_code, content_type=resp.headers.get('content-type'))
+        # We use a stream for video data
+        async def generate():
+            client = get_global_httpx_client()
+            async with client.stream("GET", url, headers=headers, cookies=cookie_jar, follow_redirects=True) as resp:
+                async for chunk in resp.aiter_bytes(chunk_size=1024*128):
+                    yield chunk
+
+        # Get initial response for headers
+        client = get_global_httpx_client()
+        async with client.stream("GET", url, headers=headers, cookies=cookie_jar, follow_redirects=True) as resp:
+            return Response(generate(), status=resp.status_code, content_type=resp.headers.get('content-type'))
 
     elif req_path.startswith('/proxy/pic/'):
-        return render_proxy_pic(req_path)
+        return await render_proxy_pic(req_path)
     else:
         return Response('I\'m a teapot', status=418)

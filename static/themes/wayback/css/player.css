@@ -98,39 +98,68 @@ ul.vjs-menu-content::-webkit-scrollbar {
   padding: 5px !important;
 }
 
-.vjs-play-control,
-.vjs-volume-panel,
-.vjs-current-time,
-.vjs-time-control,
-.vjs-duration,
-.vjs-progress-control,
-.vjs-remaining-time {
+.vjs-play-control {
   order: 1;
 }
 
-.vjs-captions-button {
+.vjs-volume-panel {
   order: 2;
 }
 
-.vjs-audio-button {
+.vjs-current-time {
+  display: flex !important;
   order: 3;
+}
+
+.vjs-time-divider {
+  display: flex !important;
+  order: 4;
+  min-width: 0;
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
+.vjs-duration {
+  display: flex !important;
+  order: 5;
+}
+
+.danmakuSwitchBtn {
+  order: 6;
+}
+
+.vjs-progress-control {
+  order: 7;
+  flex: auto;
+}
+
+.vjs-remaining-time {
+  display: none;
+}
+
+.vjs-captions-button {
+  order: 8;
+}
+
+.vjs-audio-button {
+  order: 9;
 }
 
 .vjs-quality-selector,
 .video-js .vjs-http-source-selector {
-  order: 4;
+  order: 10;
 }
 
 .vjs-playback-rate {
-  order: 5;
+  order: 11;
 }
 
 .vjs-share-control {
-  order: 6;
+  order: 12;
 }
 
 .vjs-fullscreen-control {
-  order: 7;
+  order: 13;
 }
 
 .vjs-playback-rate > .vjs-menu {
@@ -209,18 +238,6 @@ ul.vjs-menu-content::-webkit-scrollbar {
 
 .video-js:hover .vjs-big-play-button {
   background-color: rgba(35, 35, 35, 0.75);
-}
-
-.video-js .vjs-current-time,
-.video-js .vjs-time-divider,
-.video-js .vjs-duration {
-  display: block;
-}
-
-.video-js .vjs-time-divider {
-  min-width: 0px;
-  padding-left: 0px;
-  padding-right: 0px;
 }
 
 .video-js .vjs-poster {
