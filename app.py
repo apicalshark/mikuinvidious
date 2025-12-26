@@ -70,6 +70,18 @@ def toggle_theme_api():
     resp.set_cookie('dark-theme', '1' if dark_theme else '0')
     return resp
 
+@app.route('/toggle_opencc')
+def toggle_opencc_api():
+    resp = make_response()
+
+    if opencc := request.cookies.get('opencc'):
+        opencc = not int(opencc)
+    else:
+        opencc = True
+
+    resp.set_cookie('opencc', '1' if opencc else '0', path='/')
+    return resp
+
 ##########################################
 # Additional features
 ##########################################

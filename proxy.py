@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from shared import appredis, appconf
 
 proxy_bp = Blueprint('proxy', __name__)
+proxy_session = requests.Session()
 
 def render_proxy_pic(req_path):
     req_path = req_path[11:]
@@ -27,19 +28,15 @@ def render_proxy_pic(req_path):
     if not domain.endswith('.hdslb.com'):
         return Response('Forbidden', status=403)
 
-    # headers = {
-    #     'Host': domain,
-    #     'User-Agent': 'Mozilla/5.0 BiliDroid/10.10.10 (bbcallen@gmail.com)'
-    # }
-
     headers = {
         'Host': domain,
+        'Referer': 'https://www.bilibili.com',
         'User-Agent': 'Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)'
     }
     url = f'https://{req_path}'
-    resp = requests.get(url, headers=headers, stream=True)
+    resp = proxy_session.get(url, headers=headers, stream=True)
     
-    return Response(resp.iter_content(chunk_size=1024), status=resp.status_code, content_type=resp.headers.get('content-type'))
+    return Response(resp.iter_content(chunk_size=1024*128), status=resp.status_code, content_type=resp.headers.get('content-type'))
 
 @proxy_bp.route('/proxy/<path:subpath>')
 def proxy_main(subpath):
@@ -62,14 +59,8 @@ def proxy_main(subpath):
         plain_cookies = appconf['credential']
         cookie_jar = {}
         if plain_cookies['use_cred']:
-            del plain_cookies['use_cred']
-            cookie_jar = {k: v for k, v in plain_cookies.items()}
-
-        # headers = {
-        #     'Host': urlp.netloc,
-        #     'Referer': 'https://www.bilibili.com',
-        #     'User-Agent': 'Mozilla/5.0 BiliDroid/10.10.10 (bbcallen@gmail.com)'
-        # }
+            # Use a copy to avoid deleting from config
+            cookie_jar = {k: v for k, v in plain_cookies.items() if k != 'use_cred'}
 
         headers = {
             'Host': urlp.netloc,
@@ -77,8 +68,8 @@ def proxy_main(subpath):
             'User-Agent': 'Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)'
         }
         
-        resp = requests.get(url, headers=headers, cookies=cookie_jar, stream=True)
-        return Response(resp.iter_content(chunk_size=1024), status=resp.status_code, content_type=resp.headers.get('content-type'))
+        resp = proxy_session.get(url, headers=headers, cookies=cookie_jar, stream=True)
+        return Response(resp.iter_content(chunk_size=1024*128), status=resp.status_code, content_type=resp.headers.get('content-type'))
 
     elif req_path.startswith('/proxy/pic/'):
         return render_proxy_pic(req_path)

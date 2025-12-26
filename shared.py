@@ -113,6 +113,27 @@ if appconf['credential']['use_cred']:
 # Util functions
 ##########################################
 
+from opencc import OpenCC
+_cc_instance = None
+
+def get_cc():
+    global _cc_instance
+    if _cc_instance is None:
+        _cc_instance = OpenCC('s2twp')
+    return _cc_instance
+
+def translate_text(text, enabled=None):
+    """Translate text using OpenCC if enabled by the user."""
+    if not text or not isinstance(text, str):
+        return text
+    
+    # Check if OpenCC is enabled (explicitly passed or via cookie)
+    is_enabled = enabled if enabled is not None else (request.cookies.get('opencc') == '1')
+    
+    if is_enabled:
+        return get_cc().convert(text)
+    return text
+
 def detect_theme():
     """Determine the theme of the users' request."""
     theme = request.args.get('theme') or request.cookies.get('theme') or appconf['display']['default_theme']
@@ -123,8 +144,10 @@ async def render_template_with_theme(fp, **kwargs):
     t = detect_theme()
 
     dark_theme = request.cookies.get('dark-theme') == '1'
+    opencc_enabled = request.cookies.get('opencc') == '1'
 
     return render_template(f'themes/{t}/{fp}', dark_mode=dark_theme,
+                           opencc_enabled=opencc_enabled,
                            proxy_status=appconf['proxy'],
                            **appconf['site'],
                            **kwargs)

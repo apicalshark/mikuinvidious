@@ -159,8 +159,12 @@ async def video_listen_view(vid, idx=0):
 
     # Store the download urls for proxies to use.
     if not appredis.exists(f'mikuinv_{vid}_{idx}_0'):
-        vsrc = await video_get_dash_for_qn(v, idx)
-        appredis.setex(f'mikuinv_{vid}_{idx}_0', 1800, vsrc['dash']['audio'][0]['baseUrl'])        
+        try:
+            vsrc = await video_get_dash_for_qn(v, idx)
+            if 'dash' in vsrc and 'audio' in vsrc['dash'] and vsrc['dash']['audio']:
+                appredis.setex(f'mikuinv_{vid}_{idx}_0', 1800, vsrc['dash']['audio'][0]['baseUrl'])
+        except Exception as e:
+            print(f"Error fetching audio dash: {e}")
 
     return await render_template_with_theme('video_listen.html', vid=vid, vinfo=vinfo, vrelated=vrelated[:10], vcomments=vcomments,
                                             keywords = ','.join(map(lambda x: x['tag_name'], vtags)), ato=ato, idx=idx, vset=vset)
@@ -181,20 +185,41 @@ async def video_view(vid, idx=0):
     v = video.Video(bvid=vid, credential=appcred)
 
     # Fetch the download urls ahead of time to avoid blocking.
-    v_supported_src, vinfo, vtags, vrelated, vcomments, vset = \
+    v_supported_src_res, vinfo, vtags, vrelated, vcomments, vset = \
         await asyncio.gather(video_get_src_for_qn(v, idx), v.get_info(), v.get_tags(idx), v.get_related(),
                              comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), v.get_pages())
-    v_supported_src = v_supported_src['support_formats']
+    
+    if 'support_formats' not in v_supported_src_res:
+        print(f"DEBUG: v_supported_src_res keys: {v_supported_src_res.keys()}")
+        if 'code' in v_supported_src_res and v_supported_src_res['code'] != 0:
+             return await render_template_with_theme('error.html',
+                                                status='Bilibili API 错误',
+                                                desc=f"代码 {v_supported_src_res['code']}: {v_supported_src_res.get('message', '未知错误')}",
+                                                sg='请检查您的凭据或稍后重试。'), 500
+        # Fallback for some videos that might not return support_formats in this specific call
+        v_supported_src = []
+    else:
+        v_supported_src = v_supported_src_res['support_formats']
     
     # Store the download urls for proxies to use.
-    if not appredis.exists(f'mikuinv_{vid}_{idx}_16'):
-        for vsrc in await asyncio.gather(*[video_get_src_for_qn(v, idx, fmt['quality']) for fmt in v_supported_src]):
-            qn = vsrc['quality']
-            appredis.setex(f'mikuinv_{vid}_{idx}_{qn}', 1800, vsrc['durl'][0]['url'])
-        for vsrc in v_supported_src:
-            qn = vsrc['quality']
+    if v_supported_src and not appredis.exists(f'mikuinv_{vid}_{idx}_16'):
+        results = await asyncio.gather(*[video_get_src_for_qn(v, idx, fmt['quality']) for fmt in v_supported_src], return_exceptions=True)
+        for vsrc in results:
+            if isinstance(vsrc, Exception):
+                print(f"Error fetching vsrc: {vsrc}")
+                continue
+            if 'durl' in vsrc and vsrc['durl']:
+                qn = vsrc.get('quality')
+                if qn:
+                    appredis.setex(f'mikuinv_{vid}_{idx}_{qn}', 1800, vsrc['durl'][0]['url'])
+        
+        for vsrc_fmt in v_supported_src:
+            qn = vsrc_fmt['quality']
             if not appredis.exists(f'mikuinv_{vid}_{idx}_{qn}'):
-                appredis.setex(f'mikuinv_{vid}_{idx}_{qn}', 1800, appredis.get(f'mikuinv_{vid}_{idx}_16'))
+                # Try to fallback to 360p (16) if available
+                val = appredis.get(f'mikuinv_{vid}_{idx}_16')
+                if val:
+                    appredis.setex(f'mikuinv_{vid}_{idx}_{qn}', 1800, val)
 
     return await render_template_with_theme('video.html', vid=vid, vinfo=vinfo, vcomments=vcomments, vrelated=vrelated[:15],
                                             keywords = ','.join(map(lambda x: x['tag_name'], vtags)),

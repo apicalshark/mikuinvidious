@@ -228,6 +228,27 @@ ul.vjs-menu-content::-webkit-scrollbar {
   object-fit: cover;
 }
 
+/* Buffering overlay */
+.vjs-buffering-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    pointer-events: none;
+    z-index: 10;
+    display: none;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 0 0 4px rgba(0,0,0,0.8);
+    text-align: center;
+    white-space: nowrap;
+}
+
+.vjs-custom-buffering .vjs-buffering-overlay {
+    display: block;
+}
+
 .player-dimensions.vjs-fluid {
   padding-top: 82vh;
 }

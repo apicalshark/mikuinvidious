@@ -47,11 +47,16 @@
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl overflow-hidden shadow-sm">
         <!-- Audio Player Wrapper -->
         <div id="player-container" class="relative w-full p-6 md:p-10 bg-gradient-to-br from-surface-variant/50 to-surface flex flex-col items-center justify-center gap-6">
-            <div class="w-48 h-48 md:w-64 md:h-64 rounded-2xl shadow-lg overflow-hidden">
+            <div class="w-48 h-48 md:w-64 md:h-64 rounded-2xl shadow-lg overflow-hidden relative">
                 <img src="{{ vinfo['pic']|pic }}" alt="Cover" class="w-full h-full object-cover">
+                <div id="audio-buffering" class="absolute inset-0 bg-black/70 flex items-center justify-center text-white hidden">
+                    <div id="audio-progress-text" class="text-sm font-bold">
+                        Buffering: 0.0s / 15.0s
+                    </div>
+                </div>
             </div>
             
-            <audio controls {{ 'autoplay' if ato else '' }} class="w-full max-w-2xl h-12" src="/proxy/video/{{ vid }}_{{ idx }}_0" id="player"></audio>
+            <audio controls preload="metadata" {{ 'autoplay' if ato else '' }} class="w-full max-w-2xl h-12" src="/proxy/video/{{ vid }}_{{ idx }}_0" id="player"></audio>
         </div>
 
         <!-- Title & Basic Actions -->

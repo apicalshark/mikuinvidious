@@ -3,7 +3,7 @@
 {% block head %}
   <link rel="alternate" href="https://www.bilibili.com/read/{{ cid }}">
   <meta name="referrer" content="never">
-  <title>{{ arinfo['title'] }} - 专栏 - MikuInvidious</title>
+  <title>{{ arinfo['title']|translate }} - {{ '专栏'|translate }} - MikuInvidious</title>
 {% endblock %}
 
 {% block content %}
@@ -11,14 +11,14 @@
   <!-- Article Header -->
   <div class="bg-surface dark:bg-surface-variant/20 rounded-t-3xl p-8 md:p-12 pb-6 space-y-6 shadow-sm  mb-px">
       <h1 class="text-3xl md:text-4xl font-bold text-on-surface leading-tight tracking-tight">
-        {{ arinfo['title'] }}
+        {{ arinfo['title']|translate }}
       </h1>
       
       <div class="flex flex-wrap items-center justify-between gap-6 border-b border-surface-variant/20 pb-6">
           <a href="/space/{{ arinfo['author']['mid'] }}" class="flex items-center gap-3 group">
-              <img src="{{ arinfo['author']['face']|pic }}" alt="{{ arinfo['author']['name'] }}" class="w-12 h-12 rounded-full ring-2 ring-surface-variant group-hover:ring-primary transition-all object-cover">
+              <img src="{{ arinfo['author']['face']|pic }}" alt="{{ arinfo['author']['name']|translate }}" class="w-12 h-12 rounded-full ring-2 ring-surface-variant group-hover:ring-primary transition-all object-cover">
               <div>
-                  <div class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ arinfo['author']['name'] }}</div>
+                  <div class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ arinfo['author']['name']|translate }}</div>
                   <div class="text-xs text-on-surface-variant">{{ arinfo['publish_time']|date }}</div>
               </div>
           </a>
@@ -42,7 +42,7 @@
           prose-img:rounded-xl prose-img:shadow-md prose-img:mx-auto
           prose-blockquote:border-l-primary prose-blockquote:bg-surface-variant/10 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg
           ">
-          {{ article_content|safe }}
+          {{ article_content|translate|safe }}
       </article>
   </div>
 </div>

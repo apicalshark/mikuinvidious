@@ -17,6 +17,21 @@ toggle_theme.addEventListener('click', function () {
     helpers.xhr('GET', '/toggle_theme?redirect=false', {}, {});
 });
 
+var toggle_opencc = document.getElementById('toggle_opencc');
+if (toggle_opencc) {
+    toggle_opencc.addEventListener('click', function () {
+        helpers.xhr('GET', '/toggle_opencc', {}, {
+            on200: function() {
+                location.reload();
+            },
+            onNon200: function() {
+                // Also reload on non-200 to show the error or just in case
+                location.reload();
+            }
+        });
+    });
+}
+
 /** @param {THEME_DARK|THEME_LIGHT} theme */
 function setTheme(theme) {
     if (theme === THEME_DARK) {

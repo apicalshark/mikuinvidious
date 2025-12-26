@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="{{ 'dark' if dark_mode else '' }}">
+<html lang="{{ 'zh-Hant' if request.cookies.get('opencc') == '1' else 'zh-CN' }}" class="{{ 'dark' if dark_mode else '' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -119,7 +119,7 @@
                   <i class="icon ion-ios-search text-xl"></i>
               </span>
               <input type="search" id="searchbox" autocomplete="off" autocorrect="off"
-              autocapitalize="none" spellcheck="false" name="q" placeholder="想要搜索点什么？" 
+              autocapitalize="none" spellcheck="false" name="q" placeholder="{{ '想要搜索点什么？'|translate }}" 
               class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface-variant text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
               {{ ('value=%s' % q)  if q else '' }}>
             </div>
@@ -134,26 +134,26 @@
             </a>
 
             <!-- Prefs -->
-            <a title="偏好设置" href="/preferences" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+            <a title="{{ '偏好设置'|translate }}" href="/preferences" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
               <i class="icon ion-ios-cog text-xl"></i>
             </a>
 
             {% if proxy_status.use_proxy %}
-            <a title="视频会话开启" class="p-2.5 text-primary">
+            <a title="{{ '视频会话开启'|translate }}" class="p-2.5 text-primary">
               <i class="icon ion-ios-cloud text-xl"></i>
             </a>
-            <a title="图片会话开启" class="p-2.5 text-primary">
+            <a title="{{ '图片会话开启'|translate }}" class="p-2.5 text-primary">
               <i class="icon ion-ios-camera text-xl"></i>
             </a>
             {% endif %}
 
             <!-- Login/Logout -->
             {% if session.get('is_admin') %}
-            <a title="登出" href="/logout" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+            <a title="{{ '登出'|translate }}" href="/logout" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
               <i class="icon ion-ios-log-out text-xl"></i>
             </a>
             {% else %}
-            <a title="登录" href="/login" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+            <a title="{{ '登录'|translate }}" href="/login" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
               <i class="icon ion-ios-person text-xl"></i>
             </a>
             {% endif %}
@@ -173,38 +173,38 @@
               <div class="flex items-center justify-center md:justify-start gap-2">
                 <i class="icon ion-logo-github text-xl"></i>
                 {% if site_modified_source_code_url %}
-                <a href="https://0xacab.org/johnxina/mikuinvidious" class="hover:text-primary transition-colors font-medium">原始项目源代码</a> /
-                <a href="{{ site_modified_source_code_url }}" class="hover:text-primary transition-colors font-medium">修改后的源代码</a>
+                <a href="https://0xacab.org/johnxina/mikuinvidious" class="hover:text-primary transition-colors font-medium">{{ '原始项目源代码'|translate }}</a> /
+                <a href="{{ site_modified_source_code_url }}" class="hover:text-primary transition-colors font-medium">{{ '修改后的源代码'|translate }}</a>
                 {% else %}
-                <a href="https://0xacab.org/johnxina/mikuinvidious" class="hover:text-primary transition-colors font-medium">源代码</a>
+                <a href="https://0xacab.org/johnxina/mikuinvidious" class="hover:text-primary transition-colors font-medium">{{ '源代码'|translate }}</a>
                 {% endif %}
               </div>
               <div class="flex items-center justify-center md:justify-start gap-2">
                   <i class="icon ion-ios-paper text-xl"></i>
-                  <a href="https://mi.resrv.org/" class="hover:text-primary transition-colors font-medium">文档</a>
+                  <a href="https://mi.resrv.org/" class="hover:text-primary transition-colors font-medium">{{ '文档'|translate }}</a>
               </div>
             </div>
 
             <div class="flex flex-col gap-4">
                 <div>
-                    <a href="https://0xacab.org/johnxina/mikuinvidious/-/blob/no-masters/LICENSE" class="hover:text-primary transition-colors font-medium">自豪地以 AGPLv3 释出</a>
+                    <a href="https://0xacab.org/johnxina/mikuinvidious/-/blob/no-masters/LICENSE" class="hover:text-primary transition-colors font-medium">{{ '自豪地以 AGPLv3 释出'|translate }}</a>
                 </div>
                 <div class="flex items-center justify-center md:justify-start gap-2">
                     <i class="icon ion-logo-javascript text-xl"></i>
-                    <a rel="jslicense" href="/licenses" rel="jslicense" class="hover:text-primary transition-colors font-medium">查看 JavaScript 许可证</a>
+                    <a rel="jslicense" href="/licenses" rel="jslicense" class="hover:text-primary transition-colors font-medium">{{ '查看 JavaScript 许可证'|translate }}</a>
                 </div>
                 <div class="flex items-center justify-center md:justify-start gap-2">
                     <i class="icon ion-ios-paper text-xl"></i>
-                    <a href="/privacy" class="hover:text-primary transition-colors font-medium">隐私条款</a>
+                    <a href="/privacy" class="hover:text-primary transition-colors font-medium">{{ '隐私条款'|translate }}</a>
                 </div>
             </div>
 
             <div class="flex flex-col gap-4">
                 <div class="flex items-center justify-center md:justify-start gap-2">
                     <i class="icon ion-ios-wallet text-xl"></i>
-                    <a href="https://mi.resrv.org/docs/donate" class="hover:text-primary transition-colors font-medium">赞助我们</a>
+                    <a href="https://mi.resrv.org/docs/donate" class="hover:text-primary transition-colors font-medium">{{ '赞助我们'|translate }}</a>
                 </div>
-                <span class="opacity-70">版本信息当前不可用 :-(</span>
+                <span class="opacity-70">{{ '版本信息当前不可用 :-('|translate }}</span>
             </div>
           </div>
       </footer>

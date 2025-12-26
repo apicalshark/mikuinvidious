@@ -24,7 +24,7 @@ import requests, re, json
 
 from bs4 import BeautifulSoup
 
-from shared import appconf
+from shared import appconf, translate_text
 
 def get_article_info(article_text, cid):
     '''Extract article info from INITIAL_STATE in HTML.'''
@@ -130,7 +130,7 @@ def article_to_html(article_text):
                                         content_html += f'<figure style="text-align: center;"><img src="{proxied_url}" class="mx-auto"></figure>'
                 
                 if content_html:
-                    return f'<div id="main-article">{content_html}</div>'
+                    return translate_text(f'<div id="main-article">{content_html}</div>')
             except:
                 pass
         return '<p>無法解析文章內容。</p>'
@@ -200,7 +200,7 @@ def article_to_html(article_text):
         
         child.attrs = new_attrs
 
-    return str(article_body)
+    return translate_text(str(article_body))
 
 '''Convert the article to any file.'''
 def article_to_any(article_text, dest_fmt):
@@ -216,7 +216,17 @@ async def video_get_src_for_qn(vi, idx, quality = 16):
               verify=(not not vi.credential.sessdata),
               credential=vi.credential)
     api.params={ 'avid': vi.get_aid(), 'cid': cid, 'qn': quality, 'platform': 'html5', 'high_quality': 1 }
-    return await api.request()
+    res = await api.request()
+
+    # Prioritize Akamai mirrors for better direct access compatibility
+    if 'durl' in res and res['durl']:
+        for durl in res['durl']:
+            urls = ([durl.get('url')] if durl.get('url') else []) + (durl.get('backup_url') or [])
+            for u in urls:
+                if u and '-mirrorakam.akamaized.net' in u:
+                    durl['url'] = u
+                    break
+    return res
 
 async def video_get_dash_for_qn(vi, idx):
     '''Get a specific available source for video.'''
@@ -226,7 +236,19 @@ async def video_get_dash_for_qn(vi, idx):
               json_body=True,
               credential=vi.credential)
     api.params = { 'avid': vi.get_aid(), 'cid': cid, 'fnval': '16', 'platform': 'html5', 'high_quality': 1 }
-    return await api.request()
+    res = await api.request()
+
+    # Prioritize Akamai mirrors in DASH manifest
+    if 'dash' in res and res['dash']:
+        for media_type in ['video', 'audio']:
+            if media_type in res['dash'] and res['dash'][media_type]:
+                for item in res['dash'][media_type]:
+                    urls = ([item.get('baseUrl')] if item.get('baseUrl') else []) + (item.get('backupUrl') or [])
+                    for u in urls:
+                        if u and '-mirrorakam.akamaized.net' in u:
+                            item['baseUrl'] = u
+                            break
+    return res
 
 # The following algorithm is adopted from bilibili-API-collect.
 # https://github.com/SocialSisterYi/bilibili-API-collect/blob/master/other/bvid_desc.md

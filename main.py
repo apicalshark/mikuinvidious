@@ -179,14 +179,18 @@ class ResponseForwarder(Protocol):
         self.father = father
 
     def dataReceived(self, data):
-        self.father.write(data)
+        # Write immediately to the client to avoid "bursty" behavior on slow connections
+        if not self.father.finished:
+            try:
+                self.father.write(data)
+            except:
+                pass
 
     def connectionLost(self, reason):
         if not self.father.finished:
             try:
                 self.father.finish()
             except RuntimeError:
-                # Request might have been finished/lost just now
                 pass
 
 ################################################################################
@@ -194,23 +198,20 @@ class ResponseForwarder(Protocol):
 ################################################################################
 
 class ReverseProxyResource(Resource):
-    def __init__(self, path, reactor=reactor):
+    def __init__(self, path, agent, reactor=reactor):
         Resource.__init__(self)
         self.path = path
         self.reactor = reactor
-        # Disable connection pooling (persistent=False) to ensure SOCKS5 handshake for every request
-        self.pool = HTTPConnectionPool(self.reactor, persistent=False)
-        self.agent = Agent.usingEndpointFactory(self.reactor, 
-                                                Socks5EndpointFactory(self.reactor, os.environ.get('HTTP_PROXY')),
-                                                pool=self.pool)
+        self.agent = agent
 
     def getChild(self, path, request):
         return ReverseProxyResource(
             self.path + b'/' + urlquote(path, safe=b'').encode("utf-8"),
+            self.agent,
             self.reactor
         )
 
-    def _cbResponse(self, response, request):
+    def _cbResponse(self, response, request, d):
         request.setResponseCode(response.code)
         
         # Hop-by-hop headers that should not be forwarded
@@ -234,15 +235,17 @@ class ReverseProxyResource(Resource):
         return server.NOT_DONE_YET
 
     def _ebResponse(self, failure, request):
-        request.setResponseCode(501, b"Gateway error")
-        request.responseHeaders.addRawHeader(b"Content-Type", b"text/html")
-        request.write(b"<H1>Could not connect</H1>")
-        request.write(f"<p>{failure.getErrorMessage()}</p>".encode())
-        request.finish()
+        if not request.finished:
+            request.setResponseCode(501, b"Gateway error")
+            request.responseHeaders.addRawHeader(b"Content-Type", b"text/html")
+            request.write(b"<H1>Could not connect</H1>")
+            request.write(f"<p>{failure.getErrorMessage()}</p>".encode())
+            request.finish()
 
     def render_proxy_pic(self, request, req_path):
-        req_path = req_path[11:]
-        domain = req_path.split('/')[0]
+        # req_path is already the string version of the URI
+        req_path_stripped = req_path[11:]
+        domain = req_path_stripped.split('/')[0]
 
         if not domain.endswith('.hdslb.com'):
             request.setResponseCode(403)
@@ -254,6 +257,7 @@ class ReverseProxyResource(Resource):
                 headers.setRawHeaders(name, values)
         
         headers.setRawHeaders(b'host', [domain.encode("ascii")])
+        headers.setRawHeaders(b'referer', [b'https://www.bilibili.com'])
         headers.setRawHeaders(b'user-agent', [b'Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)'])
         
         # Agent uses IBodyProducer for content
@@ -262,22 +266,26 @@ class ReverseProxyResource(Resource):
             request.content.seek(0, 0)
             content = request.content.read()
             if content:
-                body = FileBodyProducer(BytesIO(content)) if 'BytesIO' in globals() else None
-                # Fallback if BytesIO not imported, but pic GET usually has no body
+                body = FileBodyProducer(BytesIO(content))
         
         d = self.agent.request(
             b'GET',
-            ('https://' + req_path).encode('utf-8'),
+            ('https://' + req_path_stripped).encode('utf-8'),
             headers,
             body
         )
-        d.addCallback(self._cbResponse, request)
+
+        def _cancelRequest(err):
+            d.cancel()
+        request.notifyFinish().addErrback(_cancelRequest)
+
+        d.addCallback(self._cbResponse, request, d)
         d.addErrback(self._ebResponse, request)
         return server.NOT_DONE_YET
 
     def render(self, request):
         # Justify the request path.
-        req_path = self.path.decode('utf-8')
+        req_path = request.uri.decode('utf-8')
         if req_path.startswith('/proxy/video/'):
             pass
         elif req_path.startswith('/proxy/pic/'):
@@ -317,6 +325,28 @@ class ReverseProxyResource(Resource):
             if name.lower() not in [b'host', b'referer', b'user-agent', b'cookie', b'connection']:
                 headers.setRawHeaders(name, values)
 
+        # Force a Range limit to prevent excessive background buffering
+        # This prevents the browser from downloading too much ahead on slow connections
+        limit_size = 2 * 1024 * 1024 # 2MB
+        range_val = request.getHeader(b'range')
+        
+        if range_val:
+            try:
+                range_str = range_val.decode('ascii')
+                if range_str.startswith('bytes='):
+                    r_spec = range_str.split('=')[1]
+                    if '-' in r_spec:
+                        r_parts = r_spec.split('-')
+                        # Only cap if the end is not specified (open-ended request)
+                        # This allows the browser to sniff headers (0-1) normally
+                        if not r_parts[1]:
+                            start = int(r_parts[0]) if r_parts[0] else 0
+                            headers.setRawHeaders(b'range', [f'bytes={start}-{start + limit_size - 1}'.encode()])
+                        else:
+                            headers.setRawHeaders(b'range', [range_val.encode() if isinstance(range_val, str) else range_val])
+            except:
+                headers.setRawHeaders(b'range', [range_val.encode() if isinstance(range_val, str) else range_val])
+
         headers.setRawHeaders(b'host', [urlp.netloc.encode("ascii")])
         if plain_cookies:
             headers.setRawHeaders(b'cookie', [plain_cookies.encode() if isinstance(plain_cookies, str) else plain_cookies])
@@ -329,8 +359,12 @@ class ReverseProxyResource(Resource):
             headers,
             None # Video requests here are GET without body
         )
+
+        def _cancelRequest(err):
+            d.cancel()
+        request.notifyFinish().addErrback(_cancelRequest)
         
-        d.addCallback(self._cbResponse, request)
+        d.addCallback(self._cbResponse, request, d)
         d.addErrback(self._ebResponse, request)
 
         return server.NOT_DONE_YET
@@ -340,13 +374,15 @@ class ReverseProxyResource(Resource):
 class MikuInvidiousResource(Resource):
     isLeaf = True
 
-    def __init__(self):
+    def __init__(self, agent):
         super().__init__()
+        self.agent = agent
+        self.proxy_resource = ReverseProxyResource(b'', self.agent)
         self.wsgi = WSGIResource(reactor, reactor.getThreadPool(), app)
 
     def render(self, request):
         if request.uri.startswith(b'/proxy'):
-            return ReverseProxyResource(request.uri).render(request)
+            return self.proxy_resource.render(request)
         return self.wsgi.render(request)
 
 def main():
@@ -362,7 +398,15 @@ def main():
     else:
         plain_cookies = ""
 
-    site = server.Site(MikuInvidiousResource())
+    # Initialize shared agent and pool
+    pool = HTTPConnectionPool(reactor, persistent=True)
+    # Increase pool size for better performance with concurrent DASH requests
+    pool.maxPersistentPerHost = 10
+    agent = Agent.usingEndpointFactory(reactor, 
+                                      Socks5EndpointFactory(reactor, os.environ.get('HTTP_PROXY')),
+                                      pool=pool)
+
+    site = server.Site(MikuInvidiousResource(agent))
     # reactor.listenTCP(appconf['twisted']['port'], site)  # only listens on ipv4
     port = tcp.Port(appconf['twisted']['port'], site, 50, appconf['twisted']['host'], reactor)
     port.startListening()

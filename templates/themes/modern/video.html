@@ -50,7 +50,7 @@
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl overflow-hidden shadow-sm">
         <!-- Player Wrapper: Force Dark Background -->
         <div id="player-container" class="relative w-full aspect-video bg-black group">
-            <video style="width:100%; height:100%; outline:none;" playsinline controls poster="{{ vinfo['pic']|pic }}" id="player" class="video-js vjs-big-play-centered player-style-invidious w-full h-full object-contain">
+            <video style="width:100%; height:100%; outline:none;" playsinline controls preload="metadata" poster="{{ vinfo['pic']|pic }}" id="player" class="video-js vjs-big-play-centered player-style-invidious w-full h-full object-contain">
                 {% for src in supported_src %}
                 <source src="/proxy/video/{{ vid }}_{{ idx }}_{{ src['quality'] }}" type="video/mp4" label="{{ src['new_description'] }}" />
                 {% endfor %}
@@ -68,39 +68,39 @@
         <div class="p-4 md:p-6 space-y-4">
             <div class="flex items-start justify-between gap-4">
                 <h1 class="text-xl md:text-2xl font-bold text-on-surface leading-tight break-words line-clamp-2">
-                    {{ vinfo['title'] }}
+                    {{ vinfo['title']|translate }}
                 </h1>
-                <a id='avswitch' title="Audio mode" href="/video/{{ vid }}?listen=1{{ '&ato=1' if ato else '' }}" class="flex-shrink-0 p-2 text-on-surface-variant hover:text-primary bg-surface-variant/30 hover:bg-surface-variant/50 rounded-full transition-all">
+                <a id='avswitch' title="{{ 'Audio mode'|translate }}" href="/video/{{ vid }}?listen=1{{ '&ato=1' if ato else '' }}" class="flex-shrink-0 p-2 text-on-surface-variant hover:text-primary bg-surface-variant/30 hover:bg-surface-variant/50 rounded-full transition-all">
                     <i class="icon ion-md-headset text-xl"></i>
                 </a>
             </div>
 
             {% if vset|length > 1 %}
             <div class="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                P{{ vset[idx]['page'] }}: {{ vset[idx]['part'] }}
+                P{{ vset[idx]['page'] }}: {{ vset[idx]['part']|translate }}
             </div>
             {% endif %}
 
             <!-- Stats Bar -->
             <div class="flex flex-wrap gap-4 md:gap-6 text-sm text-on-surface-variant pb-4">
-                <div class="flex items-center gap-1.5" title="播放量">
+                <div class="flex items-center gap-1.5" title="{{ '播放量'|translate }}">
                     <i class="icon ion-ios-eye text-lg"></i> {{ vinfo['stat']['view']|intsep }}
                 </div>
-                <div class="flex items-center gap-1.5" title="点赞">
+                <div class="flex items-center gap-1.5" title="{{ '点赞'|translate }}">
                     <i class="icon ion-ios-thumbs-up text-lg"></i> {{ vinfo['stat']['like']|intsep }}
                 </div>
-                <div class="flex items-center gap-1.5" title="硬币">
+                <div class="flex items-center gap-1.5" title="{{ '硬币'|translate }}">
                     <i class="icon ion-logo-bitcoin text-lg"></i> {{ vinfo['stat']['coin']|intsep }}
                 </div>
-                <div class="flex items-center gap-1.5" title="收藏">
+                <div class="flex items-center gap-1.5" title="{{ '收藏'|translate }}">
                     <i class="icon ion-ios-bookmark text-lg"></i> {{ vinfo['stat']['favorite']|intsep }}
                 </div>
-                <div class="flex items-center gap-1.5" title="分享">
+                <div class="flex items-center gap-1.5" title="{{ '分享'|translate }}">
                     <i class="icon ion-md-share text-lg"></i> {{ vinfo['stat']['share']|intsep }}
                 </div>
                 <div class="ml-auto flex items-center gap-1.5">
                      <i class="icon ion-ios-pricetag"></i>
-                     <a href="/vv/{{ vinfo['tid'] }}" class="hover:text-primary transition-colors">{{ vinfo['tname'] }}</a>
+                     <a href="/vv/{{ vinfo['tid'] }}" class="hover:text-primary transition-colors">{{ vinfo['tname']|translate }}</a>
                 </div>
             </div>
 
@@ -108,9 +108,9 @@
             <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
                 <!-- Channel Info -->
                 <a href="/space/{{ vinfo['owner']['mid'] }}" class="flex items-center gap-3 group w-full md:w-auto">
-                    <img src="{{ vinfo['owner']['face']|pic }}" alt="{{ vinfo['owner']['name'] }}" class="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-primary transition-all">
+                    <img src="{{ vinfo['owner']['face']|pic }}" alt="{{ vinfo['owner']['name']|translate }}" class="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-primary transition-all">
                     <div class="flex flex-col">
-                        <span class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ vinfo['owner']['name'] }}</span>
+                        <span class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ vinfo['owner']['name']|translate }}</span>
                         <span class="text-xs text-on-surface-variant">{{ vinfo['pubdate']|date }}</span>
                     </div>
                 </a>
@@ -128,11 +128,11 @@
                         <input type="hidden" name="cvid" value="{{ idx }}">
                         <select name="qual" class="px-3 py-2 rounded-lg bg-surface-variant/30 dark:bg-surface-variant text-on-surface text-sm border-none focus:ring-2 focus:ring-primary cursor-pointer hover:bg-surface-variant/50 transition-colors">
                              {% for src in supported_src %}
-                             <option value="{{ src['quality'] }}">{{ src['new_description'] }}</option>
+                             <option value="{{ src['quality'] }}">{{ src['new_description']|translate }}</option>
                              {% endfor %}
                         </select>
                         <button type="submit" class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-all text-sm font-medium shadow-md hover:shadow-lg">
-                            下载
+                            {{ '下載'|translate }}
                         </button>
                      </form>
                      {% endif %}
@@ -141,7 +141,7 @@
 
             <!-- Description -->
             <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed  break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
-                {{ vinfo['desc'] }}
+                {{ vinfo['desc']|translate }}
             </div>
         </div>
     </div>
@@ -150,7 +150,7 @@
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm">
         <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
             <i class="icon ion-ios-chatbubbles"></i>
-            评论 ({{ vcomments['page']['count'] }})
+            {{ '评论'|translate }} ({{ vcomments['page']['count'] }})
         </h3>
         
         <div class="space-y-6">
@@ -162,10 +162,10 @@
                 </a>
                 <div class="flex-grow space-y-1">
                     <div class="flex items-baseline justify-between">
-                         <a href="/space/{{ rep['member']['mid'] }}" class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
-                         <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
+                         <a href="/space/{{ rep['member']['mid'] }}" class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname']|translate }}</a>
+                         <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc']|translate }}</span>
                     </div>
-                    <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message'] }}</p>
+                    <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message']|translate }}</p>
                     <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
                         <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
                     </div>
@@ -173,7 +173,7 @@
             </div>
             {% endfor %}
             {% else %}
-            <p class="text-center text-on-surface-variant py-8">暂无评论或评论加载失败</p>
+            <p class="text-center text-on-surface-variant py-8">{{ '暂无评论或评论加载失败'|translate }}</p>
             {% endif %}
         </div>
     </div>
@@ -187,10 +187,10 @@
     {% if vset|length > 1 %}
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
         <div class="flex items-center justify-between mb-3">
-             <h3 class="font-bold text-on-surface">选集 ({{ vset|length }})</h3>
+             <h3 class="font-bold text-on-surface">{{ '选集'|translate }} ({{ vset|length }})</h3>
              <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary transition-colors">
                 <input name="continue" id="continue" type="checkbox" class="accent-primary rounded">
-                自动连播
+                {{ '自动连播'|translate }}
              </label>
         </div>
         <div class="max-h-[60vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
@@ -203,7 +203,7 @@
                 </div>
                 {% endif %}
                 <div class="flex-grow min-w-0 flex flex-col justify-center">
-                    <p class="text-sm font-medium text-on-surface truncate line-clamp-2 leading-tight {{ 'text-primary' if idx == (v['page']-1) else '' }}">P{{ v['page'] }} {{ v['part'] }}</p>
+                    <p class="text-sm font-medium text-on-surface truncate line-clamp-2 leading-tight {{ 'text-primary' if idx == (v['page']-1) else '' }}">P{{ v['page'] }} {{ v['part']|translate }}</p>
                 </div>
             </a>
             {% endfor %}
@@ -213,7 +213,7 @@
 
     <!-- Recommendations -->
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
-        <h3 class="font-bold text-on-surface mb-4">推荐视频</h3>
+        <h3 class="font-bold text-on-surface mb-4">{{ '推荐视频'|translate }}</h3>
         <div class="space-y-4">
             {% for rv in vrelated  %}
             <a href="/video/{{ rv['bvid'] }}" class="flex flex-col sm:flex-row gap-3 group">
@@ -222,12 +222,12 @@
                     <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded shadow-sm">{{ rv['duration']|secdur }}</span>
                 </div>
                 <div class="flex-grow min-w-0 py-0.5">
-                    <p class="text-sm font-bold text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors" title="{{ rv['title'] }}">{{ rv['title'] }}</p>
+                    <p class="text-sm font-bold text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors" title="{{ rv['title']|translate }}">{{ rv['title']|translate }}</p>
                     <div class="mt-1 flex items-center gap-2 text-xs text-on-surface-variant">
-                         <span>{{ rv['owner']['name'] }}</span>
+                         <span>{{ rv['owner']['name']|translate }}</span>
                     </div>
                      <div class="flex items-center gap-2 text-xs text-on-surface-variant/70">
-                         <span>{{ rv['stat']['view']|intsep }} 播放</span>
+                         <span>{{ rv['stat']['view']|intsep }} {{ '播放'|translate }}</span>
                     </div>
                 </div>
             </a>

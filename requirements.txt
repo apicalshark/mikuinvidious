@@ -15,3 +15,4 @@ pyOpenSSL
 pysocks
 aiohttp-socks
 httpx[socks]
+opencc-python-reimplemented

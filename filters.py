@@ -13,9 +13,17 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-from shared import app, appconf
+from shared import app, appconf, translate_text
+from jinja2 import pass_context
 
 from datetime import datetime, timedelta
+
+# Translate text using OpenCC
+@app.template_filter('translate')
+@pass_context
+def _jinja2_filter_translate(context, text):
+        enabled = context.get('opencc_enabled')
+        return translate_text(text, enabled=enabled)
 
 # Convert a timestamp to a humand readable date format.
 @app.template_filter('date')
