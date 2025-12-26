@@ -182,15 +182,18 @@
     
     {% if is_live %}
     <!-- Live Chat Box -->
-    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl shadow-sm flex flex-col h-[400px] max-h-[calc(100vh-150px)] border-[3px] border-[#fb7299] sticky top-6 overflow-hidden">
-        <div class="p-3 border-b border-[#fb7299]/30 flex items-center justify-between" title="{{ '实时聊天'|translate }}">
+    <!-- UPDATED: Fixed height (h-500px), shrink-0 header, break-words handling -->
+    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl shadow-sm flex flex-col h-[80svh] border-[3px] border-[#fb7299] sticky top-6 overflow-hidden z-10">
+        <!-- Header: shrink-0 added so it doesn't collapse -->
+        <div class="shrink-0 p-3 border-b border-[#fb7299]/30 flex items-center justify-between bg-surface dark:bg-black/10" title="{{ '实时聊天'|translate }}">
             <h3 class="font-bold text-on-surface flex items-center gap-2 uppercase text-base tracking-wider">
                 <i class="icon ion-md-chatbubbles text-[#fb7299]"></i>
                 {{ '实时聊天'|translate }}
             </h3>
             <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
         </div>
-        <div id="live-chat-container" class="flex-grow overflow-auto p-2 text-[13px] leading-relaxed custom-scrollbar bg-black/5">
+        <!-- Messages Area: break-words break-all added -->
+        <div id="live-chat-container" class="flex-grow overflow-y-auto p-2 text-[13px] leading-relaxed custom-scrollbar bg-black/5 break-words break-all">
             <!-- Messages append here -->
             <p class="text-on-surface-variant/50 text-center py-4 italic">{{ '正在连接到聊天室...'|translate }}</p>
         </div>
@@ -208,15 +211,16 @@
             const isAtBottom = chatContainer.scrollHeight - chatContainer.clientHeight <= chatContainer.scrollTop + 50;
 
             const msgEl = document.createElement('div');
-            msgEl.className = 'py-1 px-2 hover:bg-surface-variant/10 transition-colors rounded';
-            msgEl.innerHTML = `<span class="font-bold text-primary mr-1">${data.user}:</span><span class="text-on-surface opacity-90">${data.text}</span>`;
+            // UPDATED: Added break-words and break-all to CSS classes
+            msgEl.className = 'py-1 px-2 hover:bg-surface-variant/10 transition-colors rounded break-words break-all';
+            msgEl.innerHTML = `<span class="font-bold text-primary mr-1 whitespace-nowrap">${data.user}:</span><span class="text-on-surface opacity-90">${data.text}</span>`;
             chatContainer.appendChild(msgEl);
             
             if (isAtBottom) {
                 chatContainer.scrollTop = chatContainer.scrollHeight;
             }
 
-            if (chatContainer.children.length > 150) {
+            if (chatContainer.children.length > 200) {
                 chatContainer.removeChild(chatContainer.firstChild);
             }
         };
