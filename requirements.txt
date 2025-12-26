@@ -8,6 +8,7 @@ httpx
 aiohttp
 redis
 toml
+lxml
 twisted
 service-identity
 pyOpenSSL

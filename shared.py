@@ -58,7 +58,7 @@ appconf = {
         "article_allowed_formats": os.environ.get("ARTICLE_ALLOWED_FORMATS", "markdown,plain,html").split(","),
     },
     "display": {
-        "default_theme": os.environ.get("DEFAULT_THEME", "wayback"),
+        "default_theme": os.environ.get("DEFAULT_THEME", "modern"),
     },
     "redis": {
         "host": os.environ.get("REDIS_HOST", "localhost"),

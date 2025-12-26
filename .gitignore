@@ -5,6 +5,7 @@ config.toml
 *.rdb
 .vscode
 .env
+node_modules/
 
 wgcf/
 warp_data/
