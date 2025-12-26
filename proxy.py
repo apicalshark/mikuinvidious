@@ -27,11 +27,15 @@ def render_proxy_pic(req_path):
     if not domain.endswith('.hdslb.com'):
         return Response('Forbidden', status=403)
 
+    # headers = {
+    #     'Host': domain,
+    #     'User-Agent': 'Mozilla/5.0 BiliDroid/10.10.10 (bbcallen@gmail.com)'
+    # }
+
     headers = {
         'Host': domain,
-        'User-Agent': 'Mozilla/5.0 BiliDroid/10.10.10 (bbcallen@gmail.com)'
+        'User-Agent': 'Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)'
     }
-    
     url = f'https://{req_path}'
     resp = requests.get(url, headers=headers, stream=True)
     
@@ -61,10 +65,16 @@ def proxy_main(subpath):
             del plain_cookies['use_cred']
             cookie_jar = {k: v for k, v in plain_cookies.items()}
 
+        # headers = {
+        #     'Host': urlp.netloc,
+        #     'Referer': 'https://www.bilibili.com',
+        #     'User-Agent': 'Mozilla/5.0 BiliDroid/10.10.10 (bbcallen@gmail.com)'
+        # }
+
         headers = {
             'Host': urlp.netloc,
             'Referer': 'https://www.bilibili.com',
-            'User-Agent': 'Mozilla/5.0 BiliDroid/10.10.10 (bbcallen@gmail.com)'
+            'User-Agent': 'Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)'
         }
         
         resp = requests.get(url, headers=headers, cookies=cookie_jar, stream=True)

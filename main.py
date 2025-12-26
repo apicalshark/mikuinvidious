@@ -236,8 +236,12 @@ class ReverseProxyResource(Resource):
             return
 
         request.requestHeaders.setRawHeaders(b'host', [domain.encode("ascii")])
+        # backup
+        # request.requestHeaders.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
+        #                                      b'BiliDroid/10.10.10 (bbcallen@gmail.com)'])
+        # new useragent
         request.requestHeaders.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
-                                             b'BiliDroid/10.10.10 (bbcallen@gmail.com)'])
+                                              b'BiliDroid/8.76.0 (bbcallen@gmail.com)'])
         request.content.seek(0, 0)
 
         clientFactory = ProxyClientFactory(
@@ -289,8 +293,10 @@ class ReverseProxyResource(Resource):
         if plain_cookies:
             request.requestHeaders.setRawHeaders('cookie', [plain_cookies])
         request.requestHeaders.setRawHeaders(b'referer', [b'https://www.bilibili.com'])
+        # request.requestHeaders.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
+        #                                      b'BiliDroid/10.10.10 (bbcallen@gmail.com)'])
         request.requestHeaders.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
-                                             b'BiliDroid/10.10.10 (bbcallen@gmail.com)'])
+                                             b'BiliDroid/8.76.0 (bbcallen@gmail.com)'])
         request.content.seek(0, 0)
 
         clientFactory = ProxyClientFactory(
