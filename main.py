@@ -51,6 +51,7 @@ class ReverseProxyResource(Resource):
         )
 
     async def _async_render_proxy_pic(self, request, req_path):
+        await image_limiter.acquire()
         client = get_global_httpx_client()
         req_path_stripped = req_path[11:]
         domain = req_path_stripped.split('/')[0]

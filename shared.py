@@ -17,10 +17,41 @@ import os
 import redis
 import toml
 import httpx
+import asyncio
+import time
 from flask import request, render_template, Flask
 from flask_caching import Cache
 from bilibili_api import Credential
 from refresher import renew_cookies
+
+class AsyncRateLimiter:
+    def __init__(self, max_rate, period=1.0):
+        self.max_rate = max_rate
+        self.period = period
+        self.tokens = max_rate
+        self.updated_at = time.monotonic()
+        self.lock = asyncio.Lock()
+
+    async def acquire(self):
+        async with self.lock:
+            while True:
+                now = time.monotonic()
+                time_passed = now - self.updated_at
+                self.tokens += time_passed * (self.max_rate / self.period)
+                self.updated_at = now
+                if self.tokens > self.max_rate:
+                    self.tokens = self.max_rate
+                
+                if self.tokens >= 1:
+                    self.tokens -= 1
+                    return
+                
+                # Wait for enough tokens
+                wait_time = (1 - self.tokens) / (self.max_rate / self.period)
+                await asyncio.sleep(wait_time)
+
+# Rate limiter for images (10 per second)
+image_limiter = AsyncRateLimiter(10, 1.0)
 
 def get_proxy_settings():
     proxy_url = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')

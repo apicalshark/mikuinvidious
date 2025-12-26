@@ -16,11 +16,12 @@
 import httpx
 from flask import Blueprint, request, Response
 from urllib.parse import urlparse
-from shared import appredis, appconf, get_global_httpx_client
+from shared import appredis, appconf, get_global_httpx_client, image_limiter
 
 proxy_bp = Blueprint('proxy', __name__)
 
 async def render_proxy_pic(req_path):
+    await image_limiter.acquire()
     req_path = req_path[11:]
     domain = req_path.split('/')[0]
 
