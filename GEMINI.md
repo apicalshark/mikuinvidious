@@ -154,6 +154,14 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
     ```
     Access at `http://[::]:8888` (or configured port).
 
+## Recent Updates (Phase 1-3)
+- **Live Streaming:** Full support for browsing and watching Bilibili Live rooms (`/live`, `/live/<room_id>`).
+- **Watch History:** Anonymous, local watch history stored in Redis (`/history`).
+- **Refactoring:** 
+    - Decoupled API logic using `transformers.py`.
+    - Unified video player logic with `templates/macros.html`.
+    - Flattened template data structures for better maintainability.
+
 ## Development Conventions
 - **License:** GNU GPL-3.0.
 - **Theming:** Templates in `templates/themes/`. Default is `modern`.

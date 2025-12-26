@@ -62,9 +62,9 @@ def get_proxy_settings():
 def get_httpx_client(async_client=True):
     proxy_url = get_proxy_settings()
     if async_client:
-        return httpx.AsyncClient(proxy=proxy_url, trust_env=False)
+        return httpx.AsyncClient(proxy=proxy_url, trust_env=False, timeout=None)
     else:
-        return httpx.Client(proxy=proxy_url, trust_env=False)
+        return httpx.Client(proxy=proxy_url, trust_env=False, timeout=None)
 
 # Global clients for connection pooling
 _httpx_async_client = None

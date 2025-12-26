@@ -10,49 +10,53 @@
 <div class="h-box">
   搜索类别：
   <a href="/search?q={{q}}&t=video">[视频]</a>
+  <a href="/search?q={{q}}&t=live">[直播]</a>
   <a href="/search?q={{q}}&t=article">[专栏]</a>
   <a href="/search?q={{q}}&t=user">[UP主]</a>
 </div>
 
 <div class="h-box">
   排序方式：
-  <a href="/search?q={{q}}&sort=rank">[综合排序]</a>
-  <a href="/search?q={{q}}&sort=click">[最多点击]</a>
-  <a href="/search?q={{q}}&sort=pubdate">[最新发布]</a>
-  <a href="/search?q={{q}}&sort=dm">[最多弹幕]</a>
-  <a href="/search?q={{q}}&sort=stow">[最多收藏]</a>
-  <a href="/search?q={{q}}&sort=scores">[最多评论]</a>
+  <a href="/search?q={{q}}&sort=rank&t={{request.args.get('t') or 'video'}}">[综合排序]</a>
+  <a href="/search?q={{q}}&sort=click&t={{request.args.get('t') or 'video'}}">[最多点击]</a>
+  <a href="/search?q={{q}}&sort=pubdate&t={{request.args.get('t') or 'video'}}">[最新发布]</a>
+  <a href="/search?q={{q}}&sort=dm&t={{request.args.get('t') or 'video'}}">[最多弹幕]</a>
+  <a href="/search?q={{q}}&sort=stow&t={{request.args.get('t') or 'video'}}">[最多收藏]</a>
+  <a href="/search?q={{q}}&sort=scores&t={{request.args.get('t') or 'video'}}">[最多评论]</a>
 </div>
 
 <div class="pure-g h-box v-box">
   <div class="pure-u-1 pure-u-lg-1-5">
     {% if sinfo['page'] > 1 %}
-    <a href="/search?q={{q}}&i={{sinfo['page']-1}}&sort={{sort}}">上一页</a>
+    <a href="/search?q={{q}}&i={{sinfo['page']-1}}&sort={{sort}}&t={{request.args.get('t')}}">上一页</a>
     {% endif %}
   </div>
   <div class="pure-u-1 pure-u-lg-3-5"></div>
   <div class="pure-u-1 pure-u-lg-1-5" style="text-align:right">
     {% if sinfo['numPages'] > sinfo['page'] %}
-    <a href="/search?q={{q}}&i={{sinfo['page']+1}}&sort={{sort}}">下一页</a>
+    <a href="/search?q={{q}}&i={{sinfo['page']+1}}&sort={{sort}}&t={{request.args.get('t')}}">下一页</a>
     {% endif %}
   </div>
 </div>
 
-{% if sinfo['numResults'] == 0 %}
+{% if sinfo['numResults'] == 0 and not rs %}
 <div class="h-box no-results-error">
     <div>
-        没有搜索到相关视频
+        没有搜索到相关内容
     </div>
 </div>
 {% else %}
 <div class="pure-g">
   {% for v in rs %}
+  {% set is_live = v.get('room_id') is not none %}
+  {% set link = '/live/' + v['room_id']|string if is_live else '/video/' + v['bvid']|string %}
+
   <div class="pure-u-1 pure-u-md-1-4">
     <div class="h-box">
-      <a style="width:100%" href="/video/{{ v['bvid'] }}">
+      <a style="width:100%" href="{{ link }}">
         <div class="thumbnail">
           <img width="320" height="180" loading="lazy" tabindex="-1" class="thumbnail" src="{{ "{}@320w".format(v['pic'])|pic }}" alt="">
-          <p class="length">{{ v['duration'] }}</p>
+          <p class="length">{{ v['online']|intsep ~ ' 人观看' if is_live else v['duration'] }}</p>
         </div>
         <p dir="auto">
 	  {{ v['title']|safe }}
@@ -60,9 +64,10 @@
       </a>
 
       <div class="video-card-row flexible">
-        <div class="flex-left"><a href="/space/{{ v['mid'] }}">
-            <p class="channel-name" dir="auto">{{ v['author'] }}</p>
+        <div class="flex-left"><a href="/space/{{ v.get('uid') or v.get('author_id') }}">
+            <p class="channel-name" dir="auto">{{ (v.get('uname') or v.get('author'))|translate }}</p>
         </a></div>
+        {% if not is_live %}
         <div class="flex-right">
 	  <div class="icon-buttons">
             <a title="在哔哩哔哩上观看" href="https://www.bilibili.com/video/{{ v['bvid'] }}">
@@ -73,14 +78,15 @@
             </a>
 	  </div>
 	</div>
+        {% endif %}
       </div>
 
       <div class="video-card-row flexible">
         <div class="flex-left">
-          <p class="video-data" dir="auto">{{ v['pubdate']|date }}</p>
+          <p class="video-data" dir="auto">{{ v['area_name'] if is_live else v['published']|date }}</p>
         </div>
         <div class="flex-right">
-          <p class="video-data" dir="auto">{{ v['play']|intsep }} 次播放</p>
+          <p class="video-data" dir="auto">{{ (v['online'] if is_live else v['views'])|intsep }} {{ '人气' if is_live else '次播放' }}</p>
         </div>
       </div>      
     </div>

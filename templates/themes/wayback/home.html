@@ -22,7 +22,7 @@
 </div>
 
 <div class="pure-g">
-  {% for v in i['item'] %}
+  {% for v in videos %}
   <div class="pure-u-1 pure-u-md-1-4">
     <div class="h-box">
       <a style="width:100%" href="/video/{{ v['bvid'] }}">
@@ -36,8 +36,8 @@
       </a>
 
       <div class="video-card-row flexible">
-        <div class="flex-left"><a href="/space/{{ v['owner']['mid'] }}">
-            <p class="channel-name" dir="auto">{{ v['owner']['name'] }}</p>
+        <div class="flex-left"><a href="/space/{{ v['author_id'] }}">
+            <p class="channel-name" dir="auto">{{ v['author'] }}</p>
         </a></div>
         <div class="flex-right">
 	  <div class="icon-buttons">
@@ -53,10 +53,10 @@
 
       <div class="video-card-row flexible">
         <div class="flex-left">
-          <p class="video-data" dir="auto">{{ v['pubdate']|date }}</p>
+          <p class="video-data" dir="auto">{{ v['published']|date }}</p>
         </div>
         <div class="flex-right">
-          <p class="video-data" dir="auto">{{ v['stat']['view']|intsep }} 次播放</p>
+          <p class="video-data" dir="auto">{{ v['views']|intsep }} 次播放</p>
         </div>
       </div>      
     </div>

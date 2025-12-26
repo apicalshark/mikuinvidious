@@ -28,7 +28,7 @@
 <hr class="my-10 border-none h-px bg-gradient-to-r from-transparent via-surface-variant/30 to-transparent">
 
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-  {% for v in i['item'] %}
+  {% for v in videos %}
   <div class="group bg-surface dark:bg-surface-variant/20 rounded-2xl overflow-hidden hover:bg-surface-variant/30 flex flex-col transition-all duration-300 hover:shadow-[0_0_20px_rgba(156,65,116,0.15)] dark:hover:shadow-[0_0_20px_rgba(255,177,218,0.1)] hover:-translate-y-1">
     <!-- Thumbnail -->
     <a href="/video/{{ v['bvid'] }}" class="relative block aspect-video overflow-hidden">
@@ -47,11 +47,11 @@
 
         <div class="mt-auto space-y-3">
             <div class="flex justify-between items-center text-xs text-on-surface-variant">
-                <a href="/space/{{ v['owner']['mid'] }}" class="hover:text-primary truncate max-w-[65%] flex items-center gap-1.5 transition-colors">
+                <a href="/space/{{ v['author_id'] }}" class="hover:text-primary truncate max-w-[65%] flex items-center gap-1.5 transition-colors">
                     <div class="w-5 h-5 rounded-full bg-surface-variant/50 flex items-center justify-center">
                         <i class="icon ion-ios-person text-sm"></i>
                     </div>
-                    <span dir="auto" class="font-medium">{{ v['owner']['name']|translate }}</span>
+                    <span dir="auto" class="font-medium">{{ v['author']|translate }}</span>
                 </a>
                 
                 <div class="flex gap-3">
@@ -65,8 +65,8 @@
             </div>
 
             <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
-                <p dir="auto">{{ v['pubdate']|date }}</p>
-                <p dir="auto">{{ v['stat']['view']|intsep }} {{ '次播放'|translate }}</p>
+                <p dir="auto">{{ v['published']|date }}</p>
+                <p dir="auto">{{ v['views']|intsep }} {{ '次播放'|translate }}</p>
             </div>
         </div>
     </div>

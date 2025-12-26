@@ -1,4 +1,5 @@
 {% extends 'themes/modern/base.html' %}
+{% from 'macros.html' import video_player %}
 
 {% block head %}
   <meta name="description" content="{{ vinfo['desc'] }}">
@@ -37,6 +38,7 @@
   <script>
     current_vid = '{{ vid }}'; idx = {{ idx }}; total_pages = {{ vset|length }};
     ato = {{ 'true' if ato else 'false' }};
+    window.is_live = {{ 'true' if is_live else 'false' }};
   </script>
 {% endblock %}
 
@@ -49,20 +51,7 @@
     <!-- Player Card -->
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl overflow-hidden shadow-sm">
         <!-- Player Wrapper: Force Dark Background -->
-        <div id="player-container" class="relative w-full aspect-video bg-black group">
-            <video style="width:100%; height:100%; outline:none;" playsinline controls preload="metadata" poster="{{ vinfo['pic']|pic }}" id="player" class="video-js vjs-big-play-centered player-style-invidious w-full h-full object-contain">
-                {% for src in supported_src %}
-                <source src="/proxy/video/{{ vid }}_{{ idx }}_{{ src['quality'] }}" type="video/mp4" label="{{ src['new_description'] }}" />
-                {% endfor %}
-                <p class="vjs-no-js">
-                To view this video please enable JavaScript, and consider upgrading to a web browser that
-                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-                </p>
-            </video>
-            <script src="/static/vjs/video.min.js"></script>
-            <script src="/static/vjs/videojs-resolution-switcher.js"></script>
-            <script src="/static/danmakujs/danmaku.min.js"></script>
-        </div>
+        {{ video_player(vid, vinfo, idx, supported_src, is_live) }}
 
         <!-- Title & Basic Actions -->
         <div class="p-4 md:p-6 space-y-4">
@@ -70,12 +59,16 @@
                 <h1 class="text-xl md:text-2xl font-bold text-on-surface leading-tight break-words line-clamp-2">
                     {{ vinfo['title']|translate }}
                 </h1>
+                {% if not is_live %}
                 <a id='avswitch' title="{{ 'Audio mode'|translate }}" href="/video/{{ vid }}?listen=1{{ '&ato=1' if ato else '' }}" class="flex-shrink-0 p-2 text-on-surface-variant hover:text-primary bg-surface-variant/30 hover:bg-surface-variant/50 rounded-full transition-all">
                     <i class="icon ion-md-headset text-xl"></i>
                 </a>
+                {% else %}
+                <span class="inline-block px-3 py-1 rounded-full bg-red-500 text-white text-sm font-bold animate-pulse">LIVE</span>
+                {% endif %}
             </div>
 
-            {% if vset|length > 1 %}
+            {% if vset|length > 1 and not is_live %}
             <div class="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
                 P{{ vset[idx]['page'] }}: {{ vset[idx]['part']|translate }}
             </div>
@@ -83,9 +76,10 @@
 
             <!-- Stats Bar -->
             <div class="flex flex-wrap gap-4 md:gap-6 text-sm text-on-surface-variant pb-4">
-                <div class="flex items-center gap-1.5" title="{{ '播放量'|translate }}">
-                    <i class="icon ion-ios-eye text-lg"></i> {{ vinfo['stat']['view']|intsep }}
+                <div class="flex items-center gap-1.5" title="{{ '在线人数' if is_live else '播放量'|translate }}">
+                    <i class="icon ion-ios-eye text-lg"></i> {{ vinfo['stat']['view']|intsep }} {{ '在线' if is_live else ''|translate }}
                 </div>
+                {% if not is_live %}
                 <div class="flex items-center gap-1.5" title="{{ '点赞'|translate }}">
                     <i class="icon ion-ios-thumbs-up text-lg"></i> {{ vinfo['stat']['like']|intsep }}
                 </div>
@@ -98,6 +92,7 @@
                 <div class="flex items-center gap-1.5" title="{{ '分享'|translate }}">
                     <i class="icon ion-md-share text-lg"></i> {{ vinfo['stat']['share']|intsep }}
                 </div>
+                {% endif %}
                 <div class="ml-auto flex items-center gap-1.5">
                      <i class="icon ion-ios-pricetag"></i>
                      <a href="/vv/{{ vinfo['tid'] }}" class="hover:text-primary transition-colors">{{ vinfo['tname']|translate }}</a>
@@ -117,12 +112,12 @@
 
                 <!-- External & Download -->
                 <div class="flex flex-wrap gap-2 w-full md:w-auto justify-end">
-                     <a href="https://www.bilibili.com/video/{{ vinfo['bvid'] }}" target="_blank" class="px-4 py-2 rounded-lg bg-surface-variant/30 text-on-surface hover:bg-[#FF6699] hover:text-white transition-all text-sm font-medium flex items-center gap-2">
+                     <a href="https://live.bilibili.com/{{ vinfo['bvid'] }}" target="_blank" class="px-4 py-2 rounded-lg bg-surface-variant/30 text-on-surface hover:bg-[#FF6699] hover:text-white transition-all text-sm font-medium flex items-center gap-2">
                          <i class="icon ion-logo-youtube"></i>
                          <span class="hidden sm:inline">哔哩哔哩</span>
                      </a>
                      
-                     {% if site_allow_download %}
+                     {% if site_allow_download and not is_live %}
                      <form class="flex gap-2" action="/download" method="post" rel="noopener" target="_blank">
                         <input type="hidden" name="id" value="{{ vinfo['bvid'] }}">
                         <input type="hidden" name="cvid" value="{{ idx }}">
@@ -141,12 +136,13 @@
 
             <!-- Description -->
             <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed  break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
-                {{ vinfo['desc']|translate }}
+                {{ vinfo['desc']|translate|safe }}
             </div>
         </div>
     </div>
 
     <!-- Comments -->
+    {% if not is_live %}
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm">
         <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
             <i class="icon ion-ios-chatbubbles"></i>
@@ -177,14 +173,66 @@
             {% endif %}
         </div>
     </div>
+    {% endif %}
 
   </div>
 
-  <!-- Right Column: Related Videos -->
+  <!-- Right Column: Related Videos or Live Chat -->
   <div class="lg:col-span-1 space-y-6">
     
+    {% if is_live %}
+    <!-- Live Chat Box -->
+    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl shadow-sm flex flex-col h-[400px] max-h-[calc(100vh-150px)] border-[3px] border-[#fb7299] sticky top-6 overflow-hidden">
+        <div class="p-3 border-b border-[#fb7299]/30 flex items-center justify-between" title="{{ '实时聊天'|translate }}">
+            <h3 class="font-bold text-on-surface flex items-center gap-2 uppercase text-base tracking-wider">
+                <i class="icon ion-md-chatbubbles text-[#fb7299]"></i>
+                {{ '实时聊天'|translate }}
+            </h3>
+            <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+        </div>
+        <div id="live-chat-container" class="flex-grow overflow-auto p-2 text-[13px] leading-relaxed custom-scrollbar bg-black/5">
+            <!-- Messages append here -->
+            <p class="text-on-surface-variant/50 text-center py-4 italic">{{ '正在连接到聊天室...'|translate }}</p>
+        </div>
+    </div>
+    <script>
+        const chatContainer = document.getElementById('live-chat-container');
+        const eventSource = new EventSource('/live/chat/{{ vid }}');
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            const loadingMsg = chatContainer.querySelector('.text-center');
+            if (loadingMsg) chatContainer.innerHTML = '';
+
+            const isAtBottom = chatContainer.scrollHeight - chatContainer.clientHeight <= chatContainer.scrollTop + 50;
+
+            const msgEl = document.createElement('div');
+            msgEl.className = 'py-1 px-2 hover:bg-surface-variant/10 transition-colors rounded';
+            msgEl.innerHTML = `<span class="font-bold text-primary mr-1">${data.user}:</span><span class="text-on-surface opacity-90">${data.text}</span>`;
+            chatContainer.appendChild(msgEl);
+            
+            if (isAtBottom) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+
+            if (chatContainer.children.length > 150) {
+                chatContainer.removeChild(chatContainer.firstChild);
+            }
+        };
+
+        eventSource.onerror = function() {
+            const errEl = document.createElement('p');
+            errEl.className = 'text-red-500 text-xs text-center py-2';
+            errEl.innerText = '{{ '聊天连接已断开'|translate }}';
+            chatContainer.appendChild(errEl);
+            eventSource.close();
+        };
+    </script>
+    {% endif %}
+
     <!-- Playlist / Parts -->
-    {% if vset|length > 1 %}
+    {% if vset|length > 1 and not is_live %}
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
         <div class="flex items-center justify-between mb-3">
              <h3 class="font-bold text-on-surface">{{ '选集'|translate }} ({{ vset|length }})</h3>
@@ -238,5 +286,10 @@
   </div>
 </div>
   
+<script src="/static/vjs/video.min.js"></script>
+<script src="/static/vjs/flv.min.js"></script>
+<script src="/static/vjs/videojs-flvjs.min.js"></script>
+<script src="/static/vjs/videojs-resolution-switcher.js"></script>
+<script src="/static/danmakujs/danmaku.min.js"></script>
 <script src="/static/themes/modern/js/player.js"></script>
 {% endblock %}

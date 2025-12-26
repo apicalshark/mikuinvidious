@@ -23,6 +23,14 @@ from shared import *
 
 @app.route('/res/danmaku/<vid>:<idx>')
 async def danmaku_res(vid, idx=0):
+    # Check if this is a live room ID (all digits)
+    if vid.isdigit():
+        return jsonify([])
+
     v = video.Video(bvid=vid)
-    print(await v.get_danmaku_xml(int(idx)))
-    return jsonify(danmaku_xml_conv(minidom.parseString(await v.get_danmaku_xml(int(idx)))))
+    try:
+        xml = await v.get_danmaku_xml(int(idx))
+        return jsonify(danmaku_xml_conv(minidom.parseString(xml)))
+    except Exception as e:
+        print(f"Danmaku error: {e}")
+        return jsonify([])

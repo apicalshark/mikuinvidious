@@ -1,4 +1,5 @@
 {% extends 'themes/wayback/base.html' %}
+{% from 'macros.html' import video_player %}
 
 {% block head %}
   <meta name="description" content="{{ vinfo['desc'] }}">
@@ -37,36 +38,25 @@
   <script>
     current_vid = '{{ vid }}'; idx = {{ idx }}; total_pages = {{ vset|length }};
     ato = {{ 'true' if ato else 'false' }};
+    window.is_live = {{ 'true' if is_live else 'false' }};
   </script>
 {% endblock %}
 
 {% block content %}
-<div id="player-container" class="h-box">
-  <video style="outline:none;width:100%;background-color:#000" playsinline controls poster="{{ vinfo['pic']|pic }}" id="player" class="on-video_player video-js player-style-invidious">
-    {% for src in supported_src %}
-      <source src="/proxy/video/{{ vid }}_{{ idx }}_{{ src['quality'] }}" type="video/mp4"
-        label="{{ src['new_description'] }}"
-         />
-    {% endfor %}
-    <p class="vjs-no-js">
-      To view this video please enable JavaScript, and consider upgrading to a web browser that
-      <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-    </p>
-  </video>
-
-  <script src="/static/vjs/video.min.js"></script>
-  <script src="/static/vjs/videojs-resolution-switcher.js"></script>
-  <script src="/static/danmakujs/danmaku.min.js"></script>
-</div>
+{{ video_player(vid, vinfo, idx, supported_src, is_live) }}
 
 <div class="h-box">
   <h1>
     {{ vinfo['title'] }}
+    {% if not is_live %}
     <a id='avswitch' title="Audio mode" href="/video/{{ vid }}?listen=1{{ '&ato=1' if ato else '' }}">
       <i class="icon ion-md-headset"></i>
     </a>
+    {% else %}
+    <span style="color:red; font-weight:bold;">[LIVE]</span>
+    {% endif %}
   </h1>
-  {% if vset|length > 1 %}
+  {% if vset|length > 1 and not is_live %}
   <h1 style="text-align: center;">
     P{{ vset[idx]['page'] }}: {{ vset[idx]['part'] }}
   </h1>
@@ -77,10 +67,10 @@
   <div class="pure-u-1 pure-u-lg-1-5">
     <div class="h-box">
       <span id="watch-on-youtube">
-        <a href="https://www.bilibili.com/video/{{ vinfo['bvid'] }}">在哔哩哔哩上观看</a>
+        <a href="https://{{ 'live.bilibili.com' if is_live else 'www.bilibili.com/video' }}/{{ vinfo['bvid'] }}">在哔哩哔哩上观看</a>
       </span>
 
-      {% if site_allow_download %}
+      {% if site_allow_download and not is_live %}
       <form class="pure-form pure-form-stacked" action="/download" method="post" rel="noopener" target="_blank">
 	<input type="hidden" name="id" value="{{ vinfo['bvid'] }}">
 	<input type="hidden" name="cvid" value="{{ idx }}">
@@ -98,11 +88,13 @@
       </form>
       {% endif %}
       
-      <p id="views"><i class="icon ion-ios-eye"></i> {{ vinfo['stat']['view']|intsep }}</p>
+      <p id="views"><i class="icon ion-ios-eye"></i> {{ vinfo['stat']['view']|intsep }} {{ '在线' if is_live else '' }}</p>
+      {% if not is_live %}
       <p id="likes"><i class="icon ion-ios-thumbs-up"></i> {{ vinfo['stat']['like']|intsep }}</p>
       <p id="coins"><i class="icon ion-logo-bitcoin"></i> {{ vinfo['stat']['coin']|intsep }}</p>
       <p id="saves"><i class="icon ion-ios-bookmark"></i> {{ vinfo['stat']['favorite']|intsep }}</p>
       <p id="shares"><i class="icon ion-md-share"></i> {{ vinfo['stat']['share']|intsep }}</p>
+      {% endif %}
 
       <p id="genre">
 	视频分区：<a href="/vv/{{ vinfo['tid'] }}">{{ vinfo['tname'] }}</a>
@@ -129,6 +121,7 @@
 
       <hr>
 
+      {% if not is_live %}
       <div id="comments">
 	<h3>浏览总计 {{ vcomments['page']['count'] }} 条评论中的 {{ vcomments['page']['size'] if vcomments['page']['size'] < vcomments['page']['count'] else vcomments['page']['count'] }} 条评论</h3>
 	<div>
@@ -154,11 +147,44 @@
 	  <hr>
 	</div>
       </div>
+      {% endif %}
     </div>
   </div>
 
   <div class="pure-u-1 pure-u-lg-1-5">
-    {% if vset|length > 1 %}
+    {% if is_live %}
+    <div class="h-box">
+      <h3 style="margin-top:0; border-bottom:3px solid #fb7299; padding-bottom:5px; font-size:16px;" title="实时聊天">实时聊天</h3>
+      <div id="live-chat-container" style="height: 300px; max-height: 70vh; overflow: auto; font-size: 11px; border: 3px solid #fb7299; padding: 5px; background: #f9f9f9;">
+        <p style="text-align:center; color:#666;">正在连接...</p>
+      </div>
+    </div>
+    <script>
+        const chatContainer = document.getElementById('live-chat-container');
+        const eventSource = new EventSource('/live/chat/{{ vid }}');
+
+        eventSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            const isAtBottom = chatContainer.scrollHeight - chatContainer.clientHeight <= chatContainer.scrollTop + 20;
+
+            const msgEl = document.createElement('div');
+            msgEl.style.padding = '2px 0';
+            msgEl.innerHTML = `<b style="color:#fb7299;">${data.user}:</b> ${data.text}`;
+            
+            if (chatContainer.querySelector('p')) {
+                chatContainer.innerHTML = '';
+            }
+
+            chatContainer.appendChild(msgEl);
+            if (isAtBottom) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        };
+    </script>
+    <hr>
+    {% endif %}
+
+    {% if vset|length > 1 and not is_live %}
     <div class="h-box">
       <div class="pure-control-group">
         <label for="continue">Play next by default: </label>

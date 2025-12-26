@@ -1,33 +1,57 @@
 /* @license magnet:?xt=urn:btih:0b31508aeb0634b347b8270c7bee4d411b5d4109&dn=agpl-3.0.txt AGPL-3.0 */
 
-if (ato) {
-    window.player = videojs('player', {
-	'aspectRatio': '16:9',
-	'autoplay': 'any',
-        'preload': 'metadata',
-        'controlBar': {
-            'currentTimeDisplay': true,
-            'timeDivider': true,
-            'durationDisplay': true,
-            'remainingTimeDisplay': false
+var playerOptions = {
+    'aspectRatio': '16:9',
+    'preload': 'metadata',
+    'controlBar': {
+        'currentTimeDisplay': true,
+        'timeDivider': true,
+        'durationDisplay': true,
+        'remainingTimeDisplay': false
+    }
+};
+
+if (typeof window.is_live !== 'undefined' && window.is_live) {
+    playerOptions.techOrder = ['html5', 'flvjs'];
+    playerOptions.muted = false; // Explicitly unmute
+    playerOptions.flvjs = {
+        mediaDataSource: {
+            isLive: true,
+            cors: true,
+            withCredentials: false,
+        },
+        config: {
+            enableStashBuffer: true,
+            stashInitialSize: 1024 * 1024 * 2,
+            enableWorker: false,
+            lazyLoad: false,
+            seekType: 'range'
         }
-    })
-} else {
-    window.player = videojs('player', {
-	'aspectRatio': '16:9',
-        'preload': 'metadata',
-        'controlBar': {
-            'currentTimeDisplay': true,
-            'timeDivider': true,
-            'durationDisplay': true,
-            'remainingTimeDisplay': false
-        }
-    })
+    };
+    playerOptions.autoplay = 'any';
+} else if (ato) {
+    playerOptions.autoplay = 'any';
 }
+
+window.player = videojs('player', playerOptions);
 
 // Buffering logic: Aggressive accumulation for slow connections
 window.player.ready(function() {
     var player = this;
+    
+    if (typeof window.is_live !== 'undefined' && window.is_live) {
+        // Initialize resolution switcher with sources for live
+        if (window.supported_src && window.supported_src.length > 0) {
+            var sources = window.supported_src.map(src => ({
+                src: '/proxy/live/' + current_vid + '_' + src.quality,
+                type: 'video/x-flv',
+                label: src.new_description
+            }));
+            
+            player.updateSrc(sources);
+        }
+        return;
+    }
     
     // Add buffering overlay (text based)
     var overlay = document.createElement('div');

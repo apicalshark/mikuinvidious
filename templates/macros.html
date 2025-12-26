@@ -1,0 +1,18 @@
+{% macro video_player(vid, vinfo, idx, supported_src, is_live=False) %}
+<div id="player-container" class="relative w-full aspect-video bg-black group">
+    <video style="width:100%; height:100%; outline:none;" playsinline controls preload="metadata" poster="{{ vinfo['pic']|pic }}" id="player" class="video-js vjs-big-play-centered player-style-invidious w-full h-full object-contain">
+        {% if not is_live %}
+            {% for src in supported_src %}
+            <source src="/proxy/video/{{ vid }}_{{ idx }}_{{ src['quality'] }}" type="video/mp4" label="{{ src['new_description']|translate }}" />
+            {% endfor %}
+        {% endif %}
+        <p class="vjs-no-js">
+        To view this video please enable JavaScript, and consider upgrading to a web browser that
+        <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
+        </p>
+    </video>
+    <script>
+        window.supported_src = {{ supported_src|tojson }};
+    </script>
+</div>
+{% endmacro %}

@@ -13,11 +13,12 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import asyncio, os
-from flask import render_template, request
-from bilibili_api import user, video, article, comment, search, homepage, video_zone, audio, opus
+import asyncio, os, json, traceback
+from flask import render_template, request, Response, stream_with_context
+from bilibili_api import user, video, article, comment, search, homepage, video_zone, audio, opus, live, live_area
 
 from shared import *
+import transformers
 from extra import video_get_src_for_qn, video_get_dash_for_qn, bv2av, av2bv, article_to_html, article_to_any, get_article_info
 
 @app.route('/licenses')
@@ -26,7 +27,17 @@ async def static_licenses_view():
 
 @app.route('/')
 async def home_view():
-    return await render_template_with_theme('home.html', i=await homepage.get_videos())
+    api_res = await homepage.get_videos()
+    processed_videos = []
+    raw_list = []
+    if isinstance(api_res, dict) and 'item' in api_res:
+        raw_list = api_res['item']
+    elif isinstance(api_res, list):
+        raw_list = api_res
+    for v in raw_list:
+        card = transformers.transform_video_card(v)
+        if card: processed_videos.append(card)
+    return await render_template_with_theme('home.html', videos=processed_videos)
 
 @app.route('/vv/<zid>')
 @app.route('/vv/<zid>/')
@@ -39,54 +50,48 @@ async def zone_id_view(zid):
 async def search_view():
     q = request.args.get('q')
     i = request.args.get('i') or 1
-
     if not q:
-        return await render_template_with_theme('error.html',
-                                                status='无法搜索',
-                                                desc='没有发送搜索关键字。',
-                                                sg='请设置搜索关键字后重试。'), 400
+        return await render_template_with_theme('error.html', status='无法搜索', desc='没有发送搜索关键字。', sg='请设置搜索关键字后重試。'), 400
     order_map = {
-        'rank': search.OrderVideo.TOTALRANK,
-        'click': search.OrderVideo.CLICK,
-        'pubdate': search.OrderVideo.PUBDATE,
-        'dm': search.OrderVideo.DM,
-        'stow': search.OrderVideo.STOW,
-        'scores': search.OrderVideo.SCORES,
-        'attention': search.OrderArticle.ATTENTION,
-        'fans': search.OrderUser.FANS,
-        'level': search.OrderUser.LEVEL,
+        'rank': search.OrderVideo.TOTALRANK, 'click': search.OrderVideo.CLICK, 'pubdate': search.OrderVideo.PUBDATE,
+        'dm': search.OrderVideo.DM, 'stow': search.OrderVideo.STOW, 'scores': search.OrderVideo.SCORES,
+        'attention': search.OrderArticle.ATTENTION, 'fans': search.OrderUser.FANS, 'level': search.OrderUser.LEVEL,
     }
-    
     if request.args.get('t') == 'article':
-        search_type = search.SearchObjectType.ARTICLE
-        tmpl = 'search_article.html'
+        search_type, tmpl = search.SearchObjectType.ARTICLE, 'search_article.html'
     elif request.args.get('t') == 'user':
-        search_type = search.SearchObjectType.USER
-        tmpl = 'search_user.html'
+        search_type, tmpl = search.SearchObjectType.USER, 'search_user.html'
+    elif request.args.get('t') == 'live':
+        search_type, tmpl = search.SearchObjectType.LIVE, 'search.html'
     else:
-        search_type = search.SearchObjectType.VIDEO
-        tmpl = 'search.html'
+        search_type, tmpl = search.SearchObjectType.VIDEO, 'search.html'
 
-    sinfo = await search.search_by_type(q, page=i, search_type=search_type,
-                                        order_type=order_map.get(request.args.get('sort')))
-    return await render_template_with_theme(tmpl, q=q, sinfo=sinfo,
-                                            rs=sinfo.get('result'),
-                                            sort=request.args.get('sort'))
+    sinfo = await search.search_by_type(q, page=i, search_type=search_type, order_type=order_map.get(request.args.get('sort')))
+    results = []
+    if search_type == search.SearchObjectType.VIDEO:
+        for item in sinfo.get('result', []):
+            card = transformers.transform_video_card(item)
+            if card: results.append(card)
+    elif search_type == search.SearchObjectType.LIVE:
+        for item in sinfo.get('result', {}).get('live_room', []):
+            card = transformers.transform_live_card(item)
+            if card: results.append(card)
+    else:
+        results = sinfo.get('result', [])
+    return await render_template_with_theme(tmpl, q=q, sinfo=sinfo, rs=results, sort=request.args.get('sort'))
 
 @app.route('/space/<mid>')
 @app.route('/space/<mid>/')
 async def space_view(mid):
     u = user.User(mid)
-    uinfo, uvids = await asyncio.gather(u.get_user_info(),
-                                        u.get_videos(pn=request.args.get('i') or 1, ps=28))
+    uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=request.args.get('i') or 1, ps=28))
     return await render_template_with_theme('space.html', uinfo=uinfo, uvids=uvids)
 
 @app.route('/author/<mid>')
 @app.route('/author/<mid>/')
 async def author_view(mid):
     u = user.User(mid)
-    uinfo, uarticles = await asyncio.gather(u.get_user_info(),
-                                        u.get_articles(pn=request.args.get('i') or 1, ps=28))
+    uinfo, uarticles = await asyncio.gather(u.get_user_info(), u.get_articles(pn=request.args.get('i') or 1, ps=28))
     return await render_template_with_theme('author.html', uinfo=uinfo, uarts=uarticles)
 
 @app.route('/read/<cid>')
@@ -97,55 +102,24 @@ async def author_view(mid):
 @app.route('/opus/<cid>/')
 async def read_view(cid):
     is_opus = 'opus' in request.path or not cid.startswith('cv')
-    
-    if is_opus:
-        url = f'https://www.bilibili.com/opus/{cid.replace("opus", "")}'
-    else:
-        url = f'https://www.bilibili.com/read/{cid}'
-
+    url = f'https://www.bilibili.com/opus/{cid.replace("opus", "")}' if is_opus else f'https://www.bilibili.com/read/{cid}'
     client = get_global_httpx_client()
     try:
-        req = await client.get(url,
-                       headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-                                'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0'
-                                'Safari/537.36 Edg/111.0.1661.62'},
-                       follow_redirects=True)
+        req = await client.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.62'}, follow_redirects=True)
     except Exception as e:
-         return await render_template_with_theme('error.html',
-                                            status = '网络错误',
-                                            desc = str(e),
-                                            suggest = '請檢查您的網絡連接或代理設置。'), 500
-
+         return await render_template_with_theme('error.html', status = '网络错误', desc = str(e), suggest = '請檢查您的網絡連接或代理設置。'), 500
     if req.status_code != 200:
-        st = '服务器错误'
-        sg = None
-        desc = '后端服务器发送了无效的回复'
-
-        if req.status_code == 404:
-            st = '没有找到文章'
-            sg = '这很可能说明您访问的文章不存在，请检查您的请求。' \
-                '如果您认为这是站点的问题，请联系网站管理员。'
-        
-        return await render_template_with_theme('error.html',
-                                                status = st,
-                                                desc = desc,
-                                                suggest = sg), req.status_code
-
-    if appconf['render']['use_pandoc'] and \
-            request.args.get('format') in appconf['render']['article_allowed_formats']:
+        return await render_template_with_theme('error.html', status = '没有找到文章' if req.status_code == 404 else '服务器错误', desc = '后端服务器发送了无效的回复', suggest = '这很可能说明您访问的文章不存在，请检查您的请求。' if req.status_code == 404 else None), req.status_code
+    if appconf['render']['use_pandoc'] and request.args.get('format') in appconf['render']['article_allowed_formats']:
         return article_to_any(req.text, request.args.get('format'))
     else:
         cvid = cid.replace('cv', '').replace('opus', '')
         try:
-            # Use INITIAL_STATE for most info as bilibili_api's get_all is broken
             arinfo = get_article_info(req.text, cid)
-            
-            # Supplement with get_info() for stats if possible
             try:
                 if is_opus:
                     o = opus.Opus(int(cvid))
                     api_info = await o.get_info()
-                    # opus.Opus info structure is different, stats are in modules
                     for module in api_info.get('item', {}).get('modules', []):
                         if module.get('module_stat'):
                             stat = module['module_stat']
@@ -156,31 +130,108 @@ async def read_view(cid):
                 else:
                     ar = article.Article(int(cvid))
                     api_info = await ar.get_info()
-                    if api_info.get('stats'):
-                        arinfo['stats'].update(api_info['stats'])
-                    if api_info.get('title') and not arinfo['title']:
-                        arinfo['title'] = api_info['title']
-            except:
-                pass
-
+                    if api_info.get('stats'): arinfo['stats'].update(api_info['stats'])
+                    if api_info.get('title') and not arinfo['title']: arinfo['title'] = api_info['title']
+            except: pass
             return await render_template_with_theme('read.html', cid=cid, arinfo = arinfo, article_content=article_to_html(req.text), is_opus=is_opus)
         except Exception as e:
-            print(f"Error rendering article: {e}")
-            return await render_template_with_theme('error.html',
-                                                    status='没有找到文章',
-                                                    desc='文章不存在或解析错误',
-                                                    sg = '這很可能說明您訪問的文章不存在，請檢查您的請求。'), 404
+            return await render_template_with_theme('error.html', status='没有找到文章', desc='文章不存在或解析错误', sg = '這很可能說明您訪問的文章不存在，請檢查您的請求。'), 404
+
+@app.route('/live')
+async def live_list_view():
+    page = request.args.get('i', 1)
+    try:
+        data = await live_area.get_list_by_area(area_id=9, page=page)
+        rooms = []
+        for item in data.get('list', []):
+            card = transformers.transform_live_card(item)
+            if card: rooms.append(card)
+        return await render_template_with_theme('home.html', videos=rooms, title='直播')
+    except Exception as e:
+        return await render_template_with_theme('error.html', status='Live Error', desc=str(e)), 500
+
+@app.route('/live/<room_id>')
+async def live_room_view(room_id):
+    room_id_int = int(room_id)
+    room = live.LiveRoom(room_id_int, credential=appcred)
+    try:
+        print(f"[Live] Loading room {room_id}")
+        info_data = await room.get_room_info()
+        info = transformers.transform_live_room(info_data)
+        
+        print(f"[Live] Fetching qualities for {room_id}")
+        play_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV)
+        qn_list = play_data.get('play_url', {}).get('g_qn_desc', [])
+        
+        if not qn_list:
+            print(f"[Live] No qn_list, using default")
+            qn_list = [{'qn': 0, 'desc': '默认'}]
+
+        async def get_and_cache_qn(qn_val, qn_name):
+            try:
+                print(f"[Live] Getting URL for {room_id} qn={qn_val}")
+                q_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV, live_qn=qn_val)
+                stream = q_data.get('play_url', {}).get('stream', [])
+                url = None
+                for s in stream:
+                    for f in s.get('format', []):
+                        for c in f.get('codec', []):
+                            url = c.get('url') or c.get('base_url')
+                            if url: break
+                        if url: break
+                    if url: break
+                
+                if not url:
+                    print(f"[Live] v2 failed for {room_id} qn={qn_val}, trying fallback")
+                    fb_data = await room.get_room_play_url()
+                    if 'durl' in fb_data and fb_data['durl']:
+                        url = fb_data['durl'][0]['url']
+
+                if url:
+                    print(f"[Live] Cached URL for {room_id} qn={qn_val}")
+                    appredis.setex(f'miku_live_{room_id}_{qn_val}', 1800, url)
+                    return {'quality': qn_val, 'new_description': qn_name, 'url': url}
+            except Exception as e:
+                print(f"[Live] QN Error for {room_id} ({qn_val}): {e}")
+            return None
+
+        q_results = await asyncio.gather(*[get_and_cache_qn(d['qn'], d['desc']) for d in qn_list])
+        supported_src = [r for r in q_results if r and r.get('url')]
+        print(f"[Live] Final supported_src for {room_id}: {[s['new_description'] for s in supported_src]}")
+        
+        if supported_src:
+            print(f"[Live] Set default URL for {room_id} (qn={supported_src[0]['quality']})")
+            appredis.setex(f'miku_live_{room_id}', 1800, supported_src[0]['url'])
+        else:
+            print(f"[Live] NO SOURCES FOUND for {room_id}")
+            # Final attempt
+            try:
+                fb_info = await room.get_room_play_url()
+                if 'durl' in fb_info and fb_info['durl']:
+                    u = fb_info['durl'][0]['url']
+                    appredis.setex(f'miku_live_{room_id}', 1800, u)
+                    supported_src = [{'quality': 'default', 'new_description': '默认', 'url': u}]
+            except: pass
+
+        vinfo = {
+            'title': info['title'], 'desc': info['description'], 'pic': info['pic'],
+            'owner': {'name': info['uname'], 'mid': info['uid'], 'face': info['face']},
+            'stat': {'view': info['online'], 'like': 0, 'coin': 0, 'favorite': 0, 'share': 0},
+            'pubdate': info['start_time'], 'bvid': str(room_id), 'tid': 0, 'tname': info['area_name']
+        }
+        return await render_template_with_theme('video.html', vid=str(room_id), vinfo=vinfo, vcomments={'page':{'count':0}, 'replies':[]}, vrelated=[], keywords='', supported_src=supported_src, ato=False, idx=0, vset=[], is_live=True)
+    except Exception as e:
+        traceback.print_exc()
+        return await render_template_with_theme('error.html', status='直播错误', desc=str(e)), 500
 
 @app.route('/video_listen/<vid>')
 @app.route('/video_listen/<vid>:<idx>')
 @app.route('/video_listen/<vid>/')
 @app.route('/video_listen/<vid>:<idx>/')
 async def video_listen_view(vid, idx=0):
-    ato = request.args.get('ato') == '1'
-    idx = int(idx)
+    ato, idx = request.args.get('ato') == '1', int(idx)
     vid = av2bv(vid[2:]) if vid.startswith('av') else vid
     v = video.Video(bvid=vid, credential=appcred)
-    
     async def get_audio_url():
         if not appredis.exists(f'mikuinv_{vid}_{idx}_0'):
             try:
@@ -191,183 +242,113 @@ async def video_listen_view(vid, idx=0):
             except: pass
             try:
                 vsrc_fallback = await video_get_src_for_qn(v, idx, 16)
-                if 'durl' in vsrc_fallback and vsrc_fallback['durl']:
-                    appredis.setex(f'mikuinv_{vid}_{idx}_0', 1800, vsrc_fallback['durl'][0]['url'])
+                if 'durl' in vsrc_fallback and vsrc_fallback['durl']: appredis.setex(f'mikuinv_{vid}_{idx}_0', 1800, vsrc_fallback['durl'][0]['url'])
             except: pass
-
-    results = await asyncio.gather(
-        v.get_info(), v.get_tags(idx), v.get_related(),
-        comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), 
-        v.get_pages(), get_audio_url(),
-        return_exceptions=True
-    )
-    
+    results = await asyncio.gather(v.get_info(), v.get_tags(idx), v.get_related(), comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), v.get_pages(), get_audio_url(), return_exceptions=True)
     vinfo = results[0] if not isinstance(results[0], Exception) else {'title': vid, 'stat': {'view':0,'like':0,'coin':0,'favorite':0,'share':0}, 'owner':{'name':'Unknown','mid':0,'face':''}, 'desc':'', 'pubdate':0, 'tid':0, 'tname':''}
     vtags = results[1] if not isinstance(results[1], Exception) else []
     vrelated = results[2] if not isinstance(results[2], Exception) else []
     vcomments = results[3] if not isinstance(results[3], Exception) else {'page':{'count':0}, 'replies':[]}
     vset = results[4] if not isinstance(results[4], Exception) else [{'page':1, 'part':vid}]
-
-    return await render_template_with_theme('video_listen.html', vid=vid, vinfo=vinfo, vrelated=vrelated[:10], vcomments=vcomments,
-                                            keywords = ','.join(map(lambda x: x.get('tag_name', ''), vtags)), ato=ato, idx=idx, vset=vset)
+    return await render_template_with_theme('video_listen.html', vid=vid, vinfo=vinfo, vrelated=vrelated[:10], vcomments=vcomments, keywords = ','.join(map(lambda x: x.get('tag_name', ''), vtags)), ato=ato, idx=idx, vset=vset)
 
 @app.route('/video/<vid>')
 @app.route('/video/<vid>/')
 @app.route('/video/<vid>:<idx>')
 @app.route('/video/<vid>:<idx>/')
 async def video_view(vid, idx=0):
-    idx = int(idx)
-    ato = request.args.get('ato') == '1'
+    idx, ato = int(idx), request.args.get('ato') == '1'
     if request.args.get('listen') == '1': return await video_listen_view(vid, idx)
-
     vid = av2bv(vid[2:]) if vid.startswith('av') else vid
     v = video.Video(bvid=vid, credential=appcred)
-
+    try:
+        hist_id = request.cookies.get('hist_id') or os.urandom(8).hex()
+        hist_key = f"miku_hist_{hist_id}"
+        appredis.lrem(hist_key, 0, vid)
+        appredis.lpush(hist_key, vid)
+        appredis.ltrim(hist_key, 0, 49)
+        appredis.expire(hist_key, 3600 * 24 * 30)
+    except: pass
     try:
         v_supported_src_res = await video_get_src_for_qn(v, idx)
         v_supported_src = v_supported_src_res.get('support_formats', [])
     except: v_supported_src = []
-
     async def cache_video_urls():
         if v_supported_src and not appredis.exists(f'mikuinv_{vid}_{idx}_16'):
             q_results = await asyncio.gather(*[video_get_src_for_qn(v, idx, fmt['quality']) for fmt in v_supported_src], return_exceptions=True)
             for vsrc in q_results:
-                if not isinstance(vsrc, Exception) and 'durl' in vsrc and vsrc['durl']:
-                    appredis.setex(f'mikuinv_{vid}_{idx}_{vsrc["quality"]}', 1800, vsrc['durl'][0]['url'])
-
-    results = await asyncio.gather(
-        v.get_info(), v.get_tags(idx), v.get_related(),
-        comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), 
-        v.get_pages(), cache_video_urls(),
-        return_exceptions=True
-    )
-
+                if not isinstance(vsrc, Exception) and 'durl' in vsrc and vsrc['durl']: appredis.setex(f'mikuinv_{vid}_{idx}_{vsrc["quality"]}', 1800, vsrc['durl'][0]['url'])
+    results = await asyncio.gather(v.get_info(), v.get_tags(idx), v.get_related(), comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), v.get_pages(), cache_video_urls(), return_exceptions=True)
     vinfo = results[0] if not isinstance(results[0], Exception) else {'title': vid, 'bvid':vid, 'stat': {'view':0,'like':0,'coin':0,'favorite':0,'share':0}, 'owner':{'name':'Unknown','mid':0,'face':''}, 'desc':'', 'pubdate':0, 'tid':0, 'tname':''}
-    vtags = results[1] if not isinstance(results[1], Exception) else []
-    vrelated = results[2] if not isinstance(results[2], Exception) else []
-    vcomments = results[3] if not isinstance(results[3], Exception) else {'page':{'count':0}, 'replies':[]}
-    vset = results[4] if not isinstance(results[4], Exception) else [{'page':1, 'part':vid}]
-
-    return await render_template_with_theme('video.html', vid=vid, vinfo=vinfo, vcomments=vcomments, vrelated=vrelated[:15],
-                                            keywords = ','.join(map(lambda x: x.get('tag_name', ''), vtags)),
-                                            supported_src=v_supported_src, ato=ato, idx=idx, vset=vset)
+    vtags, vrelated = results[1] if not isinstance(results[1], Exception) else [], results[2] if not isinstance(results[2], Exception) else []
+    vcomments, vset = results[3] if not isinstance(results[3], Exception) else {'page':{'count':0}, 'replies':[]}, results[4] if not isinstance(results[4], Exception) else [{'page':1, 'part':vid}]
+    return await render_template_with_theme('video.html', vid=vid, vinfo=vinfo, vcomments=vcomments, vrelated=vrelated[:15], keywords = ','.join(map(lambda x: x.get('tag_name', ''), vtags)), supported_src=v_supported_src, ato=ato, idx=idx, vset=vset)
 
 @app.route('/audio/<auid>')
 async def audio_view(auid):
     ato = request.args.get('ato') == '1'
     auid_int = int(auid[2:]) if auid.startswith('au') else int(auid)
     a = audio.Audio(auid_int, credential=appcred)
-    
     async def get_audio_url():
         if not appredis.exists(f'mikuinv_{auid}_{0}_0'):
             try:
                 asrc = await a.get_download_url()
-                if 'cdns' in asrc and asrc['cdns']:
-                    appredis.setex(f'mikuinv_{auid}_{0}_0', 1800, asrc['cdns'][0])
-                elif 'url' in asrc:
-                    appredis.setex(f'mikuinv_{auid}_{0}_0', 1800, asrc['url'])
+                if 'cdns' in asrc and asrc['cdns']: appredis.setex(f'mikuinv_{auid}_{0}_0', 1800, asrc['cdns'][0])
+                elif 'url' in asrc: appredis.setex(f'mikuinv_{auid}_{0}_0', 1800, asrc['url'])
             except: pass
-
-    results = await asyncio.gather(
-        a.get_info(), 
-        comment.get_comments(auid_int, comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE),
-        get_audio_url(),
-        return_exceptions=True
-    )
-    
+    results = await asyncio.gather(a.get_info(), comment.get_comments(auid_int, comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE), get_audio_url(), return_exceptions=True)
     ainfo = results[0] if not isinstance(results[0], Exception) else {}
-    # Map ainfo to vinfo format for template compatibility
     vinfo = {
-        'title': ainfo.get('title', auid),
-        'pic': ainfo.get('cover', ''),
-        'desc': ainfo.get('intro', ''),
+        'title': ainfo.get('title', auid), 'pic': ainfo.get('cover', ''), 'desc': ainfo.get('intro', ''),
         'owner': {'name': ainfo.get('author', 'Unknown'), 'mid': ainfo.get('mid', 0), 'face': ''},
-        'stat': {
-            'view': ainfo.get('statistic', {}).get('play', 0),
-            'like': ainfo.get('statistic', {}).get('collect', 0), # No direct like?
-            'coin': ainfo.get('statistic', {}).get('coin', 0),
-            'favorite': ainfo.get('statistic', {}).get('collect', 0),
-            'share': ainfo.get('statistic', {}).get('share', 0)
-        },
-        'pubdate': ainfo.get('passtime', 0),
-        'bvid': auid,
-        'tid': 0, 'tname': 'Audio'
+        'stat': {'view': ainfo.get('statistic', {}).get('play', 0), 'like': ainfo.get('statistic', {}).get('collect', 0), 'coin': ainfo.get('statistic', {}).get('coin', 0), 'favorite': ainfo.get('statistic', {}).get('collect', 0), 'share': ainfo.get('statistic', {}).get('share', 0)},
+        'pubdate': ainfo.get('passtime', 0), 'bvid': auid, 'tid': 0, 'tname': 'Audio'
     }
     acomments = results[1] if not isinstance(results[1], Exception) else {'page':{'count':0}, 'replies':[]}
-    
-    return await render_template_with_theme('video_listen.html', vid=auid, vinfo=vinfo, vrelated=[], vcomments=acomments,
-                                            keywords = '', ato=ato, idx=0, vset=[{'page':1, 'part':auid}])
+    return await render_template_with_theme('video_listen.html', vid=auid, vinfo=vinfo, vrelated=[], vcomments=acomments, keywords = '', ato=ato, idx=0, vset=[{'page':1, 'part':auid}])
 
 @app.route('/audio_list/<amid>')
 @app.route('/audio_list/<amid>:<idx>')
 async def audio_list_view(amid, idx=0):
-    idx = int(idx)
-    ato = request.args.get('ato') == '1'
+    idx, ato = int(idx), request.args.get('ato') == '1'
     amid_int = int(amid[2:]) if amid.startswith('am') else int(amid)
     al = audio.AudioList(amid_int, credential=appcred)
-    
     songs_res = await al.get_song_list()
     songs = songs_res.get('data', [])
-    if not songs or idx >= len(songs):
-        return await render_template_with_theme('error.html', status='歌单为空', desc='没有找到歌曲'), 404
-    
+    if not songs or idx >= len(songs): return await render_template_with_theme('error.html', status='歌单为空', desc='没有找到歌曲'), 404
     current_song = songs[idx]
     auid = f"au{current_song['id']}"
-    
-    # Reuse audio_view logic for the current song
-    # but we want to show the playlist (vset)
-    
     a = audio.Audio(current_song['id'], credential=appcred)
-    
     async def get_audio_url():
         if not appredis.exists(f'mikuinv_{amid}_{idx}_0'):
             try:
                 asrc = await a.get_download_url()
-                if 'cdns' in asrc and asrc['cdns']:
-                    appredis.setex(f'mikuinv_{amid}_{idx}_0', 1800, asrc['cdns'][0])
-                elif 'url' in asrc:
-                    appredis.setex(f'mikuinv_{amid}_{idx}_0', 1800, asrc['url'])
+                if 'cdns' in asrc and asrc['cdns']: appredis.setex(f'mikuinv_{amid}_{idx}_0', 1800, asrc['cdns'][0])
+                elif 'url' in asrc: appredis.setex(f'mikuinv_{amid}_{idx}_0', 1800, asrc['url'])
             except: pass
-
-    results = await asyncio.gather(
-        a.get_info(),
-        al.get_info(),
-        comment.get_comments(current_song['id'], comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE),
-        get_audio_url(),
-        return_exceptions=True
-    )
-    
-    ainfo = results[0] if not isinstance(results[0], Exception) else {}
-    list_info = results[1] if not isinstance(results[1], Exception) else {}
-    
+    results = await asyncio.gather(a.get_info(), al.get_info(), comment.get_comments(current_song['id'], comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE), get_audio_url(), return_exceptions=True)
+    ainfo, list_info = results[0] if not isinstance(results[0], Exception) else {}, results[1] if not isinstance(results[1], Exception) else {}
     vinfo = {
-        'title': ainfo.get('title', auid),
-        'pic': ainfo.get('cover', ''),
-        'desc': ainfo.get('intro', ''),
+        'title': ainfo.get('title', auid), 'pic': ainfo.get('cover', ''), 'desc': ainfo.get('intro', ''),
         'owner': {'name': ainfo.get('author', 'Unknown'), 'mid': ainfo.get('mid', 0), 'face': ''},
-        'stat': {
-            'view': ainfo.get('statistic', {}).get('play', 0),
-            'like': ainfo.get('statistic', {}).get('collect', 0),
-            'coin': ainfo.get('statistic', {}).get('coin', 0),
-            'favorite': ainfo.get('statistic', {}).get('collect', 0),
-            'share': ainfo.get('statistic', {}).get('share', 0)
-        },
-        'pubdate': ainfo.get('passtime', 0),
-        'bvid': auid,
-        'tid': 0, 'tname': list_info.get('title', 'Audio List')
+        'stat': {'view': ainfo.get('statistic', {}).get('play', 0), 'like': ainfo.get('statistic', {}).get('collect', 0), 'coin': ainfo.get('statistic', {}).get('coin', 0), 'favorite': ainfo.get('statistic', {}).get('collect', 0), 'share': ainfo.get('statistic', {}).get('share', 0)},
+        'pubdate': ainfo.get('passtime', 0), 'bvid': auid, 'tid': 0, 'tname': list_info.get('title', 'Audio List')
     }
     acomments = results[2] if not isinstance(results[2], Exception) else {'page':{'count':0}, 'replies':[]}
-    
-    vset = []
-    for i, s in enumerate(songs):
-        vset.append({
-            'page': i + 1,
-            'part': s.get('title', f"Song {i+1}"),
-            'duration': s.get('duration', 0),
-            'first_frame': s.get('cover', '')
-        })
-        
-    return await render_template_with_theme('video_listen.html', vid=amid, vinfo=vinfo, vrelated=[], vcomments=acomments,
-                                            keywords = '', ato=ato, idx=idx, vset=vset)
+    vset = [{'page': i + 1, 'part': s.get('title', f"Song {i+1}"), 'duration': s.get('duration', 0), 'first_frame': s.get('cover', '')} for i, s in enumerate(songs)]
+    return await render_template_with_theme('video_listen.html', vid=amid, vinfo=vinfo, vrelated=[], vcomments=acomments, keywords = '', ato=ato, idx=idx, vset=vset)
 
-
+@app.route('/history')
+async def history_view():
+    hist_id = request.cookies.get('hist_id')
+    if not hist_id: return await render_template_with_theme('home.html', videos=[], message='您还没有浏览历史。')
+    bvids = appredis.lrange(f"miku_hist_{hist_id}", 0, -1)
+    videos = []
+    for bvid in bvids:
+        try:
+            v = video.Video(bvid=bvid)
+            info = await v.get_info()
+            card = transformers.transform_video_card(info)
+            if card: videos.append(card)
+        except: continue
+    return await render_template_with_theme('home.html', videos=videos, title='浏览历史')

@@ -33,6 +33,13 @@ from bilibili_api import exceptions
 
 app.secret_key = appconf['admin']['secret_key']
 
+@app.after_request
+def set_hist_id(response):
+    if not request.cookies.get('hist_id'):
+        hist_id = os.urandom(8).hex()
+        response.set_cookie('hist_id', hist_id, max_age=3600*24*365, httponly=True)
+    return response
+
 @app.route('/login', methods=['GET', 'POST'])
 async def login_view():
     if request.method == 'POST':

@@ -1,29 +1,31 @@
 /* @license magnet:?xt=urn:btih:0b31508aeb0634b347b8270c7bee4d411b5d4109&dn=agpl-3.0.txt AGPL-3.0 */
 
-if (ato) {
-    window.player = videojs('player', {
-	'aspectRatio': '16:9',
-	'autoplay': 'any',
-        'preload': 'metadata',
-        'controlBar': {
-            'currentTimeDisplay': true,
-            'timeDivider': true,
-            'durationDisplay': true,
-            'remainingTimeDisplay': false
+var playerOptions = {
+    'aspectRatio': '16:9',
+    'preload': 'metadata',
+    'controlBar': {
+        'currentTimeDisplay': true,
+        'timeDivider': true,
+        'durationDisplay': true,
+        'remainingTimeDisplay': false
+    }
+};
+
+if (typeof window.is_live !== 'undefined' && window.is_live) {
+    playerOptions.techOrder = ['html5', 'flvjs'];
+    playerOptions.flvjs = {
+        mediaDataSource: {
+            isLive: true,
+            cors: true,
+            withCredentials: false,
         }
-    })
-} else {
-    window.player = videojs('player', {
-	'aspectRatio': '16:9',
-        'preload': 'metadata',
-        'controlBar': {
-            'currentTimeDisplay': true,
-            'timeDivider': true,
-            'durationDisplay': true,
-            'remainingTimeDisplay': false
-        }
-    })
+    };
+    playerOptions.autoplay = 'any';
+} else if (ato) {
+    playerOptions.autoplay = 'any';
 }
+
+window.player = videojs('player', playerOptions);
 
 /* resolution switch */
 window.player.videoJsResolutionSwitcher()
