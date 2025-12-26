@@ -15,6 +15,7 @@
 
 import multiprocessing
 import struct
+from io import BytesIO
 
 from shared import *
 from app import app
@@ -22,28 +23,33 @@ from flask.sessions import SecureCookieSessionInterface
 
 from http.cookies import BaseCookie
 from urllib.parse import quote as urlquote, urlparse, urlunparse
-from twisted.web.http import _QUEUED_SENTINEL, HTTPChannel, HTTPClient, Request
+from twisted.web.http import _QUEUED_SENTINEL, HTTPChannel, Request
 from twisted.web.resource import Resource
 from twisted.web.wsgi import WSGIResource
 from twisted.web import proxy, server
 from twisted.internet.protocol import ClientFactory, Protocol
 from twisted.internet import reactor, utils, ssl, tcp
+from twisted.web.client import Agent, ResponseDone, HTTPConnectionPool, FileBodyProducer, BrowserLikePolicyForHTTPS
+from twisted.web.http_headers import Headers
+from twisted.internet.endpoints import HostnameEndpoint, TCP4ClientEndpoint, wrapClientTLS
+from twisted.internet.defer import Deferred, succeed
+from zope.interface import implementer
+from twisted.internet.interfaces import IStreamClientEndpoint
 
-plain_cookies = {}
+plain_cookies = ""
 
 ################################################################################
-# SOCKS5 Proxy Implementation
+# SOCKS5 Proxy Implementation (Modern Endpoint version)
 ################################################################################
 
-class Socks5Client(Protocol):
-    def __init__(self, host, port, original_factory, context_factory=None):
+class Socks5HandshakeProtocol(Protocol):
+    def __init__(self, host, port, protocolFactory, deferred):
         self.host = host
         self.port = port
-        self.original_factory = original_factory
-        self.context_factory = context_factory
+        self.protocolFactory = protocolFactory
+        self.deferred = deferred
         self.state = 0 # 0: Init, 1: Connecting, 2: Connected
         self._buffer = b''
-        self.protocol = None
 
     def connectionMade(self):
         # 1. Send Hello (Version 5, 1 auth method: No Auth)
@@ -51,8 +57,9 @@ class Socks5Client(Protocol):
 
     def dataReceived(self, data):
         if self.state == 2:
-            if self.protocol:
-                self.protocol.dataReceived(data)
+            # If we are already switched but still getting data here, forward it
+            if self.transport.protocol is not self:
+                self.transport.protocol.dataReceived(data)
             return
 
         self._buffer += data
@@ -67,8 +74,6 @@ class Socks5Client(Protocol):
                 return
             
             # 2. Request Connect
-            # VER CMD RSV ATYP DST.ADDR DST.PORT
-            # ATYP: 0x03 (Domain name)
             host_bytes = self.host.encode()
             req = b'\x05\x01\x00\x03' + bytes([len(host_bytes)]) + host_bytes + struct.pack('!H', self.port)
             self.transport.write(req)
@@ -87,7 +92,6 @@ class Socks5Client(Protocol):
             
             if len(self._buffer) < resp_len: return
             
-            # Consume response
             extra_data = self._buffer[resp_len:]
             self._buffer = b''
             
@@ -98,104 +102,104 @@ class Socks5Client(Protocol):
             # Handshake success.
             self.state = 2
             
-            # If TLS is required, start it now over the tunnel
-            if self.context_factory:
-                self.transport.startTLS(self.context_factory)
+            # Switch to the real protocol requested by Agent (e.g. TLS or HTTP)
+            protocol = self.protocolFactory.buildProtocol(self.transport.getPeer())
+            self.transport.protocol = protocol
+            protocol.makeConnection(self.transport)
             
-            # Build the wrapped protocol
-            self.protocol = self.original_factory.buildProtocol(self.transport.getPeer())
-            self.protocol.makeConnection(self.transport)
+            # Notify Agent that connection is ready
+            self.deferred.callback(protocol)
             
             if extra_data:
-                self.protocol.dataReceived(extra_data)
+                protocol.dataReceived(extra_data)
 
-    def connectionLost(self, reason):
-        if self.protocol:
-            self.protocol.connectionLost(reason)
-
-class Socks5ClientFactory(ClientFactory):
-    def __init__(self, host, port, original_factory, context_factory=None):
+class Socks5HandshakeFactory(ClientFactory):
+    def __init__(self, host, port, protocolFactory, deferred):
         self.host = host
         self.port = port
-        self.original_factory = original_factory
-        self.context_factory = context_factory
+        self.protocolFactory = protocolFactory
+        self.deferred = deferred
 
     def buildProtocol(self, addr):
-        return Socks5Client(self.host, self.port, self.original_factory, self.context_factory)
+        return Socks5HandshakeProtocol(self.host, self.port, self.protocolFactory, self.deferred)
 
     def clientConnectionFailed(self, connector, reason):
-        self.original_factory.clientConnectionFailed(connector, reason)
+        if not self.deferred.called:
+            self.deferred.errback(reason)
 
-################################################################################
-# Modified Dynamic Proxy (from twisted)
-################################################################################
+@implementer(IStreamClientEndpoint)
+class SOCKS5ClientEndpoint:
+    def __init__(self, reactor, proxyHost, proxyPort, targetHost, targetPort):
+        self.reactor = reactor
+        self.proxyHost = proxyHost
+        self.proxyPort = proxyPort
+        self.targetHost = targetHost
+        self.targetPort = targetPort
 
-class ProxyClient(HTTPClient):
-    _finished = False
+    def connect(self, protocolFactory):
+        d = Deferred()
+        f = Socks5HandshakeFactory(self.targetHost, self.targetPort, protocolFactory, d)
+        self.reactor.connectTCP(self.proxyHost, self.proxyPort, f)
+        return d
 
-    def __init__(self, command, rest, version, headers, data, father):
-        self.father = father
-        self.command = command
-        self.rest = rest
-        if b"proxy-connection" in headers:
-            del headers[b"proxy-connection"]
-        headers[b"connection"] = b"close"
-        headers.pop(b"keep-alive", None)
-        self.headers = headers
-        self.data = data
+class Socks5EndpointFactory:
+    def __init__(self, reactor, proxy_url):
+        self.reactor = reactor
+        self.use_socks = False
+        self.policy = BrowserLikePolicyForHTTPS()
+        if appconf['proxy']['use_proxy'] and proxy_url and proxy_url.startswith('socks5://'):
+            try:
+                p = urlparse(proxy_url)
+                self.proxy_host = p.hostname
+                self.proxy_port = p.port or 1080
+                self.use_socks = True
+            except:
+                pass
 
-    def connectionMade(self):
-        self.sendCommand(self.command, self.rest)
-        for header, value in self.headers.items():
-            self.sendHeader(header, value)
-        self.endHeaders()
-        self.transport.write(self.data)
-
-    def handleStatus(self, version, code, message):
-        self.father.setResponseCode(int(code), message)
-
-    def handleHeader(self, key, value):
-        if key.lower() in [b"server", b"date", b"content-type"]:
-            self.father.responseHeaders.setRawHeaders(key, [value])
+    def endpointForURI(self, uri):
+        if self.use_socks:
+            endpoint = SOCKS5ClientEndpoint(self.reactor, self.proxy_host, self.proxy_port, 
+                                        uri.host.decode('ascii'), uri.port)
         else:
-            self.father.responseHeaders.addRawHeader(key, value)
+            endpoint = HostnameEndpoint(self.reactor, uri.host.decode('ascii'), uri.port)
+        
+        if uri.scheme == b'https':
+            # Wrap the SOCKS5/TCP endpoint with TLS for HTTPS URIs
+            contextFactory = self.policy.creatorForNetloc(uri.host, uri.port)
+            endpoint = wrapClientTLS(contextFactory, endpoint)
+            
+        return endpoint
 
-    def handleResponsePart(self, buffer):
-        self.father.write(buffer)
+################################################################################
+# Agent Response Forwarder
+################################################################################
 
-    def handleResponseEnd(self):
-        if not self._finished:
-            self._finished = True
-            self.father.notifyFinish().addErrback(lambda x: None)
-            self.transport.loseConnection()
-
-class ProxyClientFactory(ClientFactory):
-    protocol = ProxyClient
-
-    def __init__(self, command, rest, version, headers, data, father):
+class ResponseForwarder(Protocol):
+    def __init__(self, father):
         self.father = father
-        self.command = command
-        self.rest = rest
-        self.headers = headers
-        self.data = data
-        self.version = version
 
-    def buildProtocol(self, addr):
-        return self.protocol(
-            self.command, self.rest, self.version, self.headers, self.data, self.father
-        )
+    def dataReceived(self, data):
+        self.father.write(data)
 
-    def clientConnectionFailed(self, connector, reason):
-        self.father.setResponseCode(501, b"Gateway error")
-        self.father.responseHeaders.addRawHeader(b"Content-Type", b"text/html")
-        self.father.write(b"<H1>Could not connect</H1>")
-        self.father.finish()
+    def connectionLost(self, reason):
+        if not self.father.finished:
+            try:
+                self.father.finish()
+            except RuntimeError:
+                # Request might have been finished/lost just now
+                pass
+
+################################################################################
+# Modified Dynamic Proxy (Modern Agent based)
+################################################################################
 
 class ReverseProxyResource(Resource):
     def __init__(self, path, reactor=reactor):
         Resource.__init__(self)
         self.path = path
         self.reactor = reactor
+        self.agent = Agent.usingEndpointFactory(self.reactor, 
+                                                Socks5EndpointFactory(self.reactor, os.environ.get('HTTP_PROXY')))
 
     def getChild(self, path, request):
         return ReverseProxyResource(
@@ -203,29 +207,24 @@ class ReverseProxyResource(Resource):
             self.reactor
         )
 
-    def _connect_to_remote(self, host, port, factory, context_factory=None):
-        proxy_url = os.environ.get('HTTP_PROXY')
-        use_socks = False
-        socks_host = ''
-        socks_port = 1080
+    def _cbResponse(self, response, request):
+        request.setResponseCode(response.code)
+        for name, values in response.headers.getAllRawHeaders():
+            if name.lower() in [b"server", b"date", b"content-type"]:
+                request.responseHeaders.setRawHeaders(name, values)
+            else:
+                for value in values:
+                    request.responseHeaders.addRawHeader(name, value)
+        
+        response.deliverBody(ResponseForwarder(request))
+        return server.NOT_DONE_YET
 
-        if appconf['proxy']['use_proxy'] and proxy_url and proxy_url.startswith('socks5://'):
-             try:
-                 use_socks = True
-                 p = urlparse(proxy_url)
-                 socks_host = p.hostname
-                 socks_port = p.port or 1080
-             except:
-                 use_socks = False
-
-        if use_socks:
-             sf = Socks5ClientFactory(host, port, factory, context_factory)
-             self.reactor.connectTCP(socks_host, socks_port, sf)
-        else:
-             if context_factory:
-                 self.reactor.connectSSL(host, port, factory, context_factory)
-             else:
-                 self.reactor.connectTCP(host, port, factory)
+    def _ebResponse(self, failure, request):
+        request.setResponseCode(501, b"Gateway error")
+        request.responseHeaders.addRawHeader(b"Content-Type", b"text/html")
+        request.write(b"<H1>Could not connect</H1>")
+        request.write(f"<p>{failure.getErrorMessage()}</p>".encode())
+        request.finish()
 
     def render_proxy_pic(self, request, req_path):
         req_path = req_path[11:]
@@ -235,24 +234,31 @@ class ReverseProxyResource(Resource):
             request.setResponseCode(403)
             return
 
-        request.requestHeaders.setRawHeaders(b'host', [domain.encode("ascii")])
-        # backup
-        # request.requestHeaders.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
-        #                                      b'BiliDroid/10.10.10 (bbcallen@gmail.com)'])
-        # new useragent
-        request.requestHeaders.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
+        headers = Headers()
+        for name, values in request.requestHeaders.getAllRawHeaders():
+            headers.setRawHeaders(name, values)
+        
+        headers.setRawHeaders(b'host', [domain.encode("ascii")])
+        headers.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
                                               b'BiliDroid/8.76.0 (bbcallen@gmail.com)'])
-        request.content.seek(0, 0)
-
-        clientFactory = ProxyClientFactory(
-            b'GET', ('https://' + req_path).encode('utf-8'),
-            request.clientproto,
-            request.getAllHeaders(),
-            request.content.read(),
-            request,
+        
+        # Agent uses IBodyProducer for content
+        body = None
+        if request.content:
+            request.content.seek(0, 0)
+            content = request.content.read()
+            if content:
+                body = FileBodyProducer(BytesIO(content)) if 'BytesIO' in globals() else None
+                # Fallback if BytesIO not imported, but pic GET usually has no body
+        
+        d = self.agent.request(
+            b'GET',
+            ('https://' + req_path).encode('utf-8'),
+            headers,
+            body
         )
-
-        self._connect_to_remote(domain, 443, clientFactory, ssl.ClientContextFactory())
+        d.addCallback(self._cbResponse, request)
+        d.addErrback(self._ebResponse, request)
         return server.NOT_DONE_YET
 
     def render(self, request):
@@ -267,7 +273,11 @@ class ReverseProxyResource(Resource):
             return
 
         # Parse and retrive the URL info.
-        vid, vidx, vqn = req_path.lstrip('/proxy/video/').split('_')
+        try:
+            vid, vidx, vqn = req_path.lstrip('/proxy/video/').split('_')
+        except ValueError:
+            request.setResponseCode(400)
+            return b'Invalid request'
 
         url = appredis.get(f'mikuinv_{vid}_{vidx}_{vqn}')
         if not url:
@@ -279,7 +289,6 @@ class ReverseProxyResource(Resource):
         urlp = urlparse(url)
 
         # Direct Mode (use_proxy=False): Only Akamai is allowed (via redirect).
-        # Non-Akamai mirrors are blocked because they require proxying to work.
         if not appconf['proxy']['use_proxy']:
             if urlp.netloc.endswith('-mirrorakam.akamaized.net'):
                 request.setResponseCode(302)
@@ -289,34 +298,27 @@ class ReverseProxyResource(Resource):
                 request.setResponseCode(403)
                 return b'Forbidden: Direct connection only allowed for Akamai mirrors. Disable NO_PROXY to use server proxy.'
 
-        request.requestHeaders.setRawHeaders(b'host', [urlp.netloc.encode("ascii")])
+        headers = Headers()
+        for name, values in request.requestHeaders.getAllRawHeaders():
+            if name.lower() not in [b'host', b'referer', b'user-agent', b'cookie']:
+                headers.setRawHeaders(name, values)
+
+        headers.setRawHeaders(b'host', [urlp.netloc.encode("ascii")])
         if plain_cookies:
-            request.requestHeaders.setRawHeaders('cookie', [plain_cookies])
-        request.requestHeaders.setRawHeaders(b'referer', [b'https://www.bilibili.com'])
-        # request.requestHeaders.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
-        #                                      b'BiliDroid/10.10.10 (bbcallen@gmail.com)'])
-        request.requestHeaders.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
+            headers.setRawHeaders(b'cookie', [plain_cookies.encode() if isinstance(plain_cookies, str) else plain_cookies])
+        headers.setRawHeaders(b'referer', [b'https://www.bilibili.com'])
+        headers.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
                                              b'BiliDroid/8.76.0 (bbcallen@gmail.com)'])
-        request.content.seek(0, 0)
-
-        clientFactory = ProxyClientFactory(
-            b'GET', url.encode('utf-8'),
-            request.clientproto,
-            request.getAllHeaders(),
-            request.content.read(),
-            request,
-        )
-
-        request.notifyFinish().addErrback(lambda x: clientFactory.doStop())
-
-        nethost = urlp.netloc.split(':')[0] if ':' in urlp.netloc else urlp.netloc
-        netport = int(urlp.netloc.split(':')[1]) if ':' in urlp.netloc else (80 if urlp.scheme == 'http' else 443)
-
-        context_factory = None
-        if urlp.scheme == 'https':
-            context_factory = ssl.ClientContextFactory()
         
-        self._connect_to_remote(nethost, netport, clientFactory, context_factory)
+        d = self.agent.request(
+            b'GET',
+            url.encode('utf-8'),
+            headers,
+            None # Video requests here are GET without body
+        )
+        
+        d.addCallback(self._cbResponse, request)
+        d.addErrback(self._ebResponse, request)
 
         return server.NOT_DONE_YET
 
@@ -336,15 +338,16 @@ class MikuInvidiousResource(Resource):
 
 def main():
     # Intialize cookies.
-    plain_cookies = appconf['credential']
-    if plain_cookies['use_cred']:
-        del plain_cookies['use_cred']
+    global plain_cookies
+    creds = appconf['credential']
+    if creds['use_cred']:
         cookiejar = ''
-        for k, v in plain_cookies.items():
-            cookiejar += f'{k}={v}; '
+        for k, v in creds.items():
+            if k != 'use_cred' and v:
+                cookiejar += f'{k}={v}; '
         plain_cookies = cookiejar[:-2]
     else:
-        plain_cookies = False
+        plain_cookies = ""
 
     site = server.Site(MikuInvidiousResource())
     # reactor.listenTCP(appconf['twisted']['port'], site)  # only listens on ipv4
