@@ -98,72 +98,39 @@ ul.vjs-menu-content::-webkit-scrollbar {
   padding: 5px !important;
 }
 
-.vjs-play-control {
+.vjs-play-control,
+.vjs-volume-panel,
+.vjs-current-time,
+.vjs-time-control,
+.vjs-duration,
+.vjs-progress-control,
+.vjs-remaining-time {
   order: 1;
 }
 
-.vjs-resolution-button {
+.vjs-captions-button {
   order: 2;
 }
 
-.vjs-volume-panel {
-  order: 3;
-}
-
-.vjs-current-time {
-  display: flex !important;
-  order: 4;
-}
-
-.vjs-time-divider {
-  display: flex !important;
-  order: 5;
-  min-width: 0;
-  padding-left: 2px;
-  padding-right: 2px;
-}
-
-.vjs-duration {
-  display: flex !important;
-  order: 6;
-}
-
-.danmakuSwitchBtn {
-  order: 7;
-}
-
-.vjs-progress-control {
-  order: 8;
-  flex: auto;
-}
-
-.vjs-remaining-time {
-  display: none;
-}
-
-.vjs-captions-button {
-  order: 9;
-}
-
 .vjs-audio-button {
-  order: 10;
+  order: 3;
 }
 
 .vjs-quality-selector,
 .video-js .vjs-http-source-selector {
-  order: 11;
+  order: 4;
 }
 
 .vjs-playback-rate {
-  order: 12;
+  order: 5;
 }
 
 .vjs-share-control {
-  order: 13;
+  order: 6;
 }
 
 .vjs-fullscreen-control {
-  order: 14;
+  order: 7;
 }
 
 .vjs-playback-rate > .vjs-menu {
@@ -242,6 +209,18 @@ ul.vjs-menu-content::-webkit-scrollbar {
 
 .video-js:hover .vjs-big-play-button {
   background-color: rgba(35, 35, 35, 0.75);
+}
+
+.video-js .vjs-current-time,
+.video-js .vjs-time-divider,
+.video-js .vjs-duration {
+  display: block;
+}
+
+.video-js .vjs-time-divider {
+  min-width: 0px;
+  padding-left: 0px;
+  padding-right: 0px;
 }
 
 .video-js .vjs-poster {

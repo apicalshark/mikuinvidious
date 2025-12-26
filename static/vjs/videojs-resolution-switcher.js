@@ -26,36 +26,38 @@
      * Resolution menu item
      */
     var MenuItem = videojs.getComponent('MenuItem');
-    var ResolutionMenuItem = videojs.extend(MenuItem, {
-      constructor: function(player, options){
+    class ResolutionMenuItem extends MenuItem {
+      constructor(player, options){
         options.selectable = true;
         // Sets this.player_, this.options_ and initializes the component
-        MenuItem.call(this, player, options);
+        super(player, options);
         this.src = options.src;
 
         player.on('resolutionchange', videojs.bind(this, this.update));
       }
-    } );
-    ResolutionMenuItem.prototype.handleClick = function(event){
-      MenuItem.prototype.handleClick.call(this,event);
-      this.player_.currentResolution(this.options_.label);
-    };
-    ResolutionMenuItem.prototype.update = function(){
-      var selection = this.player_.currentResolution();
-      this.selected(this.options_.label === selection.label);
-    };
+
+      handleClick(event){
+        super.handleClick(event);
+        this.player_.currentResolution(this.options_.label);
+      }
+
+      update(){
+        var selection = this.player_.currentResolution();
+        this.selected(this.options_.label === selection.label);
+      }
+    }
     MenuItem.registerComponent('ResolutionMenuItem', ResolutionMenuItem);
 
     /*
      * Resolution menu button
      */
     var MenuButton = videojs.getComponent('MenuButton');
-    var ResolutionMenuButton = videojs.extend(MenuButton, {
-      constructor: function(player, options){
-        this.label = document.createElement('span');
+    class ResolutionMenuButton extends MenuButton {
+      constructor(player, options){
         options.label = 'Quality';
         // Sets this.player_, this.options_ and initializes the component
-        MenuButton.call(this, player, options);
+        super(player, options);
+        this.label = document.createElement('span');
         this.el().setAttribute('aria-label','Quality');
         this.controlText('Quality');
 
@@ -69,35 +71,40 @@
         }
         player.on('updateSources', videojs.bind( this, this.update ) );
       }
-    } );
-    ResolutionMenuButton.prototype.createItems = function(){
-      var menuItems = [];
-      var labels = (this.sources && this.sources.label) || {};
 
-      // FIXME order is not guaranteed here.
-      for (var key in labels) {
-        if (labels.hasOwnProperty(key)) {
-          menuItems.push(new ResolutionMenuItem(
-            this.player_,
-            {
-              label: key,
-              src: labels[key],
-              selected: key === (this.currentSelection ? this.currentSelection.label : false)
-            })
-          );
+      createItems(){
+        var menuItems = [];
+        var labels = (this.sources && this.sources.label) || {};
+
+        // FIXME order is not guaranteed here.
+        for (var key in labels) {
+          if (labels.hasOwnProperty(key)) {
+            menuItems.push(new ResolutionMenuItem(
+              this.player_,
+              {
+                label: key,
+                src: labels[key],
+                selected: key === (this.currentSelection ? this.currentSelection.label : false)
+              })
+            );
+          }
         }
+        return menuItems;
       }
-      return menuItems;
-    };
-    ResolutionMenuButton.prototype.update = function(){
-      this.sources = this.player_.getGroupedSrc();
-      this.currentSelection = this.player_.currentResolution();
-      this.label.innerHTML = this.currentSelection ? this.currentSelection.label : '';
-      return MenuButton.prototype.update.call(this);
-    };
-    ResolutionMenuButton.prototype.buildCSSClass = function(){
-      return MenuButton.prototype.buildCSSClass.call( this ) + ' vjs-resolution-button';
-    };
+
+      update(){
+        this.sources = this.player_.getGroupedSrc();
+        this.currentSelection = this.player_.currentResolution();
+        if (this.label) {
+          this.label.innerHTML = this.currentSelection ? this.currentSelection.label : '';
+        }
+        return super.update();
+      }
+
+      buildCSSClass(){
+        return super.buildCSSClass() + ' vjs-resolution-button';
+      }
+    }
     MenuButton.registerComponent('ResolutionMenuButton', ResolutionMenuButton);
 
     /**
