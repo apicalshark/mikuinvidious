@@ -102,18 +102,22 @@ ul.vjs-menu-content::-webkit-scrollbar {
   order: 1;
 }
 
-.vjs-volume-panel {
+.vjs-resolution-button {
   order: 2;
+}
+
+.vjs-volume-panel {
+  order: 3;
 }
 
 .vjs-current-time {
   display: flex !important;
-  order: 3;
+  order: 4;
 }
 
 .vjs-time-divider {
   display: flex !important;
-  order: 4;
+  order: 5;
   min-width: 0;
   padding-left: 2px;
   padding-right: 2px;
@@ -121,15 +125,15 @@ ul.vjs-menu-content::-webkit-scrollbar {
 
 .vjs-duration {
   display: flex !important;
-  order: 5;
-}
-
-.danmakuSwitchBtn {
   order: 6;
 }
 
-.vjs-progress-control {
+.danmakuSwitchBtn {
   order: 7;
+}
+
+.vjs-progress-control {
+  order: 8;
   flex: auto;
 }
 
@@ -138,28 +142,28 @@ ul.vjs-menu-content::-webkit-scrollbar {
 }
 
 .vjs-captions-button {
-  order: 8;
+  order: 9;
 }
 
 .vjs-audio-button {
-  order: 9;
+  order: 10;
 }
 
 .vjs-quality-selector,
 .video-js .vjs-http-source-selector {
-  order: 10;
-}
-
-.vjs-playback-rate {
   order: 11;
 }
 
-.vjs-share-control {
+.vjs-playback-rate {
   order: 12;
 }
 
-.vjs-fullscreen-control {
+.vjs-share-control {
   order: 13;
+}
+
+.vjs-fullscreen-control {
+  order: 14;
 }
 
 .vjs-playback-rate > .vjs-menu {
