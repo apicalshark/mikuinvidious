@@ -327,7 +327,7 @@ class ReverseProxyResource(Resource):
 
         # Force a Range limit to prevent excessive background buffering
         # This prevents the browser from downloading too much ahead on slow connections
-        limit_size = 2 * 1024 * 1024 # 2MB
+        limit_size = 512 * 1024 # 512KB
         range_val = request.getHeader(b'range')
         
         if range_val:

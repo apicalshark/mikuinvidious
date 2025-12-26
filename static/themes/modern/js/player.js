@@ -22,7 +22,7 @@ window.player.ready(function() {
     overlay.className = 'vjs-buffering-overlay';
     player.el().appendChild(overlay);
 
-    var targetBuffer = 2.0;
+    var targetBuffer = 2.5;
     var checkInterval = null;
     var userPaused = false;
 
