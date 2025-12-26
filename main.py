@@ -250,11 +250,11 @@ class ReverseProxyResource(Resource):
 
         headers = Headers()
         for name, values in request.requestHeaders.getAllRawHeaders():
-            headers.setRawHeaders(name, values)
+            if name.lower() not in [b'host', b'referer', b'user-agent', b'cookie', b'connection']:
+                headers.setRawHeaders(name, values)
         
         headers.setRawHeaders(b'host', [domain.encode("ascii")])
-        headers.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
-                                              b'BiliDroid/8.76.0 (bbcallen@gmail.com)'])
+        headers.setRawHeaders(b'user-agent', [b'Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)'])
         
         # Agent uses IBodyProducer for content
         body = None
@@ -314,15 +314,14 @@ class ReverseProxyResource(Resource):
 
         headers = Headers()
         for name, values in request.requestHeaders.getAllRawHeaders():
-            if name.lower() not in [b'host', b'referer', b'user-agent', b'cookie']:
+            if name.lower() not in [b'host', b'referer', b'user-agent', b'cookie', b'connection']:
                 headers.setRawHeaders(name, values)
 
         headers.setRawHeaders(b'host', [urlp.netloc.encode("ascii")])
         if plain_cookies:
             headers.setRawHeaders(b'cookie', [plain_cookies.encode() if isinstance(plain_cookies, str) else plain_cookies])
         headers.setRawHeaders(b'referer', [b'https://www.bilibili.com'])
-        headers.setRawHeaders(b'user-agent', [b'Mozilla/5.0'
-                                             b'BiliDroid/8.76.0 (bbcallen@gmail.com)'])
+        headers.setRawHeaders(b'user-agent', [b'Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)'])
         
         d = self.agent.request(
             b'GET',

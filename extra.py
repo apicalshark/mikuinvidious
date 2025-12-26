@@ -92,20 +92,44 @@ def article_to_html(article_text):
                                 text_nodes = p.get('text', {}).get('nodes', [])
                                 p_content = ""
                                 for node in text_nodes:
-                                    if node.get('type') == 'TEXT_NODE_TYPE_WORD':
-                                        p_content += node.get('word', {}).get('words', '')
-                                content_html += f"<p>{p_content}</p>"
+                                    node_type = node.get('type')
+                                    word = node.get('word', {})
+                                    text = word.get('words', '')
+                                    
+                                    # Handle styles
+                                    if word.get('bold'):
+                                        text = f"<strong>{text}</strong>"
+                                    if word.get('italic'):
+                                        text = f"<em>{text}</em>"
+                                    if word.get('color'):
+                                        color = word.get('color')
+                                        if not color.startswith('#'):
+                                            color = f"#{color}"
+                                        text = f'<span style="color: {color};">{text}</span>'
+                                    
+                                    if node_type == 'TEXT_NODE_TYPE_WORD':
+                                        p_content += text
+                                    elif node_type == 'TEXT_NODE_TYPE_HYPERLINK':
+                                        url = node.get('link', {}).get('url', '#')
+                                        p_content += f'<a href="{url}">{text}</a>'
+                                
+                                # Alignment
+                                align_style = ""
+                                if p.get('align') == 2: # Center
+                                    align_style = ' style="text-align: center;"'
+                                elif p.get('align') == 3: # Right
+                                    align_style = ' style="text-align: right;"'
+                                    
+                                content_html += f"<p{align_style}>{p_content}</p>"
                             elif p_type == 2: # Image
                                 pics = p.get('pic', {}).get('pics', [])
                                 for pic in pics:
                                     img_url = pic.get('url')
                                     if img_url:
-                                        # Use proxy for images as per project convention
                                         proxied_url = '/proxy/pic/' + img_url.split('//')[1]
-                                        content_html += f'<img src="{proxied_url}">'
+                                        content_html += f'<figure style="text-align: center;"><img src="{proxied_url}" class="mx-auto"></figure>'
                 
                 if content_html:
-                    # Wrap in a div to match expected structure
                     return f'<div id="main-article">{content_html}</div>'
             except:
                 pass
@@ -114,49 +138,67 @@ def article_to_html(article_text):
     article_body.attrs = {}
     article_body['id'] = 'main-article'
 
-    del_elems = []
-    purge_elems = []
-    for child in article_body.descendants:
-        if not child.name:
-            continue
-
-        if child.name.startswith('h'):
-            child.name = f'h{int(child.name[1:])+1}'
-
-        if child.name == 'strong' and child.parent.name.startswith('h'):
-            purge_elems.append(child.parent)
-
-        if not hasattr(child, 'attrs'):
-            continue
-
-        if child.name == 'a':
-            if 'href' not in child:
-                continue
-            
-            child['href'] = child['href'].split('//')[1].strip('www.bilibili.com')
-            continue
-        elif child.name == 'img':
+    for child in article_body.find_all(True): # find_all(True) gets all tags
+        # Handle headers
+        if child.name.startswith('h') and len(child.name) == 2:
             try:
-                child['src'] = '/proxy/pic/' + child['data-src'].split('//')[1]
-            except:
+                level = int(child.name[1:])
+                child.name = f'h{min(level + 1, 6)}'
+            except ValueError:
                 pass
+
+        # Handle images
+        if child.name == 'img':
+            if child.has_attr('data-src'):
+                child['src'] = '/proxy/pic/' + child['data-src'].split('//')[1]
+            elif child.has_attr('src') and child['src'].startswith('//'):
+                child['src'] = '/proxy/pic/' + child['src'].split('//')[1]
+            
+            # Remove all other attributes except src and add mx-auto class
+            src = child.get('src', '')
+            child.attrs = {'src': src, 'class': 'mx-auto'}
             continue
-        elif child.name == 'span' and not child.parent in purge_elems:
-            purge_elems.append(child.parent)
+
+        # Handle links
+        if child.name == 'a':
+            if child.has_attr('href'):
+                href = child['href']
+                if 'bilibili.com' in href:
+                    # Try to make it relative if it's a bilibili link
+                    href = href.split('bilibili.com')[-1]
+                child['href'] = href
+            # Keep only href
+            href = child.get('href', '#')
+            child.attrs = {'href': href}
+            continue
+
+        # Preserve some styles like alignment and color
+        new_style = []
+        if child.has_attr('style'):
+            style = child['style']
+            # Preserve text-align
+            match_align = re.search(r'text-align\s*:\s*([^;]+)', style)
+            if match_align:
+                new_style.append(f'text-align: {match_align.group(1).strip()}')
+            
+            # Preserve color
+            match_color = re.search(r'color\s*:\s*([^;]+)', style)
+            if match_color:
+                new_style.append(f'color: {match_color.group(1).strip()}')
+
+            # Preserve font-weight
+            match_weight = re.search(r'font-weight\s*:\s*([^;]+)', style)
+            if match_weight:
+                new_style.append(f'font-weight: {match_weight.group(1).strip()}')
         
-        child.attrs = {}
-
-    for purge_elem in purge_elems:
-        try:
-            purge_elem.string = purge_elem.get_text()
-        except:
-            pass
-
-    for del_elem in del_elems:
-        try:
-            del_elem.extract()
-        except:
-            pass
+        new_attrs = {}
+        if new_style:
+            new_attrs['style'] = '; '.join(new_style) + ';'
+        
+        # Keep classes for some elements if they look useful, but mostly clear them
+        # Bilibili uses a lot of specific classes for layout.
+        
+        child.attrs = new_attrs
 
     return str(article_body)
 
