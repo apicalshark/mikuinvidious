@@ -2,12 +2,7 @@
 <div id="player-wrapper" class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
     <media-controller id="miku-player" class="w-full h-full">
         {% if is_live %}
-            {% set live_url = "/proxy/live/" ~ vid %}
-            {% if '.m3u8' in supported_src[0]['url'] %}
-                <hls-video slot="media" id="player" src="{{ live_url }}" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin></hls-video>
-            {% else %}
-                <flv-video slot="media" id="player" src="{{ live_url }}" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin></flv-video>
-            {% endif %}
+            <video slot="media" id="player" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin></video>
         {% else %}
             <video slot="media" id="player" src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin preload="metadata"></video>
         {% endif %}
@@ -25,15 +20,29 @@
         
         <!-- Control Bar -->
         <media-control-bar class="w-full z-30">
-            <media-play-button></media-play-button>
-            <media-seek-backward-button seek-offset="5"></media-seek-backward-button>
-            <media-seek-forward-button seek-offset="5"></media-seek-forward-button>
-            <media-mute-button></media-mute-button>
-            <media-volume-range></media-volume-range>
-            <media-time-display show-duration></media-time-display>
-            <media-time-range></media-time-range>
+            {% if is_live %}
+                <media-play-button></media-play-button>
+                <media-mute-button></media-mute-button>
+                <media-volume-range></media-volume-range>
+                
+                <!-- Live Indicator -->
+                <div class="flex items-center px-2 gap-2">
+                    <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-white">{{ '直播'|translate }}</span>
+                </div>
+
+                <div class="flex-grow"></div>
+            {% else %}
+                <media-play-button></media-play-button>
+                <media-seek-backward-button seek-offset="5"></media-seek-backward-button>
+                <media-seek-forward-button seek-offset="5"></media-seek-forward-button>
+                <media-mute-button></media-mute-button>
+                <media-volume-range></media-volume-range>
+                <media-time-display show-duration></media-time-display>
+                <media-time-range></media-time-range>
+            {% endif %}
             
-            <!-- Custom buttons using standard HTML button for stability -->
+            <!-- Custom buttons -->
             <button id="danmaku-toggle" title="{{ '切換彈幕'|translate }}" class="miku-control-btn">
                 <i class="icon ion-md-easel"></i>
             </button>
@@ -42,7 +51,9 @@
                 <span id="current-quality-label" class="uppercase tracking-tight font-bold text-[11px]">自动</span>
             </button>
 
+            {% if not is_live %}
             <media-playback-rate-button></media-playback-rate-button>
+            {% endif %}
             <media-fullscreen-button></media-fullscreen-button>
         </media-control-bar>
     </media-controller>

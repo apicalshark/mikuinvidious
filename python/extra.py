@@ -281,15 +281,6 @@ async def video_get_src_for_qn(vi, idx, quality = 16):
               credential=vi.credential)
     api.params={ 'avid': vi.get_aid(), 'cid': cid, 'qn': quality, 'platform': 'html5', 'high_quality': 1 }
     res = await api.request()
-
-    # Prioritize Akamai mirrors for better direct access compatibility
-    if 'durl' in res and res['durl']:
-        for durl in res['durl']:
-            urls = ([durl.get('url')] if durl.get('url') else []) + (durl.get('backup_url') or [])
-            for u in urls:
-                if u and '-mirrorakam.akamaized.net' in u:
-                    durl['url'] = u
-                    break
     return res
 
 async def video_get_dash_for_qn(vi, idx):
@@ -301,17 +292,6 @@ async def video_get_dash_for_qn(vi, idx):
               credential=vi.credential)
     api.params = { 'avid': vi.get_aid(), 'cid': cid, 'fnval': '16', 'platform': 'html5', 'high_quality': 1 }
     res = await api.request()
-
-    # Prioritize Akamai mirrors in DASH manifest
-    if 'dash' in res and res['dash']:
-        for media_type in ['video', 'audio']:
-            if media_type in res['dash'] and res['dash'][media_type]:
-                for item in res['dash'][media_type]:
-                    urls = ([item.get('baseUrl')] if item.get('baseUrl') else []) + (item.get('backupUrl') or [])
-                    for u in urls:
-                        if u and '-mirrorakam.akamaized.net' in u:
-                            item['baseUrl'] = u
-                            break
     return res
 
 # The following algorithm is adopted from bilibili-API-collect.

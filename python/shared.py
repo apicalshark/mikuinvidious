@@ -95,6 +95,8 @@ appconf = {
 
 if os.path.exists('config.toml'):
     deep_update(appconf, toml.load('config.toml'))
+elif os.path.exists('../config.toml'):
+    deep_update(appconf, toml.load('../config.toml'))
 
 # Connect to our nice redis database.
 if os.environ.get("REDIS_URL"):
@@ -109,7 +111,7 @@ else:
     )
 
 # Initialize the quart app.
-app = Quart('app')
+app = Quart('app', template_folder='../templates', static_folder='../static')
 app.config.from_mapping(appconf['quart'])
 app.secret_key = os.environ.get("QUART_SECRET_KEY", os.urandom(24).hex())
 

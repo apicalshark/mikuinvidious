@@ -33,8 +33,6 @@ services:
     build: .
     container_name: miku_app
     restart: always
-    ports:
-      - "8000:8000"
     depends_on:
       - warp
       - redis
@@ -60,7 +58,20 @@ services:
       - BUVID3=
       - DEDEUSERID=
 
-  # --- 3. REDIS ---
+  # --- 3. NGINX ---
+  nginx:
+    image: nginx:alpine
+    container_name: miku_nginx
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./static:/usr/share/nginx/html/static:ro
+    depends_on:
+      - app
+
+  # --- 4. REDIS ---
   redis:
     image: redis:alpine
     container_name: miku_redis

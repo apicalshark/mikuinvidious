@@ -13,11 +13,25 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
+import asyncio
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
+
 from shared import app, appconf
 from app import * # Ensure all routes are registered
 
+async def main():
+    config = Config()
+    # Bind to 0.0.0.0 to allow cross-container communication
+    config.bind = ["0.0.0.0:8080"]
+    config.accesslog = "-"
+    config.errorlog = "-"
+    
+    print(f"Starting MikuInvidious (ASGI) on {config.bind[0]}")
+    await serve(app, config)
+
 if __name__ == "__main__":
-    app.run(
-        host=appconf['server']['host'],
-        port=appconf['server']['port']
-    )
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

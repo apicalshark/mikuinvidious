@@ -12,3 +12,5 @@ pysocks
 aiohttp-socks
 httpx[socks]
 opencc-python-reimplemented
+hypercorn
+uvloop

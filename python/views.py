@@ -14,7 +14,7 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio, os, json, traceback
-from quart import render_template, request, Response, stream_with_context
+from quart import render_template, request, Response
 from bilibili_api import user, video, article, comment, search, homepage, video_zone, audio, opus, live, live_area
 
 from shared import *
@@ -25,12 +25,12 @@ from extra import video_get_src_for_qn, video_get_dash_for_qn, bv2av, av2bv, art
 async def live_chat_sse(room_id):
     from bilibili_api import live as b_live, Credential
     
-    @stream_with_context
     async def event_stream():
         queue = asyncio.Queue()
         cred = appcred if isinstance(appcred, Credential) else None
         dm_client = b_live.LiveDanmaku(room_id, credential=cred)
 
+        @dm_client.on('DANMU_MSG')
         async def on_danmaku(event):
             try:
                 info = event['data']['info']
@@ -40,9 +40,12 @@ async def live_chat_sse(room_id):
         conn_task = asyncio.create_task(dm_client.connect())
         
         async def heartbeat():
-            while not conn_task.done():
-                await asyncio.sleep(15)
-                await queue.put(': heartbeat')
+            try:
+                while not conn_task.done():
+                    await asyncio.sleep(15)
+                    await queue.put(': heartbeat')
+            except asyncio.CancelledError:
+                pass
         
         hb_task = asyncio.create_task(heartbeat())
         
@@ -58,16 +61,26 @@ async def live_chat_sse(room_id):
                 
                 if conn_task.done(): break
         except asyncio.CancelledError:
-            pass
+            print(f"[LiveChat] SSE cancelled (client disconnected): {room_id}")
+            return
         finally:
             hb_task.cancel()
             if not conn_task.done():
                 conn_task.cancel()
+            
+            # Shield cleanup to prevent InvalidStateError during disconnect
+            async def cleanup():
                 try:
-                    await conn_task
-                except asyncio.CancelledError:
+                    if not conn_task.done():
+                        await conn_task
+                except (asyncio.CancelledError, Exception):
                     pass
-            await dm_client.disconnect()
+                try:
+                    await dm_client.disconnect()
+                except:
+                    pass
+            
+            await asyncio.shield(cleanup())
 
     return Response(event_stream(), content_type='text/event-stream', headers={
         'Cache-Control': 'no-cache',
@@ -213,7 +226,7 @@ async def live_room_view(room_id):
         # Get basic room info first
         info_data = await room.get_room_info()
         
-        # Try to get FLV first as it's often more reliable for proxying
+        # Prioritize FLV for live streams as requested
         try:
             play_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.HTTP_FLV, live_format=live.LiveFormat.FLV)
         except:
@@ -224,6 +237,7 @@ async def live_room_view(room_id):
 
         async def get_and_cache_qn(qn_val, qn_name):
             try:
+                # Try FLV first
                 q_data = await room.get_room_play_info_v2(
                     live_protocol=live.LiveProtocol.HTTP_FLV, 
                     live_format=live.LiveFormat.FLV, 

@@ -143,7 +143,7 @@ async def robots_txt():
     if policy == 'PLEASE_INDEX_EVERYTHING':
         return '', 404
     
-    return await send_from_directory(f'static/rules', f'robots_{policy}.txt')
+    return await send_from_directory(os.path.join(app.root_path, '../static/rules'), f'robots_{policy}.txt')
 
 ##########################################
 # Error handling

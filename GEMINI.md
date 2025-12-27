@@ -5,7 +5,7 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 ## Core Technologies
 - **Language:** Python 3
 - **Web Framework:** [Quart](https://pgjones.gitlab.io/quart/) (Modern asynchronous web framework)
-- **Web Server:** [NGINX Unit](https://unit.nginx.org/) (High-performance application server)
+- **Web Server:** [NGINX](https://nginx.org/) (Reverse proxy) + [Hypercorn](https://github.com/pgjones/hypercorn) (ASGI server)
 - **Database/Cache:** [Redis](https://redis.io/) (required for caching video URLs, session management, and credential storage)
 - **API Wrapper:** [bilibili-api-python](https://github.com/nemo2011/bilibili-api)
 - **Templating:** Jinja2 (with theme support)
@@ -13,11 +13,12 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 ## System Architecture
 
 ### High-Level Design
-The system uses **NGINX Unit** as the primary application server to handle Quart (ASGI) application. All logic and proxying are handled within the Quart application using asynchronous I/O.
+The system uses **NGINX** as a reverse proxy and static file server, which forwards application requests to **Hypercorn** running the **Quart** (ASGI) application. All logic and proxying are handled within the Quart application using asynchronous I/O.
 
-*   **Entry Point (`main.py`):** A simple Quart entry point for local development.
-*   **App Logic (`app.py`):** Main entry point for NGINX Unit, registering blueprints and routes.
-*   **Reverse Proxy (`proxy.py`):** Handles video and image streaming using Quart's `stream_with_context` and `httpx`.
+*   **Reverse Proxy (NGINX):** Handles incoming traffic, serves static assets, and proxies requests to the ASGI server.
+*   **ASGI Server (Hypercorn):** Runs the Quart application.
+*   **App Logic (`app.py`):** Main entry point for the application, registering blueprints and routes.
+*   **Reverse Proxy (`proxy.py`):** Handles video and image streaming using Quart's async generators and `httpx`.
 *   **Network Transport:** Integrates with **Cloudflare WARP** (via SOCKS5) to route traffic to Bilibili.
 
 ### Request Flowchart
@@ -27,7 +28,8 @@ graph TD
     User((User / Browser))
     
     subgraph "Docker Host"
-        Unit[NGINX Unit Server<br>(Port 8000)]
+        Nginx[NGINX Reverse Proxy<br>(Port 8000)]
+        Hypercorn[Hypercorn ASGI Server<br>(Port 8080)]
         
         subgraph "MikuInvidious App"
             Router{URL Path?}
@@ -49,8 +51,10 @@ graph TD
     end
 
     %% Flows
-    User --> Unit
-    Unit --> Router
+    User --> Nginx
+    Nginx -- "Static Assets" --> Static[Static Files]
+    Nginx -- "App Traffic" --> Hypercorn
+    Hypercorn --> Router
     
     %% Proxy Path
     Router -- "/proxy/..." --> ProxyRes
@@ -67,8 +71,8 @@ graph TD
     Warp --> BiliServers
     
     %% Returns
-    BiliCDN -.-> Warp -.-> ProxyRes -.-> Unit -.-> User
-    BiliServers -.-> Warp -.-> BiliAPI -.-> Views -.-> Unit -.-> User
+    BiliCDN -.-> Warp -.-> ProxyRes -.-> Hypercorn -.-> Nginx -.-> User
+    BiliServers -.-> Warp -.-> BiliAPI -.-> Views -.-> Hypercorn -.-> Nginx -.-> User
 ```
 
 ### Component Breakdown
@@ -99,7 +103,7 @@ graph TD
 *   **Strengths:** Clear async implementation using Quart and `httpx`. Robust caching via Redis.
 *   **Optimization Potential:** 
     *   **Logic Density:** `views.py` could benefit from further decoupling of data transformation logic.
-    *   **Streaming Efficiency:** Quart's `stream_with_context` works well, but high-concurrency streaming might benefit from further tuning in NGINX Unit's process management.
+    *   **Streaming Efficiency:** Using raw async generators instead of `stream_with_context` improves reliability and prevents `InvalidStateError` during client disconnections.
 
 ## Infrastructure (Docker)
 
@@ -107,7 +111,7 @@ The production infrastructure consists of three orchestrated services defined in
 
 | Service | Image | Description |
 | :--- | :--- | :--- |
-| **`app`** | *(Local Build)* | NGINX Unit running the Quart application. Exposes port `8000`. |
+| **`app`** | *(Local Build)* | NGINX + Hypercorn running the Quart application. Exposes port `8000`. |
 | **`redis`** | `redis:alpine` | Persists sessions and caches API responses. |
 | **`warp`** | `caomingjun/warp` | SOCKS5 proxy (port `1080`) for routing traffic to Bilibili. |
 
