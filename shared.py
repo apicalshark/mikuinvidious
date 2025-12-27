@@ -129,9 +129,6 @@ appconf = {
         "use_pandoc": os.environ.get("USE_PANDOC", "false").lower() == "true",
         "article_allowed_formats": os.environ.get("ARTICLE_ALLOWED_FORMATS", "markdown,plain,html").split(","),
     },
-    "display": {
-        "default_theme": os.environ.get("DEFAULT_THEME", "modern"),
-    },
     "redis": {
         "host": os.environ.get("REDIS_HOST", "localhost"),
         "port": int(os.environ.get("REDIS_PORT", 6379)),
