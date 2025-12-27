@@ -19,8 +19,8 @@
                     <div class="font-bold text-on-surface">{{ '繁体中文轉換'|translate }}</div>
                     <div class="text-sm text-on-surface-variant">{{ '使用 OpenCC 將內容轉換為繁體中文'|translate }}</div>
                 </div>
-                <button id="toggle_opencc" class="px-4 py-2 rounded-full {{ 'bg-primary text-on-primary' if request.cookies.get('opencc') == '1' else 'bg-surface-variant text-on-surface-variant' }} font-medium transition-all active:scale-95">
-                    {{ ('已开启' if request.cookies.get('opencc') == '1' else '已关闭')|translate }}
+                <button id="toggle_opencc" class="px-4 py-2 rounded-full {{ 'bg-primary text-on-primary' if opencc_enabled else 'bg-surface-variant text-on-surface-variant' }} font-medium transition-all active:scale-95">
+                    {{ ('已开启' if opencc_enabled else '已关闭')|translate }}
                 </button>
             </div>
         </div>

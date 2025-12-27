@@ -262,11 +262,16 @@ def article_to_html(article_text):
     return translate_text(str(article_body))
 
 '''Convert the article to any file.'''
-def article_to_any(article_text, dest_fmt):
+async def article_to_any(article_text, dest_fmt):
     cmd = ['pandoc', '-f', 'html', '-t', dest_fmt, '-']
-    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    output, _ = p.communicate(input=article_to_html(article_text).encode("utf-8"))
-    return output.decode("utf-8")
+    p = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await p.communicate(input=article_to_html(article_text).encode("utf-8"))
+    return stdout.decode("utf-8")
 
 async def video_get_src_for_qn(vi, idx, quality = 16):
     '''Get a specific available source for video.'''

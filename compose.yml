@@ -34,7 +34,7 @@ services:
     container_name: miku_app
     restart: always
     ports:
-      - "8000:8888"
+      - "8000:8000"
     depends_on:
       - warp
       - redis
@@ -42,7 +42,7 @@ services:
       # Site Configuration
       - SITE_NAME=MikuInvidious
       - SITE_URL=http://localhost:8000
-      - FLASK_SECRET_KEY=yoursecretkey12345
+      - QUART_SECRET_KEY=yoursecretkey12345
       
       # PROXY CONFIGURATION
       - HTTP_PROXY=socks5://warp:1080
@@ -51,6 +51,7 @@ services:
       # Redis Configuration
       - REDIS_URL=redis://redis:6379
       - NO_PROXY=0
+      - SERVER_PORT=8000
       
       # Bilibili Credentials
       - USE_CRED=false

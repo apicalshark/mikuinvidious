@@ -1,16 +1,52 @@
 {% macro video_player(vid, vinfo, idx, supported_src, is_live=False) %}
-<div id="player-container" class="relative w-full aspect-video bg-black group">
-    <video style="width:100%; height:100%; outline:none;" playsinline controls preload="metadata" poster="{{ vinfo['pic']|pic }}" id="player" class="video-js vjs-big-play-centered player-style-invidious w-full h-full object-contain">
-        {% if not is_live %}
-            {% for src in supported_src %}
-            <source src="/proxy/video/{{ vid }}_{{ idx }}_{{ src['quality'] }}" type="video/mp4" label="{{ src['new_description']|translate }}" />
-            {% endfor %}
+<div id="player-wrapper" class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
+    <media-controller id="miku-player" class="w-full h-full">
+        {% if is_live %}
+            {% set live_url = "/proxy/live/" ~ vid %}
+            {% if '.m3u8' in supported_src[0]['url'] %}
+                <hls-video slot="media" id="player" src="{{ live_url }}" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin></hls-video>
+            {% else %}
+                <flv-video slot="media" id="player" src="{{ live_url }}" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin></flv-video>
+            {% endif %}
+        {% else %}
+            <video slot="media" id="player" src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin preload="metadata"></video>
         {% endif %}
-        <p class="vjs-no-js">
-        To view this video please enable JavaScript, and consider upgrading to a web browser that
-        <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-        </p>
-    </video>
+
+        <!-- Danmaku Container - Direct child of controller to manage persistence manually -->
+        <div id="danmaku-container" class="absolute pointer-events-none z-10 overflow-hidden"></div>
+
+        <!-- Quality Menu Layer - Direct child -->
+        <div id="quality-menu" class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-right z-50 p-2 min-w-[140px] rounded-xl shadow-2xl border border-white/10 bg-[#181818] pointer-events-auto">
+            <div class="text-[10px] uppercase tracking-widest text-white/40 px-3 py-2 mb-1 font-bold">{{ '解析度'|translate }}</div>
+            <div id="quality-list" class="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar"></div>
+        </div>
+
+        <media-loading-indicator slot="centered-chrome" no-auto-hide class="w-16 h-12 z-20"></media-loading-indicator>
+        
+        <!-- Control Bar -->
+        <media-control-bar class="w-full z-30">
+            <media-play-button></media-play-button>
+            <media-seek-backward-button seek-offset="5"></media-seek-backward-button>
+            <media-seek-forward-button seek-offset="5"></media-seek-forward-button>
+            <media-mute-button></media-mute-button>
+            <media-volume-range></media-volume-range>
+            <media-time-display show-duration></media-time-display>
+            <media-time-range></media-time-range>
+            
+            <!-- Custom buttons using standard HTML button for stability -->
+            <button id="danmaku-toggle" title="{{ '切換彈幕'|translate }}" class="miku-control-btn">
+                <i class="icon ion-md-easel"></i>
+            </button>
+
+            <button id="quality-btn" title="{{ '切換解析度'|translate }}" class="miku-control-btn px-2">
+                <span id="current-quality-label" class="uppercase tracking-tight font-bold text-[11px]">自动</span>
+            </button>
+
+            <media-playback-rate-button></media-playback-rate-button>
+            <media-fullscreen-button></media-fullscreen-button>
+        </media-control-bar>
+    </media-controller>
+
     <script>
         window.supported_src = {{ supported_src|tojson }};
     </script>

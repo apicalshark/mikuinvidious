@@ -1,295 +1,110 @@
-/* from Invidious, AGPL-3.0 */
+/* Modern Player Styles for MikuInvidious */
 
-#player-container {
-    width: 100% !important;
-    height: auto !important;
+media-controller {
+    --media-primary-color: var(--md-sys-color-primary);
+    --media-range-thumb-background: var(--md-sys-color-primary);
+    --media-range-track-active-background: var(--md-sys-color-primary);
+    background: #000;
 }
 
-.vjs-control-bar {
-    z-index: 999;
-}
-
-/* Youtube player style */
-.video-js.player-style-youtube .vjs-progress-control {
-  height: 0;
-}
-
-.video-js.player-style-youtube .vjs-progress-control .vjs-progress-holder, .video-js.player-style-youtube .vjs-progress-control {
-  position: absolute;
-  right: 0;
-  left: 0;
-  width: 100%;
-  margin: 0;
-}
-
-.video-js.player-style-youtube .vjs-control-bar {
-  background: linear-gradient(rgba(0,0,0,0.1), rgba(0, 0, 0,0.5));
-}
-
-.video-js.player-style-youtube .vjs-slider {
-  background-color: rgba(255,255,255,0.2);
-}
-
-.video-js.player-style-youtube .vjs-load-progress > div {
-  background-color: rgba(255,255,255,0.5);
-}
-
-.video-js.player-style-youtube .vjs-play-progress {
-  background-color: red;
-}
-
-.video-js.player-style-youtube .vjs-progress-control:hover .vjs-progress-holder {
-  font-size: 15px;
-}
-
-.video-js.player-style-youtube .vjs-control-bar > .vjs-spacer {
-  flex: 1;
-  order: 2;
-}
-
-.video-js.player-style-youtube .vjs-play-progress .vjs-time-tooltip {
-  display: none;
-}
-
-.video-js.player-style-youtube .vjs-play-progress::before {
-  color: red;
-  font-size: 0.85em;
-  display: none;
-}
-
-.video-js.player-style-youtube .vjs-progress-holder:hover .vjs-play-progress::before {
-  display: unset;
-}
-
-.video-js.player-style-youtube .vjs-control-bar {
-  display: flex;
-  flex-direction: row;
-}
-
-.video-js.player-style-youtube .vjs-big-play-button {
-  /*
-    Styles copied from video-js.min.css, definition of
-    .vjs-big-play-centered .vjs-big-play-button
-  */
-  top: 50%;
-  left: 50%;
-  margin-top: -0.81666em;
-  margin-left: -1.5em;
-}
-
-.video-js.player-style-youtube .vjs-menu-button-popup .vjs-menu {
-  margin-bottom: 2em;
-}
-
-.video-js.player-style-youtube .vjs-progress-control .vjs-progress-holder, .video-js.player-style-youtube .vjs-progress-control {height: 5px;
-margin-bottom: 10px;}
-
-ul.vjs-menu-content::-webkit-scrollbar {
-  display: none;
-}
-
-.vjs-user-inactive {
-  cursor: none;
-}
-
-.video-js .vjs-text-track-display > div > div > div {
-  background-color: rgba(0, 0, 0, 0.75) !important;
-  border-radius: 9px !important;
-  padding: 5px !important;
-}
-
-.vjs-play-control,
-.vjs-volume-panel,
-.vjs-current-time,
-.vjs-time-control,
-.vjs-duration,
-.vjs-progress-control,
-.vjs-remaining-time {
-  order: 1;
-}
-
-.vjs-captions-button {
-  order: 2;
-}
-
-.vjs-audio-button {
-  order: 3;
-}
-
-.vjs-quality-selector,
-.video-js .vjs-http-source-selector {
-  order: 4;
-}
-
-.vjs-playback-rate {
-  order: 5;
-}
-
-.vjs-share-control {
-  order: 6;
-}
-
-.vjs-fullscreen-control {
-  order: 7;
-}
-
-.vjs-playback-rate > .vjs-menu {
-  width: 50px;
-}
-
-.vjs-control-bar {
-  display: flex;
-  flex-direction: row;
-  scrollbar-width: none;
-}
-
-.vjs-control-bar::-webkit-scrollbar {
-  display: none;
-}
-
-.video-js .vjs-icon-cog {
-  font-size: 18px;
-}
-
-.video-js .vjs-control-bar,
-.vjs-menu-button-popup .vjs-menu .vjs-menu-content {
-  background-color: rgba(35, 35, 35, 0.75);
-}
-
-.vjs-menu li.vjs-menu-item:focus,
-.vjs-menu li.vjs-menu-item:hover {
-  background-color: rgba(255, 255, 255, 0.75);
-  color: rgba(49, 49, 51, 0.75);
-}
-
-.vjs-menu li.vjs-selected,
-.vjs-menu li.vjs-selected:focus,
-.vjs-menu li.vjs-selected:hover {
-  background-color: rgba(0, 182, 240, 0.75);
-}
-
-/* Progress Bar */
-.video-js .vjs-slider {
-  background-color: rgba(15, 15, 15, 0.5);
-}
-
-.video-js .vjs-load-progress,
-.video-js .vjs-load-progress div {
-  background: rgba(87, 87, 88, 1);
-}
-
-.video-js .vjs-slider:hover,
-.video-js button:hover {
-  color: rgba(0, 182, 240, 1);
-}
-
-.video-js.player-style-invidious .vjs-play-progress {
-  background-color: rgba(0, 182, 240, 1);
-}
-
-/* Overlay */
-.video-js .vjs-overlay {
-  background-color: rgba(35, 35, 35, 0.75) !important;
-}
-.video-js .vjs-overlay * {
-  color: rgba(255, 255, 255, 1) !important;
-  text-align: center;
-}
-
-/* ProgressBar marker */
-.vjs-marker {
-  background-color: rgba(255, 255, 255, 1);
-  z-index: 0;
-}
-
-/* Big "Play" Button */
-.video-js .vjs-big-play-button {
-  background-color: rgba(35, 35, 35, 0.5);
-}
-
-.video-js:hover .vjs-big-play-button {
-  background-color: rgba(35, 35, 35, 0.75);
-}
-
-.video-js .vjs-current-time,
-.video-js .vjs-time-divider,
-.video-js .vjs-duration {
-  display: block;
-}
-
-.video-js .vjs-time-divider {
-  min-width: 0px;
-  padding-left: 0px;
-  padding-right: 0px;
-}
-
-.video-js .vjs-poster {
-  background-size: cover;
-  object-fit: cover;
-}
-
-/* Buffering overlay */
-.vjs-buffering-overlay {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    pointer-events: none;
+/* Danmaku Layer - ABSOLUTE PERSISTENCE */
+#danmaku-container {
     z-index: 10;
-    display: none;
-    font-size: 18px;
-    font-weight: bold;
-    text-shadow: 0 0 4px rgba(0,0,0,0.8);
-    text-align: center;
+    pointer-events: none;
+    position: absolute;
+    display: block !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Force container visibility even when controller hides other chrome */
+media-controller[media-user-inactive] #danmaku-container {
+    opacity: 1 !important;
+    visibility: visible !important;
+}
+
+/* Style for DOM engine danmaku */
+.danmaku {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.danmaku-item {
+    font-weight: 400 !important;
+    text-shadow: none !important;
     white-space: nowrap;
+    user-select: none;
+    color: #fff;
+    pointer-events: none;
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    line-height: 1.1;
+    font-size: 20px !important;
 }
 
-.vjs-custom-buffering .vjs-buffering-overlay {
-    display: block;
+/* Standardized Custom Buttons to match native Media Chrome appearance */
+.miku-control-btn {
+    appearance: none;
+    background-color: var(--media-control-background, rgba(20, 20, 30, 0.7));
+    border: none;
+    height: 100%;
+    padding: 0 10px;
+    color: var(--media-icon-color, #fff);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s;
 }
 
-.player-dimensions.vjs-fluid {
-  padding-top: 82vh;
+.miku-control-btn:hover {
+    background-color: var(--media-control-hover-background, rgba(50, 50, 70, 0.7));
 }
 
-video.video-js {
-  position: absolute;
-  height: 100%;
+.miku-control-btn i {
+    font-size: 22px;
 }
 
-#player-container {
-  position: relative;
-  padding-left: 0;
-  padding-right: 0;
-  margin-left: 0em;
-  margin-right: 1em;
-  height: 0;
+/* Quality Menu Styles - SOLID BACKGROUND */
+#quality-menu {
+    background: #181818 !important; 
+    border: 1px solid #333;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.mobile-operations-bar {
-  display: flex;
-  position: absolute;
-  top: 0;
-  right: 1px !important;
-  left: initial !important;
-  width: initial !important;
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
 }
 
-.mobile-operations-bar ul {
-  position: absolute !important;
-  bottom: unset !important;
-  top: 1.5em;
+#quality-list button {
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    padding: 10px 15px;
+    color: rgba(255,255,255,0.8);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
 }
 
-@media screen and (max-width: 700px) {
-  .video-js .vjs-share {
-    justify-content: unset;
-  }
+#quality-list button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
 }
 
-@media screen and (max-width: 650px) {
-  .vjs-modal-dialog-content {
-    overflow-x: hidden;
-  }
+#quality-list button.active {
+    background: var(--md-sys-color-primary) !important;
+    color: white !important;
+}
+
+/* Fullscreen Specifics */
+media-controller:fullscreen #danmaku-container {
+    z-index: 10;
 }

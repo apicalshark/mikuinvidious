@@ -31,4 +31,4 @@ Key environment variables:
 - `SITE_URL`: The public URL of your instance.
 - `HTTP_PROXY` / `HTTPS_PROXY`: SOCKS5 proxy (configured to use the included `warp` service by default).
 - `REDIS_URL`: Connection string for Redis.
-- `FLASK_SECRET_KEY`: A random secret string for session security.
+- `QUART_SECRET_KEY`: A random secret string for session security.

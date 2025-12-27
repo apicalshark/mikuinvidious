@@ -2,6 +2,7 @@
 module.exports = {
   content: [
     "./templates/themes/modern/**/*.html",
+    "./templates/macros.html",
     "./static/themes/modern/js/**/*.js",
   ],
   darkMode: 'class',

@@ -14,7 +14,7 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
-from flask import jsonify
+from quart import jsonify
 from danmaku import danmaku_xml_conv
 from xml.dom import minidom
 from bilibili_api import video

@@ -1,6 +1,6 @@
-flask[async]
+quart
+quart-session
 werkzeug
-Flask_Caching
 bilibili-api-python
 beautifulsoup4
 httpx
@@ -8,9 +8,6 @@ aiohttp
 redis
 toml
 lxml
-twisted
-service-identity
-pyOpenSSL
 pysocks
 aiohttp-socks
 httpx[socks]

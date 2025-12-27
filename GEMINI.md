@@ -4,8 +4,8 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 
 ## Core Technologies
 - **Language:** Python 3
-- **Web Framework:** [Flask](https://flask.palletsprojects.com/) (with async support)
-- **Web Server & Proxy:** [Twisted](https://twistedmatrix.com/) (used for efficient reverse proxying and serving the WSGI application)
+- **Web Framework:** [Quart](https://pgjones.gitlab.io/quart/) (Modern asynchronous web framework)
+- **Web Server:** [NGINX Unit](https://unit.nginx.org/) (High-performance application server)
 - **Database/Cache:** [Redis](https://redis.io/) (required for caching video URLs, session management, and credential storage)
 - **API Wrapper:** [bilibili-api-python](https://github.com/nemo2011/bilibili-api)
 - **Templating:** Jinja2 (with theme support)
@@ -13,12 +13,12 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 ## System Architecture
 
 ### High-Level Design
-The system uses **Twisted** as the primary web server to handle high-concurrency media streaming and proxying, while wrapping a **Flask** application to handle business logic and UI rendering.
+The system uses **NGINX Unit** as the primary application server to handle Quart (ASGI) application. All logic and proxying are handled within the Quart application using asynchronous I/O.
 
-*   **Entry Point (`main.py`):** Starts a Twisted reactor that exposes:
-    *   **Reverse Proxy (`/proxy`):** Handles video and image streaming directly using asynchronous `httpx` streams. This bypasses CORS/Referer checks and region blocks.
-    *   **WSGI Container:** Serves the Flask application for all other routes.
-*   **Network Transport:** Integrates with **Cloudflare WARP** (via SOCKS5) to route traffic to Bilibili, ensuring access even from restricted networks.
+*   **Entry Point (`main.py`):** A simple Quart entry point for local development.
+*   **App Logic (`app.py`):** Main entry point for NGINX Unit, registering blueprints and routes.
+*   **Reverse Proxy (`proxy.py`):** Handles video and image streaming using Quart's `stream_with_context` and `httpx`.
+*   **Network Transport:** Integrates with **Cloudflare WARP** (via SOCKS5) to route traffic to Bilibili.
 
 ### Request Flowchart
 
@@ -27,13 +27,12 @@ graph TD
     User((User / Browser))
     
     subgraph "Docker Host"
-        Twisted[Twisted Web Server<br>(main.py:8888)]
+        Unit[NGINX Unit Server<br>(Port 8000)]
         
         subgraph "MikuInvidious App"
             Router{URL Path?}
-            ProxyRes["ReverseProxyResource<br>(Async Stream)"]
-            WSGIRes["WSGIResource<br>(Flask App)"]
-            Views["Flask Views<br>(views.py/app.py)"]
+            ProxyRes["Quart Proxy Blueprint<br>(Async Stream)"]
+            Views["Quart Views<br>(views.py/app.py)"]
             BiliAPI["Bilibili API Wrapper"]
         end
         
@@ -50,8 +49,8 @@ graph TD
     end
 
     %% Flows
-    User --> Twisted
-    Twisted --> Router
+    User --> Unit
+    Unit --> Router
     
     %% Proxy Path
     Router -- "/proxy/..." --> ProxyRes
@@ -59,8 +58,7 @@ graph TD
     ProxyRes -- "Stream Content" --> Warp
     
     %% App Path
-    Router -- "Other Routes" --> WSGIRes
-    WSGIRes --> Views
+    Router -- "Other Routes" --> Views
     Views -- "Get Metadata" --> BiliAPI
     BiliAPI -- "Fetch Data" --> Warp
     
@@ -69,26 +67,26 @@ graph TD
     Warp --> BiliServers
     
     %% Returns
-    BiliCDN -.-> Warp -.-> ProxyRes -.-> Twisted -.-> User
-    BiliServers -.-> Warp -.-> BiliAPI -.-> Views -.-> WSGIRes -.-> Twisted -.-> User
+    BiliCDN -.-> Warp -.-> ProxyRes -.-> Unit -.-> User
+    BiliServers -.-> Warp -.-> BiliAPI -.-> Views -.-> Unit -.-> User
 ```
 
 ### Component Breakdown
 - **Application Logic:** 
-    - `app.py`: Initializes the Flask app, error handlers, and basic routes (login, logout, b23.tv redirection).
+    - `app.py`: Initializes the Quart app, error handlers, and basic routes.
     - `views.py`: Main routing logic for home, search, video, space, and author views.
-    - `shared.py`: Configuration loading (`config.toml`), Redis connection, and utility functions.
-    - `proxy.py`: Flask Blueprint for fallback proxying (though Twisted's native proxy is preferred).
-    - `danmaku.py`: Fetches and converts Bilibili danmaku (XML to JSON).
-    - `extra.py`: Utilities for article-to-HTML conversion and AV/BV ID manipulation.
+    - `shared.py`: Configuration loading (`config.toml`), Redis connection, and Quart app initialization.
+    - `proxy.py`: Quart Blueprint for media proxying.
+    - `danmaku.py`: Fetches and converts Bilibili danmaku.
+    - `extra.py`: Utilities for article-to-HTML conversion and ID manipulation.
     - `refresher.py`: Utility to refresh Bilibili credentials.
 
 ## Deep Analysis & Architectural Insights
 
 ### 1. Structural Integrity & Core Patterns
-*   **Twisted-Flask Bridge:** The project uses an advanced integration where `asyncioreactor` bridges Twisted's event loop with Python's `asyncio`. This allows the high-performance networking of Twisted to coexist with the modern async Bilibili API wrapper and `httpx`.
-*   **Performance-First Proxying:** Media streams (video/images) bypass the Flask/WSGI stack entirely. They are handled by a native Twisted `ReverseProxyResource` in `main.py`, enabling efficient, non-blocking chunked transfers directly from Bilibili's CDNs.
-*   **Dynamic Theming:** The architecture supports multiple frontends. The logic in `shared.py` dynamically selects templates based on cookies or URL parameters, allowing the site to serve different interfaces (e.g., `modern` vs. `wayback`) from the same backend logic.
+*   **Quart Framework:** The project leverages Quart for its async capabilities.
+*   **Unified Proxying:** Media streams (video/images) are handled via Quart blueprints, allowing for consistent application-level control and session management.
+*   **Dynamic Theming:** Templates are dynamically selected based on cookies or URL parameters.
 
 ### 2. Theme Comparison
 | Feature | **Modern** (Default) | **Wayback** |
@@ -98,11 +96,10 @@ graph TD
 | **Responsiveness** | Mobile-first, fluid layout | Grid-based, structured |
 
 ### 3. Codebase Health & Observations
-*   **Strengths:** Excellent separation of concerns between proxying (network layer) and view logic (application layer). Robust caching via Redis significantly reduces the load on Bilibili's API and improves latency.
+*   **Strengths:** Clear async implementation using Quart and `httpx`. Robust caching via Redis.
 *   **Optimization Potential:** 
-    *   **Logic Density:** `views.py` contains dense data mapping logic. This could be moved to a dedicated service layer or data transformers.
-    *   **Template Shared Logic:** Shared UI components could be extracted into Jinja2 macros to reduce duplication between theme folders.
-    *   **Proxy Refinement:** The `ReverseProxyResource` could be hardened to better handle complex HTTP Range requests for improved seeking performance.
+    *   **Logic Density:** `views.py` could benefit from further decoupling of data transformation logic.
+    *   **Streaming Efficiency:** Quart's `stream_with_context` works well, but high-concurrency streaming might benefit from further tuning in NGINX Unit's process management.
 
 ## Infrastructure (Docker)
 
@@ -110,7 +107,7 @@ The production infrastructure consists of three orchestrated services defined in
 
 | Service | Image | Description |
 | :--- | :--- | :--- |
-| **`app`** | *(Local Build)* | The main Python application. Exposes port `8000`. |
+| **`app`** | *(Local Build)* | NGINX Unit running the Quart application. Exposes port `8000`. |
 | **`redis`** | `redis:alpine` | Persists sessions and caches API responses. |
 | **`warp`** | `caomingjun/warp` | SOCKS5 proxy (port `1080`) for routing traffic to Bilibili. |
 
@@ -118,41 +115,32 @@ The production infrastructure consists of three orchestrated services defined in
 
 Configuration is managed via `config.toml` (recommended) or Environment Variables.
 
-*   **`[site]`**: Metadata (Name, URL) and Robots policy.
-*   **`[twisted]`**: Server host/port settings.
-*   **`[credential]`**: Bilibili cookies (`SESSDATA`, `bili_jct`, etc.) for authenticated access.
-*   **`[proxy]`**: 
-    *   `use_proxy = true`: Proxies all media through the server (required for most regions).
-    *   `use_proxy = false`: Redirects to Akamai mirrors where possible (Direct Mode).
+*   **`[site]`**: Metadata and Robots policy.
+*   **`[server]`**: Host and port settings.
+*   **`[credential]`**: Bilibili cookies for authenticated access.
+*   **`[proxy]`**: Proxy settings for media streams.
 *   **`[redis]`**: Redis connection details.
 
 ## Development & Deployment
 
 ### Docker Deployment (Recommended)
-1.  **Configure Environment:**
-    Ensure `compose.yml` environment variables match your needs (especially `SITE_URL` and `FLASK_SECRET_KEY`).
-2.  **Run with Docker Compose:**
+1.  **Run with Docker Compose:**
     ```bash
     docker-compose up -d --build
     ```
 3.  **Access:** `http://localhost:8000`
 
 ### Manual Development Setup
-1.  **Prerequisites:** Python 3.8+, Redis server running, `pandoc` (optional).
+1.  **Prerequisites:** Python 3.8+, Redis server running.
 2.  **Install Dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
-3.  **Configure:**
-    ```bash
-    cp config.toml.sample config.toml
-    # Edit config.toml with Redis details
-    ```
-4.  **Run:**
+3.  **Run:**
     ```bash
     python main.py
     ```
-    Access at `http://[::]:8888` (or configured port).
+    Access at `http://localhost:8888` (or configured port).
 
 ## Recent Updates (Phase 1-3)
 - **Live Streaming:** Full support for browsing and watching Bilibili Live rooms (`/live`, `/live/<room_id>`).

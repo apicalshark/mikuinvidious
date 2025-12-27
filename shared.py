@@ -1,97 +1,50 @@
-# Copyright (C) 2023 MikuInvidious Team
-# 
-# MikuInvidious is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License as
-# published by the Free Software Foundation; either version 3 of
-# the License, or (at your option) any later version.
-# 
-# MikuInvidious is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
-# 
-# You should have received a copy of the GNU General Public License
-# along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
-
 import os
 import redis
 import toml
 import httpx
 import asyncio
 import time
-from flask import request, render_template, Flask
-from flask_caching import Cache
+
+from quart import request, render_template, Quart
+from quart_session import Session
+
 from bilibili_api import Credential
 from refresher import renew_cookies
 
-class AsyncRateLimiter:
-    def __init__(self, max_rate, period=1.0):
-        self.max_rate = max_rate
-        self.period = period
-        self.tokens = max_rate
-        self.updated_at = time.monotonic()
-        self.lock = asyncio.Lock()
+class Network:
+    _async_client = None
+    _sync_client = None
+    
+    @staticmethod
+    def get_proxy():
+        return os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy') if appconf['proxy']['use_proxy'] else None
 
-    async def acquire(self):
-        async with self.lock:
-            while True:
-                now = time.monotonic()
-                time_passed = now - self.updated_at
-                self.tokens += time_passed * (self.max_rate / self.period)
-                self.updated_at = now
-                if self.tokens > self.max_rate:
-                    self.tokens = self.max_rate
-                
-                if self.tokens >= 1:
-                    self.tokens -= 1
-                    return
-                
-                # Wait for enough tokens
-                wait_time = (1 - self.tokens) / (self.max_rate / self.period)
-                await asyncio.sleep(wait_time)
+    @classmethod
+    def get_async_client(cls) -> httpx.AsyncClient:
+        if cls._async_client is None or cls._async_client.is_closed:
+            cls._async_client = httpx.AsyncClient(
+                proxy=cls.get_proxy(),
+                trust_env=False,
+                timeout=httpx.Timeout(10.0, read=None), # No timeout for reading streams by default
+                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
+            )
+        return cls._async_client
 
-# Rate limiter for images (10 per second)
-image_limiter = AsyncRateLimiter(10, 1.0)
+    @classmethod
+    def get_sync_client(cls) -> httpx.Client:
+        if cls._sync_client is None:
+            cls._sync_client = httpx.Client(
+                proxy=cls.get_proxy(),
+                trust_env=False,
+                timeout=10.0
+            )
+        return cls._sync_client
 
-def get_proxy_settings():
-    proxy_url = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
-    if appconf['proxy']['use_proxy'] and proxy_url:
-        return proxy_url
-    return None
+# Maintain backward compatibility
+get_global_httpx_client = lambda async_client=True: Network.get_async_client() if async_client else Network.get_sync_client()
 
-def get_httpx_client(async_client=True):
-    proxy_url = get_proxy_settings()
-    if async_client:
-        return httpx.AsyncClient(proxy=proxy_url, trust_env=False, timeout=None)
-    else:
-        return httpx.Client(proxy=proxy_url, trust_env=False, timeout=None)
-
-# Global clients for connection pooling
-_httpx_async_client = None
-_httpx_sync_client = None
-
-def get_global_httpx_client(async_client=True):
-    global _httpx_async_client, _httpx_sync_client
-    if async_client:
-        # Check if we need to create or recreate the client
-        recreate = False
-        if _httpx_async_client is None:
-            recreate = True
-        else:
-            try:
-                # Try to access a property that might fail if loop is closed
-                if _httpx_async_client.is_closed:
-                    recreate = True
-            except:
-                recreate = True
-
-        if recreate:
-            _httpx_async_client = get_httpx_client(async_client=True)
-        return _httpx_async_client
-    else:
-        if _httpx_sync_client is None:
-            _httpx_sync_client = get_httpx_client(async_client=False)
-        return _httpx_sync_client
+# Semaphore for image proxying
+image_limiter = asyncio.Semaphore(10)
 
 def deep_update(base_dict, update_dict):
     for key, value in update_dict.items():
@@ -109,10 +62,13 @@ appconf = {
         "site_show_unsafe_error_response": os.environ.get("SITE_SHOW_UNSAFE_ERROR_RESPONSE", "false").lower() == "true",
         "robots_policy": os.environ.get("ROBOTS_POLICY", "strict"),
     },
-    "flask": {},
-    "twisted": {
-        "host": os.environ.get("TWISTED_HOST", "0.0.0.0"),
-        "port": int(os.environ.get("TWISTED_PORT", 8888)),
+    "quart": {},
+    "server": {
+        "host": os.environ.get("SERVER_HOST", "0.0.0.0"),
+        "port": int(os.environ.get("SERVER_PORT", 8888)),
+    },
+    "display": {
+        "default_theme": "modern"
     },
     "credential": {
         "use_cred": os.environ.get("USE_CRED", "false").lower() == "true",
@@ -134,11 +90,6 @@ appconf = {
         "port": int(os.environ.get("REDIS_PORT", 6379)),
         "username": os.environ.get("REDIS_USERNAME"),
         "password": os.environ.get("REDIS_PASSWORD"),
-    },
-    "admin": {
-        "username": os.environ.get("ADMIN_USERNAME"),
-        "password": os.environ.get("ADMIN_PASSWORD"),
-        "secret_key": os.environ.get("FLASK_SECRET_KEY", os.urandom(24).hex()),
     }
 }
 
@@ -157,12 +108,24 @@ else:
         decode_responses=True
     )
 
-# Initialize the flask app.
-app = Flask('app')
-app.config.from_mapping(appconf['flask'])
+# Initialize the quart app.
+app = Quart('app')
+app.config.from_mapping(appconf['quart'])
+app.secret_key = os.environ.get("QUART_SECRET_KEY", os.urandom(24).hex())
 
-# And also configure the flask_cache module.
-appcache = Cache(app, config={'CACHE_TYPE': 'RedisCache', 'CACHE_REDIS': appredis})
+# Configure sessions
+app.config['SESSION_TYPE'] = 'redis'
+app.config['SESSION_REDIS'] = appredis
+Session(app)
+
+# Use a mock or simple class for appcache
+class SimpleCache:
+    def cached(self, timeout=None, key_prefix='view/%s'):
+        def decorator(f):
+            return f # No-op for now
+        return decorator
+
+appcache = SimpleCache()
 
 # Initialize credentials for bilibili API.
 appcred = None
@@ -175,8 +138,6 @@ if appconf['credential']['use_cred']:
         dedeuserid=credstore['dedeuserid'],
         ac_time_value=credstore['ac_time_value']
     )
-    # Note: The automatic cookie refresher which writes to config.toml is not compatible with a serverless environment.
-    # You will need to manually update your credential environment variables when they expire.
 
 ##########################################
 # Util functions
@@ -214,8 +175,8 @@ async def render_template_with_theme(fp, **kwargs):
 
     dark_theme = request.cookies.get('dark-theme') == '1'
     opencc_enabled = request.cookies.get('opencc') == '1'
-
-    return render_template(f'themes/{t}/{fp}', dark_mode=dark_theme,
+    
+    return await render_template(f'themes/{t}/{fp}', dark_mode=dark_theme,
                            opencc_enabled=opencc_enabled,
                            proxy_status=appconf['proxy'],
                            **appconf['site'],

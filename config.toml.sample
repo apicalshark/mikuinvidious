@@ -20,10 +20,10 @@ site_show_unsafe_error_response = false
 # Default to 'strict'.
 robots_policy = 'strict'
 
-[flask]
-# Flask Framework Configuration
+[quart]
+# Quart Framework Configuration
 
-[twisted]
+[server]
 # Network interface to listen on:
 #    - local only, use 'localhost'
 #    - ipv4 only, use '0.0.0.0'
@@ -58,13 +58,11 @@ article_allowed_formats = ['markdown', 'plain', 'html']
 default_theme = 'modern'
 
 [redis]
-host = 'localhost'
-port = 6379
-#username = ''
-#password = ''
 
-[admin]
-# Administrator credentials for accessing restricted features
-username = ''
-password = ''
-secret_key = 'CHANGE_THIS_TO_A_RANDOM_SECRET_STRING'
+host = 'localhost'
+
+port = 6379
+
+#username = ''
+
+#password = ''

@@ -14,12 +14,66 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio, os, json, traceback
-from flask import render_template, request, Response, stream_with_context
+from quart import render_template, request, Response, stream_with_context
 from bilibili_api import user, video, article, comment, search, homepage, video_zone, audio, opus, live, live_area
 
 from shared import *
 import transformers
 from extra import video_get_src_for_qn, video_get_dash_for_qn, bv2av, av2bv, article_to_html, article_to_any, get_article_info
+
+@app.route('/live/chat/<int:room_id>')
+async def live_chat_sse(room_id):
+    from bilibili_api import live as b_live, Credential
+    
+    @stream_with_context
+    async def event_stream():
+        queue = asyncio.Queue()
+        cred = appcred if isinstance(appcred, Credential) else None
+        dm_client = b_live.LiveDanmaku(room_id, credential=cred)
+
+        async def on_danmaku(event):
+            try:
+                info = event['data']['info']
+                await queue.put({'user': info[2][1], 'text': info[1]})
+            except: pass
+
+        conn_task = asyncio.create_task(dm_client.connect())
+        
+        async def heartbeat():
+            while not conn_task.done():
+                await asyncio.sleep(15)
+                await queue.put(': heartbeat')
+        
+        hb_task = asyncio.create_task(heartbeat())
+        
+        yield f"data: {json.dumps({'user': 'SYSTEM', 'text': 'Chat connected'})}\n\n"
+
+        try:
+            while True:
+                msg = await queue.get()
+                if msg == ': heartbeat':
+                    yield ": heartbeat\n\n"
+                else:
+                    yield f"data: {json.dumps(msg)}\n\n"
+                
+                if conn_task.done(): break
+        except asyncio.CancelledError:
+            pass
+        finally:
+            hb_task.cancel()
+            if not conn_task.done():
+                conn_task.cancel()
+                try:
+                    await conn_task
+                except asyncio.CancelledError:
+                    pass
+            await dm_client.disconnect()
+
+    return Response(event_stream(), content_type='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Transfer-Encoding': 'chunked'
+    })
 
 @app.route('/licenses')
 async def static_licenses_view():
@@ -103,7 +157,7 @@ async def author_view(mid):
 async def read_view(cid):
     is_opus = 'opus' in request.path or not cid.startswith('cv')
     url = f'https://www.bilibili.com/opus/{cid.replace("opus", "")}' if is_opus else f'https://www.bilibili.com/read/{cid}'
-    client = get_global_httpx_client()
+    client = Network.get_async_client()
     try:
         req = await client.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.62'}, follow_redirects=True)
     except Exception as e:
@@ -111,7 +165,7 @@ async def read_view(cid):
     if req.status_code != 200:
         return await render_template_with_theme('error.html', status = '没有找到文章' if req.status_code == 404 else '服务器错误', desc = '后端服务器发送了无效的回复', suggest = '这很可能说明您访问的文章不存在，请检查您的请求。' if req.status_code == 404 else None), req.status_code
     if appconf['render']['use_pandoc'] and request.args.get('format') in appconf['render']['article_allowed_formats']:
-        return article_to_any(req.text, request.args.get('format'))
+        return await article_to_any(req.text, request.args.get('format'))
     else:
         cvid = cid.replace('cv', '').replace('opus', '')
         try:
@@ -152,25 +206,29 @@ async def live_list_view():
 
 @app.route('/live/<room_id>')
 async def live_room_view(room_id):
-    room_id_int = int(room_id)
-    room = live.LiveRoom(room_id_int, credential=appcred)
     try:
-        print(f"[Live] Loading room {room_id}")
+        room_id_int = int(room_id)
+        room = live.LiveRoom(room_id_int, credential=appcred)
+        
+        # Get basic room info first
         info_data = await room.get_room_info()
+        
+        # Try to get FLV first as it's often more reliable for proxying
+        try:
+            play_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.HTTP_FLV, live_format=live.LiveFormat.FLV)
+        except:
+            play_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4)
+        
         info = transformers.transform_live_room(info_data)
-        
-        print(f"[Live] Fetching qualities for {room_id}")
-        play_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV)
-        qn_list = play_data.get('play_url', {}).get('g_qn_desc', [])
-        
-        if not qn_list:
-            print(f"[Live] No qn_list, using default")
-            qn_list = [{'qn': 0, 'desc': '默认'}]
+        qn_list = play_data.get('play_url', {}).get('g_qn_desc', []) or [{'qn': 0, 'desc': '默认'}]
 
         async def get_and_cache_qn(qn_val, qn_name):
             try:
-                print(f"[Live] Getting URL for {room_id} qn={qn_val}")
-                q_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV, live_qn=qn_val)
+                q_data = await room.get_room_play_info_v2(
+                    live_protocol=live.LiveProtocol.HTTP_FLV, 
+                    live_format=live.LiveFormat.FLV, 
+                    live_qn=qn_val
+                )
                 stream = q_data.get('play_url', {}).get('stream', [])
                 url = None
                 for s in stream:
@@ -182,29 +240,37 @@ async def live_room_view(room_id):
                     if url: break
                 
                 if not url:
-                    print(f"[Live] v2 failed for {room_id} qn={qn_val}, trying fallback")
-                    fb_data = await room.get_room_play_url()
-                    if 'durl' in fb_data and fb_data['durl']:
-                        url = fb_data['durl'][0]['url']
+                    # Fallback to HLS if FLV fails
+                    q_data = await room.get_room_play_info_v2(
+                        live_protocol=live.LiveProtocol.HLS, 
+                        live_format=live.LiveFormat.FMP4, 
+                        live_qn=qn_val
+                    )
+                    stream = q_data.get('play_url', {}).get('stream', [])
+                    for s in stream:
+                        for f in s.get('format', []):
+                            for c in f.get('codec', []):
+                                url = c.get('url') or c.get('base_url')
+                                if url: break
+                            if url: break
+                        if url: break
 
                 if url:
-                    print(f"[Live] Cached URL for {room_id} qn={qn_val}")
+                    print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
                     appredis.setex(f'miku_live_{room_id}_{qn_val}', 1800, url)
                     return {'quality': qn_val, 'new_description': qn_name, 'url': url}
             except Exception as e:
-                print(f"[Live] QN Error for {room_id} ({qn_val}): {e}")
+                print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
             return None
 
         q_results = await asyncio.gather(*[get_and_cache_qn(d['qn'], d['desc']) for d in qn_list])
-        supported_src = [r for r in q_results if r and r.get('url')]
-        print(f"[Live] Final supported_src for {room_id}: {[s['new_description'] for s in supported_src]}")
+        supported_src = [r for r in q_results if r]
         
         if supported_src:
-            print(f"[Live] Set default URL for {room_id} (qn={supported_src[0]['quality']})")
+            # Set default quality as well
             appredis.setex(f'miku_live_{room_id}', 1800, supported_src[0]['url'])
         else:
-            print(f"[Live] NO SOURCES FOUND for {room_id}")
-            # Final attempt
+            # Final desperate fallback
             try:
                 fb_info = await room.get_room_play_url()
                 if 'durl' in fb_info and fb_info['durl']:
@@ -219,9 +285,13 @@ async def live_room_view(room_id):
             'stat': {'view': info['online'], 'like': 0, 'coin': 0, 'favorite': 0, 'share': 0},
             'pubdate': info['start_time'], 'bvid': str(room_id), 'tid': 0, 'tname': info['area_name']
         }
-        return await render_template_with_theme('video.html', vid=str(room_id), vinfo=vinfo, vcomments={'page':{'count':0}, 'replies':[]}, vrelated=[], keywords='', supported_src=supported_src, ato=False, idx=0, vset=[], is_live=True)
+        return await render_template_with_theme(
+            'video.html', vid=str(room_id), vinfo=vinfo, 
+            vcomments={'page':{'count':0}, 'replies':[]}, 
+            vrelated=[], keywords='', supported_src=supported_src, 
+            ato=False, idx=0, vset=[], is_live=True
+        )
     except Exception as e:
-        traceback.print_exc()
         return await render_template_with_theme('error.html', status='直播错误', desc=str(e)), 500
 
 @app.route('/video_listen/<vid>')
@@ -341,14 +411,22 @@ async def audio_list_view(amid, idx=0):
 @app.route('/history')
 async def history_view():
     hist_id = request.cookies.get('hist_id')
-    if not hist_id: return await render_template_with_theme('home.html', videos=[], message='您还没有浏览历史。')
+    if not hist_id: return await render_template_with_theme('home.html', videos=[], title='浏览历史', message='您还没有浏览历史。')
+    
     bvids = appredis.lrange(f"miku_hist_{hist_id}", 0, -1)
-    videos = []
-    for bvid in bvids:
+    if not bvids: return await render_template_with_theme('home.html', videos=[], title='浏览历史', message='您还没有浏览历史。')
+
+    async def get_v_info(bvid):
         try:
             v = video.Video(bvid=bvid)
-            info = await v.get_info()
+            return await v.get_info()
+        except: return None
+
+    raw_infos = await asyncio.gather(*[get_v_info(b) for b in bvids])
+    videos = []
+    for info in raw_infos:
+        if info:
             card = transformers.transform_video_card(info)
             if card: videos.append(card)
-        except: continue
+            
     return await render_template_with_theme('home.html', videos=videos, title='浏览历史')

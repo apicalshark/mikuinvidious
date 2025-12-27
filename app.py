@@ -16,7 +16,7 @@
 from urllib.parse import urlparse
 
 import asyncio
-from flask import request, make_response, redirect, url_for, send_from_directory, session
+from quart import request, make_response, redirect, url_for, send_from_directory, session
 
 import subprocess
 from bs4 import BeautifulSoup
@@ -31,32 +31,12 @@ from proxy import proxy_bp
 import traceback
 from bilibili_api import exceptions
 
-app.secret_key = appconf['admin']['secret_key']
-
 @app.after_request
-def set_hist_id(response):
+async def set_hist_id(response):
     if not request.cookies.get('hist_id'):
         hist_id = os.urandom(8).hex()
         response.set_cookie('hist_id', hist_id, max_age=3600*24*365, httponly=True)
     return response
-
-@app.route('/login', methods=['GET', 'POST'])
-async def login_view():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        if (appconf['admin']['username'] and 
-            username == appconf['admin']['username'] and 
-            password == appconf['admin']['password']):
-            session['is_admin'] = True
-            return redirect('/')
-        return await render_template_with_theme('login.html', error='Invalid credentials'), 401
-    return await render_template_with_theme('login.html')
-
-@app.route('/logout')
-def logout_view():
-    session.pop('is_admin', None)
-    return redirect('/')
 
 app.register_blueprint(proxy_bp)
 
@@ -65,27 +45,29 @@ app.register_blueprint(proxy_bp)
 ##########################################
 
 @app.route('/toggle_theme')
-def toggle_theme_api():
-    resp = make_response()
-
-    if dark_theme := request.cookies.get('dark-theme'):
-        dark_theme = not int(dark_theme)
+async def toggle_theme_api():
+    old_val = request.cookies.get('dark-theme')
+    if old_val == '1':
+        new_val = '0'
     else:
-        dark_theme = False
-
-    resp.set_cookie('dark-theme', '1' if dark_theme else '0')
+        new_val = '1'
+    
+    print(f"[Theme] Toggling from {old_val} to {new_val}")
+    resp = await make_response("OK")
+    resp.set_cookie('dark-theme', new_val, path='/', max_age=3600*24*365)
     return resp
 
 @app.route('/toggle_opencc')
-def toggle_opencc_api():
-    resp = make_response()
-
-    if opencc := request.cookies.get('opencc'):
-        opencc = not int(opencc)
+async def toggle_opencc_api():
+    old_val = request.cookies.get('opencc')
+    if old_val == '1':
+        new_val = '0'
     else:
-        opencc = True
-
-    resp.set_cookie('opencc', '1' if opencc else '0', path='/')
+        new_val = '1'
+    
+    print(f"[OpenCC] Toggling from {old_val} to {new_val}")
+    resp = await make_response("OK")
+    resp.set_cookie('opencc', new_val, path='/', max_age=3600*24*365)
     return resp
 
 ##########################################
@@ -94,7 +76,7 @@ def toggle_opencc_api():
 
 @app.route('/<b32tvid>')
 async def b32tv_redirect(b32tvid):
-    client = get_global_httpx_client()
+    client = Network.get_async_client()
     try:
         req = await client.get(f'https://b23.tv/{b32tvid}', follow_redirects=False)
     except Exception as e:
@@ -128,10 +110,11 @@ async def b32tv_redirect(b32tvid):
 
 
 @app.route('/download', methods=['POST'])
-def dl_redirect():
-    bvid = request.form.get('id')
-    cvid = request.form.get('cvid')
-    qual = request.form.get('qual')
+async def dl_redirect():
+    form = await request.form
+    bvid = form.get('id')
+    cvid = form.get('cvid')
+    qual = form.get('qual')
     return redirect(f'/proxy/video/{bvid}_{cvid}_{qual}', code=302)
     
 ##########################################
@@ -139,7 +122,7 @@ def dl_redirect():
 ##########################################
 
 @app.route('/favicon.ico')
-def favicon():
+async def favicon():
     return '', 204
 
 @app.route('/preferences')
@@ -149,18 +132,18 @@ async def pref_view():
 @app.route('/test')
 async def test_view():
     theme = detect_theme()
-    resp = make_response(theme)
+    resp = await make_response(theme)
     resp.set_cookie('theme', 'default')
     return resp
 
 @app.route('/robots.txt')
-def robots_txt():
+async def robots_txt():
     policy = appconf['site'].get('robots_policy') or 'strict'
     
     if policy == 'PLEASE_INDEX_EVERYTHING':
         return '', 404
     
-    return send_from_directory(f'static/rules', f'robots_{policy}.txt')
+    return await send_from_directory(f'static/rules', f'robots_{policy}.txt')
 
 ##########################################
 # Error handling

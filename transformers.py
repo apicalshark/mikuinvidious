@@ -78,14 +78,20 @@ def transform_live_card(data):
         area_name = data.get('area_name') or data.get('cate_name')
 
         return {
+            'bvid': room_id, # Compatibility with home.html
             'room_id': room_id,
             'title': title,
             'pic': pic,
             'uname': uname,
+            'author': uname, # Compatibility with home.html
+            'author_id': uid, # Compatibility with home.html
             'online': online,
+            'views': online, # Compatibility with home.html
             'area_name': area_name,
             'face': face, 
-            'uid': uid
+            'uid': uid,
+            'duration': 'LIVE',
+            'published': 0
         }
     except: return None
 

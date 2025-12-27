@@ -63,55 +63,46 @@ window.helpers = window.helpers || {
     },
 
     /** @private */
-    _xhr: function (method, url, options, callbacks) {
-        const xhr = new XMLHttpRequest();
-        xhr.open(method, url);
+    _xhr: async function (method, url, options, callbacks) {
+        const fetchOptions = {
+            method: method,
+            headers: {}
+        };
 
-        // Default options
-        xhr.responseType = 'json';
-        xhr.timeout = 10000;
-        // Default options redefining
-        if (options.responseType)
-            xhr.responseType = options.responseType;
-        if (options.timeout)
-            xhr.timeout = options.timeout;
+        if (method === 'POST') {
+            fetchOptions.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        }
 
-        if (method === 'POST')
-            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        if (options.payload) {
+            fetchOptions.body = options.payload;
+        }
 
-        // better than onreadystatechange because of 404 codes https://stackoverflow.com/a/36182963
-        xhr.onloadend = function () {
-            if (xhr.status === 200) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), options.timeout || 10000);
+        fetchOptions.signal = controller.signal;
+
+        try {
+            const response = await fetch(url, fetchOptions);
+            clearTimeout(timeoutId);
+
+            if (response.ok) {
                 if (callbacks.on200) {
-                    // fix for IE11. It doesn't convert response to JSON
-                    if (xhr.responseType === '' && typeof(xhr.response) === 'string')
-                        callbacks.on200(JSON.parse(xhr.response));
-                    else
-                        callbacks.on200(xhr.response);
+                    const data = await (options.responseType === 'text' ? response.text() : response.json());
+                    callbacks.on200(data);
                 }
             } else {
-                // handled by onerror
-                if (xhr.status === 0) return;
-
-                if (callbacks.onNon200)
-                    callbacks.onNon200(xhr);
+                if (callbacks.onNon200) {
+                    callbacks.onNon200({ status: response.status, statusText: response.statusText });
+                }
             }
-        };
-
-        xhr.ontimeout = function () {
-            if (callbacks.onTimeout)
-                callbacks.onTimeout(xhr);
-        };
-
-        xhr.onerror = function () {
-            if (callbacks.onError)
-                callbacks.onError(xhr);
-        };
-
-        if (options.payload)
-            xhr.send(options.payload);
-        else
-            xhr.send();
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                if (callbacks.onTimeout) callbacks.onTimeout(error);
+            } else {
+                if (callbacks.onError) callbacks.onError(error);
+            }
+        }
     },
     /** @private */
     _xhrRetry: function(method, url, options, callbacks) {
@@ -169,15 +160,15 @@ window.helpers = window.helpers || {
 
         // Pack retry() call into error handlers
         callbacks._onError = callbacks.onError;
-        callbacks.onError = function (xhr) {
+        callbacks.onError = function (error) {
             if (callbacks._onError)
-                callbacks._onError(xhr);
+                callbacks._onError(error);
             retry();
         };
         callbacks._onTimeout = callbacks.onTimeout;
-        callbacks.onTimeout = function (xhr) {
+        callbacks.onTimeout = function (error) {
             if (callbacks._onTimeout)
-                callbacks._onTimeout(xhr);
+                callbacks._onTimeout(error);
             retry();
         };
 

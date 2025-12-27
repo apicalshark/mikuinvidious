@@ -1,0 +1,20 @@
+{
+    "listeners": {
+        "*:8000": {
+            "pass": "applications/miku"
+        }
+    },
+    "applications": {
+        "miku": {
+            "type": "python",
+            "path": "/app/",
+            "module": "app",
+            "callable": "app",
+            "processes": {
+                "max": 4,
+                "spare": 2,
+                "idle_timeout": 20
+            }
+        }
+    }
+}

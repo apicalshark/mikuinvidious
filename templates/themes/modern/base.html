@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ 'zh-Hant' if request.cookies.get('opencc') == '1' else 'zh-CN' }}" class="{{ 'dark' if dark_mode else '' }}">
+<html lang="{{ 'zh-Hant' if opencc_enabled else 'zh-CN' }}" class="{{ 'dark' if dark_mode else '' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -138,25 +138,6 @@
               <i class="icon ion-ios-cog text-xl"></i>
             </a>
 
-            {% if proxy_status.use_proxy %}
-            <a title="{{ '视频会话开启'|translate }}" class="p-2.5 text-primary">
-              <i class="icon ion-ios-cloud text-xl"></i>
-            </a>
-            <a title="{{ '图片会话开启'|translate }}" class="p-2.5 text-primary">
-              <i class="icon ion-ios-camera text-xl"></i>
-            </a>
-            {% endif %}
-
-            <!-- Login/Logout -->
-            {% if session.get('is_admin') %}
-            <a title="{{ '登出'|translate }}" href="/logout" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
-              <i class="icon ion-ios-log-out text-xl"></i>
-            </a>
-            {% else %}
-            <a title="{{ '登录'|translate }}" href="/login" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
-              <i class="icon ion-ios-person text-xl"></i>
-            </a>
-            {% endif %}
         </div>
       </div>
   </header>
