@@ -1,7 +1,7 @@
 services:
   warp:
     image: caomingjun/warp
-    container_name: warp
+    container_name: miku_warp
     restart: always
     # add removed rule back (https://github.com/opencontainers/runc/pull/3468)
     device_cgroup_rules:
@@ -33,9 +33,6 @@ services:
     build: .
     container_name: miku_app
     restart: always
-    depends_on:
-      - warp
-      - redis
     environment:
       # Site Configuration
       - SITE_NAME=MikuInvidious
@@ -50,6 +47,9 @@ services:
       - REDIS_URL=redis://redis:6379
       - NO_PROXY=0
       - SERVER_PORT=8000
+      - PYTHONUNBUFFERED=1
+      - HYPERCORN_RESPONSE_TIMEOUT=10800
+      - HYPERCORN_KEEP_ALIVE_TIMEOUT=10800
       
       # Bilibili Credentials
       - USE_CRED=false

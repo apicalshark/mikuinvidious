@@ -101,7 +101,7 @@
             <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
                 <!-- Channel Info -->
                 <a href="/space/{{ vinfo['owner']['mid'] }}" class="flex items-center gap-3 group w-full md:w-auto">
-                    <img src="{{ vinfo['owner']['face']|pic }}" alt="{{ vinfo['owner']['name']|translate }}" class="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-primary transition-all">
+                    <img src="{{ (vinfo['owner']['face'] + "@48w_48h.webp")|pic }}" alt="{{ vinfo['owner']['name']|translate }}" class="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-primary transition-all">
                     <div class="flex flex-col">
                         <span class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ vinfo['owner']['name']|translate }}</span>
                         <span class="text-xs text-on-surface-variant">{{ vinfo['pubdate']|date }}</span>
@@ -152,7 +152,7 @@
             {% for rep in vcomments['replies'] %}
             <div class="flex gap-4 group">
                 <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
-                    <img loading="lazy" class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all" src="{{ "{}@100w".format(rep['member']['avatar'])|pic }}" alt="">
+                    <img loading="lazy" class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all" src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}" alt="">
                 </a>
                 <div class="flex-grow space-y-1">
                     <div class="flex items-baseline justify-between">
@@ -292,11 +292,11 @@
   </div>
 </div>
   
-  <script src="/static/vjs/hls.min.js"></script>
-  <script src="/static/vjs/flv.min.js"></script>
-  <script src="/static/vjs/media-chrome.js"></script>
+  <script src="/static/vjs/hls.min.js" defer></script>
+  <script src="/static/vjs/flv.min.js" defer></script>
+  <script src="/static/vjs/media-chrome.js" defer></script>
   
-  <script src="/static/danmakujs/danmaku.min.js"></script>
+  <script src="/static/danmakujs/danmaku.min.js" defer></script>
   
   <script src="/static/themes/modern/js/player.js" defer></script>
   

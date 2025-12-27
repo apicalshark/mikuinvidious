@@ -4,6 +4,15 @@ A free as in freedom frontend for Bilibili.
 
 This is a fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxina/mikuinvidious) with my personal preference plus ai slop.
 
+## Documentation
+
+Further technical details and architecture documentation can be found in the `doc/` directory:
+
+- [Stability Fixes](doc/stability-fixes.md): Details on the live stream timeout and keep-alive strategy.
+- [Keep-Alive Mechanism](doc/keep-alive.md): In-depth look at the FLV heartbeat system.
+- [Live Logic](doc/live-logic.md): Overview of how live streaming is implemented.
+- [Project Overview](GEMINI.md): General architecture and project philosophy.
+
 ## Quick Start (Docker)
 
 The easiest way to run MikuInvidious is using Docker Compose.

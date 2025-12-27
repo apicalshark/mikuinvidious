@@ -28,21 +28,41 @@ async def live_chat_sse(room_id):
     async def event_stream():
         queue = asyncio.Queue()
         cred = appcred if isinstance(appcred, Credential) else None
-        dm_client = b_live.LiveDanmaku(room_id, credential=cred)
+        stop_event = asyncio.Event()
 
-        @dm_client.on('DANMU_MSG')
-        async def on_danmaku(event):
-            try:
-                info = event['data']['info']
-                await queue.put({'user': info[2][1], 'text': info[1]})
-            except: pass
+        async def run_danmaku():
+            while not stop_event.is_set():
+                dm_client = None
+                try:
+                    dm_client = b_live.LiveDanmaku(room_id, credential=cred)
 
-        conn_task = asyncio.create_task(dm_client.connect())
+                    @dm_client.on('DANMU_MSG')
+                    async def on_danmaku(event):
+                        try:
+                            info = event['data']['info']
+                            await queue.put({'user': info[2][1], 'text': info[1]})
+                        except: pass
+
+                    await dm_client.connect()
+                except asyncio.CancelledError:
+                    break
+                except Exception as e:
+                    print(f"[LiveChat] Connection error for room {room_id}: {e}")
+                finally:
+                    if dm_client:
+                        try: await dm_client.disconnect()
+                        except: pass
+                
+                if not stop_event.is_set():
+                    await asyncio.sleep(5)
+                    print(f"[LiveChat] Attempting reconnection for room {room_id}...")
+
+        conn_task = asyncio.create_task(run_danmaku())
         
         async def heartbeat():
             try:
-                while not conn_task.done():
-                    await asyncio.sleep(15)
+                while not stop_event.is_set():
+                    await asyncio.sleep(20)
                     await queue.put(': heartbeat')
             except asyncio.CancelledError:
                 pass
@@ -52,40 +72,31 @@ async def live_chat_sse(room_id):
         yield f"data: {json.dumps({'user': 'SYSTEM', 'text': 'Chat connected'})}\n\n"
 
         try:
-            while True:
+            while not stop_event.is_set():
                 msg = await queue.get()
                 if msg == ': heartbeat':
                     yield ": heartbeat\n\n"
                 else:
                     yield f"data: {json.dumps(msg)}\n\n"
-                
-                if conn_task.done(): break
         except asyncio.CancelledError:
-            print(f"[LiveChat] SSE cancelled (client disconnected): {room_id}")
-            return
+            pass
         finally:
+            stop_event.set()
             hb_task.cancel()
-            if not conn_task.done():
-                conn_task.cancel()
+            conn_task.cancel()
             
-            # Shield cleanup to prevent InvalidStateError during disconnect
             async def cleanup():
                 try:
-                    if not conn_task.done():
-                        await conn_task
-                except (asyncio.CancelledError, Exception):
-                    pass
-                try:
-                    await dm_client.disconnect()
+                    await asyncio.gather(hb_task, conn_task, return_exceptions=True)
                 except:
                     pass
-            
             await asyncio.shield(cleanup())
 
     return Response(event_stream(), content_type='text/event-stream', headers={
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
-        'Transfer-Encoding': 'chunked'
+        'Transfer-Encoding': 'chunked',
+        'X-Accel-Buffering': 'no'
     })
 
 @app.route('/licenses')
@@ -228,7 +239,7 @@ async def live_room_view(room_id):
         
         # Prioritize FLV for live streams as requested
         try:
-            play_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.HTTP_FLV, live_format=live.LiveFormat.FLV)
+            play_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV)
         except:
             play_data = await room.get_room_play_info_v2(live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4)
         
@@ -237,11 +248,13 @@ async def live_room_view(room_id):
 
         async def get_and_cache_qn(qn_val, qn_name):
             try:
+                # Wrap qn_val to satisfy bilibili-api's requirement for an Enum-like object with .value
+                wrapped_qn = type('QN', (), {'value': qn_val})()
                 # Try FLV first
                 q_data = await room.get_room_play_info_v2(
-                    live_protocol=live.LiveProtocol.HTTP_FLV, 
+                    live_protocol=live.LiveProtocol.FLV, 
                     live_format=live.LiveFormat.FLV, 
-                    live_qn=qn_val
+                    live_qn=wrapped_qn
                 )
                 stream = q_data.get('play_url', {}).get('stream', [])
                 url = None
@@ -258,7 +271,7 @@ async def live_room_view(room_id):
                     q_data = await room.get_room_play_info_v2(
                         live_protocol=live.LiveProtocol.HLS, 
                         live_format=live.LiveFormat.FMP4, 
-                        live_qn=qn_val
+                        live_qn=wrapped_qn
                     )
                     stream = q_data.get('play_url', {}).get('stream', [])
                     for s in stream:

@@ -14,20 +14,24 @@ from refresher import renew_cookies
 class Network:
     _async_client = None
     _sync_client = None
+    _async_lock = asyncio.Lock()
     
     @staticmethod
     def get_proxy():
         return os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy') if appconf['proxy']['use_proxy'] else None
 
     @classmethod
-    def get_async_client(cls) -> httpx.AsyncClient:
+    async def get_async_client(cls) -> httpx.AsyncClient:
         if cls._async_client is None or cls._async_client.is_closed:
-            cls._async_client = httpx.AsyncClient(
-                proxy=cls.get_proxy(),
-                trust_env=False,
-                timeout=httpx.Timeout(10.0, read=None), # No timeout for reading streams by default
-                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
-            )
+            async with cls._async_lock:
+                if cls._async_client is None or cls._async_client.is_closed:
+                    cls._async_client = httpx.AsyncClient(
+                        proxy=cls.get_proxy(),
+                        trust_env=False,
+                        timeout=httpx.Timeout(None, connect=10.0),
+                        limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+                        follow_redirects=True
+                    )
         return cls._async_client
 
     @classmethod
@@ -44,7 +48,7 @@ class Network:
 get_global_httpx_client = lambda async_client=True: Network.get_async_client() if async_client else Network.get_sync_client()
 
 # Semaphore for image proxying
-image_limiter = asyncio.Semaphore(10)
+image_limiter = asyncio.Semaphore(50)
 
 def deep_update(base_dict, update_dict):
     for key, value in update_dict.items():
@@ -113,6 +117,8 @@ else:
 # Initialize the quart app.
 app = Quart('app', template_folder='../templates', static_folder='../static')
 app.config.from_mapping(appconf['quart'])
+app.config['RESPONSE_TIMEOUT'] = 10800
+app.config['BODY_TIMEOUT'] = 10800
 app.secret_key = os.environ.get("QUART_SECRET_KEY", os.urandom(24).hex())
 
 # Configure sessions

@@ -2,7 +2,7 @@ import asyncio
 import httpx
 import time
 from collections import deque
-from shared import Network
+from shared import Network, appredis
 
 class LiveStream:
     def __init__(self, url, headers, cookies):
@@ -10,168 +10,275 @@ class LiveStream:
         self.headers = headers
         self.cookies = cookies
         self.clients = set()
-        self.chunk_buffer = deque(maxlen=30) # Approx 2MB buffer
-        self.flv_header = b"" # FLV 9-byte header + PreviousTagSize0
-        self.metadata_tag = b"" # First script data tag
-        self.video_seq_header = b"" # AVC sequence header
-        self.audio_seq_header = b"" # AAC sequence header
+        self.chunk_buffer = deque(maxlen=100) # Increased buffer (approx 1.5MB)
+        self.flv_header = b""
+        self.metadata_tag = b""
+        self.video_seq_header = b""
+        self.audio_seq_header = b""
         self.is_running = False
         self.task = None
         self.last_active = time.time()
         self.status_code = None
         self.resp_headers = {}
+        self.header_ready = asyncio.Event() 
+        self.client_joined = asyncio.Event() 
+
+        # ML / PERFORMANCE METRICS
+        self.metrics = {
+            "bytes_received": 0,
+            "chunks_received": 0,
+            "error_count": 0,
+            "reconnect_count": 0,
+            "start_time": time.time(),
+            "last_chunk_time": time.time(),
+            "avg_chunk_size": 0.0
+        }
+
+    def dump_state(self):
+        """Export current stream state for JAX/Flax ML processing."""
+        duration = time.time() - self.metrics["start_time"]
+        bitrate = (self.metrics["bytes_received"] * 8) / max(duration, 1)
+        
+        return {
+            "stream_info": {
+                "url_hash": hash(self.url),
+                "is_running": self.is_running,
+                "client_count": len(self.clients)
+            },
+            "performance": {
+                "bitrate_bps": bitrate,
+                "avg_chunk_size": self.metrics["avg_chunk_size"],
+                "total_errors": self.metrics["error_count"],
+                "reconnects": self.metrics["reconnect_count"]
+            },
+            "timestamp": time.time()
+        }
 
     async def start(self):
         if self.is_running: return
         self.is_running = True
+        print(f"[LiveManager] Starting stream task for: {self.url[:50]}...")
         self.task = asyncio.create_task(self._stream_loop())
 
     def _parse_flv_tags(self, data):
-        """Minimal FLV parser to keep headers fresh."""
+        """Refined FLV parser to extract exact headers and tags."""
         try:
-            if data.startswith(b'FLV'):
-                self.flv_header = data[:13]
-                return
+            # 1. FLV Header & PreviousTagSize0 (13 bytes total)
+            if not self.flv_header and b'FLV' in data:
+                idx = data.find(b'FLV')
+                if len(data) >= idx + 13:
+                    self.flv_header = data[idx:idx+13]
+                    print(f"[LiveManager] Found FLV Header for {self.url[:30]}...")
 
-            # AVC Sequence Header usually contains this sequence
-            idx = data.find(b'\x17\x00\x00\x00\x00') 
-            if idx != -1 and idx > 5:
-                self.video_seq_header = data[max(0, idx-11):idx+256]
-            
-            # AAC Sequence Header usually contains 0xAF 0x00
-            idx = data.find(b'\xaf\x00')
-            if idx != -1 and idx > 5:
-                self.audio_seq_header = data[max(0, idx-11):idx+64]
+            # 2. Metadata Tag (Type 18)
+            if not self.metadata_tag and b'onMetaData' in data:
+                idx = data.find(b'onMetaData')
+                # Look back for the tag start (Type 18)
+                for i in range(idx - 1, max(-1, idx - 32), -1):
+                    if data[i] == 0x12:
+                        size = int.from_bytes(data[i+1:i+4], 'big')
+                        if len(data) >= i + 11 + size + 4:
+                            self.metadata_tag = data[i : i + 11 + size + 4]
+                            print(f"[LiveManager] Found Metadata Tag for {self.url[:30]}...")
+                            break
 
-            # Script Tag (Metadata)
-            if b'onMetaData' in data:
-                idx = data.find(b'\x12') # Tag type 18
-                if idx != -1:
-                    self.metadata_tag = data[idx:idx+1024]
-        except: pass
+            # 3. Video Sequence Header (Type 9, FrameType 1, Codec 7, AVCPacketType 0)
+            if not self.video_seq_header and b'\x17\x00\x00\x00\x00' in data:
+                idx = data.find(b'\x17\x00\x00\x00\x00')
+                if idx >= 11 and data[idx-11] == 0x09:
+                    size = int.from_bytes(data[idx-10:idx-7], 'big')
+                    if len(data) >= idx - 11 + 11 + size + 4:
+                        self.video_seq_header = data[idx-11 : idx-11 + 11 + size + 4]
+                        print(f"[LiveManager] Found Video Seq Header for {self.url[:30]}...")
+
+            # 4. Audio Sequence Header (Type 8, SoundFormat 10, AACPacketType 0)
+            if not self.audio_seq_header and b'\xaf\x00' in data:
+                idx = data.find(b'\xaf\x00')
+                if idx >= 11 and data[idx-11] == 0x08:
+                    size = int.from_bytes(data[idx-10:idx-7], 'big')
+                    if len(data) >= idx - 11 + 11 + size + 4:
+                        self.audio_seq_header = data[idx-11 : idx-11 + 11 + size + 4]
+                        print(f"[LiveManager] Found Audio Seq Header for {self.url[:30]}...")
+        except: 
+            pass
 
     async def _stream_loop(self):
-        reconnect_delay = 1
+        retry_count = 0
+        max_retries = 5
+        
         while self.is_running:
             try:
-                client = Network.get_async_client()
-                async with client.stream("GET", self.url, headers=self.headers, cookies=self.cookies) as resp:
+                # Wait for clients if none
+                if not self.clients:
+                    self.header_ready.clear()
+                    self.resp_headers = {}
+                    try:
+                        await asyncio.wait_for(self.client_joined.wait(), timeout=30.0)
+                        self.client_joined.clear()
+                    except asyncio.TimeoutError:
+                        if not self.clients:
+                            print(f"[LiveManager] No clients for 30s, self-destructing: {self.url[:50]}")
+                            return
+
+                if not self.is_running: break
+
+                client = await Network.get_async_client()
+                async with client.stream("GET", self.url, headers=self.headers, cookies=self.cookies, follow_redirects=True) as resp:
                     self.status_code = resp.status_code
                     self.resp_headers = dict(resp.headers)
                     
                     if self.status_code >= 400:
-                        print(f"[LiveManager] Stream error: {self.status_code} for {self.url[:50]}")
-                        await asyncio.sleep(reconnect_delay)
-                        reconnect_delay = min(reconnect_delay * 2, 30)
+                        print(f"[LiveManager] Origin returned {self.status_code}: {self.url[:50]}")
+                        self.header_ready.set()
+                        retry_count += 1
+                        if retry_count >= max_retries: break
+                        await asyncio.sleep(5)
                         continue
 
-                    reconnect_delay = 1
-                    print(f"[LiveManager] Started shared stream: {self.url[:50]}")
+                    print(f"[LiveManager] Stream connected (Attempt {retry_count+1}): {self.url[:50]}")
+                    retry_count = 0 # Reset on success
                     
-                    self.flv_header = b""
-                    self.metadata_tag = b""
-                    self.video_seq_header = b""
-                    self.audio_seq_header = b""
-                    self.chunk_buffer.clear()
+                    last_signal_time = time.time()
+                    resp_iter = resp.aiter_bytes(chunk_size=16384)
                     
-                    async for chunk in resp.aiter_bytes(chunk_size=1024*64):
-                        if not self.is_running: break
+                    while self.is_running:
+                        try:
+                            # Use a short timeout to check for client presence periodically
+                            chunk = await asyncio.wait_for(anext(resp_iter), timeout=5.0)
+                        except StopAsyncIteration:
+                            print(f"[LiveManager] Upstream reached EOF: {self.url[:50]}")
+                            return # Exit entirely on EOF
+                        except asyncio.TimeoutError:
+                            # Silence from upstream. Check grace period.
+                            if not self.clients and (time.time() - last_signal_time > 30.0):
+                                print(f"[LiveManager] No clients for 30s during silence. Killing upstream.")
+                                return
+                            continue
                         
+                        if self.clients:
+                            last_signal_time = time.time()
+                        
+                        # Grace period: 30s
+                        if not self.clients and (time.time() - last_signal_time > 30.0):
+                            print(f"[LiveManager] No clients for 30s. Killing upstream.")
+                            return # Exit entirely
+                        
+                        # Process & Broadcast
+                        self.metrics["bytes_received"] += len(chunk)
+                        self.metrics["last_chunk_time"] = time.time()
                         self._parse_flv_tags(chunk)
                         self.chunk_buffer.append(chunk)
+
+                        if not self.header_ready.is_set():
+                            self.header_ready.set()
                         
-                        # Broadcast
-                        if self.clients:
-                            disconnected_clients = []
-                            for q in self.clients:
-                                try:
-                                    q.put_nowait(chunk)
-                                except asyncio.QueueFull:
-                                    # Lagging client! "Teleport" them to live edge
-                                    while not q.empty():
-                                        try: q.get_nowait()
-                                        except: break
-                                    self._send_burst(q)
-                                except Exception:
-                                    disconnected_clients.append(q)
-                            
-                            for q in disconnected_clients:
-                                self.clients.discard(q)
+                        disconnected_clients = []
+                        for q in list(self.clients):
+                            try:
+                                q.put_nowait(chunk)
+                            except asyncio.QueueFull:
+                                while not q.empty(): q.get_nowait()
+                                self._send_burst(q, send_flv_header=False)
+                            except:
+                                disconnected_clients.append(q)
                         
-                        # Activity check
-                        if not self.clients:
-                            if time.time() - self.last_active > 10: # 10s grace period
-                                print(f"[LiveManager] Idle timeout for {self.url[:50]}...")
-                                self.is_running = False
-                                break
-                        else:
-                            self.last_active = time.time()
+                        for q in disconnected_clients:
+                            self.clients.discard(q)
+                        
+                        self.last_active = time.time()
+
             except Exception as e:
-                print(f"[LiveManager] Stream loop exception: {e}")
-                if not self.is_running: break
-                await asyncio.sleep(reconnect_delay)
-                reconnect_delay = min(reconnect_delay * 2, 30)
+                retry_count += 1
+                print(f"[LiveManager] Connection error (Retry {retry_count}/{max_retries}): {e}")
+                if retry_count >= max_retries: break
+                await asyncio.sleep(min(retry_count * 2, 10))
             
             if not self.is_running: break
 
-        print(f"[LiveManager] Shared stream stopped: {self.url[:50]}...")
-        # Notify all remaining clients
-        for q in self.clients:
+        print(f"[LiveManager] Stream task terminating: {self.url[:50]}")
+        self.is_running = False
+        self.header_ready.set()
+        for q in list(self.clients):
             try: q.put_nowait(None)
             except: pass
         self.clients.clear()
 
-    def _send_burst(self, q):
+    def _send_burst(self, q, send_flv_header=True):
         """Sends the latest headers and buffer to a client."""
         try:
-            if self.flv_header: q.put_nowait(self.flv_header)
-            if self.metadata_tag: q.put_nowait(self.metadata_tag)
-            if self.video_seq_header: q.put_nowait(self.video_seq_header)
-            if self.audio_seq_header: q.put_nowait(self.audio_seq_header)
-            for chunk in self.chunk_buffer:
+            # Send FLV signature first (Only for NEW clients)
+            if send_flv_header and self.flv_header: q.put_nowait(self.flv_header)
+            # Send metadata and sequence headers (Video/Audio Config)
+            for h in [self.metadata_tag, self.video_seq_header, self.audio_seq_header]:
+                if h: q.put_nowait(h)
+            # Send the recent chunks
+            for chunk in list(self.chunk_buffer):
                 q.put_nowait(chunk)
-        except asyncio.QueueFull: pass
+        except asyncio.QueueFull: 
+            print(f"[LiveManager] Burst delivery failed: queue full again.")
 
     def add_client(self):
         self.last_active = time.time()
-        q = asyncio.Queue(maxsize=100)
-        self._send_burst(q)
+        q = asyncio.Queue(maxsize=256) # Increased queue size
+        self._send_burst(q, send_flv_header=True)
         self.clients.add(q)
+        print(f"[LiveManager] Client connected. Total clients: {len(self.clients)}")
+        self.client_joined.set() # Wake up the loop
         return q
 
-    def remove_client(self, q):
-        self.clients.discard(q)
+    def remove_client(self, q, reason="Unknown"):
+        if q in self.clients:
+            self.clients.discard(q)
+            print(f"[LiveManager] Client disconnected (Reason: {reason}). Total clients: {len(self.clients)}")
         self.last_active = time.time()
-        print(f"[LiveManager] Client disconnected. Remaining: {len(self.clients)} for {self.url[:50]}")
 
 class LiveStreamManager:
     def __init__(self):
         self.streams = {} # url -> LiveStream
         self.lock = asyncio.Lock()
+        self._cleanup_task = None
+
+    async def _cleanup_loop(self):
+        """Periodically remove inactive streams from the manager."""
+        while True:
+            await asyncio.sleep(60)
+            async with self.lock:
+                to_remove = [url for url, s in self.streams.items() if not s.is_running]
+                for url in to_remove:
+                    print(f"[LiveManager] Cleaning up stale stream: {url[:50]}")
+                    del self.streams[url]
 
     async def subscribe(self, url, headers, cookies):
         async with self.lock:
+            if self._cleanup_task is None:
+                self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+
             if url not in self.streams or not self.streams[url].is_running:
+                print(f"[LiveManager] Creating new LiveStream instance for: {url[:50]}...")
                 stream = LiveStream(url, headers, cookies)
                 self.streams[url] = stream
                 await stream.start()
         
         stream = self.streams[url]
-        # Wait for headers if they are not yet available (for all clients)
-        for _ in range(100): # Up to 10 seconds
-            if stream.resp_headers or not stream.is_running:
-                break
-            await asyncio.sleep(0.1)
         
-        if not stream.resp_headers:
-            # If still no headers, it might have failed
-            if not stream.is_running:
-                status = stream.status_code or 502
-                return stream, None # Indicate failure
-            else:
-                # Still running but no headers, maybe very slow
-                pass
+        # Add client FIRST to wake up the stream loop if it's waiting
+        print(f"[LiveManager] Subscribing client to: {url[:50]}")
+        q = stream.add_client()
+
+        try:
+            # Efficiently wait for headers from the now-active stream
+            print(f"[LiveManager] Waiting for headers from upstream: {url[:50]}...")
+            await asyncio.wait_for(stream.header_ready.wait(), timeout=20.0)
+        except asyncio.TimeoutError:
+            print(f"[LiveManager] Timeout waiting for headers (Returning partial stream): {url[:50]}")
+        
+        if not stream.is_running and not stream.chunk_buffer:
+            print(f"[LiveManager] Subscription failed: Stream not running and buffer empty.")
+            # Clean up the client if subscription failed
+            stream.remove_client(q, reason= "Subscription timeout/failure")
+            return stream, None
             
-        return stream, stream.add_client()
+        return stream, q
 
 live_manager = LiveStreamManager()
+

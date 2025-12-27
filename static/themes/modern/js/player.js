@@ -2,6 +2,262 @@
 
 'use strict';
 
+class LiveStreamManager {
+    constructor(videoElement, streamUrl, qualityList, qualityLabel) {
+        this.video = videoElement;
+        this.url = streamUrl;
+        this.qualityList = qualityList;
+        this.qualityLabel = qualityLabel;
+        this.player = null;
+        this.isReconnecting = false;
+        this.reconnectTimer = null;
+        this.monitorInterval = null;
+        this.hbInterval = null;
+        this.speedZeroCount = 0;
+        this.pauseTime = null;
+        this.RECONNECT_THRESHOLD = 5; // Seconds
+        this.destroyed = false;
+
+        // CONFIGURATION CONSTANTS
+        this.MAX_LATENCY_THRESHOLD = 5.0; // Increased from 3.0
+        this.CHASE_SPEED_THRESHOLD = 1.5; // Increased from 1.0
+        this.NORMAL_SPEED = 1.0;
+        this.CHASE_SPEED = 1.05;         // Reduced from 1.08 for smoother audio
+    }
+
+    init() {
+        if (!flvjs.isSupported() || this.destroyed) return;
+
+        console.log("[LiveManager] Initializing stream:", this.url);
+        this.initTime = Date.now();
+        this.player = flvjs.createPlayer({
+            type: 'flv',
+            url: this.url,
+            isLive: true
+        }, {
+            enableWorker: false,
+            enableStashBuffer: true,
+            stashInitialSize: 1024 * 16, 
+            fixAudioTimestampGap: false,
+            autoCleanupSourceBuffer: true,
+            autoCleanupMaxBackwardDuration: 30,
+            autoCleanupMinBackwardDuration: 15
+        });
+
+        this.player.attachMediaElement(this.video);
+        this.player.load();
+        
+        const playPromise = this.player.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                if (error.name === 'AbortError') return;
+                console.error("[LiveManager] Play failed:", error);
+                showAutoplayOverlay(this.video);
+            });
+        }
+
+        this.startMonitoring();
+        this.handleEvents();
+
+        // Resume/Pause logic
+        this.video.onpause = () => {
+            this.pauseTime = Date.now();
+        };
+        this.video.onplay = () => {
+            this.handleResume();
+        };
+    }
+
+    handleResume() {
+        if (!this.pauseTime) return;
+        const duration = (Date.now() - this.pauseTime) / 1000;
+        this.pauseTime = null;
+
+        if (duration > this.RECONNECT_THRESHOLD) {
+            console.log("[LiveManager] Long pause (" + duration.toFixed(2) + "s), reconnecting...");
+            this.reconnect();
+        } else {
+            this.jumpToLiveEdge();
+        }
+    }
+
+    jumpToLiveEdge() {
+        if (this.video.buffered.length > 0) {
+            const latest = this.video.buffered.end(this.video.buffered.length - 1);
+            console.log("[LiveManager] Short pause, jumping to buffer edge:", latest.toFixed(2));
+            this.video.currentTime = latest - 0.1;
+        }
+    }
+
+    startMonitoring() {
+        if (this.monitorInterval) clearInterval(this.monitorInterval);
+        this.monitorInterval = setInterval(() => {
+            if (!this.player || !this.video.buffered.length) return;
+
+            const bufferedEnd = this.video.buffered.end(this.video.buffered.length - 1);
+            const currentTime = this.video.currentTime;
+            const latency = bufferedEnd - currentTime;
+
+            // STRATEGY 1: The Hard Jump (For major lag)
+            if (latency > this.MAX_LATENCY_THRESHOLD) {
+                console.log("[LiveManager] Latency too high (" + latency.toFixed(2) + "s), skipping forward...");
+                this.video.currentTime = bufferedEnd - 0.5;
+            } 
+            // STRATEGY 2: The "Smooth Chase" (For minor lag)
+            else if (latency > this.CHASE_SPEED_THRESHOLD) {
+                this.video.playbackRate = this.CHASE_SPEED;
+            } 
+            else {
+                this.video.playbackRate = this.NORMAL_SPEED;
+            }
+        }, 3000);
+    }
+
+    handleEvents() {
+        this.player.on(flvjs.Events.ERROR, (errorType, errorDetail) => {
+            console.error("[LiveManager] Stream Error:", errorType, errorDetail);
+            // STRATEGY 3: Exponential Backoff Reconnection
+            this.reconnect();
+        });
+
+        // STRATEGY 4: Buffer Stalled Detection
+        this.player.on(flvjs.Events.STATISTICS_INFO, (info) => {
+            // Give the stream at least 10 seconds to stabilize before checking for stalls
+            if (Date.now() - this.initTime < 10000) return;
+
+            if (info.speed === 0) {
+                this.speedZeroCount++;
+                if (this.speedZeroCount > 15) { // ~10-15s of 0 speed depending on report interval
+                    console.warn("[LiveManager] Stream stalled, reconnecting...");
+                    this.speedZeroCount = 0;
+                    this.reconnect();
+                }
+            } else {
+                this.speedZeroCount = 0;
+            }
+        });
+    }
+
+    reconnect() {
+        if (this.isReconnecting) return;
+        this.isReconnecting = true;
+
+        console.log("[LiveManager] Attempting to reconnect...");
+        this.destroy();
+        
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => {
+            this.destroyed = false;
+            this.init();
+            this.isReconnecting = false;
+        }, 3000);
+    }
+
+    destroy() {
+        this.destroyed = true;
+        if (this.monitorInterval) {
+            clearInterval(this.monitorInterval);
+            this.monitorInterval = null;
+        }
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+        this.video.onpause = null;
+        this.video.onplay = null;
+        if (this.player) {
+            try {
+                this.player.pause();
+                this.player.unload();
+                this.player.detachMediaElement();
+                this.player.destroy();
+            } catch (e) {
+                console.error("[LiveManager] Error during destroy:", e);
+            }
+            this.player = null;
+        }
+    }
+}
+
+class VodStreamManager {
+    constructor(videoElement, streamUrl) {
+        this.video = videoElement;
+        this.url = streamUrl;
+        this.player = null;
+        this.monitorInterval = null;
+    }
+
+    init() {
+        if (!flvjs.isSupported()) return;
+
+        console.log("[VodManager] Initializing VOD:", this.url);
+        this.player = flvjs.createPlayer({
+            type: 'flv',
+            url: this.url
+        }, {
+            enableWorker: false,
+            enableStashBuffer: true,
+            stashInitialSize: 1024 * 1024, // 1MB
+            autoCleanupSourceBuffer: true
+        });
+
+        this.player.attachMediaElement(this.video);
+        this.player.load();
+        
+        const playPromise = this.player.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                if (error.name === 'AbortError') return;
+                console.error("[VodManager] Play failed:", error);
+                showAutoplayOverlay(this.video);
+            });
+        }
+
+        this.startMonitoring();
+    }
+
+    startMonitoring() {
+        if (this.monitorInterval) clearInterval(this.monitorInterval);
+        this.monitorInterval = setInterval(() => {
+            if (!this.player || !this.video.buffered.length) return;
+            
+            const end = this.video.buffered.end(this.video.buffered.length - 1);
+            const bufferLen = end - this.video.currentTime;
+
+            // Optimization: If buffer is excessively large for a VOD (>60s), 
+            // we can trigger cleanup if needed, but flv.js usually handles this via autoCleanup.
+            if (bufferLen > 60) {
+                // console.log("[VodManager] Healthy buffer:", bufferLen.toFixed(2), "s");
+            }
+        }, 5000);
+    }
+
+    destroy() {
+        if (this.monitorInterval) clearInterval(this.monitorInterval);
+        if (this.player) {
+            this.player.detachMediaElement();
+            this.player.destroy();
+            this.player = null;
+        }
+    }
+}
+
+function showAutoplayOverlay(video) {
+    const overlay = document.getElementById('autoplay-overlay');
+    const btn = document.getElementById('autoplay-unlock-btn');
+    if (!overlay || !btn) return;
+
+    overlay.classList.remove('opacity-0', 'pointer-events-none');
+    overlay.classList.add('opacity-100', 'pointer-events-auto');
+
+    btn.onclick = (e) => {
+        e.stopPropagation();
+        overlay.classList.add('opacity-0', 'pointer-events-none');
+        overlay.classList.remove('opacity-100', 'pointer-events-auto');
+        video.play().catch(err => console.error("[Player] Manual play failed:", err));
+    };
+}
+
 async function initMikuPlayer() {
     // Wait for media-chrome to be defined
     await customElements.whenDefined('media-controller');
@@ -23,38 +279,22 @@ async function initMikuPlayer() {
     if (window.is_live) {
         setupLivePlayer(video, qualityList, label);
     } else {
-        setupVodPlayer(video, qualityList, label);
+        setupVodQuality(video, qualityList, label);
         setupAutoNext(video);
         
-        // Handle FLV VODs with same buffer logic
+        // Handle FLV VODs with dedicated manager
         const currentSrc = video.src;
         if (currentSrc.includes('.flv') && flvjs.isSupported()) {
-            const flvPlayer = flvjs.createPlayer({
-                type: 'flv',
-                url: currentSrc
-            }, {
-                enableStashBuffer: true,
-                stashInitialSize: 2048 * 1024, // 2MB
-                autoCleanupSourceBuffer: true
-            });
-            flvPlayer.attachMediaElement(video);
-            flvPlayer.load();
-            window.flvPlayer = flvPlayer;
-        }
-
-        // 10s Buffer Limit for regular VODs (Monitoring)
-        video.addEventListener('progress', () => {
-            if (video.buffered.length > 0) {
-                const end = video.buffered.end(video.buffered.length - 1);
-                const bufferLen = end - video.currentTime;
-                
-                // If buffer exceeds 10s and it's a VOD, the browser usually manages it,
-                // but we can log or trigger a "low-data" mode if needed.
-                if (bufferLen > 10 && !window.is_live) {
-                    // console.log("Buffer target reached (10s)");
+            window.vodManager = new VodStreamManager(video, currentSrc);
+            window.vodManager.init();
+        } else {
+            // Native HTML5 video play check
+            video.play().catch(error => {
+                if (error.name === 'NotAllowedError') {
+                    showAutoplayOverlay(video);
                 }
-            }
-        });
+            });
+        }
     }
 
     // 3. UI Events
@@ -179,39 +419,21 @@ function setupLivePlayer(video, list, label) {
         window.hls.destroy();
         window.hls = null;
     }
+    if (window.liveManager) {
+        window.liveManager.destroy();
+        window.liveManager = null;
+    }
+    // Backward compatibility cleanup
     if (window.flvPlayer) {
         window.flvPlayer.detachMediaElement();
         window.flvPlayer.destroy();
         window.flvPlayer = null;
     }
-    if (window.liveInterval) {
-        clearInterval(window.liveInterval);
-        window.liveInterval = null;
-    }
-
-    // Add resume logic listeners once
-    if (!video.resumeEventsAdded) {
-        video.addEventListener('play', () => {
-            // If it's live and we were paused for a long time (>60s) or have an error
-            const isStale = video.lastPauseTime && (Date.now() - video.lastPauseTime > 60000);
-            const isDead = video.error || (window.flvPlayer && window.flvPlayer.readyState === 0);
-            
-            if (window.is_live && (isStale || isDead)) {
-                video.lastPauseTime = null;
-                console.log("[Player] Reconnecting to live stream...");
-                setupLivePlayer(video, list, label);
-            }
-        });
-        video.addEventListener('pause', () => {
-            video.lastPauseTime = Date.now();
-        });
-        video.resumeEventsAdded = true;
-    }
 
     if (isHls) {
         if (Hls.isSupported()) {
             const hls = new Hls({
-                enableWorker: true,
+                enableWorker: false,
                 lowLatencyMode: true,
                 backBufferLength: 60
             });
@@ -237,44 +459,14 @@ function setupLivePlayer(video, list, label) {
             });
         }
     } else if (flvjs.isSupported()) {
-        const flvPlayer = flvjs.createPlayer({
-            type: 'flv',
-            url: liveUrl,
-            isLive: true
-        }, {
-            enableStashBuffer: true,
-            stashInitialSize: 2048 * 1024, // 2MB initial stash for slow connections
-            fixAudioTimestampGap: false,
-            autoCleanupSourceBuffer: true
-        });
-        flvPlayer.attachMediaElement(video);
-        flvPlayer.load();
-        flvPlayer.play().catch(() => {});
-        window.flvPlayer = flvPlayer;
-
-        // Latency Manager for FLV
-        window.liveInterval = setInterval(() => {
-            if (flvPlayer && video.buffered.length > 0) {
-                const end = video.buffered.end(video.buffered.length - 1);
-                const diff = end - video.currentTime;
-                if (diff > 8) {
-                    // Too much latency, jump forward but keep 2s buffer
-                    video.currentTime = end - 2;
-                } else if (diff > 3) {
-                    // Start catching up if gap is > 3s
-                    video.playbackRate = 1.08;
-                } else {
-                    video.playbackRate = 1.0;
-                }
-            }
-        }, 3000);
-        
-        updateLiveQualityMenu(video, null, flvPlayer, list, label, false);
+        window.liveManager = new LiveStreamManager(video, liveUrl, list, label);
+        window.liveManager.init();
+        updateLiveQualityMenu(video, null, window.liveManager, list, label, false);
     }
     window.isSettingUp = false;
 }
 
-function updateLiveQualityMenu(video, hls, flvPlayer, list, label, isHls) {
+function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
     if (!list || !window.supported_src) return;
     list.innerHTML = '';
 
@@ -302,54 +494,30 @@ function updateLiveQualityMenu(video, hls, flvPlayer, list, label, isHls) {
         window.supported_src.forEach((src) => {
             const btn = createOption(src.new_description, src.quality, () => {
                 const newUrl = `/proxy/live/${current_vid}_${src.quality}`;
-                if (window.flvPlayer) {
-                    window.flvPlayer.detachMediaElement();
-                    window.flvPlayer.destroy();
-                    if (window.liveInterval) {
-                        clearInterval(window.liveInterval);
-                        window.liveInterval = null;
-                    }
-                    const newFlvPlayer = flvjs.createPlayer({
-                        type: 'flv',
-                        url: newUrl,
-                        isLive: true
-                    }, {
-                        enableStashBuffer: true,
-                        stashInitialSize: 2048 * 1024,
-                        fixAudioTimestampGap: false,
-                        autoCleanupSourceBuffer: true
-                    });
-                    newFlvPlayer.attachMediaElement(video);
-                    newFlvPlayer.load();
-                    newFlvPlayer.play().catch(() => {});
-                    window.flvPlayer = newFlvPlayer;
+                label.innerText = src.new_description;
 
-                    window.liveInterval = setInterval(() => {
-                        if (newFlvPlayer && video.buffered.length > 0) {
-                            const end = video.buffered.end(video.buffered.length - 1);
-                            const diff = end - video.currentTime;
-                            if (diff > 8) {
-                                video.currentTime = end - 2;
-                            } else if (diff > 3) {
-                                video.playbackRate = 1.08;
-                            } else {
-                                video.playbackRate = 1.0;
-                            }
-                        }
-                    }, 3000);
+                if (window.liveManager) {
+                    console.log("[Player] Switching live quality to:", src.new_description);
+                    window.liveManager.destroy();
+                    window.liveManager = new LiveStreamManager(video, newUrl, list, label);
+                    window.liveManager.init();
+                } else if (window.hls) {
+                    // HLS handled above, but for consistency:
+                    video.src = newUrl;
+                    video.load();
+                    video.play().catch(() => {});
                 } else {
                     video.src = newUrl;
                     video.load();
                     video.play().catch(() => {});
                 }
-                label.innerText = src.new_description;
             }, list);
             
             // Check if this is the current quality
-            if (flvPlayer && flvPlayer._type === 'flv' && flvPlayer._dataSource.url.includes(`_${src.quality}`)) {
+            if (window.liveManager && window.liveManager.url.includes(`_${src.quality}`)) {
                 btn.classList.add('active');
                 label.innerText = src.new_description;
-            } else if (!flvPlayer && (video.src.includes(`_${src.quality}`) || (src.quality === firstSrc.quality && !video.src.includes('_')))) {
+            } else if (!window.liveManager && (video.src.includes(`_${src.quality}`) || (src.quality === firstSrc.quality && !video.src.includes('_')))) {
                 btn.classList.add('active');
                 label.innerText = src.new_description;
             }
@@ -365,8 +533,22 @@ function setupVodQuality(video, list, label) {
     sorted.forEach((src) => {
         const btn = createOption(src.new_description, src.quality, () => {
             const time = video.currentTime, paused = video.paused;
-            video.src = `/proxy/video/${current_vid}_${idx}_${src.quality}`;
-            const onLoaded = () => { video.currentTime = time; if (!paused) video.play().catch(() => {}); video.removeEventListener('loadedmetadata', onLoaded); };
+            const newUrl = `/proxy/video/${current_vid}_${idx}_${src.quality}`;
+            
+            if (window.vodManager) {
+                window.vodManager.destroy();
+                video.src = newUrl;
+                window.vodManager = new VodStreamManager(video, newUrl);
+                window.vodManager.init();
+            } else {
+                video.src = newUrl;
+            }
+
+            const onLoaded = () => { 
+                video.currentTime = time; 
+                if (!paused) video.play().catch(() => {}); 
+                video.removeEventListener('loadedmetadata', onLoaded); 
+            };
             video.addEventListener('loadedmetadata', onLoaded);
             label.innerText = src.new_description;
         }, list);

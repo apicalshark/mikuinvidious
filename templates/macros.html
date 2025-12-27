@@ -18,20 +18,29 @@
 
         <media-loading-indicator slot="centered-chrome" no-auto-hide class="w-16 h-12 z-20"></media-loading-indicator>
         
+        <!-- Autoplay Unlock Overlay -->
+        <div id="autoplay-overlay" class="absolute inset-0 z-[40] flex items-center justify-center bg-black/40 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
+            <button id="autoplay-unlock-btn" class="bg-primary/80 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 hover:scale-105 active:scale-95 transition-all">
+                <i class="icon ion-md-play text-xl"></i>
+                <div class="text-left">
+                    <p class="font-bold text-sm leading-relaxed">{{ '点击以开始播放'|translate }}</p>
+                    <p class="text-[10px] opacity-80 mt-1.5">{{ '浏览器已阻止自动播放'|translate }}</p>
+                </div>
+            </button>
+        </div>
+
         <!-- Control Bar -->
         <media-control-bar class="w-full z-30">
             {% if is_live %}
                 <media-play-button></media-play-button>
                 <media-mute-button></media-mute-button>
                 <media-volume-range></media-volume-range>
-                
                 <!-- Live Indicator -->
-                <div class="flex items-center px-2 gap-2">
+                <div class="miku-control-btn gap-2 pointer-events-none">
                     <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-white">{{ '直播'|translate }}</span>
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-[#FFB1DA]">{{ '直播'|translate }}</span>
                 </div>
-
-                <div class="flex-grow"></div>
+                <media-time-range class="pointer-events-none"></media-time-range>
             {% else %}
                 <media-play-button></media-play-button>
                 <media-seek-backward-button seek-offset="5"></media-seek-backward-button>

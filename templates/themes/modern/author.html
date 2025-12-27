@@ -26,7 +26,7 @@
     <div class="relative flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 pt-10 md:pt-4">
         <!-- Avatar -->
         <div class="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface shadow-md overflow-hidden flex-shrink-0 bg-surface">
-            <img src="{{ uinfo['face']|pic }}" alt="{{ uinfo['name'] }}" class="w-full h-full object-cover">
+            <img src="{{ (uinfo['face'] + "@160w_160h.webp")|pic }}" alt="{{ uinfo['name'] }}" class="w-full h-full object-cover">
         </div>
 
         <!-- Info -->

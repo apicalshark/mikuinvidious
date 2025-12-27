@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import asyncio
+import asyncio, sys
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
 
@@ -26,8 +26,12 @@ async def main():
     config.bind = ["0.0.0.0:8080"]
     config.accesslog = "-"
     config.errorlog = "-"
+    config.keep_alive_timeout = 10800
+    config.response_timeout = None # Infinite for streaming
     
-    print(f"Starting MikuInvidious (ASGI) on {config.bind[0]}")
+    sys.stderr.write(f"Starting MikuInvidious (ASGI) on {config.bind[0]}\n")
+    sys.stderr.write(f"Hypercorn Config: Keep-Alive={config.keep_alive_timeout}, Response={config.response_timeout}\n")
+    sys.stderr.flush()
     await serve(app, config)
 
 if __name__ == "__main__":

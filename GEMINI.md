@@ -146,13 +146,16 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
     ```
     Access at `http://localhost:8888` (or configured port).
 
-## Recent Updates (Phase 1-3)
-- **Live Streaming:** Full support for browsing and watching Bilibili Live rooms (`/live`, `/live/<room_id>`).
-- **Watch History:** Anonymous, local watch history stored in Redis (`/history`).
-- **Refactoring:** 
-    - Decoupled API logic using `transformers.py`.
-    - Unified video player logic with `templates/macros.html`.
-    - Flattened template data structures for better maintainability.
+## Recent Updates
+- **Phase 4 (Stability & Performance):**
+    - **Live Stream Proxy Stabilization:** Resolved 60-second cutoff issues by tuning Hypercorn, Quart, and Nginx timeouts.
+    - **Keep-Alive Mechanism:** Implemented in-stream FLV heartbeats (Type 18 tags) to prevent TCP connection drops during idle periods.
+    - **Frontend Optimization:** Increased `flv.js` buffer sizes and added exponential backoff for reconnection to handle network jitter.
+    - **Asset Loading Speed:** Increased image proxy concurrency to 50x and implemented aggressive CDN resizing (WebP/suffixes) for all thumbnails and avatars to fix slow search results.
+    - **Autoplay Recovery:** Implemented an in-player "Click to Play" overlay that automatically appears if the browser blocks the initial autoplay attempt.
+    - **Aspect Ratio Fix:** Corrected video centering for non-16:9 content (21:9 trailers, etc.) in fullscreen mode.
+    - **Library Compatibility:** Patched `bilibili-api` Enum requirements in `views.py` and improved `httpx` timeout handling for infinite streams.
+- **Phase 1-3:**
 
 ## Development Conventions
 - **License:** GNU GPL-3.0.

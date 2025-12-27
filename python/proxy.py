@@ -2,6 +2,7 @@ import httpx, asyncio
 from quart import Blueprint, request, Response
 from urllib.parse import urlparse
 from shared import appredis, appconf, Network, image_limiter
+from live_manager import live_manager
 
 proxy_bp = Blueprint('proxy', __name__)
 
@@ -21,15 +22,14 @@ async def render_proxy_pic(req_path):
         headers = COMMON_HEADERS.copy()
         headers['host'] = domain
         url = f'https://{req_path}'
+        print(f"[Proxy] Fetching image: {url}")
         
-        client = Network.get_async_client()
+        client = await Network.get_async_client()
         try:
             resp = await client.get(url, headers=headers, follow_redirects=True)
             return Response(resp.content, status=resp.status_code, content_type=resp.headers.get('content-type'))
         except Exception as e:
             return Response(str(e), status=502)
-
-from live_manager import live_manager
 
 @proxy_bp.route('/proxy/<path:subpath>')
 async def proxy_main(subpath):
@@ -44,9 +44,12 @@ async def proxy_main(subpath):
                 vqn = parts[1] if len(parts) > 1 else "default"
                 redis_key = f'miku_live_{room_id}_{vqn}' if vqn != "default" else f'miku_live_{room_id}'
                 url = appredis.get(redis_key)
+                print(f"[Proxy] Live Request: {room_id} (QN: {vqn}). Redis Key: {redis_key}. Found: {bool(url)}")
                 if not url and vqn == "default":
                     fallback_keys = appredis.keys(f'miku_live_{room_id}_*')
-                    if fallback_keys: url = appredis.get(fallback_keys[0])
+                    if fallback_keys: 
+                        url = appredis.get(fallback_keys[0])
+                        print(f"[Proxy] Live Fallback to: {fallback_keys[0]}")
             else:
                 vid, vidx, vqn = req_path.lstrip('/proxy/video/').split('_')
                 url = appredis.get(f'mikuinv_{vid}_{vidx}_{vqn}')
@@ -73,101 +76,84 @@ async def proxy_main(subpath):
             if k.lower() in ['range', 'if-range', 'x-playback-session-id']:
                 headers[k.lower()] = v
 
-        if is_live and '.flv' in url:
-            # Use LiveStreamManager for FLV live streams
-            print(f"[Proxy] Using LiveStreamManager for: {url[:50]}...")
-            stream_obj, q = await live_manager.subscribe(url, headers, cookie_jar)
-            
-            if q is None:
-                print(f"[Proxy] LiveStreamManager subscription failed for: {url[:50]}")
-                return Response(f"Stream unavailable (Status {stream_obj.status_code})", status=stream_obj.status_code or 502)
+        # SPECIAL HANDLING FOR LIVE FLV (Muxing/Multiplexing via LiveManager)
+        if is_live and '.m3u8' not in url:
+            stream, q = await live_manager.subscribe(url, headers, cookie_jar)
+            if not q:
+                return Response('Upstream Error', status=502)
 
-            if stream_obj.status_code and stream_obj.status_code >= 400:
-                print(f"[Proxy] LiveStreamManager returned error {stream_obj.status_code} for: {url[:50]}")
-                live_manager.streams[url].remove_client(q)
-                return Response(f"Stream error: {stream_obj.status_code}", status=stream_obj.status_code)
-
-            async def generate():
+            async def generate_from_manager():
+                reason = "Stream ended"
                 try:
                     while True:
-                        chunk = await q.get()
-                        if chunk is None: break
-                        yield chunk
-                except asyncio.CancelledError:
-                    print(f"[Proxy] Connection cancelled for: {url[:50]}")
+                        try:
+                            # Use a reasonable timeout (15s) for keep-alive
+                            chunk = await asyncio.wait_for(q.get(), timeout=15.0)
+                            if chunk is None: break
+                            yield chunk
+                        except asyncio.TimeoutError:
+                            # Send a minimal valid FLV Script Data tag if we have already sent headers
+                            if stream.header_ready.is_set():
+                                # Type 18, Size 0, Time 0, PrevSize 11
+                                yield b"\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0b"
+                            else:
+                                # Still waiting for upstream? Send nothing to avoid corruption
+                                continue
+                except (asyncio.CancelledError, GeneratorExit):
+                    reason = "Client disconnected"
                     raise
+                except Exception as e:
+                    reason = f"Generator error: {e}"
                 finally:
-                    if url in live_manager.streams:
-                        live_manager.streams[url].remove_client(q)
+                    stream.remove_client(q, reason=reason)
 
-            proxy_resp = Response(generate(), status=stream_obj.status_code or 200)
+            proxy_resp = Response(generate_from_manager(), status=stream.status_code or 200)
+            proxy_resp.headers['Connection'] = 'keep-alive'
+            proxy_resp.headers['Keep-Alive'] = 'timeout=10800'
+            proxy_resp.headers['Access-Control-Allow-Origin'] = '*'
             proxy_resp.headers['Content-Type'] = 'video/x-flv'
-            for k, v in stream_obj.resp_headers.items():
-                if k.lower() in ['accept-ranges', 'etag', 'last-modified']:
-                    proxy_resp.headers[k] = v
+            proxy_resp.headers['X-Miku-Proxy'] = 'LiveManager'
+            proxy_resp.headers['X-Accel-Buffering'] = 'no'
             return proxy_resp
 
-        if not is_live:
-            limit_size = 1024 * 1024 # 1MB chunks for VOD
-            range_val = headers.get('range')
-            
-            if range_val:
-                try:
-                    if range_val.startswith('bytes='):
-                        r_spec = range_val.split('=')[1]
-                        if '-' in r_spec:
-                            r_parts = r_spec.split('-')
-                            start = int(r_parts[0]) if r_parts[0] else 0
-                            if r_parts[1]:
-                                end = int(r_parts[1])
-                                # Respect client end range if it's smaller than our limit
-                                if end - start + 1 > limit_size:
-                                    headers['range'] = f'bytes={start}-{start + limit_size - 1}'
-                            else:
-                                headers['range'] = f'bytes={start}-{start + limit_size - 1}'
-                except: pass
-            else:
-                headers['range'] = f'bytes=0-{limit_size - 1}'
-
-        client = Network.get_async_client()
+        # DIRECT PROXY FOR VOD AND HLS LIVE
+        client = await Network.get_async_client()
 
         try:
             # Send the request and get the response stream
             proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
             resp = await client.send(proxy_request, stream=True)
-            print(f"[Proxy] Started stream: {url[:50]}... Status: {resp.status_code}")
+            print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
             
             async def generate():
                 try:
                     async for chunk in resp.aiter_bytes(chunk_size=1024*64):
                         yield chunk
-                except asyncio.CancelledError:
-                    print(f"[Proxy] Stream cancelled (client disconnected): {url[:50]}...")
-                    return
-                except GeneratorExit:
-                    print(f"[Proxy] Generator exit: {url[:50]}...")
+                except (asyncio.CancelledError, GeneratorExit):
+                    print(f"[Proxy] Client disconnected. Killing upstream: {url[:50]}...")
+                    await resp.aclose()
+                    raise
                 except Exception as e:
                     print(f"[Proxy] Stream error: {e}")
                 finally:
-                    print(f"[Proxy] Closing stream: {url[:50]}...")
-                    try:
-                        # Use shield to ensure the stream is closed properly
-                        await asyncio.shield(resp.aclose())
-                    except: pass
+                    await resp.aclose()
 
             proxy_resp = Response(generate(), status=resp.status_code)
             
-            # Set appropriate content type for live streams to help hls.js/flv.js
+            # Set appropriate content type and connection headers for live streams (Step 3)
             if is_live:
+                proxy_resp.headers['Connection'] = 'keep-alive'
+                proxy_resp.headers['Keep-Alive'] = 'timeout=10800'
+                proxy_resp.headers['Access-Control-Allow-Origin'] = '*'
                 if '.m3u8' in url:
                     proxy_resp.headers['Content-Type'] = 'application/x-mpegURL'
                 else:
                     proxy_resp.headers['Content-Type'] = 'video/x-flv'
             
             for k, v in resp.headers.items():
-                if k.lower() in ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']:
-                    # Only override content-type if not already set for live
-                    if is_live and k.lower() == 'content-type':
+                k_lower = k.lower()
+                if k_lower in ['content-type', 'content-length', 'content-range', 'accept-ranges', 'etag', 'last-modified']:
+                    if is_live and k_lower in ['content-type', 'connection']:
                         continue
                     proxy_resp.headers[k] = v
             return proxy_resp
