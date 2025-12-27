@@ -4,14 +4,30 @@ A free as in freedom frontend for Bilibili.
 
 This is a fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxina/mikuinvidious) with my personal preference plus ai slop.
 
-## Documentation
+## Application Features
 
-Further technical details and architecture documentation can be found in the `doc/` directory:
+### 📺 Video & Media Playback
+- **High-Quality Streaming**: Support for DASH and FLV formats
+- **Danmaku Overlay**: Native implementation of scrolling comments (danmaku) for the full Bilibili experience.
+- **Listen Mode**: Save bandwidth and focus on the audio with a dedicated audio-only interface for any video.
+- **Audio Posts**: Full support for Bilibili Audio (au) and Playlists (am) with specialized player controls.
+- **Multi-Part Videos**: Seamless navigation through multi-page video series.
 
-- [Stability Fixes](doc/stability-fixes.md): Details on the live stream timeout and keep-alive strategy.
-- [Keep-Alive Mechanism](doc/keep-alive.md): In-depth look at the FLV heartbeat system.
-- [Live Logic](doc/live-logic.md): Overview of how live streaming is implemented.
-- [Project Overview](GEMINI.md): General architecture and project philosophy.
+### 🔴 Enhanced Live Streaming
+- **Stability-First Proxying**: Custom ASGI-based proxying that prevents the common 60-second idle drops found in standard proxies.
+- **Live Chat**: Real-time SSE (Server-Sent Events) chat integration, allowing you to follow the conversation without official trackers.
+
+### 📖 Content Discovery & Reading
+- **Distraction-Free Articles**: Clean, proxied rendering of Bilibili Articles (cv) and Opus (dynamic posts).
+- **Global Search**: Search across videos, live rooms, users, and articles with advanced sorting filters.
+- **User Spaces**: Explore user profiles, their video uploads, and article contributions.
+- **Category Browsing**: Detailed category (Zone) views with the latest content.
+
+### 🛡️ Privacy & Security
+- **No-Account Browsing**: Full access to Bilibili content without needing to log in or maintain a Bilibili account.
+- **Media Proxying**: Proxies images and (optional) video streams through the server and Cloudflare WARP to mask your IP address.
+- **Zero Tracking**: Strips away official Bilibili tracking scripts and telemetry.
+- **Local History**: Privacy-respecting browsing history stored locally in your browser and your instance's Redis cache.
 
 ## Quick Start (Docker)
 
@@ -25,7 +41,7 @@ The easiest way to run MikuInvidious is using Docker Compose.
 
 2. **Run with Docker Compose:**
    ```bash
-   docker compose up
+   docker compose up -d
    ```
 
 The application will be available at `http://localhost:8000`.
@@ -41,3 +57,7 @@ Key environment variables:
 - `HTTP_PROXY` / `HTTPS_PROXY`: SOCKS5 proxy (configured to use the included `warp` service by default).
 - `REDIS_URL`: Connection string for Redis.
 - `QUART_SECRET_KEY`: A random secret string for session security.
+
+## License
+
+MikuInvidious is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
