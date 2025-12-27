@@ -76,7 +76,7 @@ async def toggle_opencc_api():
 
 @app.route('/<b32tvid>')
 async def b32tv_redirect(b32tvid):
-    client = Network.get_async_client()
+    client = await Network.get_async_client()
     try:
         req = await client.get(f'https://b23.tv/{b32tvid}', follow_redirects=False)
     except Exception as e:
@@ -89,13 +89,14 @@ async def b32tv_redirect(b32tvid):
         try:
             e = req.json()
             msg = e.get('message', 'Unknown error')
-            code = e.get('code', 500)
+            code = e.get('code', req.status_code)
         except:
-            msg = 'Unknown error'
-            code = 500
+            msg = '未找到页面' if req.status_code == 404 else '未知错误'
+            code = req.status_code
+        
         return await render_template_with_theme('error.html',
                                           status = msg,
-                                          desc = msg,
+                                          desc = '您请求的资源不存在。' if code == 404 else msg,
                                           suggest='请检查您的请求并重试。'),  abs(code)
 
     url = urlparse(req.headers['Location'])
@@ -148,6 +149,13 @@ async def robots_txt():
 ##########################################
 # Error handling
 ##########################################
+
+@app.errorhandler(404)
+async def not_found_error(e):
+    return await render_template_with_theme('error.html',
+                                            status = '未找到页面 (404)',
+                                            desc = '您请求的页面不存在。',
+                                            suggest = '请检查 URL 是否正确。'), 404
 
 @app.errorhandler(exceptions.ArgsException)
 async def args_exception_view(e):

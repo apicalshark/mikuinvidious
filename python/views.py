@@ -181,7 +181,7 @@ async def author_view(mid):
 async def read_view(cid):
     is_opus = 'opus' in request.path or not cid.startswith('cv')
     url = f'https://www.bilibili.com/opus/{cid.replace("opus", "")}' if is_opus else f'https://www.bilibili.com/read/{cid}'
-    client = Network.get_async_client()
+    client = await Network.get_async_client()
     try:
         req = await client.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.62'}, follow_redirects=True)
     except Exception as e:
