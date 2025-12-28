@@ -116,7 +116,7 @@ async def dl_redirect():
     bvid = form.get("id")
     cvid = form.get("cvid")
     qual = form.get("qual")
-    return redirect(f"/proxy/video/{bvid}_{cvid}_{qual}", code=302)
+    return redirect(f"/proxy/video/{bvid}_{cvid}_{qual}?dl=1", code=302)
 
 
 ##########################################

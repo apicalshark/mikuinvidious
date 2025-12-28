@@ -231,6 +231,11 @@ async def proxy_main(subpath):
 
             proxy_resp = Response(generate(), status=resp.status_code)
 
+            if request.args.get("dl") == "1" and not is_live:
+                # Ensure filename is safe (alphanumeric + underscores)
+                safe_vid = "".join(c for c in vid if c.isalnum() or c == "_")
+                proxy_resp.headers["Content-Disposition"] = f'attachment; filename="miku_{safe_vid}_p{vidx}_{vqn}.mp4"'
+
             # Set appropriate content type and connection headers for live streams (Step 3)
             if is_live:
                 proxy_resp.headers["Connection"] = "keep-alive"
