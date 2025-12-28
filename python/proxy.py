@@ -9,27 +9,34 @@ from shared import Network, appconf, appredis, image_limiter
 proxy_bp = Blueprint("proxy", __name__)
 
 
-@proxy_bp.route("/proxy/live/disconnect", methods=["POST", "GET"])
-async def proxy_live_disconnect():
-    """Manual disconnect ping for live streams to clean up resources immediately."""
-    room_id = request.args.get("room_id")
-    vqn = request.args.get("vqn", "default")
-    client_id = request.args.get("cid")
+class ClosingIterator:
+    """
+    An async iterator wrapper that ensures a cleanup function is called
+    when the iterator is closed or finished.
+    """
 
-    if not room_id or not client_id:
-        return Response("Missing room_id or cid", status=400)
+    def __init__(self, gen, cleanup_func):
+        self.gen = gen
+        self.cleanup_func = cleanup_func
+        self.closed = False
 
-    redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
-    url = appredis.get(redis_key)
+    def __aiter__(self):
+        return self
 
-    if url:
-        if isinstance(url, bytes):
-            url = url.decode()
-        if url in live_manager.streams:
-            live_manager.streams[url].remove_client(client_id, reason="Client Ping")
-            return Response("OK", status=200)
+    async def __anext__(self):
+        try:
+            return await self.gen.__anext__()
+        except StopAsyncIteration:
+            await self.close()
+            raise
+        except Exception:
+            await self.close()
+            raise
 
-    return Response("Stream not found", status=404)
+    async def close(self):
+        if not self.closed:
+            self.closed = True
+            await self.cleanup_func()
 
 
 COMMON_HEADERS = {
@@ -76,7 +83,6 @@ async def proxy_dash(media_type, qn):
     cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
 
     headers = COMMON_HEADERS.copy()
-    headers["host"] = urlp.netloc
 
     # Forward headers from client (crucial for Range requests from hls.js)
     for k, v in request.headers.items():
@@ -84,20 +90,31 @@ async def proxy_dash(media_type, qn):
             headers[k.lower()] = v
 
     client = await Network.get_async_client()
+    resp = None
     try:
         proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-        resp = await client.send(proxy_request, stream=True)
+        resp = await client.send(proxy_request, stream=True, follow_redirects=True)
 
         async def generate():
             try:
                 async for chunk in resp.aiter_bytes(chunk_size=1024 * 64):
                     yield chunk
-            finally:
-                await resp.aclose()
+            except (asyncio.CancelledError, GeneratorExit):
+                raise
+            except Exception as e:
+                print(f"[Proxy] Stream error: {e}")
 
-        proxy_resp = Response(generate(), status=resp.status_code)
+        async def cleanup():
+            nonlocal resp
+            if resp:
+                await resp.aclose()
+                print(f"[Proxy] Connection closed for: {url[:50]}...")
+                resp = None
+
+        proxy_resp = Response(ClosingIterator(generate(), cleanup), status=resp.status_code)
         for k, v in resp.headers.items():
-            if k.lower() in [
+            k_lower = k.lower()
+            if k_lower in [
                 "content-type",
                 "content-length",
                 "content-range",
@@ -116,6 +133,9 @@ async def proxy_dash(media_type, qn):
         proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
         return proxy_resp
     except Exception as e:
+        print(f"[Proxy] Error in proxy_dash: {e}")
+        if resp:
+            await resp.aclose()
         return Response(str(e), status=502)
 
 
@@ -132,12 +152,10 @@ async def proxy_main(subpath):
                 vqn = parts[1] if len(parts) > 1 else "default"
                 redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
                 url = appredis.get(redis_key)
-                print(f"[Proxy] Live Request: {room_id} (QN: {vqn}). Redis Key: {redis_key}. Found: {bool(url)}")
                 if not url and vqn == "default":
                     fallback_keys = appredis.keys(f"miku_live_{room_id}_*")
                     if fallback_keys:
                         url = appredis.get(fallback_keys[0])
-                        print(f"[Proxy] Live Fallback to: {fallback_keys[0]}")
             else:
                 vid, vidx, vqn = req_path.removeprefix("/proxy/video/").split("_")
                 url = appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
@@ -158,7 +176,6 @@ async def proxy_main(subpath):
         cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
 
         headers = COMMON_HEADERS.copy()
-        headers["host"] = urlp.netloc
 
         # Forward headers from client
         for k, v in request.headers.items():
@@ -209,11 +226,12 @@ async def proxy_main(subpath):
 
         # DIRECT PROXY FOR VOD AND HLS LIVE
         client = await Network.get_async_client()
+        resp = None
 
         try:
             # Send the request and get the response stream
             proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-            resp = await client.send(proxy_request, stream=True)
+            resp = await client.send(proxy_request, stream=True, follow_redirects=True)
             print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
 
             async def generate():
@@ -221,15 +239,18 @@ async def proxy_main(subpath):
                     async for chunk in resp.aiter_bytes(chunk_size=1024 * 64):
                         yield chunk
                 except (asyncio.CancelledError, GeneratorExit):
-                    print(f"[Proxy] Client disconnected. Killing upstream: {url[:50]}...")
-                    await resp.aclose()
                     raise
                 except Exception as e:
                     print(f"[Proxy] Stream error: {e}")
-                finally:
-                    await resp.aclose()
 
-            proxy_resp = Response(generate(), status=resp.status_code)
+            async def cleanup():
+                nonlocal resp
+                if resp:
+                    await resp.aclose()
+                    print(f"[Proxy] Connection closed for: {url[:50]}...")
+                    resp = None
+
+            proxy_resp = Response(ClosingIterator(generate(), cleanup), status=resp.status_code)
 
             if request.args.get("dl") == "1" and not is_live:
                 # Ensure filename is safe (alphanumeric + underscores)
@@ -261,9 +282,35 @@ async def proxy_main(subpath):
                     proxy_resp.headers[k] = v
             return proxy_resp
         except Exception as e:
+            print(f"[Proxy] Error proxying {url}: {e}")
+            if resp:
+                await resp.aclose()
             return Response(str(e), status=502)
 
     elif req_path.startswith("/proxy/pic/"):
         return await render_proxy_pic(req_path)
     else:
         return Response("I'm a teapot", status=418)
+
+
+@proxy_bp.route("/proxy/live/disconnect", methods=["POST", "GET"])
+async def proxy_live_disconnect():
+    """Manual disconnect ping for live streams to clean up resources immediately."""
+    room_id = request.args.get("room_id")
+    vqn = request.args.get("vqn", "default")
+    client_id = request.args.get("cid")
+
+    if not room_id or not client_id:
+        return Response("Missing room_id or cid", status=400)
+
+    redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
+    url = appredis.get(redis_key)
+
+    if url:
+        if isinstance(url, bytes):
+            url = url.decode()
+        if url in live_manager.streams:
+            live_manager.streams[url].remove_client(client_id, reason="Client Ping")
+            return Response("OK", status=200)
+
+    return Response("Stream not found", status=404)
