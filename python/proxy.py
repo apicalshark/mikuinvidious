@@ -99,17 +99,16 @@ async def proxy_dash(media_type, qn):
             try:
                 async for chunk in resp.aiter_bytes(chunk_size=1024 * 64):
                     yield chunk
-            except (asyncio.CancelledError, GeneratorExit):
-                raise
-            except Exception as e:
-                print(f"[Proxy] Stream error: {e}")
+            finally:
+                if resp:
+                    await resp.aclose()
+                    print(f"[Proxy] Stream closed: {url[:50]}...")
 
         async def cleanup():
-            nonlocal resp
+            # Safety fallback for ASGI server
             if resp:
                 await resp.aclose()
-                print(f"[Proxy] Connection closed for: {url[:50]}...")
-                resp = None
+                print(f"[Proxy] Connection closed via iterator: {url[:50]}...")
 
         proxy_resp = Response(ClosingIterator(generate(), cleanup), status=resp.status_code)
         for k, v in resp.headers.items():
@@ -238,17 +237,16 @@ async def proxy_main(subpath):
                 try:
                     async for chunk in resp.aiter_bytes(chunk_size=1024 * 64):
                         yield chunk
-                except (asyncio.CancelledError, GeneratorExit):
-                    raise
-                except Exception as e:
-                    print(f"[Proxy] Stream error: {e}")
+                finally:
+                    if resp:
+                        await resp.aclose()
+                        print(f"[Proxy] Stream closed: {url[:50]}...")
 
             async def cleanup():
-                nonlocal resp
+                # Safety fallback for ASGI server
                 if resp:
                     await resp.aclose()
-                    print(f"[Proxy] Connection closed for: {url[:50]}...")
-                    resp = None
+                    print(f"[Proxy] Connection closed via iterator: {url[:50]}...")
 
             proxy_resp = Response(ClosingIterator(generate(), cleanup), status=resp.status_code)
 
