@@ -33,7 +33,7 @@ To ensure connections remain active for up to 3 hours (10800 seconds) without be
 
 ## Client-Side Optimizations
 
-The `flv.js` configuration in `static/themes/modern/js/player.js` was updated:
+The `mpegts.js` configuration in `static/themes/modern/js/player.js` was updated:
 - `stashInitialSize: 16384`: Increased to 16KB to prevent the player from stalling while waiting for the initial stream metadata.
 - **Reconnection Logic**: Implemented exponential backoff and stall detection to gracefully handle transient network jitter.
 

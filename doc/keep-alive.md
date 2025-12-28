@@ -24,7 +24,7 @@ If the upstream Bilibili server stops sending data (e.g., during handshakes or s
 
 ## 3. Client-Side Buffering
 
-The `flv.js` player is configured with a `stashInitialSize` of 16KB. This provides enough head-room for the player to parse the initial FLV header and metadata before timing out.
+The `mpegts.js` player is configured with a `stashInitialSize` of 16KB. This provides enough head-room for the player to parse the initial FLV header and metadata before timing out.
 
 ## 4. Reconnection Logic
 

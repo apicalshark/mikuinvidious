@@ -49,7 +49,9 @@
     <!-- Player Card -->
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl overflow-hidden shadow-sm">
         <!-- Player Wrapper: Force Dark Background -->
-        {{ video_player(vid, vinfo, idx, supported_src, is_live) }}
+        <div id="player-placeholder-wrapper">
+            {{ video_player(vid, vinfo, idx, supported_src, is_live) }}
+        </div>
 
         <!-- Title & Basic Actions -->
         <div class="p-4 md:p-6 space-y-4">
@@ -141,34 +143,39 @@
 
     <!-- Comments -->
     {% if not is_live %}
-    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm">
-        <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
-            <i class="icon ion-ios-chatbubbles"></i>
-            {{ '评论'|translate }} ({{ vcomments['page']['count'] }})
-        </h3>
-        
-        <div class="space-y-6">
-            {% if vcomments['replies'] %}
-            {% for rep in vcomments['replies'] %}
-            <div class="flex gap-4 group">
-                <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
-                    <img loading="lazy" class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all" src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}" alt="">
-                </a>
-                <div class="flex-grow space-y-1">
-                    <div class="flex items-baseline justify-between">
-                         <a href="/space/{{ rep['member']['mid'] }}" class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname']|translate }}</a>
-                         <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc']|translate }}</span>
-                    </div>
-                    <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message']|translate }}</p>
-                    <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
-                        <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
+    <div id="comments-loader-container">
+        <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm">
+            <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
+                <i class="icon ion-ios-chatbubbles"></i>
+                {{ '评论'|translate }} ({{ vcomments['page']['count'] }})
+            </h3>
+            
+            <div class="space-y-6">
+                {% if vcomments['replies'] %}
+                {% for rep in vcomments['replies'] %}
+                <div class="flex gap-4 group">
+                    <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
+                        <img loading="lazy" class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all" src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}" alt="">
+                    </a>
+                    <div class="flex-grow space-y-1">
+                        <div class="flex items-baseline justify-between">
+                             <a href="/space/{{ rep['member']['mid'] }}" class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname']|translate }}</a>
+                             <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc']|translate }}</span>
+                        </div>
+                        <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message']|translate }}</p>
+                        <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
+                            <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
+                        </div>
                     </div>
                 </div>
+                {% endfor %}
+                {% else %}
+                <div class="flex flex-col items-center justify-center py-8 space-y-4">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    <p class="text-on-surface-variant">{{ '正在加载评论...'|translate }}</p>
+                </div>
+                {% endif %}
             </div>
-            {% endfor %}
-            {% else %}
-            <p class="text-center text-on-surface-variant py-8">{{ '暂无评论或评论加载失败'|translate }}</p>
-            {% endif %}
         </div>
     </div>
     {% endif %}
@@ -216,6 +223,21 @@
                 msgEl.className = 'py-1 px-2 hover:bg-surface-variant/10 transition-colors rounded break-words break-all';
                 msgEl.innerHTML = `<span class="font-bold text-primary mr-1 whitespace-nowrap">${data.user}:</span><span class="text-on-surface opacity-90">${data.text}</span>`;
                 chatContainer.appendChild(msgEl);
+
+                // Add to danmaku overlay
+                if (window.dm && window.dm_status) {
+                    window.dm.emit({
+                        text: '\n' + data.text,
+                        mode: 'rtl',
+                        style: {
+                            fontSize: '25px',
+                            color: '#ffffff',
+                            textShadow: '-1px -1px #000, -1px 1px #000, 1px -1px #000, 1px 1px #000',
+                            font: '25px sans-serif',
+                            whiteSpace: 'pre'
+                        }
+                    });
+                }
                 
                 if (isAtBottom) {
                     chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -293,13 +315,40 @@
 </div>
   
   <script src="/static/vjs/hls.min.js" defer></script>
-  <script src="/static/vjs/flv.min.js" defer></script>
+  <script src="/static/vjs/mpegts.js" defer></script>
   <script src="/static/vjs/media-chrome.js" defer></script>
   
   <script src="/static/danmakujs/danmaku.min.js" defer></script>
   
   <script src="/static/themes/modern/js/player.js" defer></script>
   
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!window.is_live) {
+            // Load Player Component
+            fetch(`/api/component/player/${current_vid}/${idx}`)
+                .then(r => r.text())
+                .then(html => {
+                    const container = document.getElementById('player-placeholder-wrapper');
+                    if (container) {
+                        container.innerHTML = '';
+                        const range = document.createRange();
+                        container.appendChild(range.createContextualFragment(html));
+                    }
+                });
+
+            // Load Meta/Comments Component
+            fetch(`/api/component/meta/${current_vid}/${idx}`)
+                .then(r => r.text())
+                .then(html => {
+                    const container = document.getElementById('comments-loader-container');
+                    if (container) {
+                        container.innerHTML = html;
+                    }
+                });
+        }
+    });
+  </script>
 {% endblock %}
   
 

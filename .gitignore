@@ -6,6 +6,7 @@ config.toml
 .vscode
 .env
 node_modules/
+.ruff_cache
 
 wgcf/
 warp_data/

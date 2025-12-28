@@ -2,9 +2,20 @@
 
 html,
 body {
-  font-family: BlinkMacSystemFont, -apple-system, "Segoe UI", Roboto, Oxygen,
-    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Helvetica,
-    Arial, sans-serif;
+  font-family:
+    BlinkMacSystemFont,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Fira Sans",
+    "Droid Sans",
+    "Helvetica Neue",
+    Helvetica,
+    Arial,
+    sans-serif;
 }
 
 #contents {
@@ -116,7 +127,7 @@ div {
 }
 
 body a.pure-button {
-  color: rgba(0,0,0,.8);
+  color: rgba(0, 0, 0, 0.8);
 }
 
 button.pure-button-primary,
@@ -153,7 +164,7 @@ div.watched-overlay {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(255,255,255,.4);
+  background-color: rgba(255, 255, 255, 0.4);
 }
 
 div.watched-indicator {
@@ -269,20 +280,34 @@ div.watched-indicator {
   }
 }
 
-
 /*
  * Video "cards" (results/playlist/channel videos)
  */
 
-.video-card-row { margin: 15px 0; }
+.video-card-row {
+  margin: 15px 0;
+}
 
-.flexible { display: flex; }
-.flex-left  { flex: 1 1 100%; flex-wrap: wrap;   }
-.flex-right { flex: 1 0 auto; flex-wrap: nowrap; }
+.flexible {
+  display: flex;
+}
+.flex-left {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+}
+.flex-right {
+  flex: 1 0 auto;
+  flex-wrap: nowrap;
+}
 
-p.channel-name { margin: 0; }
-p.video-data   { margin: 0; font-weight: bold; font-size: 80%; }
-
+p.channel-name {
+  margin: 0;
+}
+p.video-data {
+  margin: 0;
+  font-weight: bold;
+  font-size: 80%;
+}
 
 /*
  * Footer
@@ -333,7 +358,7 @@ span > select {
 html:not(.dark) a:hover,
 html:not(.dark) a:active,
 html:not(.dark) summary:hover {
-  color: #075A9E !important;
+  color: #075a9e !important;
 }
 
 html:not(.dark) a.pure-button-primary:hover {
@@ -359,8 +384,8 @@ html:not(.dark) .pure-menu-heading {
 @media (prefers-color-scheme: light) {
   .no-theme a:hover,
   .no-theme a:active,
-  .no-theme summary:hover  {
-    color: #075A9E !important;
+  .no-theme summary:hover {
+    color: #075a9e !important;
   }
 
   .no-theme a.pure-button-primary:hover {
@@ -533,13 +558,19 @@ p,
 }
 
 /* Center the "invidious" logo on the search page */
-#logo > h1 { text-align: center; }
+#logo > h1 {
+  text-align: center;
+}
 
 /* IE11 fixes */
-:-ms-input-placeholder { color: #888; }
+:-ms-input-placeholder {
+  color: #888;
+}
 
 /* Wider settings name to less word wrap */
-.pure-form-aligned .pure-control-group label { width: 19em; }
+.pure-form-aligned .pure-control-group label {
+  width: 19em;
+}
 
 .channel-emoji {
   margin: 0 2px;

@@ -1,0 +1,8 @@
+node_modules
+__pycache__
+static/danmakujs
+static/vjs
+.git
+*.min.js
+*.min.css
+package-lock.json

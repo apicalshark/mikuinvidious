@@ -1,127 +1,131 @@
 {% extends 'themes/modern/base.html' %}
-
 {% block head %}
-<title>{{ uinfo['name'] }} - MikuInvidious</title>
-<meta name="referrer" content="never">
-<meta name="description" content="{{ uinfo['sign'] }}">
-<meta property="og:site_name" content="MikuInvidious">
-<meta property="og:url" content="{{ site_url }}/space/{{ uinfo['mid'] }}">
-<meta property="og:title" content="{{ uinfo['name'] }}">
-<meta property="og:image" content="{{ uinfo['face']|pic }}">
-<meta property="og:description" content="{{ uinfo['sign'] }}">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:url" content="{{ site_url }}/space/{{ uinfo['mid'] }}">
-<meta name="twitter:title" content="{{ uinfo['name'] }}">
-<meta name="twitter:description" content="{{ uinfo['sign'] }}">
-<meta name="twitter:image" content="{{ uinfo['face']|pic }}">
-<link rel="alternate" href="https://space.bilibili.com/{{ uinfo['mid'] }}">
+    <title>{{ uinfo['name'] }} - MikuInvidious</title>
+    <meta name="referrer" content="never" />
+    <meta name="description" content="{{ uinfo['sign'] }}" />
+    <meta property="og:site_name" content="MikuInvidious" />
+    <meta property="og:url" content="{{ site_url }}/space/{{ uinfo['mid'] }}" />
+    <meta property="og:title" content="{{ uinfo['name'] }}" />
+    <meta property="og:image" content="{{ uinfo['face']|pic }}" />
+    <meta property="og:description" content="{{ uinfo['sign'] }}" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:url" content="{{ site_url }}/space/{{ uinfo['mid'] }}" />
+    <meta name="twitter:title" content="{{ uinfo['name'] }}" />
+    <meta name="twitter:description" content="{{ uinfo['sign'] }}" />
+    <meta name="twitter:image" content="{{ uinfo['face']|pic }}" />
+    <link rel="alternate" href="https://space.bilibili.com/{{ uinfo['mid'] }}" />
 {% endblock %}
-
 {% block content %}
-
-<!-- Profile Header -->
-<div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-10 mb-8 shadow-sm relative overflow-hidden ">
-    <!-- Decorative Background/Pattern could go here -->
-    <div class="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-primary/10 to-secondary/10"></div>
-
-    <div class="relative flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 pt-10 md:pt-4">
-        <!-- Avatar -->
-        <div class="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface shadow-md overflow-hidden flex-shrink-0 bg-surface">
-            <img src="{{ (uinfo['face'] + "@160w_160h.webp")|pic }}" alt="{{ uinfo['name'] }}" class="w-full h-full object-cover">
-        </div>
-
-        <!-- Info -->
-        <div class="flex-grow text-center md:text-left space-y-4 w-full">
-            <div class="space-y-1">
-                <h1 class="text-3xl font-bold text-on-surface">{{ uinfo['name'] }}</h1>
-                <p class="text-sm font-mono text-on-surface-variant opacity-70">MID: {{ uinfo['mid'] }}</p>
+    <!-- Profile Header -->
+    <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-10 mb-8 shadow-sm relative overflow-hidden ">
+        <!-- Decorative Background/Pattern could go here -->
+        <div class="absolute top-0 left-0 w-full h-32 bg-gradient-to-r from-primary/10 to-secondary/10"></div>
+        <div class="relative flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 pt-10 md:pt-4">
+            <!-- Avatar -->
+            <div class="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface shadow-md overflow-hidden flex-shrink-0 bg-surface">
+                <img src="{{ (uinfo['face'] + "@160w_160h.webp")|pic }}"
+                     alt="{{ uinfo['name'] }}"
+                     class="w-full h-full object-cover" />
             </div>
-            
-            <div class="bg-surface-variant/20 rounded-xl p-4 text-on-surface-variant text-sm  leading-relaxed max-w-3xl">
-                {{ uinfo['sign'] or "这个人很懒，什么都没有写。" }}
-            </div>
-
-            <!-- Actions -->
-            <div class="flex flex-wrap justify-center md:justify-start gap-3 pt-2">
-                 <a href="https://space.bilibili.com/{{ uinfo['mid'] }}" target="_blank" class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-[#FF6699] hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
-                     <i class="icon ion-logo-youtube"></i>
-                     <span>哔哩哔哩空间</span>
-                 </a>
-                 <a href="/author/{{ uinfo['mid'] }}" class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-primary hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
-                     <i class="icon ion-ios-paper"></i>
-                     <span>专栏文章</span>
-                 </a>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="flex items-center gap-4 mb-6">
-    <h2 class="text-xl font-bold text-on-surface">投稿视频</h2>
-    <span class="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary font-bold">{{ uvids['page']['count'] }}</span>
-</div>
-
-<!-- Videos Grid -->
-<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-  {% for v in uvids['list']['vlist'] %}
-  <div class="group bg-surface dark:bg-surface-variant/20 rounded-2xl overflow-hidden hover:bg-surface-variant/30 flex flex-col transition-all duration-300 hover:shadow-[0_0_20px_rgba(156,65,116,0.15)] dark:hover:shadow-[0_0_20px_rgba(255,177,218,0.1)] hover:-translate-y-1">
-    <!-- Thumbnail -->
-    <a href="/video/{{ v['bvid'] }}" class="relative block aspect-video overflow-hidden">
-        <img loading="lazy" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="{{ "{}@320w".format(v['pic'])|pic }}" alt="">
-        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-        <p class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg font-medium shadow-sm">{{ v['duration'] }}</p>
-    </a>
-    
-    <!-- Content -->
-    <div class="p-4 flex flex-col flex-grow">
-        <a href="/video/{{ v['bvid'] }}" class="block mb-3">
-            <p dir="auto" class="font-bold text-base text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors">
-              {{ v['title']|safe }}
-            </p>
-        </a>
-
-        <div class="mt-auto space-y-3">
-            <div class="flex justify-between items-center text-xs text-on-surface-variant">
-                <a href="/space/{{ v['mid'] }}" class="hover:text-primary truncate max-w-[65%] flex items-center gap-1.5 transition-colors">
-                    <div class="w-5 h-5 rounded-full bg-surface-variant/50 flex items-center justify-center">
-                        <i class="icon ion-ios-person text-sm"></i>
-                    </div>
-                    <span dir="auto" class="font-medium">{{ v['author'] }}</span>
-                </a>
-                
-                <div class="flex gap-3">
-                    <a title="在哔哩哔哩上观看" href="https://www.bilibili.com/video/{{ v['bvid'] }}" class="text-on-surface-variant/70 hover:text-red-500 transition-colors">
-                      <i class="icon ion-logo-youtube text-lg"></i>
+            <!-- Info -->
+            <div class="flex-grow text-center md:text-left space-y-4 w-full">
+                <div class="space-y-1">
+                    <h1 class="text-3xl font-bold text-on-surface">{{ uinfo['name'] }}</h1>
+                    <p class="text-sm font-mono text-on-surface-variant opacity-70">MID: {{ uinfo['mid'] }}</p>
+                </div>
+                <div class="bg-surface-variant/20 rounded-xl p-4 text-on-surface-variant text-sm  leading-relaxed max-w-3xl">
+                    {{ uinfo['sign'] or "这个人很懒，什么都没有写。" }}
+                </div>
+                <!-- Actions -->
+                <div class="flex flex-wrap justify-center md:justify-start gap-3 pt-2">
+                    <a href="https://space.bilibili.com/{{ uinfo['mid'] }}"
+                       target="_blank"
+                       class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-[#FF6699] hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
+                        <i class="icon ion-logo-youtube"></i>
+                        <span>哔哩哔哩空间</span>
                     </a>
-                    <a title="音频模式" href="/video/{{ v['bvid'] }}?listen=1" class="text-on-surface-variant/70 hover:text-primary transition-colors">
-                      <i class="icon ion-md-headset text-lg"></i>
+                    <a href="/author/{{ uinfo['mid'] }}"
+                       class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-primary hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
+                        <i class="icon ion-ios-paper"></i>
+                        <span>专栏文章</span>
                     </a>
                 </div>
             </div>
-
-            <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
-                <p dir="auto">{{ v['created']|date }}</p>
-                <p dir="auto">{{ v['play']|intsep }} 次播放</p>
-            </div>
         </div>
     </div>
-  </div>
-  {% endfor %}
-</div>
-
-<!-- Pagination -->
-<div class="mt-10 flex items-center justify-center gap-4">
-    {% if uvids['page']['pn'] > 1 %}
-    <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']-1 }}" class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
-        <i class="icon ion-ios-arrow-back"></i> 上一页
-    </a>
-    {% endif %}
-    
-    {% if (uvids['page']['pn']+1)*(uvids['page']['ps']) < uvids['page']['count'] %}
-    <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']+1 }}" class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
-        下一页 <i class="icon ion-ios-arrow-forward"></i>
-    </a>
-    {% endif %}
-</div>
-
+    <div class="flex items-center gap-4 mb-6">
+        <h2 class="text-xl font-bold text-on-surface">投稿视频</h2>
+        <span class="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary font-bold">{{ uvids['page']['count'] }}</span>
+    </div>
+    <!-- Videos Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        {% for v in uvids['list']['vlist'] %}
+            <div class="group bg-surface dark:bg-surface-variant/20 rounded-2xl overflow-hidden hover:bg-surface-variant/30 flex flex-col transition-all duration-300 hover:shadow-[0_0_20px_rgba(156,65,116,0.15)] dark:hover:shadow-[0_0_20px_rgba(255,177,218,0.1)] hover:-translate-y-1">
+                <!-- Thumbnail -->
+                <a href="/video/{{ v['bvid'] }}"
+                   class="relative block aspect-video overflow-hidden">
+                    <img loading="lazy"
+                         class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                         src="{{ "{}@320w".format(v['pic']) |pic }}"
+                         alt="" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    </div>
+                    <p class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg font-medium shadow-sm">
+                        {{ v['duration'] }}
+                    </p>
+                </a>
+                <!-- Content -->
+                <div class="p-4 flex flex-col flex-grow">
+                    <a href="/video/{{ v['bvid'] }}" class="block mb-3">
+                        <p dir="auto"
+                           class="font-bold text-base text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+                            {{ v['title']|safe }}
+                        </p>
+                    </a>
+                    <div class="mt-auto space-y-3">
+                        <div class="flex justify-between items-center text-xs text-on-surface-variant">
+                            <a href="/space/{{ v['mid'] }}"
+                               class="hover:text-primary truncate max-w-[65%] flex items-center gap-1.5 transition-colors">
+                                <div class="w-5 h-5 rounded-full bg-surface-variant/50 flex items-center justify-center">
+                                    <i class="icon ion-ios-person text-sm"></i>
+                                </div>
+                                <span dir="auto" class="font-medium">{{ v['author'] }}</span>
+                            </a>
+                            <div class="flex gap-3">
+                                <a title="在哔哩哔哩上观看"
+                                   href="https://www.bilibili.com/video/{{ v['bvid'] }}"
+                                   class="text-on-surface-variant/70 hover:text-red-500 transition-colors">
+                                    <i class="icon ion-logo-youtube text-lg"></i>
+                                </a>
+                                <a title="音频模式"
+                                   href="/video/{{ v['bvid'] }}?listen=1"
+                                   class="text-on-surface-variant/70 hover:text-primary transition-colors">
+                                    <i class="icon ion-md-headset text-lg"></i>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
+                            <p dir="auto">{{ v['created']|date }}</p>
+                            <p dir="auto">{{ v['play']|intsep }} 次播放</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    <!-- Pagination -->
+    <div class="mt-10 flex items-center justify-center gap-4">
+        {% if uvids['page']['pn'] > 1 %}
+            <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']-1 }}"
+               class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
+                <i class="icon ion-ios-arrow-back"></i> 上一页
+            </a>
+        {% endif %}
+        {% if (uvids['page']['pn']+1)*(uvids['page']['ps']) < uvids['page']['count'] %}
+            <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']+1 }}"
+               class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
+                下一页 <i class="icon ion-ios-arrow-forward"></i>
+            </a>
+        {% endif %}
+    </div>
 {% endblock %}

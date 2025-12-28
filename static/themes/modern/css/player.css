@@ -1,126 +1,127 @@
 /* Modern Player Styles for MikuInvidious */
 
 media-controller {
-    --media-primary-color: #FFB1DA;
-    --media-range-track-active-background: var(--md-sys-color-primary);
-    --media-range-thumb-background: var(--md-sys-color-primary)
-    --media-icon-color: #FFB1DA;
-    --media-button-icon-color: #FFB1DA;
-    /* --media-time-range-buffered-color: rgba(255, 177, 218, 0.4); */
-    /* --media-control-hover-background: rgba(255, 177, 218, 0.1); */
-    background: #000;
+  --media-primary-color: #ffb1da;
+  --media-range-track-active-background: var(--md-sys-color-primary);
+  --media-range-thumb-background: var(--md-sys-color-primary) --media-icon-color: #ffb1da;
+  --media-button-icon-color: #ffb1da;
+  /* --media-time-range-buffered-color: rgba(255, 177, 218, 0.4); */
+  /* --media-control-hover-background: rgba(255, 177, 218, 0.1); */
+  background: #000;
 }
 
 #player {
-    display: block;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: contain !important;
-    object-position: center center !important;
-    background: #000;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  background: #000;
 }
 
 /* Danmaku Layer - ABSOLUTE PERSISTENCE */
 #danmaku-container {
-    z-index: 10;
-    pointer-events: none;
-    position: absolute;
-    display: block !important;
-    opacity: 1 !important;
-    visibility: visible !important;
+  z-index: 10;
+  pointer-events: none;
+  position: absolute;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 /* Force container visibility even when controller hides other chrome */
 media-controller[media-user-inactive] #danmaku-container {
-    opacity: 1 !important;
-    visibility: visible !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
 /* Style for DOM engine danmaku */
 .danmaku {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    pointer-events: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .danmaku-item {
-    font-weight: 400 !important;
-    text-shadow: none !important;
-    white-space: nowrap;
-    user-select: none;
-    color: #fff;
-    pointer-events: none;
-    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
-    line-height: 1.1;
-    font-size: 20px !important;
+  font-weight: 400;
+  text-shadow: -1px -1px #000, -1px 1px #000, 1px -1px #000, 1px 1px #000;
+  white-space: pre;
+  user-select: none;
+  color: #fff;
+  pointer-events: none;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.1;
+  font-size: 25px;
 }
 
 /* Standardized Custom Buttons to match native Media Chrome appearance */
 .miku-control-btn {
-    appearance: none;
-    background-color: var(--media-control-background, rgba(20, 20, 30, 0.7));
-    border: none;
-    height: 100%;
-    padding: 0 10px;
-    color: #FFB1DA;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 0.15s;
+  appearance: none;
+  background-color: var(--media-control-background, rgba(20, 20, 30, 0.7));
+  border: none;
+  height: 100%;
+  padding: 0 10px;
+  color: #ffb1da;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s;
 }
 
 .miku-control-btn:hover {
-    background-color: var(--media-control-hover-background, rgba(50, 50, 70, 0.7));
+  background-color: var(--media-control-hover-background, rgba(50, 50, 70, 0.7));
 }
 
 .miku-control-btn i {
-    font-size: 22px;
+  font-size: 22px;
 }
 
 /* Quality Menu Styles - SOLID BACKGROUND */
 #quality-menu {
-    background: #181818 !important; 
-    border: 1px solid #333;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #181818 !important;
+  border: 1px solid #333;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
 .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
 }
 
 #quality-list button {
-    background: transparent;
-    width: 100%;
-    text-align: left;
-    padding: 10px 15px;
-    color: rgba(255,255,255,0.8);
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  padding: 10px 15px;
+  color: rgba(255, 255, 255, 0.8);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
 }
 
 #quality-list button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 #quality-list button.active {
-    background: var(--md-sys-color-primary) !important;
-    color: #5F1144 !important; /* on-primary color from dark mode */
+  background: var(--md-sys-color-primary) !important;
+  color: #5f1144 !important; /* on-primary color from dark mode */
 }
 
 /* Fullscreen Specifics */
 media-controller:fullscreen #danmaku-container {
-    z-index: 10;
+  z-index: 10;
 }

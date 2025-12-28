@@ -15,7 +15,7 @@
         clientRes.writeHead(upstreamRes.statusCode, {
             'Content-Type': 'video/x-flv',
             'Connection': 'keep-alive',
-            'Access-Control-Allow-Origin': '*' // CORS for your flv.js
+            'Access-Control-Allow-Origin': '*' // CORS for your mpegts.js
         });
 
         // 4. Pipe Data Stream (Bilibili -> Proxy -> Client)

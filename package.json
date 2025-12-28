@@ -5,7 +5,13 @@
   "main": "tailwind.config.js",
   "scripts": {
     "build:css": "tailwindcss -i static/themes/modern/css/tailwind-input.css -o static/themes/modern/css/main.css --minify",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint:python": "ruff check python",
+    "format:python": "ruff format python",
+    "lint:frontend": "prettier --check \"static/themes/modern/js/*.js\" \"static/themes/modern/css/*.css\" \"tailwind.config.js\" && djlint templates --check",
+    "format:frontend": "prettier --write \"static/themes/modern/js/*.js\" \"static/themes/modern/css/*.css\" \"tailwind.config.js\" && djlint templates --reformat",
+    "lint": "npm run lint:python && npm run lint:frontend",
+    "format": "npm run format:python && npm run format:frontend"
   },
   "repository": {
     "type": "git",
@@ -21,13 +27,13 @@
   "homepage": "https://gitlab.com/apicalshark/mikuinvidious#readme",
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
+    "prettier": "^3.7.4",
     "tailwindcss": "^3.4.19"
   },
   "dependencies": {
-    "flv.js": "^1.6.2",
     "hls-video-element": "^1.5.10",
     "hls.js": "^1.6.15",
     "media-chrome": "^4.17.2",
-    "videojs-flvjs": "^0.3.1"
+    "mpegts.js": "^1.8.0"
   }
 }

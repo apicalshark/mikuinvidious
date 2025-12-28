@@ -154,6 +154,7 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
     - **Asset Loading Speed:** Increased image proxy concurrency to 50x and implemented aggressive CDN resizing (WebP/suffixes) for all thumbnails and avatars to fix slow search results.
     - **Autoplay Recovery:** Implemented an in-player "Click to Play" overlay that automatically appears if the browser blocks the initial autoplay attempt.
     - **Aspect Ratio Fix:** Corrected video centering for non-16:9 content (21:9 trailers, etc.) in fullscreen mode.
+    - **Library Migration:** Replaced `flv.js` with `mpegts.js` (a modern fork) for improved stability and HEVC support in live streams.
     - **Library Compatibility:** Patched `bilibili-api` Enum requirements in `views.py` and improved `httpx` timeout handling for infinite streams.
 - **Phase 1-3:**
 
