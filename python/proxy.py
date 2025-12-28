@@ -56,7 +56,6 @@ async def render_proxy_pic(req_path):
         headers = COMMON_HEADERS.copy()
         headers["host"] = domain
         url = f"https://{req_path}"
-        print(f"[Proxy] Fetching image: {url}")
 
         client = await Network.get_async_client()
         try:
