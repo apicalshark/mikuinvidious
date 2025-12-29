@@ -35,8 +35,8 @@ The easiest way to run MikuInvidious is using Docker Compose.
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/MikuInvidious/MikuInvidious.git
-   cd MikuInvidious
+   git clone https://github.com/apicalshark/mikuinvidious
+   cd mikuinvidious
    ```
 
 2. **Run with Docker Compose:**
