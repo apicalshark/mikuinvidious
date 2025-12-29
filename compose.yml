@@ -59,10 +59,8 @@ services:
       - DEDEUSERID=
       
       # HTTP/3 (QUIC) CONFIGURATION (Default: OFF)
-      # To enable: Set to true AND provide SSL certificate paths
-      - ENABLE_HTTP3=false
-      - SSL_CERT_PATH=/etc/nginx/ssl/cert.pem
-      - SSL_KEY_PATH=/etc/nginx/ssl/key.pem
+      # Enabled via Nginx environment variables below
+      - ENABLE_HTTP3=true
 
   # --- 3. NGINX ---
   nginx:
@@ -75,16 +73,16 @@ services:
       - "443:443/udp"
     environment:
       # These variables control the template in nginx.conf.template
-      # Default: Empty strings disable HTTP/3 features in the config
-      - HTTP3_LISTEN=
-      - HTTP3_ALT_SVC=
+      - HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;
+      - HTTP3_ALT_SVC=h3=":443"; ma=86400
       - SSL_CERT_PATH=/etc/nginx/ssl/cert.pem
       - SSL_KEY_PATH=/etc/nginx/ssl/key.pem
+      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
     volumes:
-      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
       - ./static:/usr/share/nginx/html/static:ro
-      # Mount your SSL certificates here if enabling HTTP/3
-      # - ./ssl:/etc/nginx/ssl:ro
+      # Mount your SSL certificates here
+      - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - app
 

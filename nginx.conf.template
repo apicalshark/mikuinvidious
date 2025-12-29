@@ -31,7 +31,7 @@ http {
     add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: *.hdslb.com *.biliimg.com; connect-src 'self'; media-src 'self' blob:; frame-ancestors 'none'; object-src 'none';" always;
     add_header Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()" always;
 
-    # HTTP/3 Alt-Svc header (Only sent if HTTP3 is enabled via variable)
+    # HTTP/3 Alt-Svc header
     add_header Alt-Svc '$HTTP3_ALT_SVC' always;
 
     # Creative Optimization: Image Cache Zone
@@ -42,7 +42,6 @@ http {
         listen 8000;
         
         # HTTP/3 (QUIC) and HTTPS - Enabled via env var
-        # Note: Requires SSL certificates to work
         $HTTP3_LISTEN
 
         server_name _;
