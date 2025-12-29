@@ -275,11 +275,25 @@ def article_to_html(article_text):
 
 async def article_to_any(article_text, dest_fmt):
     cmd = ["pandoc", "-f", "html", "-t", dest_fmt, "-"]
-    p = await asyncio.create_subprocess_exec(
-        *cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-    )
-    stdout, stderr = await p.communicate(input=article_to_html(article_text).encode("utf-8"))
-    return stdout.decode("utf-8")
+    p = None
+    try:
+        p = await asyncio.create_subprocess_exec(
+            *cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await p.communicate(input=article_to_html(article_text).encode("utf-8"))
+        if p.returncode != 0:
+            print(f"[Pandoc] Error converting article: {stderr.decode('utf-8')}")
+        return stdout.decode("utf-8")
+    except Exception as e:
+        print(f"[Pandoc] Exception in article_to_any: {e}")
+        return ""
+    finally:
+        if p and p.returncode is None:
+            try:
+                p.terminate()
+                await p.wait()
+            except Exception:
+                pass
 
 
 async def video_get_src_for_qn(vi, idx, quality=16):

@@ -96,9 +96,12 @@ async def live_chat_sse(room_id):
                     yield ": heartbeat\n\n"
                 else:
                     yield f"data: {json.dumps(msg)}\n\n"
-        except asyncio.CancelledError:
-            pass
+        except (asyncio.CancelledError, GeneratorExit):
+            print(f"[LiveChat] Client disconnected from room {room_id}")
+        except Exception as e:
+            print(f"[LiveChat] Unexpected error in event_stream for room {room_id}: {e}")
         finally:
+            print(f"[LiveChat] Cleaning up resources for room {room_id}")
             stop_event.set()
             hb_task.cancel()
             conn_task.cancel()
@@ -106,8 +109,8 @@ async def live_chat_sse(room_id):
             async def cleanup():
                 try:
                     await asyncio.gather(hb_task, conn_task, return_exceptions=True)
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"[LiveChat] Error during task cancellation: {e}")
 
             await asyncio.shield(cleanup())
 

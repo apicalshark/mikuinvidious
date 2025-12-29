@@ -126,6 +126,14 @@ app.config["SESSION_REDIS"] = appredis
 Session(app)
 
 
+@app.teardown_appcontext
+async def shutdown_session(exception=None):
+    """Cleanup global resources."""
+    if Network._async_client and not Network._async_client.is_closed:
+        await Network._async_client.aclose()
+        print("[Shutdown] Global async client closed.")
+
+
 # Use a mock or simple class for appcache
 class SimpleCache:
     def cached(self, timeout=None, key_prefix="view/%s"):
