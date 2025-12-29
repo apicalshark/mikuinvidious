@@ -46,10 +46,8 @@ http {
 
         server_name _;
 
-        ssl_certificate     $SSL_CERT_PATH;
-        ssl_certificate_key $SSL_KEY_PATH;
-        ssl_protocols       TLSv1.2 TLSv1.3;
-        ssl_early_data      on; # QUIC 0-RTT
+        # SSL Configuration - Only active when HTTP3_LISTEN is set
+        $SSL_CONFIG
 
         # Static files
         location /static/ {

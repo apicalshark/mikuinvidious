@@ -27,12 +27,15 @@ generate_self_signed() {
     fi
 }
 
+SSL_CONF_VAL="ssl_certificate /etc/nginx/ssl/cert.pem; ssl_certificate_key /etc/nginx/ssl/key.pem; ssl_protocols TLSv1.2 TLSv1.3; ssl_early_data on;"
+
 case "$1" in
     "local")
         echo "[-] Switching to Mode: LOCAL (HTTP Only)"
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=false/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=/' "$COMPOSE_FILE"
+        sed -i 's|- SSL_CONFIG=.*|- SSL_CONFIG=|' "$COMPOSE_FILE"
         # Comment out the SSL volume mount
         sed -i 's|^      - ./ssl:/etc/nginx/ssl:ro|      # - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
         
@@ -47,6 +50,7 @@ case "$1" in
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=":443"; ma=86400/' "$COMPOSE_FILE"
+        sed -i "s|- SSL_CONFIG=.*|- SSL_CONFIG=$SSL_CONF_VAL|" "$COMPOSE_FILE"
         # Uncomment the SSL volume mount
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
         
@@ -62,13 +66,14 @@ case "$1" in
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=":443"; ma=86400/' "$COMPOSE_FILE"
+        sed -i "s|- SSL_CONFIG=.*|- SSL_CONFIG=$SSL_CONF_VAL|" "$COMPOSE_FILE"
         # Uncomment the SSL volume mount
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
         
         echo "[*] Restarting containers..."
         docker-compose up -d --build
         echo "[!] Mode applied: HTTP/3 Production (https://your-domain)"
-        ;;    
+        ;;
 
     *)
         show_usage

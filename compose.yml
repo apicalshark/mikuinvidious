@@ -75,6 +75,7 @@ services:
       # These variables control the template in nginx.conf.template
       - HTTP3_LISTEN=
       - HTTP3_ALT_SVC=
+      - SSL_CONFIG=
       - SSL_CERT_PATH=/etc/nginx/ssl/cert.pem
       - SSL_KEY_PATH=/etc/nginx/ssl/key.pem
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
