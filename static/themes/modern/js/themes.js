@@ -138,11 +138,11 @@ function initPreferences() {
     if (openccPref === "1") {
       btnOpencc.classList.add("bg-primary", "text-on-primary");
       btnOpencc.classList.remove("bg-surface-variant", "text-on-surface-variant");
-      btnOpencc.innerText = "已開啟";
+      btnOpencc.innerText = "已开启";
     } else {
       btnOpencc.classList.remove("bg-primary", "text-on-primary");
       btnOpencc.classList.add("bg-surface-variant", "text-on-surface-variant");
-      btnOpencc.innerText = "已關閉";
+      btnOpencc.innerText = "已关闭";
     }
   }
 
@@ -152,11 +152,11 @@ function initPreferences() {
     if (searchOpenccPref === "1") {
       btnSearchOpencc.classList.add("bg-primary", "text-on-primary");
       btnSearchOpencc.classList.remove("bg-surface-variant", "text-on-surface-variant");
-      btnSearchOpencc.innerText = "已開啟";
+      btnSearchOpencc.innerText = "已开启";
     } else {
       btnSearchOpencc.classList.remove("bg-primary", "text-on-primary");
       btnSearchOpencc.classList.add("bg-surface-variant", "text-on-surface-variant");
-      btnSearchOpencc.innerText = "已關閉";
+      btnSearchOpencc.innerText = "已关闭";
     }
   }
 

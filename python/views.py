@@ -161,7 +161,7 @@ async def search_view():
     i = request.args.get("i") or 1
     if not q:
         return await render_template_with_theme(
-            "error.html", status="无法搜索", desc="没有发送搜索关键字。", sg="请設置搜索關鍵字後重試。"
+            "error.html", status="无法搜索", desc="没有发送搜索关键字。", sg="请设置搜索关键字后重试。"
         ), 400
 
     # URL Jump logic
@@ -266,9 +266,9 @@ async def read_view(cid):
         if req.status_code != 200:
             return await render_template_with_theme(
                 "error.html",
-                status="沒有找到文章" if req.status_code == 404 else "服務器錯誤",
+                status="没有找到文章" if req.status_code == 404 else "服务器错误",
                 desc="后端服务器发送了无效的回复",
-                suggest="這很可能說明您訪問的文章不存在，請檢查您的請求。" if req.status_code == 404 else None,
+                suggest="这很可能说明您访问的文章不存在，请检查您的请求。" if req.status_code == 404 else None,
             ), req.status_code
 
         if (
@@ -312,12 +312,12 @@ async def read_view(cid):
                     "error.html",
                     status="没有找到文章",
                     desc="文章不存在或解析错误",
-                    sg="這很可能說明您訪問的文章不存在，請檢查您的請求。",
+                    sg="这很可能说明您访问的文章不存在，请检查您的请求。",
                 ), 404
     except Exception as e:
         print(f"[Read] Error fetching article {url}: {e}")
         return await render_template_with_theme(
-            "error.html", status="网络错误", desc=str(e), suggest="請檢查您的網絡連接或代理設置。"
+            "error.html", status="网络错误", desc=str(e), suggest="请检查您的网络连接或代理设置。"
         ), 500
     finally:
         if req:

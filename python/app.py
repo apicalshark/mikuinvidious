@@ -79,13 +79,13 @@ async def b32tv_redirect(b32tvid):
                 "error.html",
                 status=msg,
                 desc="您请求的资源不存在。" if code == 404 else msg,
-                suggest="请檢查您的請求並重試。",
+                suggest="请检查您的请求并重试。",
             ), abs(code)
 
         location = req.headers.get("Location")
         if not location:
             return await render_template_with_theme(
-                "error.html", status="解析錯誤", desc="無法獲取重定向地址。", suggest="請檢查網址是否正確。"
+                "error.html", status="解析错误", desc="无法获取重定向地址。", suggest="请检查网址是否正确。"
             ), 500
 
         url = urlparse(location)
@@ -100,7 +100,7 @@ async def b32tv_redirect(b32tvid):
     except Exception as e:
         print(f"[Redirect] Error redirecting b23.tv/{b32tvid}: {e}")
         return await render_template_with_theme(
-            "error.html", status="网络错误", desc=str(e), suggest="請檢查您的網絡連接或代理設置。"
+            "error.html", status="网络错误", desc=str(e), suggest="请检查您的网络连接或代理设置。"
         ), 500
     finally:
         if req:

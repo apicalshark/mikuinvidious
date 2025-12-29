@@ -200,7 +200,7 @@ def article_to_html(article_text):
             except Exception as e:
                 print(f"Error parsing opus INITIAL_STATE: {e}")
                 pass
-        return "<p>無法解析文章內容。</p>"
+        return "<p>无法解析文章内容。</p>"
 
     article_body.attrs = {}
     article_body["id"] = "main-article"

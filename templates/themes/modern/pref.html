@@ -1,32 +1,32 @@
 {% extends 'themes/modern/base.html' %}
-{% block head %}<title>個性化 - MikuInvidious</title>{% endblock %}
+{% block head %}<title>个性化 - MikuInvidious</title>{% endblock %}
 {% block content %}
     <div class="min-h-[60vh] flex items-center justify-center px-4">
         <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-10 md:p-16 shadow-lg  max-w-lg w-full text-center space-y-8">
             <div class="w-20 h-20 mx-auto rounded-full bg-secondary/10 flex items-center justify-center">
                 <i class="icon ion-ios-cog text-4xl text-secondary"></i>
             </div>
-            <h1 class="text-2xl md:text-3xl font-bold text-on-surface">{{ '個性化設置' }}</h1>
+            <h1 class="text-2xl md:text-3xl font-bold text-on-surface">{{ '个性化设置' }}</h1>
             <div class="space-y-4">
                 <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
                     <div class="text-left">
-                        <div class="font-bold text-on-surface">{{ '繁體中文轉換' }}</div>
-                        <div class="text-sm text-on-surface-variant">{{ '使用 OpenCC 將內容轉換為繁體中文' }}</div>
+                        <div class="font-bold text-on-surface">{{ '繁体中文转换' }}</div>
+                        <div class="text-sm text-on-surface-variant">{{ '使用 OpenCC 将内容转换为繁体中文' }}</div>
                     </div>
                     <button id="toggle_opencc"
                             class="px-4 py-2 rounded-full bg-surface-variant text-on-surface-variant font-medium transition-all active:scale-95">
-                        {{ '加載中...' }}
+                        {{ '加载中...' }}
                     </button>
                 </div>
 
                 <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
                     <div class="flex flex-col gap-1">
-                        <div class="font-bold text-on-surface">{{ '搜尋自動轉簡體' }}</div>
-                        <div class="text-sm text-on-surface-variant">{{ '搜尋時自動將關鍵字轉換為簡體中文以獲得更好的搜尋結果' }}</div>
+                        <div class="font-bold text-on-surface">{{ '搜寻自动转简体' }}</div>
+                        <div class="text-sm text-on-surface-variant">{{ '搜寻时自动将关键字转换为简体中文以获得更好的搜寻结果' }}</div>
                     </div>
                     <button id="toggle_search_opencc"
                             class="px-4 py-2 rounded-full bg-surface-variant text-on-surface-variant font-medium transition-all active:scale-95">
-                        {{ '加載中...' }}
+                        {{ '加载中...' }}
                     </button>
 
 
@@ -35,7 +35,7 @@
                     <a href="/"
                        class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface font-medium transition-colors">
                         <i class="icon ion-ios-home"></i>
-                        {{ '返回首頁' }}
+                        {{ '返回首页' }}
                     </a>
                 </div>
             </div>
