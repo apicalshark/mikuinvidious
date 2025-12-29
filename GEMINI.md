@@ -150,6 +150,25 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
     Access at `http://localhost:8888` (or configured port).
 
 ## Recent Updates
+- **Phase 5 (User Personalization & Discovery - IN PROGRESS):**
+    - **Bilibili QR Login:** Implemented native QR code generation and polling with state correction for `bilibili-api-python` bugs.
+    - **Multi-user Sessions:** Transitioned to per-user credential management via Quart sessions, allowing independent account logins.
+    - **High-Quality Playback:** Implemented WBI signing for `/x/player/wbi/playurl` to unlock 1080P/4K streams for logged-in users.
+    - **Enhanced Proxying:** Added dynamic 404-to-360p fallback for media streams to improve reliability.
+    - **[Planned] Popular & Ranking:** Integration of global and category-based trending videos.
+    - **[Planned] Subscriptions & Feed:** Personalized dynamic feed and follow list for logged-in accounts.
+    - **[Planned] Favorites & Playlists:** Access to user-created and saved media folders.
+
+## Resource Management & Stability Guidelines
+
+To prevent file descriptor (FD) leaks and ensure long-term stability (especially for streaming), the following patterns MUST be followed:
+
+1.  **Explicit Response Closing:** Always use `try...finally` blocks to call `await resp.aclose()` on any `httpx.Response` object, even for simple JSON requests.
+2.  **Global Client Reuse:** Utilize `shared.Network.get_async_client()` to reuse a pooled `httpx.AsyncClient`. Avoid creating per-request clients.
+3.  **Proxy OO Design:** Use the `ProxyResponse` class in `proxy.py` which automatically manages upstream closures via `aclose()` and `ClosingIterator`.
+4.  **Async Redis:** Always `await` Redis operations using `redis.asyncio` to prevent event loop blocking and ensure proper connection release.
+5.  **Task Cancellation:** In SSE (Server-Sent Events) or persistent connections, explicitly `.cancel()` background tasks and `await` them via `asyncio.shield` during cleanup.
+
 - **Phase 4 (Stability & Performance):**
     - **Live Stream Proxy Stabilization:** Resolved 60-second cutoff issues by tuning Hypercorn, Quart, and Nginx timeouts (set to 3 hours).
     - **Keep-Alive Mechanism:** Implemented in-stream FLV heartbeats (Type 18 tags) in `live_manager.py` to prevent TCP connection drops.

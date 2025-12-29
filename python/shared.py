@@ -3,8 +3,8 @@ import functools
 import os
 
 import httpx
-import redis
 import toml
+from redis.asyncio import Redis
 from bilibili_api import Credential
 from bilibili_api.utils.network import request_settings
 from quart import Quart, render_template, request
@@ -110,9 +110,9 @@ elif os.path.exists("../config.toml"):
 
 # Connect to our nice redis database.
 if os.environ.get("REDIS_URL"):
-    appredis = redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+    appredis = Redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
 else:
-    appredis = redis.Redis(
+    appredis = Redis(
         host=appconf["redis"]["host"],
         port=appconf["redis"]["port"],
         username=appconf["redis"]["username"],
@@ -153,7 +153,7 @@ class SimpleCache:
                 cache_key = key_prefix % request.full_path
 
                 # Check if we have a cached version
-                cached_val = appredis.get(cache_key)
+                cached_val = await appredis.get(cache_key)
                 if cached_val:
                     return cached_val
 
@@ -162,7 +162,7 @@ class SimpleCache:
 
                 # Only cache if it's a successful string response (rendered template)
                 if isinstance(response, str):
-                    appredis.setex(cache_key, timeout, response)
+                    await appredis.setex(cache_key, timeout, response)
 
                 return response
 
@@ -184,6 +184,19 @@ if appconf["credential"]["use_cred"]:
         dedeuserid=credstore["dedeuserid"],
         ac_time_value=credstore["ac_time_value"],
     )
+
+
+def get_current_cred():
+    """Retrieve credentials dynamically: User Session > Global Config."""
+    from quart import session
+    
+    # 1. Check if user has personal login in session
+    user_creds = session.get("bili_creds")
+    if user_creds:
+        return Credential(**user_creds)
+    
+    # 2. Fallback to global server-wide creds
+    return appcred
 
 ##########################################
 # Util functions

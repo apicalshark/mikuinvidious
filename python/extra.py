@@ -318,20 +318,31 @@ def get_mixin_key(orig):
 
 async def get_wbi_keys():
     """Fetch img_key and sub_key from Bilibili API, cached in Redis."""
-    cached = appredis.get("miku_wbi_keys")
+    cached = await appredis.get("miku_wbi_keys")
     if cached:
         return json.loads(cached)
     
-    api = Api("https://api.bilibili.com/x/web-interface/nav", "GET")
-    res = await api.request()
-    img_url = res["wbi_img"]["img_url"]
-    sub_url = res["wbi_img"]["sub_url"]
-    img_key = img_url.split("/")[-1].split(".")[0]
-    sub_key = sub_url.split("/")[-1].split(".")[0]
+    from shared import Network
+    client = await Network.get_async_client()
     
-    keys = {"img_key": img_key, "sub_key": sub_key}
-    appredis.setex("miku_wbi_keys", 3600, json.dumps(keys))
-    return keys
+    # Manually fetch to ensure absolute control over resource closing
+    url = "https://api.bilibili.com/x/web-interface/nav"
+    headers = {"User-Agent": "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)"}
+    resp = None
+    try:
+        resp = await client.get(url, headers=headers, follow_redirects=True)
+        res = resp.json()["data"]
+        img_url = res["wbi_img"]["img_url"]
+        sub_url = res["wbi_img"]["sub_url"]
+        img_key = img_url.split("/")[-1].split(".")[0]
+        sub_key = sub_url.split("/")[-1].split(".")[0]
+        
+        keys = {"img_key": img_key, "sub_key": sub_key}
+        await appredis.setex("miku_wbi_keys", 3600, json.dumps(keys))
+        return keys
+    finally:
+        if resp:
+            await resp.aclose()
 
 async def sign_wbi(params):
     """Sign parameters with WBI (Aligned with yt-dlp)."""

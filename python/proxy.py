@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 from extra import video_get_dash_for_qn, video_get_src_for_qn
 from live_manager import live_manager
 from quart import Blueprint, Response, request
-from shared import Network, appconf, appredis, image_limiter
+from shared import Network, appconf, appcred, appredis, get_current_cred, image_limiter
 
 proxy_bp = Blueprint("proxy", __name__)
 
@@ -94,7 +94,7 @@ class ProxyResponse(Response):
 
 @proxy_bp.route("/proxy/dash/<media_type>/<int:qn>")
 async def proxy_dash(media_type, qn):
-    cached_data = appredis.get(f"miku_dash_url_{media_type}_{qn}")
+    cached_data = await appredis.get(f"miku_dash_url_{media_type}_{qn}")
     if not cached_data:
         return Response("Not Found", status=404)
 
@@ -144,7 +144,7 @@ async def proxy_dash(media_type, qn):
                     from bilibili_api import video as b_video
                     from extra import video_get_dash_for_qn
                     from shared import appcred
-                    vi = b_video.Video(bvid=vid, credential=appcred)
+                    vi = b_video.Video(bvid=vid, credential=get_current_cred())
                     fallback_res = await video_get_dash_for_qn(vi, 0)
                     if fallback_res and "dash" in fallback_res:
                         tracks = fallback_res["dash"].get(media_type, [])
@@ -157,6 +157,7 @@ async def proxy_dash(media_type, qn):
                             if new_urls:
                                 urls = new_urls
                                 await probe_resp.aclose()
+                                probe_resp = None # Clear to avoid double close in finally
                                 proxy_request = client.build_request("GET", urls[0], headers=headers, cookies=cookie_jar)
                                 probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
                                 print(f"[Proxy-Dash] Fallback probe response: {urls[0][:50]}... Status: {probe_resp.status_code}")
@@ -203,17 +204,17 @@ async def proxy_main(subpath):
                 room_id = parts[0]
                 vqn = parts[1] if len(parts) > 1 else "default"
                 redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
-                cached_data = appredis.get(redis_key)
+                cached_data = await appredis.get(redis_key)
                 if not cached_data and vqn == "default":
-                    fallback_keys = appredis.keys(f"miku_live_{room_id}_*")
+                    fallback_keys = await appredis.keys(f"miku_live_{room_id}_*")
                     if fallback_keys:
-                        cached_data = appredis.get(fallback_keys[0])
+                        cached_data = await appredis.get(fallback_keys[0])
             else:
                 parts = req_path.removeprefix("/proxy/video/").split("_")
                 vid = parts[0]
                 vidx = int(parts[1])
                 vqn = int(parts[2])
-                cached_data = appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
+                cached_data = await appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
         except ValueError:
             return Response("Bad Request", status=400)
 
@@ -301,13 +302,14 @@ async def proxy_main(subpath):
                 from bilibili_api import video as b_video
                 from extra import video_get_src_for_qn
                 from shared import appcred
-                vi = b_video.Video(bvid=vid, credential=appcred)
+                vi = b_video.Video(bvid=vid, credential=get_current_cred())
                 fallback_res = await video_get_src_for_qn(vi, vidx, 16)
                 if fallback_res and "durl" in fallback_res:
                     urls = [d["url"] for d in fallback_res["durl"] if d.get("url")]
                     if urls:
                         url = urls[0]
                         await probe_resp.aclose()
+                        probe_resp = None # Clear to avoid double close in finally
                         proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
                         probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
                         print(f"[Proxy] Fallback probe response: {url[:50]}... Status: {probe_resp.status_code}")
@@ -370,7 +372,7 @@ async def proxy_live_disconnect():
         return Response("Missing room_id or cid", status=400)
 
     redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
-    url = appredis.get(redis_key)
+    url = await appredis.get(redis_key)
 
     if url:
         if isinstance(url, bytes):
