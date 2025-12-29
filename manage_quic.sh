@@ -33,8 +33,6 @@ case "$1" in
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=false/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=/' "$COMPOSE_FILE"
-        echo "[*] Restarting containers..."
-        docker-compose up -d
         echo "[!] Mode applied: HTTP (http://localhost:8000)"
         ;;
     
@@ -44,8 +42,6 @@ case "$1" in
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=":443"; ma=86400/' "$COMPOSE_FILE"
-        echo "[*] Restarting containers..."
-        docker-compose up -d --build
         echo "[!] Mode applied: HTTP/3 Testing (https://localhost)"
         echo "[!] Note: Browser will show security warning due to self-signed cert."
         ;;
@@ -56,8 +52,6 @@ case "$1" in
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=":443"; ma=86400/' "$COMPOSE_FILE"
-        echo "[*] Restarting containers..."
-        docker-compose up -d --build
         echo "[!] Mode applied: HTTP/3 Production (https://your-domain)"
         ;;    
 

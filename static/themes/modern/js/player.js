@@ -72,7 +72,7 @@ class LiveStreamManager {
         isLive: true,
         liveSync: true,
         liveSyncMaxLatency: 5.0,
-        liveSyncTargetLatency: 4.0,
+        liveSyncTargetLatency: 3.0,
         liveSyncPlaybackRate: 1.05,
         liveBufferLatencyChasing: true,
         liveBufferLatencyMaxLatency: 8.0,

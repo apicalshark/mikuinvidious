@@ -48,8 +48,8 @@ services:
       - NO_PROXY=0
       - SERVER_PORT=8000
       - PYTHONUNBUFFERED=1
-      - HYPERCORN_RESPONSE_TIMEOUT=10800
-      - HYPERCORN_KEEP_ALIVE_TIMEOUT=10800
+      # - HYPERCORN_RESPONSE_TIMEOUT=10800
+      # - HYPERCORN_KEEP_ALIVE_TIMEOUT=10800
       
       # Bilibili Credentials
       - USE_CRED=false
@@ -60,7 +60,7 @@ services:
       
       # HTTP/3 (QUIC) CONFIGURATION (Default: OFF)
       # Enabled via Nginx environment variables below
-      - ENABLE_HTTP3=true
+      - ENABLE_HTTP3=false
 
   # --- 3. NGINX ---
   nginx:
@@ -73,8 +73,8 @@ services:
       - "443:443/udp"
     environment:
       # These variables control the template in nginx.conf.template
-      - HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;
-      - HTTP3_ALT_SVC=h3=":443"; ma=86400
+      - HTTP3_LISTEN=
+      - HTTP3_ALT_SVC=
       - SSL_CERT_PATH=/etc/nginx/ssl/cert.pem
       - SSL_KEY_PATH=/etc/nginx/ssl/key.pem
       - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
