@@ -19,10 +19,13 @@ import sys
 import app as app_module  # noqa: F401
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
-from shared import app
+from shared import app, close_global_client
 
 
 async def main():
+    # Register shutdown hook
+    app.after_serving(close_global_client)
+
     config = Config()
     # Bind to 0.0.0.0 to allow cross-container communication
     config.bind = ["0.0.0.0:8080"]

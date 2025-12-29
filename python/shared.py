@@ -126,9 +126,8 @@ app.config["SESSION_REDIS"] = appredis
 Session(app)
 
 
-@app.teardown_appcontext
-async def shutdown_session(exception=None):
-    """Cleanup global resources."""
+async def close_global_client():
+    """Cleanup global resources. Called on app shutdown."""
     if Network._async_client and not Network._async_client.is_closed:
         await Network._async_client.aclose()
         print("[Shutdown] Global async client closed.")
