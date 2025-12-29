@@ -20,7 +20,20 @@ import re
 import time
 
 import transformers
-from bilibili_api import article, audio, comment, homepage, live, live_area, login_v2, opus, search, user, video, video_zone
+from bilibili_api import (
+    article,
+    audio,
+    comment,
+    homepage,
+    live,
+    live_area,
+    login_v2,
+    opus,
+    search,
+    user,
+    video,
+    video_zone,
+)
 from extra import (
     article_to_any,
     article_to_html,
@@ -43,10 +56,10 @@ async def api_qrcode_gen():
     text = request.args.get("text")
     if not text:
         return "Missing text", 400
-    
+
     import io
     import qrcode
-    
+
     img = qrcode.make(text)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -60,13 +73,11 @@ async def api_login_qrcode_generate():
         await login_obj.generate_qrcode()
         # QrCodeLogin doesn't expose the key directly easily, but we can use the URL hash or a UUID
         import uuid
+
         session_id = str(uuid.uuid4())
-        active_login_sessions[session_id] = {
-            "obj": login_obj,
-            "ts": time.time()
-        }
+        active_login_sessions[session_id] = {"obj": login_obj, "ts": time.time()}
         session["login_session_id"] = session_id
-        
+
         # Extract URL from Picture object
         pic = login_obj.get_qrcode_picture()
         return {"url": pic.url, "session_id": session_id}
@@ -89,21 +100,21 @@ async def api_login_qrcode_poll():
         # 86038 (Scanned) -> returns TIMEOUT
         # 86090 (Expired) -> returns CONF
         # 0 (Success) -> returns DONE
-        
+
         res = await login_obj.check_state()
         print(f"[Login] Raw lib result for {session_id}: {res}")
-        
+
         if res == login_v2.QrCodeLoginEvents.SCAN:
-            status = "waiting"   # Correcting lib error (86101)
+            status = "waiting"  # Correcting lib error (86101)
         elif res == login_v2.QrCodeLoginEvents.TIMEOUT:
-            status = "scanned"   # Correcting lib error (86038)
+            status = "scanned"  # Correcting lib error (86038)
         elif res == login_v2.QrCodeLoginEvents.CONF:
-            status = "expired"   # Correcting lib error (86090)
+            status = "expired"  # Correcting lib error (86090)
         elif res == login_v2.QrCodeLoginEvents.DONE:
-            status = "confirmed" # 0 is correct
+            status = "confirmed"  # 0 is correct
         else:
             status = "waiting"
-        
+
         if status == "confirmed":
             # Successfully logged in, extract credentials
             cred = login_obj.get_credential()
@@ -114,21 +125,22 @@ async def api_login_qrcode_poll():
                 "dedeuserid": cred.dedeuserid,
                 "ac_time_value": cred.ac_time_value,
             }
-            
+
             # 1. Store in current user session (Essential for multi-user support)
             session["bili_creds"] = creds_dict
-            
+
             # 2. Update global appcred only as a fallback if desired (optional)
             # from bilibili_api import Credential
             # global appcred
             # appcred = Credential(**creds_dict)
-            
+
             # Remove from active sessions
             active_login_sessions.pop(session_id, None)
-            
+
             # Try to save to config.toml (Global persistent login)
             try:
                 import toml
+
                 config_path = "config.toml"
                 if os.path.exists(config_path):
                     config_data = toml.load(config_path)
@@ -141,9 +153,9 @@ async def api_login_qrcode_poll():
                     print("[Login] Credentials saved to config.toml")
             except Exception as e:
                 print(f"[Login] Failed to save credentials to config.toml: {e}")
-                
+
             return {"status": "confirmed", "message": "Login successful"}
-            
+
         return {"status": status}
     except Exception as e:
         return {"error": str(e)}, 500
@@ -710,7 +722,7 @@ async def api_component_player(vid, idx):
                                 urls.extend(item["backupUrl"])
                             elif "backup_url" in item and item["backup_url"]:
                                 urls.extend(item["backup_url"])
-                            
+
                             urls = [u for u in urls if u]
                             if urls:
                                 await appredis.setex(f"miku_dash_url_{mt}_{item['id']}", 1800, json.dumps(urls))
@@ -739,7 +751,9 @@ async def api_component_player(vid, idx):
                                 if "durl" in res_high:
                                     h_urls = [d["url"] for d in res_high["durl"] if d.get("url")]
                                     if h_urls:
-                                        await appredis.setex(f"mikuinv_{vid}_{idx}_{first_qn}", 1800, json.dumps(h_urls))
+                                        await appredis.setex(
+                                            f"mikuinv_{vid}_{idx}_{first_qn}", 1800, json.dumps(h_urls)
+                                        )
                             except Exception:
                                 pass
                     return ("fallback", data)

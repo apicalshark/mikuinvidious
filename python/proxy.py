@@ -57,30 +57,32 @@ class ProxyResponse(Response):
             while self._current_url_index < len(self.urls):
                 url = self.urls[self._current_url_index]
                 client = await Network.get_async_client()
-                
+
                 try:
                     proxy_request = client.build_request("GET", url, headers=self.client_headers, cookies=self.cookies)
                     self.upstream_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-                    
+
                     # If we get a valid streamable status, proceed
                     if self.upstream_resp.status_code < 400:
                         print(f"[Proxy] Success with CDN {self._current_url_index}: {url[:50]}...")
                         try:
                             async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
                                 yield chunk
-                            return # Finished successfully
+                            return  # Finished successfully
                         finally:
                             await self.upstream_resp.aclose()
                     else:
-                        print(f"[Proxy] CDN {self._current_url_index} returned {self.upstream_resp.status_code}, trying next...")
+                        print(
+                            f"[Proxy] CDN {self._current_url_index} returned {self.upstream_resp.status_code}, trying next..."
+                        )
                         await self.upstream_resp.aclose()
                 except Exception as e:
                     print(f"[Proxy] CDN {self._current_url_index} failed with error: {e}")
                     if self.upstream_resp:
                         await self.upstream_resp.aclose()
-                
+
                 self._current_url_index += 1
-            
+
             print("[Proxy] All CDNs exhausted.")
 
         super().__init__(response_generator(), *args, **kwargs)
@@ -121,13 +123,13 @@ async def proxy_dash(media_type, qn):
     client = await Network.get_async_client()
     probe_resp = None
     working_urls = urls
-    
+
     try:
         # We need a response to get headers, but ProxyResponse handles the stream.
         # So we do a quick stream=True call and then immediately wrap it or similar.
         # To keep it simple and robust, let's just use the first URL for headers
         # but in ProxyResponse we'll do the actual switching.
-        
+
         proxy_request = client.build_request("GET", urls[0], headers=headers, cookies=cookie_jar)
         probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
         print(f"[Proxy-Dash] Probe response: {urls[0][:50]}... Status: {probe_resp.status_code}")
@@ -138,12 +140,14 @@ async def proxy_dash(media_type, qn):
                 print(f"[Proxy-Dash] 404 detected for QN {qn}, falling back to 360P...")
                 referer = request.headers.get("referer", "")
                 import re
+
                 vid_match = re.search(r"BV[a-zA-Z0-9]+", referer)
                 if vid_match:
                     vid = vid_match.group(0)
                     from bilibili_api import video as b_video
                     from extra import video_get_dash_for_qn
                     from shared import appcred
+
                     vi = b_video.Video(bvid=vid, credential=get_current_cred())
                     fallback_res = await video_get_dash_for_qn(vi, 0)
                     if fallback_res and "dash" in fallback_res:
@@ -157,17 +161,28 @@ async def proxy_dash(media_type, qn):
                             if new_urls:
                                 urls = new_urls
                                 await probe_resp.aclose()
-                                probe_resp = None # Clear to avoid double close in finally
-                                proxy_request = client.build_request("GET", urls[0], headers=headers, cookies=cookie_jar)
+                                probe_resp = None  # Clear to avoid double close in finally
+                                proxy_request = client.build_request(
+                                    "GET", urls[0], headers=headers, cookies=cookie_jar
+                                )
                                 probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-                                print(f"[Proxy-Dash] Fallback probe response: {urls[0][:50]}... Status: {probe_resp.status_code}")
+                                print(
+                                    f"[Proxy-Dash] Fallback probe response: {urls[0][:50]}... Status: {probe_resp.status_code}"
+                                )
 
             proxy_resp = ProxyResponse(urls, headers, cookie_jar, status=probe_resp.status_code)
 
             if probe_resp.status_code < 400:
                 for k, v in probe_resp.headers.items():
                     k_lower = k.lower()
-                    if k_lower in ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"]:
+                    if k_lower in [
+                        "content-type",
+                        "content-length",
+                        "content-range",
+                        "accept-ranges",
+                        "etag",
+                        "last-modified",
+                    ]:
                         proxy_resp.headers[k] = v
 
             if media_type == "video":
@@ -176,7 +191,7 @@ async def proxy_dash(media_type, qn):
                 proxy_resp.headers["Content-Type"] = "audio/mp4"
 
             proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
-            
+
             return proxy_resp
         except Exception as e:
             print(f"[Proxy-Dash] Error: {e}")
@@ -184,7 +199,7 @@ async def proxy_dash(media_type, qn):
         finally:
             if probe_resp:
                 await probe_resp.aclose()
-        
+
     except Exception as e:
         print(f"[Proxy] Error in proxy_dash probe: {e}")
         if probe_resp:
@@ -225,8 +240,8 @@ async def proxy_main(subpath):
             urls = json.loads(cached_data) if cached_data.startswith("[") else [cached_data]
         except Exception:
             urls = [cached_data]
-        
-        url = urls[0] # Primary for LiveManager compatibility
+
+        url = urls[0]  # Primary for LiveManager compatibility
 
         if not appconf["proxy"]["use_proxy"]:
             return Response("Forbidden: Proxying is disabled.", status=403)
@@ -302,6 +317,7 @@ async def proxy_main(subpath):
                 from bilibili_api import video as b_video
                 from extra import video_get_src_for_qn
                 from shared import appcred
+
                 vi = b_video.Video(bvid=vid, credential=get_current_cred())
                 fallback_res = await video_get_src_for_qn(vi, vidx, 16)
                 if fallback_res and "durl" in fallback_res:
@@ -309,7 +325,7 @@ async def proxy_main(subpath):
                     if urls:
                         url = urls[0]
                         await probe_resp.aclose()
-                        probe_resp = None # Clear to avoid double close in finally
+                        probe_resp = None  # Clear to avoid double close in finally
                         proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
                         probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
                         print(f"[Proxy] Fallback probe response: {url[:50]}... Status: {probe_resp.status_code}")
@@ -318,7 +334,7 @@ async def proxy_main(subpath):
 
             if request.args.get("dl") == "1" and not is_live:
                 # Ensure filename is safe (alphanumeric + underscores)
-                vid_val = vid if 'vid' in locals() else "video"
+                vid_val = vid if "vid" in locals() else "video"
                 safe_vid = "".join(c for c in vid_val if c.isalnum() or c == "_")
                 proxy_resp.headers["Content-Disposition"] = f'attachment; filename="miku_{safe_vid}_p{vidx}_{vqn}.mp4"'
 
@@ -346,7 +362,7 @@ async def proxy_main(subpath):
                         if is_live and k_lower in ["content-type", "connection"]:
                             continue
                         proxy_resp.headers[k] = v
-            
+
             return proxy_resp
         except Exception as e:
             print(f"[Proxy] Error in proxy_main probe: {e}")

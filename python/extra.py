@@ -312,19 +312,22 @@ mixinKeyEncTab = [
 
 import urllib.parse
 
+
 def get_mixin_key(orig):
     """Generate mixin key for WBI."""
     return "".join([orig[i] for i in mixinKeyEncTab])[:32]
+
 
 async def get_wbi_keys():
     """Fetch img_key and sub_key from Bilibili API, cached in Redis."""
     cached = await appredis.get("miku_wbi_keys")
     if cached:
         return json.loads(cached)
-    
+
     from shared import Network
+
     client = await Network.get_async_client()
-    
+
     # Manually fetch to ensure absolute control over resource closing
     url = "https://api.bilibili.com/x/web-interface/nav"
     headers = {"User-Agent": "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)"}
@@ -336,7 +339,7 @@ async def get_wbi_keys():
         sub_url = res["wbi_img"]["sub_url"]
         img_key = img_url.split("/")[-1].split(".")[0]
         sub_key = sub_url.split("/")[-1].split(".")[0]
-        
+
         keys = {"img_key": img_key, "sub_key": sub_key}
         await appredis.setex("miku_wbi_keys", 3600, json.dumps(keys))
         return keys
@@ -344,45 +347,37 @@ async def get_wbi_keys():
         if resp:
             await resp.aclose()
 
+
 async def sign_wbi(params):
     """Sign parameters with WBI (Aligned with yt-dlp)."""
     keys = await get_wbi_keys()
     mixin_key = get_mixin_key(keys["img_key"] + keys["sub_key"])
-    
+
     params["wts"] = round(time.time())
-    
+
     # Character filtering and sorting as per yt-dlp
-    filtered_params = {
-        k: "".join(filter(lambda char: char not in "!'()*", str(v)))
-        for k, v in sorted(params.items())
-    }
-    
+    filtered_params = {k: "".join(filter(lambda char: char not in "!'()*", str(v))) for k, v in sorted(params.items())}
+
     query = urllib.parse.urlencode(filtered_params)
     w_rid = hashlib.md5((query + mixin_key).encode()).hexdigest()
-    
+
     params["w_rid"] = w_rid
     print(f"[WBI] Signed query: {query} | w_rid: {w_rid}")
     return params
 
+
 async def video_get_src_for_qn(vi, idx, quality=16):
     """Get a specific available source for video."""
     cid = await vi.get_cid(idx)
-    params = {
-        "avid": vi.get_aid(),
-        "cid": cid,
-        "qn": quality,
-        "platform": "html5",
-        "high_quality": 1,
-        "try_look": 1
-    }
-    
+    params = {"avid": vi.get_aid(), "cid": cid, "qn": quality, "platform": "html5", "high_quality": 1, "try_look": 1}
+
     # Use WBI only if logged in, otherwise use plain playurl
     if vi.credential and vi.credential.sessdata:
         endpoint = "https://api.bilibili.com/x/player/wbi/playurl"
         params = await sign_wbi(params)
     else:
         endpoint = "https://api.bilibili.com/x/player/playurl"
-    
+
     api = Api(
         endpoint,
         "GET",
@@ -393,6 +388,7 @@ async def video_get_src_for_qn(vi, idx, quality=16):
     res = await api.request()
     print(f"[API] src response ({'WBI' if 'wbi' in endpoint else 'Plain'}) for {vi.get_aid()}: {str(res)[:200]}...")
     return res
+
 
 async def video_get_dash_for_qn(vi, idx):
     """Get a specific available source for video."""
@@ -411,7 +407,7 @@ async def video_get_dash_for_qn(vi, idx):
         params = await sign_wbi(params)
     else:
         endpoint = "https://api.bilibili.com/x/player/playurl"
-        
+
     api = Api(
         endpoint,
         "GET",

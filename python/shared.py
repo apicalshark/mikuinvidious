@@ -189,14 +189,15 @@ if appconf["credential"]["use_cred"]:
 def get_current_cred():
     """Retrieve credentials dynamically: User Session > Global Config."""
     from quart import session
-    
+
     # 1. Check if user has personal login in session
     user_creds = session.get("bili_creds")
     if user_creds:
         return Credential(**user_creds)
-    
+
     # 2. Fallback to global server-wide creds
     return appcred
+
 
 ##########################################
 # Util functions
