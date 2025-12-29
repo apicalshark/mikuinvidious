@@ -34,6 +34,19 @@ async def main():
     config.keep_alive_timeout = 10800
     config.response_timeout = None  # Infinite for streaming
 
+    # QUIC (HTTP/3) Support - Default OFF
+    import os
+    if os.environ.get("ENABLE_HTTP3", "false").lower() == "true":
+        cert = os.environ.get("SSL_CERT_PATH")
+        key = os.environ.get("SSL_KEY_PATH")
+        if cert and key and os.path.exists(cert) and os.path.exists(key):
+            config.quic_bind = ["0.0.0.0:8080"]
+            config.certfile = cert
+            config.keyfile = key
+            sys.stderr.write("[Init] QUIC (HTTP/3) enabled on port 8080\n")
+        else:
+            sys.stderr.write("[Init] QUIC enabled but SSL_CERT_PATH or SSL_KEY_PATH missing/invalid. Falling back to TCP.\n")
+
     sys.stderr.write(f"Starting MikuInvidious (ASGI) on {config.bind[0]}\n")
     sys.stderr.write(f"Hypercorn Config: Keep-Alive={config.keep_alive_timeout}, Response={config.response_timeout}\n")
     sys.stderr.flush()
