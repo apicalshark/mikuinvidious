@@ -76,6 +76,7 @@ services:
       - PRIMARY_LISTEN=listen 8000;
       - HTTP_REDIRECT=
       - HTTP3_ALT_SVC=
+      - HSTS_HEADER=
       - SSL_CONFIG=
       - SSL_CERT_PATH=/etc/nginx/ssl/cert.pem
       - SSL_KEY_PATH=/etc/nginx/ssl/key.pem
