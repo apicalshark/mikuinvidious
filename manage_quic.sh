@@ -38,9 +38,6 @@ case "$1" in
         sed -i 's|- SSL_CONFIG=.*|- SSL_CONFIG=|' "$COMPOSE_FILE"
         # Comment out the SSL volume mount
         sed -i 's|^      - ./ssl:/etc/nginx/ssl:ro|      # - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
-        
-        echo "[*] Restarting containers..."
-        docker-compose up -d
         echo "[!] Mode applied: HTTP (http://localhost:8000)"
         ;;
     
@@ -54,8 +51,6 @@ case "$1" in
         # Uncomment the SSL volume mount
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
         
-        echo "[*] Restarting containers..."
-        docker-compose up -d --build
         echo "[!] Mode applied: HTTP/3 Testing (https://localhost)"
         echo "[!] Note: Browser will show security warning due to self-signed cert."
         ;;
@@ -69,9 +64,6 @@ case "$1" in
         sed -i "s|- SSL_CONFIG=.*|- SSL_CONFIG=$SSL_CONF_VAL|" "$COMPOSE_FILE"
         # Uncomment the SSL volume mount
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
-        
-        echo "[*] Restarting containers..."
-        docker-compose up -d --build
         echo "[!] Mode applied: HTTP/3 Production (https://your-domain)"
         ;;
 

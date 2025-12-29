@@ -83,7 +83,7 @@ services:
       - ./nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
       - ./static:/usr/share/nginx/html/static:ro
       # Mount your SSL certificates here
-      - ./ssl:/etc/nginx/ssl:ro
+      # - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - app
 
