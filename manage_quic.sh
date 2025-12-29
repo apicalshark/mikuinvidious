@@ -31,40 +31,42 @@ SSL_CONF_VAL="ssl_certificate /etc/nginx/ssl/cert.pem; ssl_certificate_key /etc/
 
 case "$1" in
     "local")
-        echo "[-] Switching to Mode: LOCAL (HTTP Only)"
+        echo "[-] Configuring Mode: LOCAL (HTTP Only)"
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=false/' "$COMPOSE_FILE"
+        sed -i 's|- SITE_URL=.*|- SITE_URL=http://localhost:8000|' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=/' "$COMPOSE_FILE"
         sed -i 's|- SSL_CONFIG=.*|- SSL_CONFIG=|' "$COMPOSE_FILE"
         # Comment out the SSL volume mount
         sed -i 's|^      - ./ssl:/etc/nginx/ssl:ro|      # - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
-        echo "[!] Mode applied: HTTP (http://localhost:8000)"
+        echo "[!] Configuration updated to LOCAL. Please restart containers manually."
         ;;
     
     "testing")
-        echo "[+] Switching to Mode: TESTING (QUIC + Self-signed)"
+        echo "[+] Configuring Mode: TESTING (QUIC + Self-signed)"
         generate_self_signed
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
+        sed -i 's|- SITE_URL=.*|- SITE_URL=https://localhost|' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=\":443\"; ma=86400/' "$COMPOSE_FILE"
         sed -i "s|- SSL_CONFIG=.*|- SSL_CONFIG=$SSL_CONF_VAL|" "$COMPOSE_FILE"
         # Uncomment the SSL volume mount
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
-        
-        echo "[!] Mode applied: HTTP/3 Testing (https://localhost)"
-        echo "[!] Note: Browser will show security warning due to self-signed cert."
+        echo "[!] Configuration updated to TESTING. Please restart containers manually."
         ;;
 
     "production")
-        echo "[+] Switching to Mode: PRODUCTION (QUIC + Real Certs)"
+        echo "[+] Configuring Mode: PRODUCTION (QUIC + Real Certs)"
         echo "[*] Skipping certificate generation. Ensure real certs are in $SSL_DIR/"
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
+        # In production, user should set their domain manually, but we default to https
+        sed -i 's|- SITE_URL=.*|- SITE_URL=https://localhost|' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=\":443\"; ma=86400/' "$COMPOSE_FILE"
         sed -i "s|- SSL_CONFIG=.*|- SSL_CONFIG=$SSL_CONF_VAL|" "$COMPOSE_FILE"
         # Uncomment the SSL volume mount
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
-        echo "[!] Mode applied: HTTP/3 Production (https://your-domain)"
+        echo "[!] Configuration updated to PRODUCTION. Please restart containers manually."
         ;;
 
     *)
