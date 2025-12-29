@@ -29,7 +29,7 @@ from shared import Network, app, appconf, detect_theme, render_template_with_the
 async def set_hist_id(response):
     if not request.cookies.get("hist_id"):
         hist_id = os.urandom(8).hex()
-        response.set_cookie("hist_id", hist_id, max_age=3600 * 24 * 365, httponly=True)
+        response.set_cookie("hist_id", hist_id, max_age=3600 * 24 * 365, httponly=True, samesite="Lax")
     return response
 
 
@@ -50,7 +50,7 @@ async def toggle_theme_api():
 
     print(f"[Theme] Toggling from {old_val} to {new_val}")
     resp = await make_response("OK")
-    resp.set_cookie("dark-theme", new_val, path="/", max_age=3600 * 24 * 365)
+    resp.set_cookie("dark-theme", new_val, path="/", max_age=3600 * 24 * 365, httponly=True, samesite="Lax")
     return resp
 
 
@@ -66,7 +66,7 @@ async def toggle_opencc_api():
     from quart import jsonify
 
     resp = await make_response(jsonify({"status": "ok", "new_val": new_val}))
-    resp.set_cookie("opencc", new_val, path="/", max_age=3600 * 24 * 365)
+    resp.set_cookie("opencc", new_val, path="/", max_age=3600 * 24 * 365, httponly=True, samesite="Lax")
     return resp
 
 
@@ -82,7 +82,7 @@ async def toggle_search_opencc_api():
     from quart import jsonify
 
     resp = await make_response(jsonify({"status": "ok", "new_val": new_val}))
-    resp.set_cookie("search_opencc", new_val, path="/", max_age=3600 * 24 * 365)
+    resp.set_cookie("search_opencc", new_val, path="/", max_age=3600 * 24 * 365, httponly=True, samesite="Lax")
     return resp
 
 
