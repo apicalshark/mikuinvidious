@@ -120,8 +120,11 @@ class LiveStreamManager {
   jumpToLiveEdge() {
     if (this.video.buffered.length > 0) {
       const latest = this.video.buffered.end(this.video.buffered.length - 1);
-      console.log("[LiveManager] Short pause, jumping to buffer edge:", latest.toFixed(2));
-      this.video.currentTime = latest - 0.1;
+      // Jump to 2 seconds before the edge to ensure smooth playback
+      // but don't jump backwards if we are already ahead of that point
+      const target = Math.max(this.video.currentTime, latest - 2.0);
+      console.log("[LiveManager] Short pause, jumping to target:", target.toFixed(2), "(buffer edge:", latest.toFixed(2), ")");
+      this.video.currentTime = target;
     }
   }
 
