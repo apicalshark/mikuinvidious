@@ -15,7 +15,6 @@
 
 import asyncio
 import sys
-import os
 
 import app as app_module  # noqa: F401
 from hypercorn.asyncio import serve
