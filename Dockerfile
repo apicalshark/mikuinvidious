@@ -1,5 +1,10 @@
-FROM python:3.14.2-alpine
+FROM python:3.14.2-alpine AS base
+FROM base AS builder
+COPY requirements.txt /requirements.txt
+RUN pip install --user -r /requirements.txt
 
+FROM base
+COPY --from=builder /root/.local /root/.local
 WORKDIR /app
 
 # Copy requirements and install
