@@ -20,6 +20,8 @@ toggle_theme.addEventListener("click", function () {
 var toggle_opencc = document.getElementById("toggle_opencc");
 if (toggle_opencc) {
   toggle_opencc.addEventListener("click", function () {
+    toggle_opencc.disabled = true;
+    toggle_opencc.innerText = "...";
     helpers.xhr(
       "GET",
       "/toggle_opencc",
@@ -29,7 +31,33 @@ if (toggle_opencc) {
           location.reload();
         },
         onNon200: function () {
-          // Also reload on non-200 to show the error or just in case
+          location.reload();
+        },
+        onError: function () {
+          location.reload();
+        },
+      }
+    );
+  });
+}
+
+var toggle_search_opencc = document.getElementById("toggle_search_opencc");
+if (toggle_search_opencc) {
+  toggle_search_opencc.addEventListener("click", function () {
+    toggle_search_opencc.disabled = true;
+    toggle_search_opencc.innerText = "...";
+    helpers.xhr(
+      "GET",
+      "/toggle_search_opencc",
+      {},
+      {
+        on200: function () {
+          location.reload();
+        },
+        onNon200: function () {
+          location.reload();
+        },
+        onError: function () {
           location.reload();
         },
       }

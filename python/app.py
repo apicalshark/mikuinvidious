@@ -62,9 +62,27 @@ async def toggle_opencc_api():
     else:
         new_val = "1"
 
-    print(f"[OpenCC] Toggling from {old_val} to {new_val}")
-    resp = await make_response("OK")
+    print(f"[OpenCC] Toggling UI from {old_val} to {new_val}")
+    from quart import jsonify
+
+    resp = await make_response(jsonify({"status": "ok", "new_val": new_val}))
     resp.set_cookie("opencc", new_val, path="/", max_age=3600 * 24 * 365)
+    return resp
+
+
+@app.route("/toggle_search_opencc")
+async def toggle_search_opencc_api():
+    old_val = request.cookies.get("search_opencc")
+    if old_val == "1":
+        new_val = "0"
+    else:
+        new_val = "1"
+
+    print(f"[OpenCC] Toggling Search from {old_val} to {new_val}")
+    from quart import jsonify
+
+    resp = await make_response(jsonify({"status": "ok", "new_val": new_val}))
+    resp.set_cookie("search_opencc", new_val, path="/", max_age=3600 * 24 * 365)
     return resp
 
 

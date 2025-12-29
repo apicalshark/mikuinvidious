@@ -154,6 +154,7 @@ if appconf["credential"]["use_cred"]:
 ##########################################
 
 _cc_instance = None
+_cc_s_instance = None
 
 
 def get_cc():
@@ -161,6 +162,13 @@ def get_cc():
     if _cc_instance is None:
         _cc_instance = OpenCC("s2twp")
     return _cc_instance
+
+
+def get_cc_s():
+    global _cc_s_instance
+    if _cc_s_instance is None:
+        _cc_s_instance = OpenCC("t2s")
+    return _cc_s_instance
 
 
 def translate_text(text, enabled=None):
@@ -188,11 +196,13 @@ async def render_template_with_theme(fp, **kwargs):
 
     dark_theme = request.cookies.get("dark-theme") == "1"
     opencc_enabled = request.cookies.get("opencc") == "1"
+    search_opencc_enabled = request.cookies.get("search_opencc") == "1"
 
     return await render_template(
         f"themes/{t}/{fp}",
         dark_mode=dark_theme,
         opencc_enabled=opencc_enabled,
+        search_opencc_enabled=search_opencc_enabled,
         proxy_status=appconf["proxy"],
         **appconf["site"],
         **kwargs,

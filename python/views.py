@@ -16,6 +16,7 @@
 import asyncio
 import json
 import os
+import re
 import time
 
 import transformers
@@ -30,8 +31,8 @@ from extra import (
     video_get_dash_for_qn,
     video_get_src_for_qn,
 )
-from quart import Response, request
-from shared import Network, app, appconf, appcred, appredis, render_template_with_theme
+from quart import Response, redirect, request, url_for
+from shared import Network, app, appconf, appcred, appredis, get_cc_s, render_template_with_theme
 
 
 @app.route("/live/chat/<int:room_id>")
@@ -193,8 +194,35 @@ async def search_view():
     i = request.args.get("i") or 1
     if not q:
         return await render_template_with_theme(
-            "error.html", status="无法搜索", desc="没有发送搜索关键字。", sg="请设置搜索关键字后重試。"
+            "error.html", status="无法搜索", desc="没有发送搜索关键字。", sg="请設置搜索關鍵字後重試。"
         ), 400
+
+    # URL Jump logic
+
+    # 1. Video (BV/av)
+    m = re.search(r"(BV[a-zA-Z0-9]{10}|av\d+)", q, re.I)
+    if m:
+        return redirect(url_for("video_view", vid=m.group(0)))
+
+    # 2. Article (cv/opus)
+    m = re.search(r"(cv\d+|opus\d+)", q, re.I)
+    if m:
+        return redirect(url_for("read_view", cid=m.group(0)))
+
+    # 3. Live
+    m = re.search(r"live\.bilibili\.com/(\d+)", q)
+    if m:
+        return redirect(url_for("live_room_view", room_id=m.group(1)))
+
+    # 4. Space / Author
+    m = re.search(r"space\.bilibili\.com/(\d+)", q)
+    if m:
+        return redirect(url_for("space_view", mid=m.group(1)))
+
+    # OpenCC conversion for search query (convert to Simplified Chinese for better Bilibili search results)
+    if request.cookies.get("search_opencc") == "1":
+        q = get_cc_s().convert(q)
+
     order_map = {
         "rank": search.OrderVideo.TOTALRANK,
         "click": search.OrderVideo.CLICK,

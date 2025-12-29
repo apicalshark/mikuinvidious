@@ -18,6 +18,16 @@
                         {{ ('已开启' if opencc_enabled else '已关闭')|translate }}
                     </button>
                 </div>
+                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
+                    <div class="text-left">
+                        <div class="font-bold text-on-surface">{{ '搜尋自動轉簡體'|translate }}</div>
+                        <div class="text-sm text-on-surface-variant">{{ '搜尋時自動將關鍵字轉換為簡體中文以獲得更好的搜尋結果'|translate }}</div>
+                    </div>
+                    <button id="toggle_search_opencc"
+                            class="px-4 py-2 rounded-full {{ 'bg-primary text-on-primary' if search_opencc_enabled else 'bg-surface-variant text-on-surface-variant' }} font-medium transition-all active:scale-95">
+                        {{ ('已开启' if search_opencc_enabled else '已关闭')|translate }}
+                    </button>
+                </div>
             </div>
             <div class="pt-4 border-t border-surface-variant/30">
                 <a href="/"
