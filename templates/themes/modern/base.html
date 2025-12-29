@@ -212,35 +212,6 @@
             </footer>
         </div>
         <script src="/static/themes/modern/js/themes.js"></script>
-        <script>
-            // Creative Optimization: Hover Prefetch
-            (function() {
-                var warmupCache = {};
-                var timer = null;
-
-                document.body.addEventListener('mouseover', function(e) {
-                    var link = e.target.closest('a[href^="/video/BV"]');
-                    if (!link) return;
-
-                    var href = link.getAttribute('href');
-                    var vid = href.split('/video/')[1].split(':')[0].split('?')[0]; // Extract BVid
-
-                    if (warmupCache[vid]) return;
-
-                    timer = setTimeout(function() {
-                        warmupCache[vid] = true;
-                        fetch('/api/warmup/' + vid, {
-                            priority: 'low'
-                        }).catch(function() {});
-                        console.log('[Warmup] Triggered for ' + vid);
-                    }, 150); // 150ms hover threshold
-                });
-
-                document.body.addEventListener('mouseout', function() {
-                    if (timer) clearTimeout(timer);
-                });
-            })();
-        </script>
         {% block lowerbody %}{% endblock %}
     </body>
 </html>

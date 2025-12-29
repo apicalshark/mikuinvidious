@@ -126,42 +126,6 @@ async def live_chat_sse(room_id):
     )
 
 
-@app.route("/api/warmup/<vid>")
-async def api_warmup(vid):
-    # Fire-and-forget pre-fetch task
-    try:
-        vid = av2bv(vid[2:]) if vid.startswith("av") else vid
-        # Check cache first to avoid spamming
-        if not appredis.exists(f"miku_dash_{vid}_0"):
-            v = video.Video(bvid=vid, credential=appcred)
-
-            async def do_warmup():
-                try:
-                    data = await video_get_dash_for_qn(v, 0)
-                    if "dash" in data:
-                        appredis.setex(f"miku_dash_{vid}_0", 1800, json.dumps(data))
-                        # Also cache URLs   
-                        for mt in ["video", "audio"]:
-                            for item in data["dash"].get(mt, []):
-                                url = item.get("baseUrl") or item.get("base_url")
-                                if url:
-                                    appredis.setex(f"miku_dash_url_{mt}_{item['id']}", 1800, url)
-                        # Also cache default legacy URL
-                        support_formats = data.get("support_formats", [])
-                        if support_formats:
-                            # We can't easily get the durl without another request, but we have the dash urls.
-                            # Just caching dash metadata is a huge win.
-                            pass
-                except Exception:
-                    pass
-
-            asyncio.create_task(do_warmup())
-            return "Warming up", 202
-    except Exception:
-        pass
-    return "Cached or Invalid", 200
-
-
 @app.route("/licenses")
 async def static_licenses_view():
     return await render_template_with_theme("licenses.html")
