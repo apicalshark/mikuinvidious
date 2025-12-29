@@ -37,11 +37,8 @@ http {
     # Creative Optimization: Image Cache Zone
     proxy_cache_path /tmp/nginx_cache levels=1:2 keys_zone=miku_img_cache:50m max_size=1g inactive=7d use_temp_path=off;
 
-    # Optional HTTP to HTTPS Redirect
-    $HTTP_REDIRECT
-
     server {
-        # Primary listeners
+        # Listeners (Managed by manage_quic.sh)
         $PRIMARY_LISTEN
 
         server_name _;

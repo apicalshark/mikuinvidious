@@ -8,9 +8,9 @@ SSL_DIR="./ssl"
 
 show_usage() {
     echo "Usage: $0 [local|testing|production]"
-    echo "  local      - Pure HTTP only (Port 8000). No SSL/QUIC."
-    echo "  testing    - Enable QUIC (HTTP/3) + Self-signed certificates. Force HTTPS."
-    echo "  production - Enable QUIC (HTTP/3) + Real certificates. Force HTTPS."
+    echo "  local      - Port 8000 only (HTTP). No Port 443."
+    echo "  testing    - Port 443 only (QUIC + Self-signed). No Port 8000."
+    echo "  production - Port 443 only (QUIC + Real certs). No Port 8000."
     exit 1
 }
 
@@ -28,44 +28,42 @@ generate_self_signed() {
 }
 
 SSL_CONF_VAL="ssl_certificate /etc/nginx/ssl/cert.pem; ssl_certificate_key /etc/nginx/ssl/key.pem; ssl_protocols TLSv1.2 TLSv1.3; ssl_early_data on;"
-REDIRECT_VAL="server { listen 8000; return 301 https://$host$request_uri; }"
 
 case "$1" in
     "local")
-        echo "[-] Configuring Mode: LOCAL (HTTP Only)"
+        echo "[-] Configuring Mode: LOCAL (HTTP Only, Port 8000)"
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=false/' "$COMPOSE_FILE"
         sed -i 's|- SITE_URL=.*|- SITE_URL=http://localhost:8000|' "$COMPOSE_FILE"
         sed -i 's|- PRIMARY_LISTEN=.*|- PRIMARY_LISTEN=listen 8000;|' "$COMPOSE_FILE"
-        sed -i 's|- HTTP_REDIRECT=.*|- HTTP_REDIRECT=|' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=/' "$COMPOSE_FILE"
         sed -i 's|- SSL_CONFIG=.*|- SSL_CONFIG=|' "$COMPOSE_FILE"
         sed -i 's|^      - ./ssl:/etc/nginx/ssl:ro|      # - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
-        echo "[!] Configuration updated to LOCAL. Please restart containers manually."
+        echo "[!] Mode applied: Port 8000 only. Port 443 will be inactive."
         ;;
     
     "testing")
-        echo "[+] Configuring Mode: TESTING (QUIC + Self-signed)"
+        echo "[+] Configuring Mode: TESTING (HTTPS/QUIC Only, Port 443)"
         generate_self_signed
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
         sed -i 's|- SITE_URL=.*|- SITE_URL=https://localhost|' "$COMPOSE_FILE"
+        # Only listen on 443
         sed -i 's|- PRIMARY_LISTEN=.*|- PRIMARY_LISTEN=listen 443 quic reuseport; listen 443 ssl;|' "$COMPOSE_FILE"
-        sed -i "s|- HTTP_REDIRECT=.*|- HTTP_REDIRECT=$REDIRECT_VAL|" "$COMPOSE_FILE"
-        sed -i 's|- HTTP3_ALT_SVC=.*|- HTTP3_ALT_SVC=h3=\":443\"; ma=86400|' "$COMPOSE_FILE"
+        sed -i 's|- HTTP3_ALT_SVC=.*|- HTTP3_ALT_SVC=h3=":443"; ma=86400|' "$COMPOSE_FILE"
         sed -i "s|- SSL_CONFIG=.*|- SSL_CONFIG=$SSL_CONF_VAL|" "$COMPOSE_FILE"
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
-        echo "[!] Configuration updated to TESTING. Please restart containers manually."
+        echo "[!] Mode applied: Port 443 only. Port 8000 will be inactive."
         ;;
 
     "production")
-        echo "[+] Configuring Mode: PRODUCTION (QUIC + Real Certs)"
+        echo "[+] Configuring Mode: PRODUCTION (HTTPS/QUIC Only, Port 443)"
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
         sed -i 's|- SITE_URL=.*|- SITE_URL=https://localhost|' "$COMPOSE_FILE"
+        # Only listen on 443
         sed -i 's|- PRIMARY_LISTEN=.*|- PRIMARY_LISTEN=listen 443 quic reuseport; listen 443 ssl;|' "$COMPOSE_FILE"
-        sed -i "s|- HTTP_REDIRECT=.*|- HTTP_REDIRECT=$REDIRECT_VAL|" "$COMPOSE_FILE"
-        sed -i 's|- HTTP3_ALT_SVC=.*|- HTTP3_ALT_SVC=h3=\":443\"; ma=86400|' "$COMPOSE_FILE"
+        sed -i 's|- HTTP3_ALT_SVC=.*|- HTTP3_ALT_SVC=h3=":443"; ma=86400|' "$COMPOSE_FILE"
         sed -i "s|- SSL_CONFIG=.*|- SSL_CONFIG=$SSL_CONF_VAL|" "$COMPOSE_FILE"
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
-        echo "[!] Configuration updated to PRODUCTION. Please restart containers manually."
+        echo "[!] Mode applied: Port 443 only. Port 8000 will be inactive."
         ;;
 
     *)
