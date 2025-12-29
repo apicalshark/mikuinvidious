@@ -32,7 +32,7 @@ from extra import (
     video_get_src_for_qn,
 )
 from quart import Response, redirect, request, url_for
-from shared import Network, app, appconf, appcred, appredis, get_cc_s, render_template_with_theme
+from shared import Network, app, appconf, appcred, appredis, render_template_with_theme
 
 
 @app.route("/live/chat/<int:room_id>")
@@ -186,10 +186,6 @@ async def search_view():
     if m:
         return redirect(url_for("space_view", mid=m.group(1)))
 
-    # OpenCC conversion for search query (convert to Simplified Chinese for better Bilibili search results)
-    if request.cookies.get("search_opencc") == "1":
-        q = get_cc_s().convert(q)
-
     order_map = {
         "rank": search.OrderVideo.TOTALRANK,
         "click": search.OrderVideo.CLICK,
@@ -275,7 +271,10 @@ async def read_view(cid):
                 suggest="這很可能說明您訪問的文章不存在，請檢查您的請求。" if req.status_code == 404 else None,
             ), req.status_code
 
-        if appconf["render"]["use_pandoc"] and request.args.get("format") in appconf["render"]["article_allowed_formats"]:
+        if (
+            appconf["render"]["use_pandoc"]
+            and request.args.get("format") in appconf["render"]["article_allowed_formats"]
+        ):
             return await article_to_any(req.text, request.args.get("format"))
         else:
             cvid = cid.replace("cv", "").replace("opus", "")
@@ -293,7 +292,9 @@ async def read_view(cid):
                                 arinfo["stats"]["favorite"] = stat.get("favorite", {}).get(
                                     "count", arinfo["stats"]["favorite"]
                                 )
-                                arinfo["stats"]["share"] = stat.get("forward", {}).get("count", arinfo["stats"]["share"])
+                                arinfo["stats"]["share"] = stat.get("forward", {}).get(
+                                    "count", arinfo["stats"]["share"]
+                                )
                     else:
                         ar = article.Article(int(cvid))
                         api_info = await ar.get_info()

@@ -258,7 +258,9 @@ class LiveStream:
                     pass
             except Exception:
                 pass
-            print(f"[LiveManager] Client disconnected: {client_id} (Reason: {reason}). Total clients: {len(self.clients)}")
+            print(
+                f"[LiveManager] Client disconnected: {client_id} (Reason: {reason}). Total clients: {len(self.clients)}"
+            )
         self.last_active = time.time()
 
 

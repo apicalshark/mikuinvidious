@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import os
 
 import httpx
@@ -6,7 +7,6 @@ import redis
 import toml
 from bilibili_api import Credential
 from bilibili_api.utils.network import request_settings
-from opencc import OpenCC
 from quart import Quart, render_template, request
 from quart_session import Session
 
@@ -138,9 +138,9 @@ async def close_global_client():
         print("[Shutdown] Global async client closed.")
 
 
-import functools
-
 # Maintain a simple Redis-based cache for views
+
+
 class SimpleCache:
     def cached(self, timeout=300, key_prefix="view/%s"):
         def decorator(f):
@@ -149,7 +149,7 @@ class SimpleCache:
                 # Avoid caching during POST or when arguments exist in some cases
                 # But for simplicity, we use the full path as the key
                 cache_key = key_prefix % request.full_path
-                
+
                 # Check if we have a cached version
                 cached_val = appredis.get(cache_key)
                 if cached_val:
@@ -157,11 +157,11 @@ class SimpleCache:
 
                 # Otherwise, call the function and cache the result
                 response = await f(*args, **kwargs)
-                
+
                 # Only cache if it's a successful string response (rendered template)
                 if isinstance(response, str):
                     appredis.setex(cache_key, timeout, response)
-                
+
                 return response
 
             return decorated_function
@@ -187,36 +187,6 @@ if appconf["credential"]["use_cred"]:
 # Util functions
 ##########################################
 
-_cc_instance = None
-_cc_s_instance = None
-
-
-def get_cc():
-    global _cc_instance
-    if _cc_instance is None:
-        _cc_instance = OpenCC("s2twp")
-    return _cc_instance
-
-
-def get_cc_s():
-    global _cc_s_instance
-    if _cc_s_instance is None:
-        _cc_s_instance = OpenCC("t2s")
-    return _cc_s_instance
-
-
-def translate_text(text, enabled=None):
-    """Translate text using OpenCC if enabled by the user."""
-    if not text or not isinstance(text, str):
-        return text
-
-    # Check if OpenCC is enabled (explicitly passed or via cookie)
-    is_enabled = enabled if enabled is not None else (request.cookies.get("opencc") == "1")
-
-    if is_enabled:
-        return get_cc().convert(text)
-    return text
-
 
 def detect_theme():
     """Determine the theme of the users' request."""
@@ -229,14 +199,10 @@ async def render_template_with_theme(fp, **kwargs):
     t = detect_theme()
 
     dark_theme = request.cookies.get("dark-theme") == "1"
-    opencc_enabled = request.cookies.get("opencc") == "1"
-    search_opencc_enabled = request.cookies.get("search_opencc") == "1"
 
     return await render_template(
         f"themes/{t}/{fp}",
         dark_mode=dark_theme,
-        opencc_enabled=opencc_enabled,
-        search_opencc_enabled=search_opencc_enabled,
         proxy_status=appconf["proxy"],
         **appconf["site"],
         **kwargs,

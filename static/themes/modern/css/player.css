@@ -51,7 +51,11 @@ media-controller[media-user-inactive] #danmaku-container {
 
 .danmaku-item {
   font-weight: 400;
-  text-shadow: -1px -1px #000, -1px 1px #000, 1px -1px #000, 1px 1px #000;
+  text-shadow:
+    -1px -1px #000,
+    -1px 1px #000,
+    1px -1px #000,
+    1px 1px #000;
   white-space: pre;
   user-select: none;
   color: #fff;
@@ -59,6 +63,12 @@ media-controller[media-user-inactive] #danmaku-container {
   font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
   line-height: 1.1;
   font-size: 25px;
+}
+
+@media (max-width: 768px) {
+  .danmaku-item {
+    font-size: 18px;
+  }
 }
 
 /* Standardized Custom Buttons to match native Media Chrome appearance */

@@ -28,10 +28,10 @@
     <meta name="referrer" content="never" />
     <link rel="stylesheet" href="/static/themes/modern/css/player.css" />
     <script>
-        current_vid = '{{ vid }}';
-        idx = {{ idx }};
-        total_pages = {{ vset | length }};
-        ato = {{ 'true' if ato else 'false' }};
+        window.current_vid = '{{ vid }}';
+        window.idx = {{ idx }};
+        window.total_pages = {{ vset | length }};
+        window.ato = {{ 'true' if ato else 'false' }};
     </script>
 {% endblock %}
 {% block content %}

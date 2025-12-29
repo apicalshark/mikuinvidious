@@ -48,6 +48,7 @@ class ProxyResponse(Response):
 
     def __init__(self, upstream_resp, *args, **kwargs):
         self.upstream_resp = upstream_resp
+
         # Create a generator that yields from the upstream response
         # and ensures it's closed when the generator is finished.
         async def response_generator():
@@ -97,7 +98,7 @@ async def proxy_dash(media_type, qn):
         resp = await client.send(proxy_request, stream=True, follow_redirects=True)
 
         proxy_resp = ProxyResponse(resp, status=resp.status_code)
-        
+
         # Ensure cleanup if response is not started
         try:
             proxy_resp.call_on_close(resp.aclose)
@@ -228,7 +229,7 @@ async def proxy_main(subpath):
             print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
 
             proxy_resp = ProxyResponse(resp, status=resp.status_code)
-            
+
             # Ensure cleanup if response is not started
             try:
                 proxy_resp.call_on_close(resp.aclose)

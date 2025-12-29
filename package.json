@@ -34,6 +34,7 @@
     "hls-video-element": "^1.5.10",
     "hls.js": "^1.6.15",
     "media-chrome": "^4.17.2",
-    "mpegts.js": "^1.8.0"
+    "mpegts.js": "^1.8.0",
+    "opencc-js": "^1.0.5"
   }
 }

@@ -6,3 +6,5 @@ static/vjs
 *.min.js
 *.min.css
 package-lock.json
+templates/
+*.html

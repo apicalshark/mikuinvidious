@@ -19,7 +19,7 @@ class LiveStreamManager {
     this.destroyed = false;
 
     // CONFIGURATION CONSTANTS
-    this.MAX_LATENCY_THRESHOLD = 8.0; 
+    this.MAX_LATENCY_THRESHOLD = 8.0;
     this.NORMAL_SPEED = 1.0;
 
     // UNIQUE CLIENT ID FOR DISCONNECT PINGS
@@ -123,7 +123,13 @@ class LiveStreamManager {
       // Jump to 2 seconds before the edge to ensure smooth playback
       // but don't jump backwards if we are already ahead of that point
       const target = Math.max(this.video.currentTime, latest - 2.0);
-      console.log("[LiveManager] Short pause, jumping to target:", target.toFixed(2), "(buffer edge:", latest.toFixed(2), ")");
+      console.log(
+        "[LiveManager] Short pause, jumping to target:",
+        target.toFixed(2),
+        "(buffer edge:",
+        latest.toFixed(2),
+        ")"
+      );
       this.video.currentTime = target;
     }
   }
@@ -320,7 +326,7 @@ async function initMikuPlayer() {
   if (window.is_live) {
     setupLivePlayer(video, qualityList, label);
   } else if (window.has_dash && Hls.isSupported()) {
-    const m3u8Url = `/video/m3u8/${current_vid}/${idx}/master.m3u8`;
+    const m3u8Url = `/video/m3u8/${window.current_vid}/${window.idx}/master.m3u8`;
     console.log("[Player] Initializing VOD with HLS (DASH-wrapped):", m3u8Url);
 
     const hls = new Hls({
@@ -432,35 +438,14 @@ function initDanmaku(video, container, controller) {
       const rect = controller.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
 
-      const vw = video.videoWidth;
-      const vh = video.videoHeight;
-
-      if (!vw || !vh) {
-        Object.assign(container.style, { width: "100%", height: "100%", left: "0", top: "0" });
-      } else {
-        const videoRatio = vw / vh;
-        const playerRatio = rect.width / rect.height;
-
-        let dw, dh, left, top;
-        if (playerRatio > videoRatio) {
-          dh = rect.height;
-          dw = dh * videoRatio;
-          top = 0;
-          left = (rect.width - dw) / 2;
-        } else {
-          dw = rect.width;
-          dh = dw / videoRatio;
-          left = 0;
-          top = (rect.height - dh) / 2;
-        }
-
-        Object.assign(container.style, {
-          width: dw + "px",
-          height: dh + "px",
-          left: left + "px",
-          top: top + "px",
-        });
-      }
+      // UNIVERSAL FIX: Always use 100% of the player container.
+      // This allows danmaku to flow over black bars for ANY aspect ratio (4:3, 16:9, 21:9, vertical, etc.)
+      Object.assign(container.style, {
+        width: "100%",
+        height: "100%",
+        left: "0",
+        top: "0",
+      });
 
       window.dm.resize();
     };
@@ -486,7 +471,7 @@ function initDanmaku(video, container, controller) {
   if (window.is_live) {
     startDanmaku([]);
   } else {
-    fetch("/res/danmaku/" + current_vid + ":" + idx).then((r) =>
+    fetch("/res/danmaku/" + window.current_vid + ":" + window.idx).then((r) =>
       r.json().then((ds) => {
         startDanmaku(ds);
       })
@@ -501,8 +486,8 @@ function setupLivePlayer(video, list, label) {
   // Get the first supported source to check format
   const firstSrc = window.supported_src && window.supported_src[0];
   const liveUrl = firstSrc
-    ? `/proxy/live/${current_vid}_${firstSrc.quality}`
-    : `/proxy/live/${current_vid}`;
+    ? `/proxy/live/${window.current_vid}_${firstSrc.quality}`
+    : `/proxy/live/${window.current_vid}`;
   const isHls = firstSrc && firstSrc.url && firstSrc.url.includes(".m3u8");
 
   // Clean up any existing players
@@ -635,7 +620,7 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
         src.new_description,
         src.quality,
         () => {
-          const newUrl = `/proxy/live/${current_vid}_${src.quality}`;
+          const newUrl = `/proxy/live/${window.current_vid}_${src.quality}`;
           label.innerText = src.new_description;
 
           if (window.liveManager) {
@@ -685,7 +670,7 @@ function setupVodQuality(video, list, label) {
       () => {
         const time = video.currentTime,
           paused = video.paused;
-        const newUrl = `/proxy/video/${current_vid}_${idx}_${src.quality}`;
+        const newUrl = `/proxy/video/${window.current_vid}_${window.idx}_${src.quality}`;
 
         if (window.vodManager) {
           window.vodManager.destroy();
@@ -744,12 +729,14 @@ function toggleDanmaku() {
 
 function setupAutoNext(video) {
   video.addEventListener("ended", function () {
-    if (document.getElementById("continue")?.checked && ++idx < total_pages) {
-      window.location.href = `/video/${current_vid}:${idx}?ato=1`;
+    if (document.getElementById("continue")?.checked && ++window.idx < window.total_pages) {
+      window.location.href = `/video/${window.current_vid}:${window.idx}?ato=1`;
     }
   });
 }
 
+window.initMikuPlayer = initMikuPlayer;
+window.toggleDanmaku = toggleDanmaku;
 document.addEventListener("DOMContentLoaded", initMikuPlayer);
 
 /* @license-end */

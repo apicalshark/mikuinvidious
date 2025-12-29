@@ -15,16 +15,7 @@
 
 from datetime import datetime, timedelta
 
-from jinja2 import pass_context
-from shared import app, translate_text
-
-
-# Translate text using OpenCC
-@app.template_filter("translate")
-@pass_context
-def _jinja2_filter_translate(context, text):
-    enabled = context.get("opencc_enabled")
-    return translate_text(text, enabled=enabled)
+from shared import app
 
 
 # Convert a timestamp to a humand readable date format.

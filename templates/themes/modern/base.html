@@ -1,6 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ 'zh-Hant' if opencc_enabled else 'zh-CN' }}"
-      class="{{ 'dark' if dark_mode else '' }}">
+<html lang="zh-CN" class="{{ 'dark' if dark_mode else '' }}">
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -109,6 +108,7 @@
         </style>
         <link rel="stylesheet" href="/static/themes/modern/css/ionicons.min.css" />
         <script src="/static/themes/modern/js/_helpers.js"></script>
+        <script src="/static/opencc-js/opencc.js"></script>
     </head>
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
         <span style="display:none" id="dark_mode_pref">{{ 'dark' if dark_mode else 'light' }}</span>
@@ -134,7 +134,7 @@
                                    autocapitalize="none"
                                    spellcheck="false"
                                    name="q"
-                                   placeholder="{{ '想要搜索点什么？'|translate }}"
+                                   placeholder="{{ '想要搜索点什么？' }}"
                                    class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface-variant text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
                                    {{ ('value=%s' % q)  if q else '' }} />
                         </div>
@@ -149,7 +149,7 @@
                         <i class="icon ion-ios-moon text-xl"></i>
                     </a>
                     <!-- Prefs -->
-                    <a title="{{ '偏好设置'|translate }}"
+                    <a title="{{ '偏好设置' }}"
                        href="/preferences"
                        class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
                         <i class="icon ion-ios-cog text-xl"></i>
@@ -168,45 +168,45 @@
                             <i class="icon ion-logo-github text-xl"></i>
                             {% if site_modified_source_code_url %}
                                 <a href="https://0xacab.org/johnxina/mikuinvidious"
-                                   class="hover:text-primary transition-colors font-medium">{{ '原始项目源代码'|translate }}</a> /
+                                   class="hover:text-primary transition-colors font-medium">{{ '原始项目源代码' }}</a> /
                                 <a href="{{ site_modified_source_code_url }}"
-                                   class="hover:text-primary transition-colors font-medium">{{ '修改后的源代码'|translate }}</a>
+                                   class="hover:text-primary transition-colors font-medium">{{ '修改后的源代码' }}</a>
                             {% else %}
                                 <a href="https://0xacab.org/johnxina/mikuinvidious"
-                                   class="hover:text-primary transition-colors font-medium">{{ '源代码'|translate }}</a>
+                                   class="hover:text-primary transition-colors font-medium">{{ '源代码' }}</a>
                             {% endif %}
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-paper text-xl"></i>
                             <a href="https://mi.resrv.org/"
-                               class="hover:text-primary transition-colors font-medium">{{ '文档'|translate }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ '文档' }}</a>
                         </div>
                     </div>
                     <div class="flex flex-col gap-4">
                         <div>
                             <a href="https://0xacab.org/johnxina/mikuinvidious/-/blob/no-masters/LICENSE"
-                               class="hover:text-primary transition-colors font-medium">{{ '自豪地以 AGPLv3 释出'|translate }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ '自豪地以 AGPLv3 释出' }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-logo-javascript text-xl"></i>
                             <a rel="jslicense"
                                href="/licenses"
                                rel="jslicense"
-                               class="hover:text-primary transition-colors font-medium">{{ '查看 JavaScript 许可证'|translate }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ '查看 JavaScript 许可证' }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-paper text-xl"></i>
                             <a href="/privacy"
-                               class="hover:text-primary transition-colors font-medium">{{ '隐私条款'|translate }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ '隐私条款' }}</a>
                         </div>
                     </div>
                     <div class="flex flex-col gap-4">
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-wallet text-xl"></i>
                             <a href="https://mi.resrv.org/docs/donate"
-                               class="hover:text-primary transition-colors font-medium">{{ '赞助我们'|translate }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ '赞助我们' }}</a>
                         </div>
-                        <span class="opacity-70">{{ '版本信息当前不可用 :-('|translate }}</span>
+                        <span class="opacity-70">{{ '版本信息当前不可用 :-(' }}</span>
                     </div>
                 </div>
             </footer>

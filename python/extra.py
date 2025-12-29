@@ -22,7 +22,7 @@ import re
 from bilibili_api.exceptions import ArgsException
 from bilibili_api.utils.network import Api
 from bs4 import BeautifulSoup
-from shared import translate_text
+from shared import Network
 
 
 def get_article_info(article_text, cid):
@@ -196,7 +196,7 @@ def article_to_html(article_text):
                                 content_html += f'<pre><code class="language-{lang}">{content}</code></pre>'
 
                 if content_html:
-                    return translate_text(f'<div id="main-article">{content_html}</div>')
+                    return f'<div id="main-article">{content_html}</div>'
             except Exception as e:
                 print(f"Error parsing opus INITIAL_STATE: {e}")
                 pass
@@ -267,7 +267,7 @@ def article_to_html(article_text):
 
         child.attrs = new_attrs
 
-    return translate_text(str(article_body))
+    return str(article_body)
 
 
 """Convert the article to any file."""
@@ -343,10 +343,8 @@ def generate_vod_master_m3u8(vid, idx, dash_data):
         name = f"Audio {aid}"
         uri = f"/video/m3u8/{vid}/{idx}/audio_{aid}.m3u8"
         group_id = 'GROUP-ID="audio"'
-        default = f'DEFAULT={"YES" if i == 0 else "NO"}'
-        master_m3u8.append(
-            f'#EXT-X-MEDIA:TYPE=AUDIO,{group_id},NAME="{name}",AUTOSELECT=YES,{default},URI="{uri}"'
-        )
+        default = f"DEFAULT={'YES' if i == 0 else 'NO'}"
+        master_m3u8.append(f'#EXT-X-MEDIA:TYPE=AUDIO,{group_id},NAME="{name}",AUTOSELECT=YES,{default},URI="{uri}"')
 
     # Video Variants
     for video in dash_data["dash"].get("video", []):

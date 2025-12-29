@@ -1,11 +1,16 @@
 {% macro video_player(vid, vinfo, idx, supported_src, is_live=False) %}
+    {% set dim = vinfo.get('dimension') %}
+    {% set w = dim.get('width', 16) if dim else 16 %}
+    {% set h = dim.get('height', 9) if dim else 9 %}
+    {% set ratio = w / h %}
     <div id="player-wrapper"
-         class="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl">
+         class="relative w-full bg-black rounded-xl overflow-hidden shadow-2xl {{ 'max-h-[80vh]' if ratio < 1 else '' }} portrait:aspect-[4/3]"
+         style="aspect-ratio: {{ w }} / {{ h }};">
         {% if not supported_src and not is_live %}
-        <div class="absolute inset-0 flex flex-col items-center justify-center gap-4 z-50 bg-black">
-            <div class="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
-            <p class="text-white/50 text-sm tracking-widest uppercase">{{ '正在解析视频地址...'|translate }}</p>
-        </div>
+            <div class="absolute inset-0 flex flex-col items-center justify-center gap-4 z-50 bg-black">
+                <div class="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+                <p class="text-white/50 text-sm tracking-widest uppercase">{{ '正在解析视频地址...' }}</p>
+            </div>
         {% endif %}
         <media-controller id="miku-player" class="w-full h-full">
         {% if is_live %}
@@ -18,9 +23,7 @@
         {% else %}
             <video slot="media"
                    id="player"
-                   {% if supported_src %}
-                   src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}"
-                   {% endif %}
+                   {% if supported_src %}src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}"{% endif %}
                    poster="{{ vinfo['pic']|pic }}"
                    playsinline
                    crossorigin
@@ -33,7 +36,7 @@
         <!-- Quality Menu Layer - Direct child -->
         <div id="quality-menu"
              class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-right z-50 p-2 min-w-[140px] rounded-xl shadow-2xl border border-white/10 bg-[#181818] pointer-events-auto">
-            <div class="text-[10px] uppercase tracking-widest text-white/40 px-3 py-2 mb-1 font-bold">{{ '解析度'|translate }}</div>
+            <div class="text-[10px] uppercase tracking-widest text-white/40 px-3 py-2 mb-1 font-bold">{{ '解析度' }}</div>
             <div id="quality-list"
                  class="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar"></div>
         </div>
@@ -45,8 +48,8 @@
                     class="bg-primary/80 backdrop-blur-md text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 hover:scale-105 active:scale-95 transition-all">
                 <i class="icon ion-md-play text-xl"></i>
                 <div class="text-left">
-                    <p class="font-bold text-sm leading-relaxed">{{ '点击以开始播放'|translate }}</p>
-                    <p class="text-[10px] opacity-80 mt-1.5">{{ '浏览器已阻止自动播放'|translate }}</p>
+                    <p class="font-bold text-sm leading-relaxed">{{ '点击以开始播放' }}</p>
+                    <p class="text-[10px] opacity-80 mt-1.5">{{ '浏览器已阻止自动播放' }}</p>
                 </div>
             </button>
         </div>
@@ -59,7 +62,7 @@
             <!-- Live Indicator -->
             <div class="miku-control-btn gap-2 pointer-events-none flex-grow">
                 <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
-                <span class="text-[11px] font-bold uppercase tracking-wider text-[#FFB1DA]">{{ '直播'|translate }}</span>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-[#FFB1DA]">{{ '直播' }}</span>
             </div>
             <!-- <media-time-range class="pointer-events-none"></media-time-range> -->
         {% else %}
@@ -72,14 +75,10 @@
             <media-time-range></media-time-range>
         {% endif %}
         <!-- Custom buttons -->
-        <button id="danmaku-toggle"
-                title="{{ '切換彈幕'|translate }}"
-                class="miku-control-btn">
+        <button id="danmaku-toggle" title="{{ '切換彈幕' }}" class="miku-control-btn">
             <i class="icon ion-md-easel"></i>
         </button>
-        <button id="quality-btn"
-                title="{{ '切換解析度'|translate }}"
-                class="miku-control-btn px-2">
+        <button id="quality-btn" title="{{ '切換解析度' }}" class="miku-control-btn px-2">
             <span id="current-quality-label"
                   class="uppercase tracking-tight font-bold text-[11px]">自动</span>
         </button>
@@ -87,8 +86,6 @@
         <media-fullscreen-button></media-fullscreen-button>
         </media-control-bar>
         </media-controller>
-        <script>
-            window.supported_src = {{ supported_src | tojson if supported_src else '[]' }};
-        </script>
+        <script>window.supported_src = {{ supported_src | tojson if supported_src else '[]' }};</script>
     </div>
 {% endmacro %}
