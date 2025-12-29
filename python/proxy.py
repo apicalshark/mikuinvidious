@@ -9,36 +9,6 @@ from shared import Network, appconf, appredis, image_limiter
 proxy_bp = Blueprint("proxy", __name__)
 
 
-class ClosingIterator:
-    """
-    An async iterator wrapper that ensures a cleanup function is called
-    when the iterator is closed or finished.
-    """
-
-    def __init__(self, gen, cleanup_func):
-        self.gen = gen
-        self.cleanup_func = cleanup_func
-        self.closed = False
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        try:
-            return await self.gen.__anext__()
-        except StopAsyncIteration:
-            await self.close()
-            raise
-        except Exception:
-            await self.close()
-            raise
-
-    async def close(self):
-        if not self.closed:
-            self.closed = True
-            await self.cleanup_func()
-
-
 COMMON_HEADERS = {
     "referer": "https://www.bilibili.com",
     "user-agent": "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)",
@@ -54,15 +24,47 @@ async def render_proxy_pic(req_path):
             return Response("Forbidden", status=403)
 
         headers = COMMON_HEADERS.copy()
-        headers["host"] = domain
         url = f"https://{req_path}"
 
         client = await Network.get_async_client()
+        resp = None
         try:
-            resp = await client.get(url, headers=headers, follow_redirects=True)
+            req = client.build_request("GET", url, headers=headers)
+            resp = await client.send(req, follow_redirects=True)
             return Response(resp.content, status=resp.status_code, content_type=resp.headers.get("content-type"))
         except Exception as e:
+            print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
             return Response(str(e), status=502)
+        finally:
+            if resp:
+                await resp.aclose()
+
+
+class ProxyResponse(Response):
+    """
+    A specialized Response class that manages the lifetime of an upstream httpx response.
+    Ensures that aclose() is called when the response is finished or closed.
+    """
+
+    def __init__(self, upstream_resp, *args, **kwargs):
+        self.upstream_resp = upstream_resp
+        # Create a generator that yields from the upstream response
+        # and ensures it's closed when the generator is finished.
+        async def response_generator():
+            try:
+                async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
+                    yield chunk
+            finally:
+                await self.upstream_resp.aclose()
+                print(f"[Proxy] Upstream connection closed.")
+
+        super().__init__(response_generator(), *args, **kwargs)
+
+    async def aclose(self):
+        """Called by Quart when the response is finished or the client disconnects."""
+        await super().aclose()
+        if self.upstream_resp:
+            await self.upstream_resp.aclose()
 
 
 @proxy_bp.route("/proxy/dash/<media_type>/<int:qn>")
@@ -94,22 +96,15 @@ async def proxy_dash(media_type, qn):
         proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
         resp = await client.send(proxy_request, stream=True, follow_redirects=True)
 
-        async def generate():
-            try:
-                async for chunk in resp.aiter_bytes(chunk_size=1024 * 64):
-                    yield chunk
-            finally:
-                if resp:
-                    await resp.aclose()
-                    print(f"[Proxy] Stream closed: {url[:50]}...")
+        proxy_resp = ProxyResponse(resp, status=resp.status_code)
+        
+        # Ensure cleanup if response is not started
+        try:
+            proxy_resp.call_on_close(resp.aclose)
+        except AttributeError:
+            # Older versions of Quart might not have call_on_close
+            pass
 
-        async def cleanup():
-            # Safety fallback for ASGI server
-            if resp:
-                await resp.aclose()
-                print(f"[Proxy] Connection closed via iterator: {url[:50]}...")
-
-        proxy_resp = Response(ClosingIterator(generate(), cleanup), status=resp.status_code)
         for k, v in resp.headers.items():
             k_lower = k.lower()
             if k_lower in [
@@ -232,22 +227,13 @@ async def proxy_main(subpath):
             resp = await client.send(proxy_request, stream=True, follow_redirects=True)
             print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
 
-            async def generate():
-                try:
-                    async for chunk in resp.aiter_bytes(chunk_size=1024 * 64):
-                        yield chunk
-                finally:
-                    if resp:
-                        await resp.aclose()
-                        print(f"[Proxy] Stream closed: {url[:50]}...")
-
-            async def cleanup():
-                # Safety fallback for ASGI server
-                if resp:
-                    await resp.aclose()
-                    print(f"[Proxy] Connection closed via iterator: {url[:50]}...")
-
-            proxy_resp = Response(ClosingIterator(generate(), cleanup), status=resp.status_code)
+            proxy_resp = ProxyResponse(resp, status=resp.status_code)
+            
+            # Ensure cleanup if response is not started
+            try:
+                proxy_resp.call_on_close(resp.aclose)
+            except AttributeError:
+                pass
 
             if request.args.get("dl") == "1" and not is_live:
                 # Ensure filename is safe (alphanumeric + underscores)

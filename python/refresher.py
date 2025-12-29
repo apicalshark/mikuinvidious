@@ -36,11 +36,14 @@ def discard_generated_data(fn):
 
 
 def renew_cookies(cred):
-    if sync(cred.check_refresh()):
-        sync(cred.refresh())
-        write_cookies(cred)
-        print("Cookies refreshed.")
-        return True
+    try:
+        if sync(cred.check_refresh()):
+            sync(cred.refresh())
+            write_cookies(cred)
+            print("Cookies refreshed.")
+            return True
+    except Exception as e:
+        print(f"Error refreshing cookies: {e}")
     return False
 
 

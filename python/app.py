@@ -94,38 +94,49 @@ async def toggle_search_opencc_api():
 @app.route("/<b32tvid>")
 async def b32tv_redirect(b32tvid):
     client = await Network.get_async_client()
+    req = None
     try:
-        req = await client.get(f"https://b23.tv/{b32tvid}", follow_redirects=False)
+        _req = client.build_request("GET", f"https://b23.tv/{b32tvid}")
+        req = await client.send(_req, follow_redirects=False)
+        if req.status_code != 302:
+            try:
+                e = req.json()
+                msg = e.get("message", "Unknown error")
+                code = e.get("code", req.status_code)
+            except Exception:
+                msg = "未找到页面" if req.status_code == 404 else "未知错误"
+                code = req.status_code
+
+            return await render_template_with_theme(
+                "error.html",
+                status=msg,
+                desc="您请求的资源不存在。" if code == 404 else msg,
+                suggest="请檢查您的請求並重試。",
+            ), abs(code)
+
+        location = req.headers.get("Location")
+        if not location:
+            return await render_template_with_theme(
+                "error.html", status="解析錯誤", desc="無法獲取重定向地址。", suggest="請檢查網址是否正確。"
+            ), 500
+
+        url = urlparse(location)
+        if url.path.startswith("/read/mobile"):
+            return redirect(url_for("read_view", cid=f"cv{url.path[13:]}"))
+        elif url.path.startswith("/video/"):
+            return redirect(url_for("video_view", vid=location.split("/")[-1][:12]))
+        elif "/audio/au" in url.path:
+            return redirect(url_for("audio_view", auid="au" + url.path.split("/audio/au")[-1].split("?")[0]))
+        elif "/audio/am" in url.path:
+            return redirect(url_for("audio_list_view", amid="am" + url.path.split("/audio/am")[-1].split("?")[0]))
     except Exception as e:
+        print(f"[Redirect] Error redirecting b23.tv/{b32tvid}: {e}")
         return await render_template_with_theme(
             "error.html", status="网络错误", desc=str(e), suggest="請檢查您的網絡連接或代理設置。"
         ), 500
-
-    if req.status_code != 302:
-        try:
-            e = req.json()
-            msg = e.get("message", "Unknown error")
-            code = e.get("code", req.status_code)
-        except Exception:
-            msg = "未找到页面" if req.status_code == 404 else "未知错误"
-            code = req.status_code
-
-        return await render_template_with_theme(
-            "error.html",
-            status=msg,
-            desc="您请求的资源不存在。" if code == 404 else msg,
-            suggest="请检查您的请求并重试。",
-        ), abs(code)
-
-    url = urlparse(req.headers["Location"])
-    if url.path.startswith("/read/mobile"):
-        return redirect(url_for("read_view", cid=f"cv{url.path[13:]}"))
-    elif url.path.startswith("/video/"):
-        return redirect(url_for("video_view", vid=req.headers["Location"].split("/")[-1][:12]))
-    elif "/audio/au" in url.path:
-        return redirect(url_for("audio_view", auid="au" + url.path.split("/audio/au")[-1].split("?")[0]))
-    elif "/audio/am" in url.path:
-        return redirect(url_for("audio_list_view", amid="am" + url.path.split("/audio/am")[-1].split("?")[0]))
+    finally:
+        if req:
+            await req.aclose()
 
 
 @app.route("/download", methods=["POST"])

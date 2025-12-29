@@ -292,65 +292,68 @@ async def read_view(cid):
         else f"https://www.bilibili.com/read/{cid}"
     )
     client = await Network.get_async_client()
+    req = None
     try:
         ua = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.62"
         )
-        req = await client.get(
-            url,
-            headers={"User-Agent": ua},
-            follow_redirects=True,
-        )
+        _req = client.build_request("GET", url, headers={"User-Agent": ua})
+        req = await client.send(_req, follow_redirects=True)
+        if req.status_code != 200:
+            return await render_template_with_theme(
+                "error.html",
+                status="沒有找到文章" if req.status_code == 404 else "服務器錯誤",
+                desc="后端服务器发送了无效的回复",
+                suggest="這很可能說明您訪問的文章不存在，請檢查您的請求。" if req.status_code == 404 else None,
+            ), req.status_code
+
+        if appconf["render"]["use_pandoc"] and request.args.get("format") in appconf["render"]["article_allowed_formats"]:
+            return await article_to_any(req.text, request.args.get("format"))
+        else:
+            cvid = cid.replace("cv", "").replace("opus", "")
+            try:
+                arinfo = get_article_info(req.text, cid)
+                try:
+                    if is_opus:
+                        o = opus.Opus(int(cvid))
+                        api_info = await o.get_info()
+                        for module in api_info.get("item", {}).get("modules", []):
+                            if module.get("module_stat"):
+                                stat = module["module_stat"]
+                                arinfo["stats"]["like"] = stat.get("like", {}).get("count", arinfo["stats"]["like"])
+                                arinfo["stats"]["coin"] = stat.get("coin", {}).get("count", arinfo["stats"]["coin"])
+                                arinfo["stats"]["favorite"] = stat.get("favorite", {}).get(
+                                    "count", arinfo["stats"]["favorite"]
+                                )
+                                arinfo["stats"]["share"] = stat.get("forward", {}).get("count", arinfo["stats"]["share"])
+                    else:
+                        ar = article.Article(int(cvid))
+                        api_info = await ar.get_info()
+                        if api_info.get("stats"):
+                            arinfo["stats"].update(api_info["stats"])
+                        if api_info.get("title") and not arinfo["title"]:
+                            arinfo["title"] = api_info["title"]
+                except Exception:
+                    pass
+                return await render_template_with_theme(
+                    "read.html", cid=cid, arinfo=arinfo, article_content=article_to_html(req.text), is_opus=is_opus
+                )
+            except Exception:
+                return await render_template_with_theme(
+                    "error.html",
+                    status="没有找到文章",
+                    desc="文章不存在或解析错误",
+                    sg="這很可能說明您訪問的文章不存在，請檢查您的請求。",
+                ), 404
     except Exception as e:
+        print(f"[Read] Error fetching article {url}: {e}")
         return await render_template_with_theme(
             "error.html", status="网络错误", desc=str(e), suggest="請檢查您的網絡連接或代理設置。"
         ), 500
-    if req.status_code != 200:
-        return await render_template_with_theme(
-            "error.html",
-            status="沒有找到文章" if req.status_code == 404 else "服務器錯誤",
-            desc="后端服务器发送了无效的回复",
-            suggest="這很可能說明您訪問的文章不存在，請檢查您的請求。" if req.status_code == 404 else None,
-        ), req.status_code
-    if appconf["render"]["use_pandoc"] and request.args.get("format") in appconf["render"]["article_allowed_formats"]:
-        return await article_to_any(req.text, request.args.get("format"))
-    else:
-        cvid = cid.replace("cv", "").replace("opus", "")
-        try:
-            arinfo = get_article_info(req.text, cid)
-            try:
-                if is_opus:
-                    o = opus.Opus(int(cvid))
-                    api_info = await o.get_info()
-                    for module in api_info.get("item", {}).get("modules", []):
-                        if module.get("module_stat"):
-                            stat = module["module_stat"]
-                            arinfo["stats"]["like"] = stat.get("like", {}).get("count", arinfo["stats"]["like"])
-                            arinfo["stats"]["coin"] = stat.get("coin", {}).get("count", arinfo["stats"]["coin"])
-                            arinfo["stats"]["favorite"] = stat.get("favorite", {}).get(
-                                "count", arinfo["stats"]["favorite"]
-                            )
-                            arinfo["stats"]["share"] = stat.get("forward", {}).get("count", arinfo["stats"]["share"])
-                else:
-                    ar = article.Article(int(cvid))
-                    api_info = await ar.get_info()
-                    if api_info.get("stats"):
-                        arinfo["stats"].update(api_info["stats"])
-                    if api_info.get("title") and not arinfo["title"]:
-                        arinfo["title"] = api_info["title"]
-            except Exception:
-                pass
-            return await render_template_with_theme(
-                "read.html", cid=cid, arinfo=arinfo, article_content=article_to_html(req.text), is_opus=is_opus
-            )
-        except Exception:
-            return await render_template_with_theme(
-                "error.html",
-                status="没有找到文章",
-                desc="文章不存在或解析错误",
-                sg="這很可能說明您訪問的文章不存在，請檢查您的請求。",
-            ), 404
+    finally:
+        if req:
+            await req.aclose()
 
 
 @app.route("/live")
