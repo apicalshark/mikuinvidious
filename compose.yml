@@ -36,7 +36,7 @@ services:
     environment:
       # Site Configuration
       - SITE_NAME=MikuInvidious
-      - SITE_URL=http://localhost:8000
+      - SITE_URL=https://localhost
       - QUART_SECRET_KEY=yoursecretkey12345
       
       # PROXY CONFIGURATION
@@ -60,7 +60,7 @@ services:
       
       # HTTP/3 (QUIC) CONFIGURATION (Default: OFF)
       # Enabled via Nginx environment variables below
-      - ENABLE_HTTP3=false
+      - ENABLE_HTTP3=true
 
   # --- 3. NGINX ---
   nginx:
@@ -73,7 +73,8 @@ services:
       - "443:443/udp"
     environment:
       # These variables control the template in nginx.conf.template
-      - HTTP3_LISTEN=
+      - PRIMARY_LISTEN=listen 8000;
+      - HTTP_REDIRECT=
       - HTTP3_ALT_SVC=
       - SSL_CONFIG=
       - SSL_CERT_PATH=/etc/nginx/ssl/cert.pem
@@ -83,7 +84,7 @@ services:
       - ./nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
       - ./static:/usr/share/nginx/html/static:ro
       # Mount your SSL certificates here
-      # - ./ssl:/etc/nginx/ssl:ro
+      - ./ssl:/etc/nginx/ssl:ro
     depends_on:
       - app
 

@@ -37,16 +37,16 @@ http {
     # Creative Optimization: Image Cache Zone
     proxy_cache_path /tmp/nginx_cache levels=1:2 keys_zone=miku_img_cache:50m max_size=1g inactive=7d use_temp_path=off;
 
+    # Optional HTTP to HTTPS Redirect
+    $HTTP_REDIRECT
+
     server {
-        # Standard HTTP/1.1 and HTTP/2
-        listen 8000;
-        
-        # HTTP/3 (QUIC) and HTTPS - Enabled via env var
-        $HTTP3_LISTEN
+        # Primary listeners
+        $PRIMARY_LISTEN
 
         server_name _;
 
-        # SSL Configuration - Only active when HTTP3_LISTEN is set
+        # SSL Configuration
         $SSL_CONFIG
 
         # Static files
