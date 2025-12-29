@@ -46,7 +46,10 @@ services:
       # Redis Configuration
       - REDIS_URL=redis://redis:6379
       - NO_PROXY=0
-      - SERVER_PORT=8000
+
+      # Check nginx.conf.template
+      - SERVER_PORT=8080
+
       - PYTHONUNBUFFERED=1
       # - HYPERCORN_RESPONSE_TIMEOUT=10800
       # - HYPERCORN_KEEP_ALIVE_TIMEOUT=10800

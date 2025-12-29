@@ -29,7 +29,7 @@ class Network:
                         proxy=cls.get_proxy(),
                         trust_env=False,
                         timeout=httpx.Timeout(None, connect=10.0),
-                        limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+                        limits=httpx.Limits(max_connections=500, max_keepalive_connections=100),
                         follow_redirects=True,
                     )
         return cls._async_client
@@ -37,7 +37,12 @@ class Network:
     @classmethod
     def get_sync_client(cls) -> httpx.Client:
         if cls._sync_client is None:
-            cls._sync_client = httpx.Client(proxy=cls.get_proxy(), trust_env=False, timeout=10.0)
+            cls._sync_client = httpx.Client(
+                proxy=cls.get_proxy(),
+                trust_env=False,
+                timeout=10.0,
+                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+            )
         return cls._sync_client
 
 
@@ -133,11 +138,33 @@ async def close_global_client():
         print("[Shutdown] Global async client closed.")
 
 
-# Use a mock or simple class for appcache
+import functools
+
+# Maintain a simple Redis-based cache for views
 class SimpleCache:
-    def cached(self, timeout=None, key_prefix="view/%s"):
+    def cached(self, timeout=300, key_prefix="view/%s"):
         def decorator(f):
-            return f  # No-op for now
+            @functools.wraps(f)
+            async def decorated_function(*args, **kwargs):
+                # Avoid caching during POST or when arguments exist in some cases
+                # But for simplicity, we use the full path as the key
+                cache_key = key_prefix % request.full_path
+                
+                # Check if we have a cached version
+                cached_val = appredis.get(cache_key)
+                if cached_val:
+                    return cached_val
+
+                # Otherwise, call the function and cache the result
+                response = await f(*args, **kwargs)
+                
+                # Only cache if it's a successful string response (rendered template)
+                if isinstance(response, str):
+                    appredis.setex(cache_key, timeout, response)
+                
+                return response
+
+            return decorated_function
 
         return decorator
 

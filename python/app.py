@@ -167,7 +167,7 @@ async def pref_view():
 async def test_view():
     theme = detect_theme()
     resp = await make_response(theme)
-    resp.set_cookie("theme", "default")
+    resp.set_cookie("theme", "default", httponly=True, samesite="Lax")
     return resp
 
 

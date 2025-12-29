@@ -19,7 +19,7 @@ import sys
 import app as app_module  # noqa: F401
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
-from shared import app, close_global_client
+from shared import app, appconf, close_global_client
 
 
 async def main():
@@ -27,8 +27,10 @@ async def main():
     app.after_serving(close_global_client)
 
     config = Config()
-    # Bind to 0.0.0.0 to allow cross-container communication
-    config.bind = ["0.0.0.0:8080"]
+    # Bind to configured host and port to allow cross-container communication
+    host = appconf["server"]["host"]
+    port = appconf["server"]["port"]
+    config.bind = [f"{host}:{port}"]
     config.accesslog = "-"
     config.errorlog = "-"
     config.keep_alive_timeout = 30
