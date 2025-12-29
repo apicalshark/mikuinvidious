@@ -15,6 +15,7 @@
 
 import asyncio
 import sys
+import os
 
 import app as app_module  # noqa: F401
 from hypercorn.asyncio import serve
@@ -35,7 +36,6 @@ async def main():
     config.response_timeout = None  # Infinite for streaming
 
     # QUIC (HTTP/3) Support - Default OFF
-    import os
     if os.environ.get("ENABLE_HTTP3", "false").lower() == "true":
         cert = os.environ.get("SSL_CERT_PATH")
         key = os.environ.get("SSL_KEY_PATH")

@@ -8,6 +8,7 @@ config.toml
 node_modules/
 .ruff_cache
 
+ssl/
 wgcf/
 warp_data/
 wgcf_data/
