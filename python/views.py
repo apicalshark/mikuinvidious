@@ -509,6 +509,7 @@ async def video_listen_view(vid, idx=0):
         vinfo=vinfo,
         vrelated=vrelated[:10],
         vcomments=vcomments,
+        vtags=vtags,
         keywords=",".join(x.get("tag_name", "") for x in vtags),
         ato=ato,
         idx=idx,
@@ -524,7 +525,7 @@ async def video_master_m3u8_view(vid, idx):
         dash_data = json.loads(dash_cache)
     else:
         try:
-            dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
+            dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=30.0)
             appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(dash_data))
         except Exception:
             return "Upstream Timeout", 504
@@ -543,7 +544,7 @@ async def video_media_m3u8_view(vid, idx, media_type, qn):
         dash_data = json.loads(dash_cache)
     else:
         try:
-            dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
+            dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=30.0)
             appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(dash_data))
         except Exception:
             return "Upstream Timeout", 504
@@ -582,7 +583,7 @@ async def api_component_player(vid, idx):
 
         async def fetch_dash_task():
             try:
-                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=4.0)
+                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
                 if "dash" in data:
                     appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(data))
                     for mt in ["video", "audio"]:
@@ -590,36 +591,46 @@ async def api_component_player(vid, idx):
                         if mt == "audio" and not tracks and "flac" in data["dash"]:
                             tracks = data["dash"]["flac"].get("audio", [])
                         for item in tracks:
-                            url = item.get("baseUrl") or item.get("base_url")
-                            if url:
-                                appredis.setex(f"miku_dash_url_{mt}_{item['id']}", 1800, url)
+                            urls = [item.get("baseUrl") or item.get("base_url")]
+                            if "backupUrl" in item and item["backupUrl"]:
+                                urls.extend(item["backupUrl"])
+                            elif "backup_url" in item and item["backup_url"]:
+                                urls.extend(item["backup_url"])
+                            
+                            urls = [u for u in urls if u]
+                            if urls:
+                                appredis.setex(f"miku_dash_url_{mt}_{item['id']}", 1800, json.dumps(urls))
                     return ("dash", data)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Debug] fetch_dash_task error for {vid}: {e}")
             return ("dash", None)
 
         async def fetch_fallback_task():
             try:
-                data = await asyncio.wait_for(video_get_src_for_qn(v, idx), timeout=4.0)
+                data = await asyncio.wait_for(video_get_src_for_qn(v, idx), timeout=10.0)
                 if data and "durl" in data:
-                    url = data["durl"][0]["url"]
+                    urls = [d["url"] for d in data["durl"] if d.get("url")]
                     qn = data.get("quality", 16)
-                    appredis.setex(f"mikuinv_{vid}_{idx}_{qn}", 1800, url)
-                    appredis.setex(f"mikuinv_{vid}_{idx}", 1800, url)
+                    if urls:
+                        val = json.dumps(urls)
+                        appredis.setex(f"mikuinv_{vid}_{idx}_{qn}", 1800, val)
+                        appredis.setex(f"mikuinv_{vid}_{idx}", 1800, val)
 
                     support_formats = data.get("support_formats", [])
                     if support_formats:
                         first_qn = support_formats[0]["quality"]
                         if first_qn != qn:
                             try:
-                                res_high = await asyncio.wait_for(video_get_src_for_qn(v, idx, first_qn), timeout=4.0)
+                                res_high = await asyncio.wait_for(video_get_src_for_qn(v, idx, first_qn), timeout=10.0)
                                 if "durl" in res_high:
-                                    appredis.setex(f"mikuinv_{vid}_{idx}_{first_qn}", 1800, res_high["durl"][0]["url"])
+                                    h_urls = [d["url"] for d in res_high["durl"] if d.get("url")]
+                                    if h_urls:
+                                        appredis.setex(f"mikuinv_{vid}_{idx}_{first_qn}", 1800, json.dumps(h_urls))
                             except Exception:
                                 pass
                     return ("fallback", data)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Debug] fetch_fallback_task error for {vid}: {e}")
             return ("fallback", None)
 
         t_dash = asyncio.create_task(fetch_dash_task())
@@ -760,6 +771,7 @@ async def video_view(vid, idx=0):
         vinfo=vinfo,
         vcomments=vcomments,
         vrelated=vrelated[:15],
+        vtags=vtags,
         keywords=",".join(x.get("tag_name", "") for x in vtags),
         supported_src=supported_src,
         ato=ato,

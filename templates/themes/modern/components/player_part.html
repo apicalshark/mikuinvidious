@@ -1,5 +1,5 @@
 {% from 'macros.html' import video_player %}
-{{ video_player(vid, vinfo, idx, supported_src, is_live) }}
+{{ video_player(vid, vinfo, idx, supported_src, is_live, has_dash) }}
 <script>
     window.has_dash = {{ 'true' if has_dash else 'false' }};
     // Re-trigger player init since this is loaded via AJAX

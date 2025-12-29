@@ -18,7 +18,9 @@ class Network:
 
     @staticmethod
     def get_proxy():
-        return os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") if appconf["proxy"]["use_proxy"] else None
+        if not appconf["proxy"]["use_proxy"]:
+            return None
+        return os.environ.get("SOCKS5_PROXY") or os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
 
     @classmethod
     async def get_async_client(cls) -> httpx.AsyncClient:
@@ -210,10 +212,9 @@ async def render_template_with_theme(fp, **kwargs):
 
 
 # --- GLOBAL PROXY CONFIGURATION FOR BILIBILI_API ---
-if appconf["proxy"]["use_proxy"]:
-    proxy_url = Network.get_proxy()
-    if proxy_url:
-        print(f"[Init] Setting global proxy for bilibili_api: {proxy_url}")
-        request_settings.set_proxy(proxy_url)
-    else:
-        print("[Init] Proxy enabled but HTTP_PROXY env var not set!")
+proxy_url = Network.get_proxy()
+if proxy_url:
+    print(f"[Init] Setting global proxy for bilibili_api: {proxy_url}")
+    request_settings.set_proxy(proxy_url)
+else:
+    print("[Init] No proxy configured. Using direct connection.")
