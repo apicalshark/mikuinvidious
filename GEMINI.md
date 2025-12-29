@@ -8,7 +8,7 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 - **Web Server:** [NGINX](https://nginx.org/) (Reverse proxy) + [Hypercorn](https://github.com/pgjones/hypercorn) (ASGI server)
 - **Database/Cache:** [Redis](https://redis.io/) (required for caching video URLs, session management, and credential storage)
 - **API Wrapper:** [bilibili-api-python](https://github.com/nemo2011/bilibili-api)
-- **Video Player:** Video.js with `mpegts.js` (for live streams and FLV support)
+- **Video Player:** `hls.js` with `mpegts.js` (for live streams and FLV support)
 - **Templating:** Jinja2 (with theme support)
 
 ## System Architecture
@@ -99,7 +99,7 @@ graph TD
 
 ### 2. UI/UX Focus
 *   **Modern Theme:** Built with Tailwind CSS, supporting both Light and Dark modes. Features a responsive, mobile-first design inspired by Material Design 3.
-*   **Playback Experience:** Uses `video.js` with `mpegts.js` for low-latency live streaming. Includes custom "Click to Play" recovery for autoplay-blocked browsers.
+*   **Playback Experience:** Uses `hls.js` with `mpegts.js` for low-latency live streaming. Includes custom "Click to Play" recovery for autoplay-blocked browsers.
 
 ### 3. Codebase Health & Observations
 *   **Streaming Reliability:** Employs `ProxyResponse` (OO design) and `ClosingIterator` to ensure upstream `httpx` connections are closed properly, even on client disconnect.
@@ -162,7 +162,7 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 ## Development Conventions
 - **License:** GNU GPL-3.0.
 - **Theming:** Templates in `templates/themes/`. Current active theme is `modern`.
-- **Static Assets:** `static/` contains `video.js`, `mpegts.js`, and `danmaku.js`.
+- **Static Assets:** `static/` contains `hls.js`, `mpegts.js`, and `danmaku.js`.
 - **Proxying Strategy:**
     - **Images:** Always proxied with WebP optimization.
     - **Videos:** Proxied if `use_proxy=true`. Uses `httpx` with `follow_redirects=True`.
