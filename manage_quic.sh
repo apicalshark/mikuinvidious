@@ -46,7 +46,7 @@ case "$1" in
         generate_self_signed
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;/' "$COMPOSE_FILE"
-        sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=":443"; ma=86400/' "$COMPOSE_FILE"
+        sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=\":443\"; ma=86400/' "$COMPOSE_FILE"
         sed -i "s|- SSL_CONFIG=.*|- SSL_CONFIG=$SSL_CONF_VAL|" "$COMPOSE_FILE"
         # Uncomment the SSL volume mount
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
@@ -60,7 +60,7 @@ case "$1" in
         echo "[*] Skipping certificate generation. Ensure real certs are in $SSL_DIR/"
         sed -i 's/- ENABLE_HTTP3=.*/- ENABLE_HTTP3=true/' "$COMPOSE_FILE"
         sed -i 's/- HTTP3_LISTEN=.*/- HTTP3_LISTEN=listen 443 quic reuseport; listen 443 ssl;/' "$COMPOSE_FILE"
-        sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=":443"; ma=86400/' "$COMPOSE_FILE"
+        sed -i 's/- HTTP3_ALT_SVC=.*/- HTTP3_ALT_SVC=h3=\":443\"; ma=86400/' "$COMPOSE_FILE"
         sed -i "s|- SSL_CONFIG=.*|- SSL_CONFIG=$SSL_CONF_VAL|" "$COMPOSE_FILE"
         # Uncomment the SSL volume mount
         sed -i 's|^      # - ./ssl:/etc/nginx/ssl:ro|      - ./ssl:/etc/nginx/ssl:ro|' "$COMPOSE_FILE"
