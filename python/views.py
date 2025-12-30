@@ -332,22 +332,37 @@ async def search_view():
     else:
         search_type, tmpl = search.SearchObjectType.VIDEO, "search.html"
 
+    try:
+        page_num = int(i)
+    except (ValueError, TypeError):
+        page_num = 1
+
     sinfo = await search.search_by_type(
-        q, page=i, search_type=search_type, order_type=order_map.get(request.args.get("sort"))
+        q, page=page_num, search_type=search_type, order_type=order_map.get(request.args.get("sort"))
     )
+    if not sinfo or not isinstance(sinfo, dict):
+        sinfo = {"numResults": 0, "numPages": 0, "page": page_num, "result": []}
+    else:
+        sinfo.setdefault("numResults", 0)
+        sinfo.setdefault("numPages", 0)
+        sinfo.setdefault("page", page_num)
+
     results = []
+    res_data = sinfo.get("result")
     if search_type == search.SearchObjectType.VIDEO:
-        for item in sinfo.get("result", []):
+        for item in (res_data or []):
             card = transformers.transform_video_card(item)
             if card:
                 results.append(card)
     elif search_type == search.SearchObjectType.LIVE:
-        for item in sinfo.get("result", {}).get("live_room", []):
+        # Bilibili may return result as "" or None when no results found
+        live_rooms = (res_data or {}).get("live_room") if isinstance(res_data, dict) else []
+        for item in (live_rooms or []):
             card = transformers.transform_live_card(item)
             if card:
                 results.append(card)
     else:
-        results = sinfo.get("result", [])
+        results = res_data or []
     return await render_template_with_theme(tmpl, q=q, sinfo=sinfo, rs=results, sort=request.args.get("sort"))
 
 
