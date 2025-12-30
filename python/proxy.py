@@ -82,15 +82,27 @@ class ProxyResponse(Response):
     A specialized Response class that manages upstream httpx response(s) with CDN fallback.
     """
 
-    def __init__(self, urls, headers, cookies, *args, **kwargs):
+    def __init__(self, urls, headers, cookies, initial_resp=None, *args, **kwargs):
         self.urls = urls if isinstance(urls, list) else [urls]
         self.client_headers = headers
         self.cookies = cookies
-        self.upstream_resp = None
-        self._current_url_index = 0
+        self.upstream_resp = initial_resp
+        # If we already have a response from a probe, start from its index
+        self._current_url_index = kwargs.pop("_initial_index", 0)
 
         async def response_generator():
             try:
+                # If we were given an initial response, yield it first
+                if self.upstream_resp:
+                    try:
+                        async for chunk in self.upstream_resp.aiter_bytes(chunk_size=8192):
+                            yield chunk
+                        return
+                    finally:
+                        await self.upstream_resp.aclose()
+                        self.upstream_resp = None
+                    self._current_url_index += 1
+
                 while self._current_url_index < len(self.urls):
                     url = self.urls[self._current_url_index]
                     client = await Network.get_async_client()
@@ -101,11 +113,10 @@ class ProxyResponse(Response):
                         )
                         self.upstream_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
 
-                        # If we get a valid streamable status, proceed
                         if self.upstream_resp.status_code < 400:
                             print(f"[Proxy] Success with CDN {self._current_url_index}: {url[:50]}...")
                             try:
-                                async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
+                                async for chunk in self.upstream_resp.aiter_bytes(chunk_size=8192):
                                     yield chunk
                                 return  # Finished successfully
                             finally:
@@ -126,7 +137,7 @@ class ProxyResponse(Response):
                     self._current_url_index += 1
                 print("[Proxy] All CDNs exhausted.")
             except (asyncio.CancelledError, GeneratorExit):
-                print("[Proxy] Generator cancelled/exit during streaming.")
+                # This is normal when client pauses or disconnects
                 raise
             finally:
                 if self.upstream_resp:
@@ -170,51 +181,51 @@ async def proxy_dash(media_type, qn):
     # Initial probe to get headers from the FIRST working CDN
     client = await Network.get_async_client()
     probe_resp = None
-    working_urls = urls
-
+    
     try:
-        # We need a response to get headers, but ProxyResponse handles the stream.
-        # So we do a quick stream=True call and then immediately wrap it or similar.
-        # To keep it simple and robust, let's just use the first URL for headers
-        # but in ProxyResponse we'll do the actual switching.
+        # Find first working CDN for headers/status
+        for i, url in enumerate(urls):
+            try:
+                proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
+                probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+                if probe_resp.status_code < 400:
+                    print(f"[Proxy-Dash] Found working CDN {i}: {url[:50]}... Status: {probe_resp.status_code}")
+                    
+                    # Create the response with the working probe_resp
+                    proxy_resp = ProxyResponse(urls, headers, cookie_jar, initial_resp=probe_resp, status=probe_resp.status_code, _initial_index=i)
 
-        proxy_request = client.build_request("GET", urls[0], headers=headers, cookies=cookie_jar)
-        probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-        print(f"[Proxy-Dash] Probe response: {urls[0][:50]}... Status: {probe_resp.status_code}")
+                    for k, v in probe_resp.headers.items():
+                        k_lower = k.lower()
+                        if k_lower in [
+                            "content-type",
+                            "content-length",
+                            "content-range",
+                            "accept-ranges",
+                            "etag",
+                            "last-modified",
+                        ]:
+                            proxy_resp.headers[k] = v
 
-        try:
-            proxy_resp = ProxyResponse(urls, headers, cookie_jar, status=probe_resp.status_code)
+                    if media_type == "video":
+                        proxy_resp.headers["Content-Type"] = "video/mp4"
+                    else:
+                        proxy_resp.headers["Content-Type"] = "audio/mp4"
 
-            if probe_resp.status_code < 400:
-                for k, v in probe_resp.headers.items():
-                    k_lower = k.lower()
-                    if k_lower in [
-                        "content-type",
-                        "content-length",
-                        "content-range",
-                        "accept-ranges",
-                        "etag",
-                        "last-modified",
-                    ]:
-                        proxy_resp.headers[k] = v
+                    proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+                    return proxy_resp
+                else:
+                    await probe_resp.aclose()
+                    probe_resp = None
+            except Exception as e:
+                print(f"[Proxy-Dash] CDN {i} probe failed: {e}")
+                if probe_resp:
+                    await probe_resp.aclose()
+                    probe_resp = None
 
-            if media_type == "video":
-                proxy_resp.headers["Content-Type"] = "video/mp4"
-            else:
-                proxy_resp.headers["Content-Type"] = "audio/mp4"
-
-            proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
-
-            return proxy_resp
-        except Exception as e:
-            print(f"[Proxy-Dash] Error: {e}")
-            raise
-        finally:
-            if probe_resp:
-                await probe_resp.aclose()
+        return Response("All CDNs failed", status=502)
 
     except Exception as e:
-        print(f"[Proxy] Error in proxy_dash probe: {e}")
+        print(f"[Proxy] Error in proxy_dash: {e}")
         if probe_resp:
             await probe_resp.aclose()
         return Response(str(e), status=502)
@@ -350,51 +361,64 @@ async def proxy_main(subpath):
         probe_resp = None
 
         try:
-            # Probe the first URL to get headers
-            proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-            probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-            print(f"[Proxy] Probe response: {url[:50]}... Status: {probe_resp.status_code}")
+            # Find first working CDN for headers/status
+            for i, cdn_url in enumerate(urls):
+                try:
+                    proxy_request = client.build_request("GET", cdn_url, headers=headers, cookies=cookie_jar)
+                    probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+                    if probe_resp.status_code < 400:
+                        print(f"[Proxy] Found working CDN {i}: {cdn_url[:50]}... Status: {probe_resp.status_code}")
+                        
+                        proxy_resp = ProxyResponse(urls, headers, cookie_jar, initial_resp=probe_resp, status=probe_resp.status_code, _initial_index=i)
 
-            proxy_resp = ProxyResponse(urls, headers, cookie_jar, status=probe_resp.status_code)
+                        if request.args.get("dl") == "1" and not is_live:
+                            vid_val = vid if "vid" in locals() else "video"
+                            safe_vid = "".join(c for c in vid_val if c.isalnum() or c == "_")
+                            proxy_resp.headers["Content-Disposition"] = f'attachment; filename="miku_{safe_vid}_p{vidx}_{vqn}.mp4"'
 
-            if request.args.get("dl") == "1" and not is_live:
-                # Ensure filename is safe (alphanumeric + underscores)
-                vid_val = vid if "vid" in locals() else "video"
-                safe_vid = "".join(c for c in vid_val if c.isalnum() or c == "_")
-                proxy_resp.headers["Content-Disposition"] = f'attachment; filename="miku_{safe_vid}_p{vidx}_{vqn}.mp4"'
+                        # Set appropriate content type and connection headers
+                        if is_live:
+                            proxy_resp.headers["Connection"] = "keep-alive"
+                            proxy_resp.headers["Keep-Alive"] = "timeout=86400"
+                            proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+                            if ".m3u8" in url:
+                                proxy_resp.headers["Content-Type"] = "application/x-mpegURL"
+                            else:
+                                proxy_resp.headers["Content-Type"] = "video/x-flv"
+                        else:
+                            proxy_resp.headers["Accept-Ranges"] = "bytes"
 
-            # Set appropriate content type and connection headers for live streams (Step 3)
-            if is_live:
-                proxy_resp.headers["Connection"] = "keep-alive"
-                proxy_resp.headers["Keep-Alive"] = "timeout=86400"
-                proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
-                if ".m3u8" in url:
-                    proxy_resp.headers["Content-Type"] = "application/x-mpegURL"
-                else:
-                    proxy_resp.headers["Content-Type"] = "video/x-flv"
+                        for k, v in probe_resp.headers.items():
+                            k_lower = k.lower()
+                            if k_lower in [
+                                "content-type",
+                                "content-length",
+                                "content-range",
+                                "accept-ranges",
+                                "etag",
+                                "last-modified",
+                            ]:
+                                if is_live and k_lower in ["content-type", "connection"]:
+                                    continue
+                                proxy_resp.headers[k] = v
 
-            if probe_resp.status_code < 400:
-                for k, v in probe_resp.headers.items():
-                    k_lower = k.lower()
-                    if k_lower in [
-                        "content-type",
-                        "content-length",
-                        "content-range",
-                        "accept-ranges",
-                        "etag",
-                        "last-modified",
-                    ]:
-                        if is_live and k_lower in ["content-type", "connection"]:
-                            continue
-                        proxy_resp.headers[k] = v
+                        return proxy_resp
+                    else:
+                        await probe_resp.aclose()
+                        probe_resp = None
+                except Exception as e:
+                    print(f"[Proxy] CDN {i} probe failed: {e}")
+                    if probe_resp:
+                        await probe_resp.aclose()
+                        probe_resp = None
 
-            return proxy_resp
+            return Response("All CDNs failed", status=502)
+
         except Exception as e:
-            print(f"[Proxy] Error in proxy_main probe: {e}")
-            return Response(str(e), status=502)
-        finally:
+            print(f"[Proxy] Error in proxy_main: {e}")
             if probe_resp:
                 await probe_resp.aclose()
+            return Response(str(e), status=502)
 
     elif req_path.startswith("/proxy/pic/"):
         return await render_proxy_pic(req_path)

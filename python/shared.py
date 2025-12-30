@@ -130,6 +130,7 @@ app = Quart("app", template_folder="../templates", static_folder="../static")
 app.config.from_mapping(appconf["quart"])
 app.config["RESPONSE_TIMEOUT"] = 86400
 app.config["BODY_TIMEOUT"] = 86400
+app.config["QUART_RESPONSE_STREAM"] = True
 app.secret_key = os.environ.get("QUART_SECRET_KEY", os.urandom(24).hex())
 
 # Configure sessions
