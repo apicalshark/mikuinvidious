@@ -56,7 +56,7 @@ class Network:
                         timeout=httpx.Timeout(None, connect=10.0),
                         limits=httpx.Limits(
                             max_connections=1000,
-                            max_keepalive_connections=10,  # Balance for multi-user
+                            max_keepalive_connections=0, # Disable keep-alive for streams
                             keepalive_expiry=5.0,
                         ),
                         follow_redirects=True,

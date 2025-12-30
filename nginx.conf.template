@@ -97,9 +97,9 @@ http {
             proxy_request_buffering off;
             proxy_no_cache $http_range;
             proxy_cache_bypass $http_range;
-            proxy_buffer_size 64k;
-            proxy_buffers 8 64k;
-            proxy_busy_buffers_size 128k;
+            proxy_buffer_size 32k;
+            proxy_buffers 8 32k;
+            proxy_busy_buffers_size 32k;
             proxy_socket_keepalive on;
             tcp_nodelay on;
             proxy_read_timeout 86400s;
