@@ -91,6 +91,10 @@ def adjust_range_header(headers, bytes_sent):
     try:
         prefix, rrange = range_val.split("=")
         parts = rrange.split("-")
+        # Handle suffix range like bytes=-1000 (resuming this is complex, skip for now)
+        if not parts[0]:
+            return headers
+            
         start = int(parts[0])
         end = parts[1] if len(parts) > 1 and parts[1] else ""
         headers["range"] = f"bytes={start + bytes_sent}-{end}"
@@ -132,7 +136,7 @@ class ProxyResponse(Response):
                         if self.upstream_resp.status_code < 400:
                             print(f"[Proxy] Success with CDN {self._current_url_index} (Sent: {bytes_sent} bytes)")
                             try:
-                                async for chunk in self.upstream_resp.aiter_bytes(chunk_size=8192):
+                                async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
                                     yield chunk
                                     bytes_sent += len(chunk)
                                 return  # Finished successfully
@@ -143,6 +147,7 @@ class ProxyResponse(Response):
                                 await self.upstream_resp.aclose()
                                 self.upstream_resp = None
                         else:
+                            print(f"[Proxy] CDN {self._current_url_index} returned {self.upstream_resp.status_code}")
                             await self.upstream_resp.aclose()
                             self.upstream_resp = None
                     except Exception as e:
@@ -168,6 +173,20 @@ class ProxyResponse(Response):
         await super().aclose()
 
 
+def get_proxy_cookies():
+    """Get cookies for proxying, prioritizing session credentials."""
+    cred = get_current_cred()
+    if not cred or not cred.sessdata:
+        return {}
+    return {
+        "SESSDATA": cred.sessdata,
+        "bili_jct": cred.bili_jct,
+        "buvid3": cred.buvid3,
+        "DedeUserID": cred.dedeuserid,
+        "DedeUserID__ckMd5": cred.ac_time_value,
+    }
+
+
 @proxy_bp.route("/proxy/dash/<media_type>/<int:qn>")
 async def proxy_dash(media_type, qn):
     cached_data = await appredis.get(f"miku_dash_url_{media_type}_{qn}")
@@ -180,9 +199,7 @@ async def proxy_dash(media_type, qn):
 
     if not appconf["proxy"]["use_proxy"]: return Response("Forbidden", status=403)
 
-    creds = appconf["credential"]
-    cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
-
+    cookie_jar = get_proxy_cookies()
     headers = COMMON_HEADERS.copy()
     for k, v in request.headers.items():
         if k.lower() in ["range", "if-range", "x-playback-session-id"]:
@@ -191,16 +208,34 @@ async def proxy_dash(media_type, qn):
     client = await Network.get_async_client()
     probe_resp = None
     try:
-        proxy_request = client.build_request("GET", urls[0], headers=headers, cookies=cookie_jar)
-        probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+        # Try to probe until one works
+        for url in urls:
+            try:
+                proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
+                probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+                if probe_resp.status_code < 400:
+                    break
+                await probe_resp.aclose()
+                probe_resp = None
+            except Exception:
+                continue
         
+        if not probe_resp:
+            return Response("All upstream CDNs failed", status=502)
+
         proxy_resp = ProxyResponse(urls, headers, cookie_jar, status=probe_resp.status_code)
-        if probe_resp.status_code < 400:
-            for k, v in probe_resp.headers.items():
-                if k.lower() in ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"]:
-                    proxy_resp.headers[k] = v
+        for k, v in probe_resp.headers.items():
+            if k.lower() in ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"]:
+                proxy_resp.headers[k] = v
         
+        # Force correct MIME type for fMP4
+        if media_type == "video":
+            proxy_resp.headers["Content-Type"] = "video/mp4"
+        else:
+            proxy_resp.headers["Content-Type"] = "audio/mp4"
+
         proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+        proxy_resp.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Range, Accept-Ranges"
         proxy_resp.headers["X-Accel-Buffering"] = "no"
         return proxy_resp
     except Exception as e:
@@ -234,8 +269,7 @@ async def proxy_main(subpath):
 
         if not appconf["proxy"]["use_proxy"]: return Response("Forbidden", status=403)
 
-        creds = appconf["credential"]
-        cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
+        cookie_jar = get_proxy_cookies()
         headers = COMMON_HEADERS.copy()
         for k, v in request.headers.items():
             if k.lower() in ["range", "if-range", "x-playback-session-id"]:
@@ -283,9 +317,21 @@ async def proxy_main(subpath):
         client = await Network.get_async_client()
         probe_resp = None
         try:
-            proxy_request = client.build_request("GET", urls[0], headers=headers, cookies=cookie_jar)
-            probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+            # Try to probe until one works
+            for url in urls:
+                try:
+                    proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
+                    probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+                    if probe_resp.status_code < 400:
+                        break
+                    await probe_resp.aclose()
+                    probe_resp = None
+                except Exception:
+                    continue
             
+            if not probe_resp:
+                return Response("All upstream CDNs failed", status=502)
+
             proxy_resp = ProxyResponse(urls, headers, cookie_jar, status=probe_resp.status_code)
             if is_live:
                 proxy_resp.headers.update({"Connection": "keep-alive", "Keep-Alive": "timeout=86400", "Content-Type": "application/x-mpegURL" if ".m3u8" in urls[0] else "video/x-flv"})
@@ -295,6 +341,14 @@ async def proxy_main(subpath):
                     if k.lower() in ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified"]:
                         if is_live and k.lower() in ["content-type", "connection"]: continue
                         proxy_resp.headers[k] = v
+            
+            # Force MIME type if not live
+            if not is_live:
+                if ".mp4" in urls[0] or "mp4" in probe_resp.headers.get("Content-Type", "").lower():
+                    proxy_resp.headers["Content-Type"] = "video/mp4"
+                elif ".flv" in urls[0] or "flv" in probe_resp.headers.get("Content-Type", "").lower():
+                    proxy_resp.headers["Content-Type"] = "video/x-flv"
+
             proxy_resp.headers["X-Accel-Buffering"] = "no"
             return proxy_resp
         except Exception as e:

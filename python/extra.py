@@ -426,7 +426,7 @@ def generate_vod_master_m3u8(vid, idx, dash_data):
     if "dash" not in dash_data:
         return None
 
-    master_m3u8 = ["#EXTM3U", "#EXT-X-VERSION:6"]
+    master_m3u8 = ["#EXTM3U", "#EXT-X-VERSION:7"]
 
     # Audio Groups (Video/Audio/FLAC/Dolby)
     audio_tracks = dash_data["dash"].get("audio", [])
@@ -481,7 +481,7 @@ def generate_vod_media_m3u8(dash_data, media_type, qn, duration):
 
     playlist = [
         "#EXTM3U",
-        "#EXT-X-VERSION:6",
+        "#EXT-X-VERSION:7",
         f"#EXT-X-TARGETDURATION:{int(duration) + 1}",
         "#EXT-X-MEDIA-SEQUENCE:0",
         "#EXT-X-PLAYLIST-TYPE:VOD",
