@@ -127,8 +127,6 @@ services:
 networks:
   miku_net:
     driver: bridge
-    driver_opts:
-      com.docker.network.driver.mtu: 1400
     ipam:
       config:
         - subnet: 172.27.0.0/24

@@ -24,11 +24,6 @@ http {
     types_hash_max_size 2048;
     server_tokens off;
 
-    # HTTP/2 Optimizations for streaming
-    http2_body_preread_size 1m;
-    http2_recv_buffer_size 512k;
-    large_client_header_buffers 4 32k;
-
     # Privacy and Security Headers
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
@@ -49,8 +44,6 @@ http {
     server {
         # Listeners (Managed by manage_quic.sh)
         $PRIMARY_LISTEN
-
-        http2 on;
 
         server_name _;
 
@@ -94,17 +87,9 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             proxy_buffering off;
-            proxy_request_buffering off;
-            proxy_no_cache $http_range;
-            proxy_cache_bypass $http_range;
-            proxy_buffer_size 32k;
-            proxy_buffers 8 32k;
-            proxy_busy_buffers_size 32k;
             proxy_socket_keepalive on;
-            tcp_nodelay on;
-            proxy_read_timeout 86400s;
-            proxy_send_timeout 86400s;
-            send_timeout 60s;
+            proxy_read_timeout 10800s;
+            proxy_send_timeout 10800s;
         }
     }
 }

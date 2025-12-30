@@ -127,11 +127,11 @@ class LiveStream:
                     self.resp_headers = {}
                     try:
                         # Wait for a client to join or timeout
-                        await asyncio.wait_for(self.client_joined.wait(), timeout=5.0)
+                        await asyncio.wait_for(self.client_joined.wait(), timeout=30.0)
                         self.client_joined.clear()
                     except asyncio.TimeoutError:
                         if not self.clients:
-                            print(f"[LiveManager] No clients for 5s, self-destructing: {self.url[:50]}")
+                            print(f"[LiveManager] No clients for 30s, self-destructing: {self.url[:50]}")
                             self.is_running = False
                             break
 
@@ -171,8 +171,8 @@ class LiveStream:
                             return 
                         except asyncio.TimeoutError:
                             # No data from upstream for 5s. Check if anyone is still watching.
-                            if not self.clients and (time.time() - last_signal_time > 5.0):
-                                print("[LiveManager] No clients for 5s during silence. Killing upstream.")
+                            if not self.clients and (time.time() - last_signal_time > 30.0):
+                                print("[LiveManager] No clients for 30s during silence. Killing upstream.")
                                 self.is_running = False
                                 return
                             continue
@@ -180,8 +180,8 @@ class LiveStream:
                         # Update last signal time if we have clients
                         if self.clients:
                             last_signal_time = time.time()
-                        elif time.time() - last_signal_time > 5.0:
-                            print("[LiveManager] No clients for 5s. Killing upstream.")
+                        elif time.time() - last_signal_time > 30.0:
+                            print("[LiveManager] No clients for 30s. Killing upstream.")
                             self.is_running = False
                             return
 
