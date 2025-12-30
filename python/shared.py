@@ -13,8 +13,10 @@ from quart_session import Session
 
 class Network:
     _async_client = None
+    _stream_client = None
     _sync_client = None
     _async_lock = asyncio.Lock()
+    _stream_lock = asyncio.Lock()
 
     @staticmethod
     def get_proxy():
@@ -40,6 +42,26 @@ class Network:
                         follow_redirects=True,
                     )
         return cls._async_client
+
+    @classmethod
+    async def get_stream_client(cls) -> httpx.AsyncClient:
+        """Dedicated client for media streaming to avoid HOL blocking."""
+        if cls._stream_client is None or cls._stream_client.is_closed:
+            async with cls._stream_lock:
+                if cls._stream_client is None or cls._stream_client.is_closed:
+                    cls._stream_client = httpx.AsyncClient(
+                        proxy=cls.get_proxy(),
+                        trust_env=False,
+                        http2=True,
+                        timeout=httpx.Timeout(None, connect=10.0),
+                        limits=httpx.Limits(
+                            max_connections=1000,
+                            max_keepalive_connections=10,  # Balance for multi-user
+                            keepalive_expiry=5.0,
+                        ),
+                        follow_redirects=True,
+                    )
+        return cls._stream_client
 
     @classmethod
     def get_sync_client(cls) -> httpx.Client:
@@ -144,6 +166,9 @@ async def close_global_client():
     if Network._async_client and not Network._async_client.is_closed:
         await Network._async_client.aclose()
         print("[Shutdown] Global async client closed.")
+    if Network._stream_client and not Network._stream_client.is_closed:
+        await Network._stream_client.aclose()
+        print("[Shutdown] Global stream client closed.")
 
 
 # Maintain a simple Redis-based cache for views

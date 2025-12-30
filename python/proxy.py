@@ -105,7 +105,7 @@ class ProxyResponse(Response):
 
                 while self._current_url_index < len(self.urls):
                     url = self.urls[self._current_url_index]
-                    client = await Network.get_async_client()
+                    client = await Network.get_stream_client()
 
                     try:
                         proxy_request = client.build_request(
@@ -129,7 +129,7 @@ class ProxyResponse(Response):
                             await self.upstream_resp.aclose()
                             self.upstream_resp = None
                     except Exception as e:
-                        print(f"[Proxy] CDN {self._current_url_index} failed with error: {e}")
+                        print(f"[Proxy] CDN {self._current_url_index} failed with error: {repr(e)}")
                         if self.upstream_resp:
                             await self.upstream_resp.aclose()
                             self.upstream_resp = None
@@ -153,6 +153,64 @@ class ProxyResponse(Response):
         await super().aclose()
 
 
+async def race_probes(urls, headers, cookies, max_race=3):
+    """Race the first few CDNs and return the fastest successful one."""
+    client = await Network.get_stream_client()
+    tasks = {}
+    
+    # Define a wrapper to keep track of the index
+    async def probe(url, index):
+        try:
+            # Aggressive timeout for racing
+            timeout = httpx.Timeout(1.5, connect=0.5)
+            req = client.build_request("GET", url, headers=headers, cookies=cookies)
+            resp = await client.send(req, stream=True, follow_redirects=True, timeout=timeout)
+            return resp, index
+        except Exception as e:
+            return e, index
+
+    # Start racing the first few URLs
+    for i, url in enumerate(urls[:max_race]):
+        task = asyncio.create_task(probe(url, i))
+        tasks[task] = url
+
+    pending = set(tasks.keys())
+    winner_resp = None
+    winner_idx = -1
+
+    while pending:
+        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED, timeout=2.0)
+        
+        # Sort done tasks to prefer earlier CDNs if multiple finish at once
+        for task in done:
+            result, idx = task.result()
+            if isinstance(result, httpx.Response) and result.status_code < 400:
+                if winner_resp is None:
+                    winner_resp = result
+                    winner_idx = idx
+                    # Cancel all other pending probes immediately
+                    for p in pending:
+                        p.cancel()
+                else:
+                    # We already have a winner, close this one
+                    await result.aclose()
+            else:
+                # Failure or bad status, just ignore
+                if isinstance(result, httpx.Response):
+                    await result.aclose()
+
+        if winner_resp:
+            break
+
+    # Cleanup remaining tasks (ensure they are cancelled and awaited)
+    if pending:
+        for p in pending:
+            p.cancel()
+        await asyncio.gather(*pending, return_exceptions=True)
+
+    return winner_resp, winner_idx
+
+
 @proxy_bp.route("/proxy/dash/<media_type>/<int:qn>")
 async def proxy_dash(media_type, qn):
     cached_data = await appredis.get(f"miku_dash_url_{media_type}_{qn}")
@@ -172,60 +230,43 @@ async def proxy_dash(media_type, qn):
 
     headers = COMMON_HEADERS.copy()
 
-    # Forward headers from client
+    # Forward headers from client, but CLEAN UP conditional ones
     for k, v in request.headers.items():
         k_lower = k.lower()
-        if k_lower in ["range", "if-range", "x-playback-session-id"]:
+        if k_lower in ["range", "x-playback-session-id"]:
             headers[k_lower] = v
 
-    # Initial probe to get headers from the FIRST working CDN
-    client = await Network.get_async_client()
-    probe_resp = None
+    # Perform racing probes to find the fastest CDN
+    probe_resp, i = await race_probes(urls, headers, cookie_jar)
     
-    try:
-        # Find first working CDN for headers/status
-        for i, url in enumerate(urls):
-            try:
-                proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-                probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-                if probe_resp.status_code < 400:
-                    print(f"[Proxy-Dash] Found working CDN {i}: {url[:50]}... Status: {probe_resp.status_code}")
-                    
-                    # Create the response with the working probe_resp
-                    proxy_resp = ProxyResponse(urls, headers, cookie_jar, initial_resp=probe_resp, status=probe_resp.status_code, _initial_index=i)
-
-                    for k, v in probe_resp.headers.items():
-                        k_lower = k.lower()
-                        if k_lower in [
-                            "content-type",
-                            "content-length",
-                            "content-range",
-                            "accept-ranges",
-                            "etag",
-                            "last-modified",
-                        ]:
-                            proxy_resp.headers[k] = v
-
-                    if media_type == "video":
-                        proxy_resp.headers["Content-Type"] = "video/mp4"
-                    else:
-                        proxy_resp.headers["Content-Type"] = "audio/mp4"
-
-                    proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
-                    return proxy_resp
-                else:
-                    await probe_resp.aclose()
-                    probe_resp = None
-            except Exception as e:
-                print(f"[Proxy-Dash] CDN {i} probe failed: {e}")
-                if probe_resp:
-                    await probe_resp.aclose()
-                    probe_resp = None
-
+    if not probe_resp:
         return Response("All CDNs failed", status=502)
 
+    try:
+        # Create the response with the winning probe_resp
+        proxy_resp = ProxyResponse(urls, headers, cookie_jar, initial_resp=probe_resp, status=probe_resp.status_code, _initial_index=i)
+
+        for k, v in probe_resp.headers.items():
+            k_lower = k.lower()
+            if k_lower in [
+                "content-type",
+                "content-length",
+                "content-range",
+                "accept-ranges",
+                "etag",
+                "last-modified",
+            ]:
+                proxy_resp.headers[k] = v
+
+        if media_type == "video":
+            proxy_resp.headers["Content-Type"] = "video/mp4"
+        else:
+            proxy_resp.headers["Content-Type"] = "audio/mp4"
+
+        proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+        return proxy_resp
     except Exception as e:
-        print(f"[Proxy] Error in proxy_dash: {e}")
+        print(f"[Proxy-Dash] Error finalizing response: {repr(e)}")
         if probe_resp:
             await probe_resp.aclose()
         return Response(str(e), status=502)
@@ -275,10 +316,10 @@ async def proxy_main(subpath):
 
         headers = COMMON_HEADERS.copy()
 
-        # Forward headers from client
+        # Forward headers from client, but CLEAN UP conditional ones
         for k, v in request.headers.items():
             k_lower = k.lower()
-            if k_lower in ["range", "if-range", "x-playback-session-id"]:
+            if k_lower in ["range", "x-playback-session-id"]:
                 headers[k_lower] = v
 
         # SPECIAL HANDLING FOR LIVE FLV (Muxing/Multiplexing via LiveManager)
@@ -357,67 +398,51 @@ async def proxy_main(subpath):
             return proxy_resp
 
         # DIRECT PROXY FOR VOD AND HLS LIVE
-        client = await Network.get_async_client()
-        probe_resp = None
-
         try:
-            # Find first working CDN for headers/status
-            for i, cdn_url in enumerate(urls):
-                try:
-                    proxy_request = client.build_request("GET", cdn_url, headers=headers, cookies=cookie_jar)
-                    probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-                    if probe_resp.status_code < 400:
-                        print(f"[Proxy] Found working CDN {i}: {cdn_url[:50]}... Status: {probe_resp.status_code}")
-                        
-                        proxy_resp = ProxyResponse(urls, headers, cookie_jar, initial_resp=probe_resp, status=probe_resp.status_code, _initial_index=i)
+            # Perform racing probes to find the fastest CDN
+            probe_resp, i = await race_probes(urls, headers, cookie_jar)
+            
+            if not probe_resp:
+                return Response("All CDNs failed", status=502)
 
-                        if request.args.get("dl") == "1" and not is_live:
-                            vid_val = vid if "vid" in locals() else "video"
-                            safe_vid = "".join(c for c in vid_val if c.isalnum() or c == "_")
-                            proxy_resp.headers["Content-Disposition"] = f'attachment; filename="miku_{safe_vid}_p{vidx}_{vqn}.mp4"'
+            proxy_resp = ProxyResponse(urls, headers, cookie_jar, initial_resp=probe_resp, status=probe_resp.status_code, _initial_index=i)
 
-                        # Set appropriate content type and connection headers
-                        if is_live:
-                            proxy_resp.headers["Connection"] = "keep-alive"
-                            proxy_resp.headers["Keep-Alive"] = "timeout=86400"
-                            proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
-                            if ".m3u8" in url:
-                                proxy_resp.headers["Content-Type"] = "application/x-mpegURL"
-                            else:
-                                proxy_resp.headers["Content-Type"] = "video/x-flv"
-                        else:
-                            proxy_resp.headers["Accept-Ranges"] = "bytes"
+            if request.args.get("dl") == "1" and not is_live:
+                # Ensure filename is safe (alphanumeric + underscores)
+                vid_val = vid if "vid" in locals() else "video"
+                safe_vid = "".join(c for c in vid_val if c.isalnum() or c == "_")
+                proxy_resp.headers["Content-Disposition"] = f'attachment; filename="miku_{safe_vid}_p{vidx}_{vqn}.mp4"'
 
-                        for k, v in probe_resp.headers.items():
-                            k_lower = k.lower()
-                            if k_lower in [
-                                "content-type",
-                                "content-length",
-                                "content-range",
-                                "accept-ranges",
-                                "etag",
-                                "last-modified",
-                            ]:
-                                if is_live and k_lower in ["content-type", "connection"]:
-                                    continue
-                                proxy_resp.headers[k] = v
+            # Set appropriate content type and connection headers
+            if is_live:
+                proxy_resp.headers["Connection"] = "keep-alive"
+                proxy_resp.headers["Keep-Alive"] = "timeout=86400"
+                proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+                if ".m3u8" in url:
+                    proxy_resp.headers["Content-Type"] = "application/x-mpegURL"
+                else:
+                    proxy_resp.headers["Content-Type"] = "video/x-flv"
+            else:
+                proxy_resp.headers["Accept-Ranges"] = "bytes"
 
-                        return proxy_resp
-                    else:
-                        await probe_resp.aclose()
-                        probe_resp = None
-                except Exception as e:
-                    print(f"[Proxy] CDN {i} probe failed: {e}")
-                    if probe_resp:
-                        await probe_resp.aclose()
-                        probe_resp = None
+            for k, v in probe_resp.headers.items():
+                k_lower = k.lower()
+                if k_lower in [
+                    "content-type",
+                    "content-length",
+                    "content-range",
+                    "accept-ranges",
+                    "etag",
+                    "last-modified",
+                ]:
+                    if is_live and k_lower in ["content-type", "connection"]:
+                        continue
+                    proxy_resp.headers[k] = v
 
-            return Response("All CDNs failed", status=502)
+            return proxy_resp
 
         except Exception as e:
-            print(f"[Proxy] Error in proxy_main: {e}")
-            if probe_resp:
-                await probe_resp.aclose()
+            print(f"[Proxy] Error in proxy_main racing probes: {repr(e)}")
             return Response(str(e), status=502)
 
     elif req_path.startswith("/proxy/pic/"):
