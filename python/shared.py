@@ -33,9 +33,9 @@ class Network:
                         http2=True,
                         timeout=httpx.Timeout(None, connect=10.0),
                         limits=httpx.Limits(
-                            max_connections=500,
-                            max_keepalive_connections=50,
-                            keepalive_expiry=15.0,
+                            max_connections=1000,
+                            max_keepalive_connections=100,
+                            keepalive_expiry=30.0,
                         ),
                         follow_redirects=True,
                     )
@@ -128,8 +128,8 @@ else:
 # Initialize the quart app.
 app = Quart("app", template_folder="../templates", static_folder="../static")
 app.config.from_mapping(appconf["quart"])
-app.config["RESPONSE_TIMEOUT"] = 10800
-app.config["BODY_TIMEOUT"] = 10800
+app.config["RESPONSE_TIMEOUT"] = 86400
+app.config["BODY_TIMEOUT"] = 86400
 app.secret_key = os.environ.get("QUART_SECRET_KEY", os.urandom(24).hex())
 
 # Configure sessions

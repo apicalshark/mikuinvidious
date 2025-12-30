@@ -338,7 +338,7 @@ async def proxy_main(subpath):
 
             proxy_resp = Response(generate_from_manager(), status=stream.status_code or 200)
             proxy_resp.headers["Connection"] = "keep-alive"
-            proxy_resp.headers["Keep-Alive"] = "timeout=10800"
+            proxy_resp.headers["Keep-Alive"] = "timeout=86400"
             proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
             proxy_resp.headers["Content-Type"] = "video/x-flv"
             proxy_resp.headers["X-Miku-Proxy"] = "LiveManager"
@@ -366,7 +366,7 @@ async def proxy_main(subpath):
             # Set appropriate content type and connection headers for live streams (Step 3)
             if is_live:
                 proxy_resp.headers["Connection"] = "keep-alive"
-                proxy_resp.headers["Keep-Alive"] = "timeout=10800"
+                proxy_resp.headers["Keep-Alive"] = "timeout=86400"
                 proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
                 if ".m3u8" in url:
                     proxy_resp.headers["Content-Type"] = "application/x-mpegURL"

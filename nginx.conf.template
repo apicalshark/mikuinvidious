@@ -88,8 +88,10 @@ http {
             proxy_set_header Connection "";
             proxy_buffering off;
             proxy_socket_keepalive on;
-            proxy_read_timeout 10800s;
-            proxy_send_timeout 10800s;
+            tcp_nodelay on;
+            proxy_read_timeout 86400s;
+            proxy_send_timeout 86400s;
+            send_timeout 60s;
         }
     }
 }
