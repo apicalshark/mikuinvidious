@@ -17,14 +17,25 @@ COMMON_HEADERS = {
 
 async def render_proxy_pic(req_path):
     async with image_limiter:
-        req_path = req_path[11:]
-        domain = req_path.split("/")[0]
-
-        if not (domain.endswith(".hdslb.com") or domain.endswith(".biliimg.com")):
-            return Response("Forbidden", status=403)
+        # req_path starts with /proxy/pic/
+        raw_path = req_path[11:]
+        
+        # Check if the path contains a full URL with protocol
+        if raw_path.startswith("http:/"):
+            # Ensure we don't get triple slashes if raw_path was http://
+            url = "http://" + raw_path[6:].lstrip("/")
+        elif raw_path.startswith("https:/"):
+            url = "https://" + raw_path[7:].lstrip("/")
+        else:
+            url = f"https://{raw_path}"
 
         headers = COMMON_HEADERS.copy()
-        url = f"https://{req_path}"
+        
+        # If it's not a Bilibili domain, remove Bilibili-specific headers to avoid issues
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc
+        if not (domain.endswith(".hdslb.com") or domain.endswith(".biliimg.com") or domain.endswith(".bilibili.com")):
+            headers.pop("referer", None)
 
         client = await Network.get_async_client()
         resp = None

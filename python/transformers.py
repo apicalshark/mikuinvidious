@@ -56,10 +56,12 @@ def transform_user_info(uinfo):
 def transform_video_detail(vinfo):
     """Standardizes detailed video metadata."""
     stat = vinfo.get("stat", {})
+    desc = vinfo.get("desc", "")
+    desc = proxy_html_images(desc)
     return {
         "bvid": vinfo.get("bvid"),
         "title": vinfo.get("title"),
-        "desc": vinfo.get("desc"),
+        "desc": desc,
         "pic": vinfo.get("pic"),
         "pubdate": vinfo.get("pubdate"),
         "author": vinfo.get("owner", {}).get("name"),
@@ -107,6 +109,34 @@ def transform_live_card(data):
         return None
 
 
+def proxy_html_images(html_content):
+    """Replaces all external image URLs in HTML with proxied versions."""
+    import re
+
+    if not html_content:
+        return html_content
+
+    # Match http/https or protocol-relative URLs in src attributes
+    # We exclude URLs that already start with /static/ or /proxy/
+    def replace_src(match):
+        prefix = match.group(1)
+        url = match.group(2)
+        suffix = match.group(3)
+        
+        if url.startswith("static/") or url.startswith("proxy/"):
+            return match.group(0)
+            
+        if url.startswith("//"):
+            url = "https:" + url
+        elif not url.startswith("http"):
+            url = "https://" + url
+            
+        return f'{prefix}/proxy/pic/{url}{suffix}'
+
+    pattern = r'(src=["\'])(?:https?:)?//((?!static/|proxy/)[^"\']+\.[^"\']+)(["\'])'
+    return re.sub(pattern, replace_src, html_content)
+
+
 def transform_live_room(data):
     """Standardizes detailed live room info."""
     import re
@@ -127,6 +157,7 @@ def transform_live_room(data):
             formatted_paragraphs.append(f"<p>{inner}</p>")
 
     formatted_desc = "".join(formatted_paragraphs)
+    formatted_desc = proxy_html_images(formatted_desc)
 
     return {
         "room_id": room_info.get("room_id"),

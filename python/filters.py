@@ -41,8 +41,15 @@ def __jinja2_filter_secdur(delta_t):
 def __jinja2_filter_pic(url):
     if not url:
         return ""
+    if url.startswith("/static/") or url.startswith("/proxy/"):
+        return url
+    
+    # We want to proxy EVERYTHING that is external.
     if "://" in url:
-        return "/proxy/pic/" + url.split("://", 1)[1]
+        return "/proxy/pic/" + url
     if url.startswith("//"):
-        return "/proxy/pic/" + url[2:]
-    return "/proxy/pic/" + url
+        return "/proxy/pic/https:" + url
+    
+    # For relative-looking paths that aren't local, assume they are part of a domain
+    # (Bilibili often returns paths like "bfs/face/...")
+    return "/proxy/pic/https://i0.hdslb.com/" + url if not url.startswith("/") else url
