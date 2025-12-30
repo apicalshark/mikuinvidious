@@ -37,7 +37,6 @@ services:
       nofile:
         soft: 65535
         hard: 65535
-    ports:
     container_name: miku_app
     restart: always
     cap_add:
