@@ -27,8 +27,7 @@ http {
     # HTTP/2 Optimizations for streaming
     http2_body_preread_size 1m;
     http2_recv_buffer_size 512k;
-    http2_ping_timeout 60s;
-    http2_idle_timeout 86400s;
+    large_client_header_buffers 4 32k;
 
     # Privacy and Security Headers
     add_header X-Content-Type-Options "nosniff" always;
@@ -50,6 +49,8 @@ http {
     server {
         # Listeners (Managed by manage_quic.sh)
         $PRIMARY_LISTEN
+
+        http2 on;
 
         server_name _;
 
@@ -95,6 +96,8 @@ http {
             proxy_buffering off;
             proxy_request_buffering off;
             proxy_buffer_size 64k;
+            proxy_buffers 8 64k;
+            proxy_busy_buffers_size 128k;
             proxy_socket_keepalive on;
             tcp_nodelay on;
             proxy_read_timeout 86400s;
