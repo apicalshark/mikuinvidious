@@ -41,10 +41,11 @@
                             {{ '未登入' if not proxy_status.credential or not proxy_status.credential.use_cred else '已登入' }}
                         </div>
                     </div>
-                    
-                    <div id="qrcode_container" class="hidden flex flex-col items-center space-y-2 py-4">
+
+                    <div id="qrcode_container"
+                         class="hidden flex flex-col items-center space-y-2 py-4">
                         <div id="qrcode_img_wrap" class="p-2 bg-white rounded-xl">
-                            <img id="qrcode_img" src="" alt="QR Code" class="w-48 h-48">
+                            <img id="qrcode_img" src="" alt="QR Code" class="w-48 h-48" />
                         </div>
                         <div id="qrcode_msg" class="text-sm text-on-surface-variant">请使用 Bilibili App 扫码</div>
                     </div>

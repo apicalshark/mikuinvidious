@@ -3,7 +3,6 @@ import json
 import uuid
 from urllib.parse import urlparse
 
-from extra import video_get_dash_for_qn, video_get_src_for_qn
 from live_manager import live_manager
 from quart import Blueprint, Response, request
 from shared import Network, appconf, appcred, appredis, get_current_cred, image_limiter
@@ -134,42 +133,7 @@ async def proxy_dash(media_type, qn):
         probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
         print(f"[Proxy-Dash] Probe response: {urls[0][:50]}... Status: {probe_resp.status_code}")
 
-        # FALLBACK TO 360P IF 404
         try:
-            if probe_resp.status_code == 404 and qn > 16:
-                print(f"[Proxy-Dash] 404 detected for QN {qn}, falling back to 360P...")
-                referer = request.headers.get("referer", "")
-                import re
-
-                vid_match = re.search(r"BV[a-zA-Z0-9]+", referer)
-                if vid_match:
-                    vid = vid_match.group(0)
-                    from bilibili_api import video as b_video
-                    from extra import video_get_dash_for_qn
-                    from shared import appcred
-
-                    vi = b_video.Video(bvid=vid, credential=get_current_cred())
-                    fallback_res = await video_get_dash_for_qn(vi, 0)
-                    if fallback_res and "dash" in fallback_res:
-                        tracks = fallback_res["dash"].get(media_type, [])
-                        if tracks:
-                            target_track = next((t for t in tracks if t["id"] == 16), tracks[-1])
-                            new_urls = [target_track.get("baseUrl") or target_track.get("base_url")]
-                            if "backupUrl" in target_track and target_track["backupUrl"]:
-                                new_urls.extend(target_track["backupUrl"])
-                            new_urls = [u for u in new_urls if u]
-                            if new_urls:
-                                urls = new_urls
-                                await probe_resp.aclose()
-                                probe_resp = None  # Clear to avoid double close in finally
-                                proxy_request = client.build_request(
-                                    "GET", urls[0], headers=headers, cookies=cookie_jar
-                                )
-                                probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-                                print(
-                                    f"[Proxy-Dash] Fallback probe response: {urls[0][:50]}... Status: {probe_resp.status_code}"
-                                )
-
             proxy_resp = ProxyResponse(urls, headers, cookie_jar, status=probe_resp.status_code)
 
             if probe_resp.status_code < 400:
@@ -310,25 +274,6 @@ async def proxy_main(subpath):
             proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
             probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
             print(f"[Proxy] Probe response: {url[:50]}... Status: {probe_resp.status_code}")
-
-            # FALLBACK TO 360P IF 404
-            if probe_resp.status_code == 404 and vqn > 16:
-                print(f"[Proxy] 404 detected for QN {vqn}, falling back to 360P...")
-                from bilibili_api import video as b_video
-                from extra import video_get_src_for_qn
-                from shared import appcred
-
-                vi = b_video.Video(bvid=vid, credential=get_current_cred())
-                fallback_res = await video_get_src_for_qn(vi, vidx, 16)
-                if fallback_res and "durl" in fallback_res:
-                    urls = [d["url"] for d in fallback_res["durl"] if d.get("url")]
-                    if urls:
-                        url = urls[0]
-                        await probe_resp.aclose()
-                        probe_resp = None  # Clear to avoid double close in finally
-                        proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-                        probe_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-                        print(f"[Proxy] Fallback probe response: {url[:50]}... Status: {probe_resp.status_code}")
 
             proxy_resp = ProxyResponse(urls, headers, cookie_jar, status=probe_resp.status_code)
 

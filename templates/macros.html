@@ -23,12 +23,7 @@
         {% else %}
             <video slot="media"
                    id="player"
-                   {% if supported_src %}
-                       {% if has_dash %}
-                           src="/video/m3u8/{{ vid }}/{{ idx }}/master.m3u8"
-                       {% else %}
-                           src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}"
-                       {% endif %}
+                   {% if supported_src %} {% if has_dash %} src="/video/m3u8/{{ vid }}/{{ idx }}/master.m3u8" {% else %} src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}" {% endif %}
                    {% endif %}
                    poster="{{ vinfo['pic']|pic }}"
                    playsinline
