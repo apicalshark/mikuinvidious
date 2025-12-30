@@ -35,7 +35,7 @@ class Network:
                         limits=httpx.Limits(
                             max_connections=500,
                             max_keepalive_connections=50,
-                            keepalive_expiry=30.0,
+                            keepalive_expiry=15.0,
                         ),
                         follow_redirects=True,
                     )

@@ -33,6 +33,11 @@ services:
   # --- 2. THE PYTHON APP ---
   app:
     build: .
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    ports:
     container_name: miku_app
     restart: always
     cap_add:

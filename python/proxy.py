@@ -31,7 +31,15 @@ async def render_proxy_pic(req_path):
         try:
             req = client.build_request("GET", url, headers=headers)
             resp = await client.send(req, follow_redirects=True)
-            return Response(resp.content, status=resp.status_code, content_type=resp.headers.get("content-type"))
+            content = resp.content
+            status_code = resp.status_code
+            content_type = resp.headers.get("content-type")
+            
+            # Close upstream immediately after reading content
+            await resp.aclose()
+            resp = None 
+
+            return Response(content, status=status_code, content_type=content_type)
         except Exception as e:
             print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
             return Response(str(e), status=502)
