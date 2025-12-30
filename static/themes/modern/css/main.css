@@ -1610,10 +1610,6 @@ video {
 .bg-surface-variant {
   background-color: var(--md-sys-color-surface-variant);
 }
-.bg-white {
-  --tw-bg-opacity: 1;
-  background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
-}
 .bg-gradient-to-br {
   background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
 }
@@ -1883,10 +1879,6 @@ video {
 .text-\[\#fb7299\] {
   --tw-text-opacity: 1;
   color: rgb(251 114 153 / var(--tw-text-opacity, 1));
-}
-.text-green-500 {
-  --tw-text-opacity: 1;
-  color: rgb(34 197 94 / var(--tw-text-opacity, 1));
 }
 .text-on-background {
   color: var(--md-sys-color-on-background);

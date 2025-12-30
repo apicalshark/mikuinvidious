@@ -11,7 +11,7 @@ services:
     environment:
       - WARP_SLEEP=2
       # - WARP_LICENSE_KEY= # optional
-      - WARP_ENABLE_NAT=1 # enable nat
+      # - WARP_ENABLE_NAT=1 # enable nat
     cap_add:
       # Docker already have them, these are for podman users
       - MKNOD
@@ -22,35 +22,17 @@ services:
       - net.ipv6.conf.all.disable_ipv6=0
       - net.ipv4.conf.all.src_valid_mark=1
       # uncomment for nat
-      - net.ipv4.ip_forward=1
-      - net.ipv6.conf.all.forwarding=1
-      - net.ipv6.conf.all.accept_ra=2
-    # volumes:
-    #   - /data:/var/lib/cloudflare-warp
-    networks:
-      - miku_net
+      # - net.ipv4.ip_forward=1
+      # - net.ipv6.conf.all.forwarding=1
+      # - net.ipv6.conf.all.accept_ra=2
+    volumes:
+      - /data:/var/lib/cloudflare-warp
 
   # --- 2. THE PYTHON APP ---
   app:
     build: .
-    ulimits:
-      nofile:
-        soft: 65535
-        hard: 65535
     container_name: miku_app
     restart: always
-    cap_add:
-      - NET_ADMIN
-    command: |
-      sh -c "
-      until WARP_IP=\$$(getent hosts warp | awk '{ print \$$1 }') && [ -n \"\$$WARP_IP\" ]; do
-        echo 'Waiting for warp IP...';
-        sleep 1;
-      done;
-      echo \"Setting default gateway to \$$WARP_IP\";
-      ip route replace default via \$$WARP_IP;
-      python python/main.py
-      "
     environment:
       # Site Configuration
       - SITE_NAME=MikuInvidious
@@ -58,11 +40,12 @@ services:
       - QUART_SECRET_KEY=yoursecretkey12345
       
       # PROXY CONFIGURATION
-      #- HTTP_PROXY=socks5://warp:1080
-      #- HTTPS_PROXY=socks5://warp:1080
+      - HTTP_PROXY=socks5://warp:1080
+      - HTTPS_PROXY=socks5://warp:1080
       
       # Redis Configuration
       - REDIS_URL=redis://redis:6379
+      - NO_PROXY=0
 
       # Check nginx.conf.template
       - SERVER_PORT=8080
@@ -82,11 +65,6 @@ services:
       # HTTP/3 (QUIC) CONFIGURATION (Default: OFF)
       # Enabled via Nginx environment variables below
       - ENABLE_HTTP3=false
-    networks:
-      - miku_net
-    depends_on:
-      - warp
-      - redis
 
   # --- 3. NGINX ---
   nginx:
@@ -112,8 +90,6 @@ services:
       - ./static:/usr/share/nginx/html/static:ro
       # Mount your SSL certificates here
       # - ./ssl:/etc/nginx/ssl:ro
-    networks:
-      - miku_net
     depends_on:
       - app
 
@@ -122,11 +98,3 @@ services:
     image: redis:alpine
     container_name: miku_redis
     restart: always
-    networks:
-      - miku_net
-networks:
-  miku_net:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.27.0.0/24

@@ -100,19 +100,6 @@
                                class="hover:text-primary transition-colors">{{ vinfo['tname'] }}</a>
                         </div>
                     </div>
-
-                    <!-- Tags -->
-                    {% if vtags %}
-                        <div class="flex flex-wrap gap-2 pb-4">
-                            {% for tag in vtags %}
-                                <a href="/search?keyword={{ tag['tag_name'] }}"
-                                   class="px-3 py-1 rounded-full bg-surface-variant/30 text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-all text-xs font-medium">
-                                    #{{ tag['tag_name'] }}
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
-
                     <!-- Actions -->
                     <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
                         <!-- Channel Info -->

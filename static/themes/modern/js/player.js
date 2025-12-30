@@ -2,37 +2,6 @@
 
 "use strict";
 
-function fallbackToLowestQuality() {
-  if (window.miku_fallback_active) return;
-  window.miku_fallback_active = true;
-
-  console.warn("[Player] Triggering emergency quality fallback due to 404/Error...");
-  const qualityList = document.getElementById("quality-list");
-  if (qualityList) {
-    const buttons = Array.from(qualityList.querySelectorAll("button"));
-    if (buttons.length > 0) {
-      // Find 360P specifically, otherwise take the last one (usually lowest)
-      let targetBtn = buttons[buttons.length - 1];
-      for (const btn of buttons) {
-        const text = btn.innerText.toUpperCase();
-        if (text.includes("360P")) {
-          targetBtn = btn;
-          break;
-        }
-      }
-
-      if (targetBtn && !targetBtn.classList.contains("active")) {
-        console.log("[Player] Switching to fallback quality:", targetBtn.innerText);
-        targetBtn.click();
-      }
-    }
-  }
-
-  setTimeout(() => {
-    window.miku_fallback_active = false;
-  }, 5000);
-}
-
 class LiveStreamManager {
   constructor(videoElement, streamUrl, qualityList, qualityLabel) {
     this.video = videoElement;
@@ -184,12 +153,8 @@ class LiveStreamManager {
   handleEvents() {
     this.player.on(mpegts.Events.ERROR, (errorType, errorDetail) => {
       console.error("[LiveManager] Stream Error:", errorType, errorDetail);
-      if (errorDetail === mpegts.ErrorDetails.NETWORK_STATUS_CODE_INVALID) {
-        fallbackToLowestQuality();
-      } else {
-        // STRATEGY 3: Exponential Backoff Reconnection
-        this.reconnect();
-      }
+      // STRATEGY 3: Exponential Backoff Reconnection
+      this.reconnect();
     });
 
     // STRATEGY 4: Buffer Stalled Detection
@@ -295,16 +260,6 @@ class VodStreamManager {
     }
 
     this.startMonitoring();
-    this.handleEvents();
-  }
-
-  handleEvents() {
-    this.player.on(mpegts.Events.ERROR, (errorType, errorDetail) => {
-      console.error("[VodManager] Stream Error:", errorType, errorDetail);
-      if (errorDetail === mpegts.ErrorDetails.NETWORK_STATUS_CODE_INVALID) {
-        fallbackToLowestQuality();
-      }
-    });
   }
 
   startMonitoring() {
@@ -363,15 +318,6 @@ async function initMikuPlayer() {
 
   if (!video) return;
 
-  // Add native error listener
-  video.addEventListener("error", (e) => {
-    console.warn("[Player] Native video error:", video.error);
-    // Code 4 is MEDIA_ERR_SRC_NOT_SUPPORTED which often happens on 404
-    if (video.error && (video.error.code === 4 || video.error.code === 2)) {
-      fallbackToLowestQuality();
-    }
-  });
-
   // 1. Danmaku Setup (Using DOM engine for pixel perfection)
   initDanmaku(video, danmakuContainer, controller);
 
@@ -405,10 +351,6 @@ async function initMikuPlayer() {
 
     hls.on(Hls.Events.ERROR, (event, data) => {
       console.warn("[Player] HLS Error:", data.details, data.fatal);
-      if (data.response && data.response.code === 404) {
-        console.warn("[Player] HLS 404 detected, level:", hls.currentLevel);
-        fallbackToLowestQuality();
-      }
     });
 
     hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {

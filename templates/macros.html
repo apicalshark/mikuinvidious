@@ -1,4 +1,4 @@
-{% macro video_player(vid, vinfo, idx, supported_src, is_live=False, has_dash=False) %}
+{% macro video_player(vid, vinfo, idx, supported_src, is_live=False) %}
     {% set dim = vinfo.get('dimension') %}
     {% set w = dim.get('width', 16) if dim else 16 %}
     {% set h = dim.get('height', 9) if dim else 9 %}
@@ -23,8 +23,7 @@
         {% else %}
             <video slot="media"
                    id="player"
-                   {% if supported_src %} {% if has_dash %} src="/video/m3u8/{{ vid }}/{{ idx }}/master.m3u8" {% else %} src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}" {% endif %}
-                   {% endif %}
+                   {% if supported_src %}src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}"{% endif %}
                    poster="{{ vinfo['pic']|pic }}"
                    playsinline
                    crossorigin

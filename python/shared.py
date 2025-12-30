@@ -3,8 +3,8 @@ import functools
 import os
 
 import httpx
+import redis
 import toml
-from redis.asyncio import Redis
 from bilibili_api import Credential
 from bilibili_api.utils.network import request_settings
 from quart import Quart, render_template, request
@@ -18,9 +18,7 @@ class Network:
 
     @staticmethod
     def get_proxy():
-        if not appconf["proxy"]["use_proxy"]:
-            return None
-        return os.environ.get("SOCKS5_PROXY") or os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy")
+        return os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") if appconf["proxy"]["use_proxy"] else None
 
     @classmethod
     async def get_async_client(cls) -> httpx.AsyncClient:
@@ -30,13 +28,8 @@ class Network:
                     cls._async_client = httpx.AsyncClient(
                         proxy=cls.get_proxy(),
                         trust_env=False,
-                        http2=True,
                         timeout=httpx.Timeout(None, connect=10.0),
-                        limits=httpx.Limits(
-                            max_connections=1000,
-                            max_keepalive_connections=100,
-                            keepalive_expiry=30.0,
-                        ),
+                        limits=httpx.Limits(max_connections=500, max_keepalive_connections=100),
                         follow_redirects=True,
                     )
         return cls._async_client
@@ -115,9 +108,9 @@ elif os.path.exists("../config.toml"):
 
 # Connect to our nice redis database.
 if os.environ.get("REDIS_URL"):
-    appredis = Redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+    appredis = redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
 else:
-    appredis = Redis(
+    appredis = redis.Redis(
         host=appconf["redis"]["host"],
         port=appconf["redis"]["port"],
         username=appconf["redis"]["username"],
@@ -128,8 +121,8 @@ else:
 # Initialize the quart app.
 app = Quart("app", template_folder="../templates", static_folder="../static")
 app.config.from_mapping(appconf["quart"])
-app.config["RESPONSE_TIMEOUT"] = 86400
-app.config["BODY_TIMEOUT"] = 86400
+app.config["RESPONSE_TIMEOUT"] = 10800
+app.config["BODY_TIMEOUT"] = 10800
 app.secret_key = os.environ.get("QUART_SECRET_KEY", os.urandom(24).hex())
 
 # Configure sessions
@@ -158,7 +151,7 @@ class SimpleCache:
                 cache_key = key_prefix % request.full_path
 
                 # Check if we have a cached version
-                cached_val = await appredis.get(cache_key)
+                cached_val = appredis.get(cache_key)
                 if cached_val:
                     return cached_val
 
@@ -167,7 +160,7 @@ class SimpleCache:
 
                 # Only cache if it's a successful string response (rendered template)
                 if isinstance(response, str):
-                    await appredis.setex(cache_key, timeout, response)
+                    appredis.setex(cache_key, timeout, response)
 
                 return response
 
@@ -189,20 +182,6 @@ if appconf["credential"]["use_cred"]:
         dedeuserid=credstore["dedeuserid"],
         ac_time_value=credstore["ac_time_value"],
     )
-
-
-def get_current_cred():
-    """Retrieve credentials dynamically: User Session > Global Config."""
-    from quart import session
-
-    # 1. Check if user has personal login in session
-    user_creds = session.get("bili_creds")
-    if user_creds:
-        return Credential(**user_creds)
-
-    # 2. Fallback to global server-wide creds
-    return appcred
-
 
 ##########################################
 # Util functions
@@ -231,9 +210,10 @@ async def render_template_with_theme(fp, **kwargs):
 
 
 # --- GLOBAL PROXY CONFIGURATION FOR BILIBILI_API ---
-proxy_url = Network.get_proxy()
-if proxy_url:
-    print(f"[Init] Setting global proxy for bilibili_api: {proxy_url}")
-    request_settings.set_proxy(proxy_url)
-else:
-    print("[Init] No proxy configured. Using direct connection.")
+if appconf["proxy"]["use_proxy"]:
+    proxy_url = Network.get_proxy()
+    if proxy_url:
+        print(f"[Init] Setting global proxy for bilibili_api: {proxy_url}")
+        request_settings.set_proxy(proxy_url)
+    else:
+        print("[Init] Proxy enabled but HTTP_PROXY env var not set!")

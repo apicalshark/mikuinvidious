@@ -28,34 +28,9 @@
                             class="px-4 py-2 rounded-full bg-surface-variant text-on-surface-variant font-medium transition-all active:scale-95">
                         {{ '加载中...' }}
                     </button>
+
+
                 </div>
-
-                <!-- Bilibili Login Section -->
-                <div class="p-4 rounded-2xl bg-surface-variant/20 space-y-4">
-                    <div class="flex items-center justify-between">
-                        <div class="text-left">
-                            <div class="font-bold text-on-surface">{{ 'Bilibili 账号登入' }}</div>
-                            <div class="text-sm text-on-surface-variant">{{ '登入后可解锁 1080P 及以上画质' }}</div>
-                        </div>
-                        <div id="login_status" class="text-sm font-bold text-secondary">
-                            {{ '未登入' if not proxy_status.credential or not proxy_status.credential.use_cred else '已登入' }}
-                        </div>
-                    </div>
-
-                    <div id="qrcode_container"
-                         class="hidden flex flex-col items-center space-y-2 py-4">
-                        <div id="qrcode_img_wrap" class="p-2 bg-white rounded-xl">
-                            <img id="qrcode_img" src="" alt="QR Code" class="w-48 h-48" />
-                        </div>
-                        <div id="qrcode_msg" class="text-sm text-on-surface-variant">请使用 Bilibili App 扫码</div>
-                    </div>
-
-                    <button id="btn_login"
-                            class="w-full px-4 py-3 rounded-full bg-secondary text-on-secondary font-medium transition-all active:scale-95">
-                        {{ '扫码登入' }}
-                    </button>
-                </div>
-
                 <div class="pt-4 border-t border-surface-variant/30">
                     <a href="/"
                        class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface font-medium transition-colors">
@@ -65,72 +40,4 @@
                 </div>
             </div>
         </div>
-    </div>
-
-    <script>
-        const btnLogin = document.getElementById('btn_login');
-        const qrcodeContainer = document.getElementById('qrcode_container');
-        const qrcodeImg = document.getElementById('qrcode_img');
-        const qrcodeMsg = document.getElementById('qrcode_msg');
-        const loginStatus = document.getElementById('login_status');
-        let pollInterval = null;
-
-        btnLogin.addEventListener('click', async () => {
-            if (pollInterval) clearInterval(pollInterval);
-            
-            btnLogin.disabled = true;
-            btnLogin.innerText = '正在生成...';
-            
-            try {
-                const res = await fetch('/api/login/qrcode/generate');
-                const data = await res.json();
-                
-                if (data.url) {
-                    // Use local QR code generator to avoid CSP issues
-                    qrcodeImg.src = `/api/qrcode?text=${encodeURIComponent(data.url)}`;
-                    qrcodeContainer.classList.remove('hidden');
-                    btnLogin.innerText = '重新生成二维码';
-                    btnLogin.disabled = false;
-                    
-                    startPolling(data.session_id);
-                } else {
-                    alert('生成失败: ' + (data.error || '未知错误'));
-                    btnLogin.disabled = false;
-                    btnLogin.innerText = '扫码登入';
-                }
-            } catch (e) {
-                alert('网络错误');
-                btnLogin.disabled = false;
-                btnLogin.innerText = '扫码登入';
-            }
-        });
-
-        function startPolling(sessionId) {
-            pollInterval = setInterval(async () => {
-                try {
-                    const res = await fetch(`/api/login/qrcode/poll?session_id=${sessionId}`);
-                    const data = await res.json();
-                    
-                    if (data.status === 'confirmed') {
-                        clearInterval(pollInterval);
-                        qrcodeMsg.innerText = '登入成功！正在刷新...';
-                        loginStatus.innerText = '已登入';
-                        loginStatus.classList.remove('text-secondary');
-                        loginStatus.classList.add('text-green-500');
-                        setTimeout(() => location.reload(), 2000);
-                    } else if (data.status === 'scanned') {
-                        qrcodeMsg.innerText = '已扫码，请在手机上确认';
-                    } else if (data.status === 'waiting') {
-                        qrcodeMsg.innerText = '请使用 Bilibili App 扫码';
-                    } else if (data.status === 'expired') {
-                        clearInterval(pollInterval);
-                        qrcodeMsg.innerText = '二维码已过期，请重新生成';
-                        btnLogin.innerText = '重新生成二维码';
-                    }
-                } catch (e) {
-                    console.error('Polling error:', e);
-                }
-            }, 3000);
-        }
-    </script>
-{% endblock %}
+    {% endblock %}

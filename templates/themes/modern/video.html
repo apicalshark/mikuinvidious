@@ -53,7 +53,7 @@
             <!-- Player Card -->
             <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl overflow-hidden shadow-sm">
                 <!-- Player Wrapper: Force Dark Background -->
-                <div id="player-placeholder-wrapper">{{ video_player(vid, vinfo, idx, supported_src, is_live, has_dash) }}</div>
+                <div id="player-placeholder-wrapper">{{ video_player(vid, vinfo, idx, supported_src, is_live) }}</div>
 
                 <!-- Title & Basic Actions -->
                 <div class="p-4 md:p-6 space-y-4">
@@ -105,18 +105,6 @@
                                class="hover:text-primary transition-colors">{{ vinfo['tname'] }}</a>
                         </div>
                     </div>
-
-                    <!-- Tags -->
-                    {% if vtags %}
-                        <div class="flex flex-wrap gap-2 pb-4">
-                            {% for tag in vtags %}
-                                <a href="/search?keyword={{ tag['tag_name'] }}"
-                                   class="px-3 py-1 rounded-full bg-surface-variant/30 text-on-surface-variant hover:bg-primary/10 hover:text-primary transition-all text-xs font-medium">
-                                    #{{ tag['tag_name'] }}
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% endif %}
 
                     <!-- Actions -->
                     <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
