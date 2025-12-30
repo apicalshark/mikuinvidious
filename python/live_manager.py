@@ -104,6 +104,17 @@ class LiveStream:
         except Exception:
             pass
 
+    async def aclose(self):
+        """Forcefully close the stream and cleanup."""
+        self.is_running = False
+        if self.task:
+            self.task.cancel()
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
+        print(f"[LiveManager] Stream {self.url[:30]}... closed via aclose()")
+
     async def _stream_loop(self):
         retry_count = 0
         max_retries = 5
@@ -115,12 +126,14 @@ class LiveStream:
                     self.header_ready.clear()
                     self.resp_headers = {}
                     try:
+                        # Wait for a client to join or timeout
                         await asyncio.wait_for(self.client_joined.wait(), timeout=30.0)
                         self.client_joined.clear()
                     except asyncio.TimeoutError:
                         if not self.clients:
                             print(f"[LiveManager] No clients for 30s, self-destructing: {self.url[:50]}")
-                            return
+                            self.is_running = False
+                            break
 
                 if not self.is_running:
                     break
@@ -137,6 +150,7 @@ class LiveStream:
                         self.header_ready.set()
                         retry_count += 1
                         if retry_count >= max_retries:
+                            self.is_running = False
                             break
                         await asyncio.sleep(5)
                         continue
@@ -149,25 +163,27 @@ class LiveStream:
 
                     while self.is_running:
                         try:
-                            # Use a short timeout to check for client presence periodically
+                            # Short timeout to allow periodically checking for clients and is_running
                             chunk = await asyncio.wait_for(anext(resp_iter), timeout=5.0)
                         except StopAsyncIteration:
                             print(f"[LiveManager] Upstream reached EOF: {self.url[:50]}")
-                            return  # Exit entirely on EOF
+                            self.is_running = False
+                            return 
                         except asyncio.TimeoutError:
-                            # Silence from upstream. Check grace period.
+                            # No data from upstream for 5s. Check if anyone is still watching.
                             if not self.clients and (time.time() - last_signal_time > 30.0):
                                 print("[LiveManager] No clients for 30s during silence. Killing upstream.")
+                                self.is_running = False
                                 return
                             continue
 
+                        # Update last signal time if we have clients
                         if self.clients:
                             last_signal_time = time.time()
-
-                        # Grace period: 30s
-                        if not self.clients and (time.time() - last_signal_time > 30.0):
+                        elif time.time() - last_signal_time > 30.0:
                             print("[LiveManager] No clients for 30s. Killing upstream.")
-                            return  # Exit entirely
+                            self.is_running = False
+                            return
 
                         # Process & Broadcast
                         self.metrics["bytes_received"] += len(chunk)
@@ -194,15 +210,16 @@ class LiveStream:
 
                         self.last_active = time.time()
 
+            except asyncio.CancelledError:
+                self.is_running = False
+                raise
             except Exception as e:
                 retry_count += 1
                 print(f"[LiveManager] Connection error (Retry {retry_count}/{max_retries}): {e}")
                 if retry_count >= max_retries:
+                    self.is_running = False
                     break
                 await asyncio.sleep(min(retry_count * 2, 10))
-
-            if not self.is_running:
-                break
 
         print(f"[LiveManager] Stream task terminating: {self.url[:50]}")
         self.is_running = False
@@ -278,7 +295,8 @@ class LiveStreamManager:
                 to_remove = [url for url, s in self.streams.items() if not s.is_running]
                 for url in to_remove:
                     print(f"[LiveManager] Cleaning up stale stream: {url[:50]}")
-                    del self.streams[url]
+                    s = self.streams.pop(url)
+                    await s.aclose()
 
     async def subscribe(self, url, headers, cookies, client_id):
         async with self.lock:

@@ -40,6 +40,35 @@ async def render_proxy_pic(req_path):
                 await resp.aclose()
 
 
+class ClosingIterator:
+    """
+    An async iterator wrapper that ensures the upstream response is closed
+    when the iterator is closed or exhausted.
+    """
+
+    def __init__(self, generator, upstream_resp_func):
+        self.generator = generator
+        self.upstream_resp_func = upstream_resp_func
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        return await anext(self.generator)
+
+    async def aclose(self):
+        """Called by Quart/Hypercorn when the response is finished."""
+        if hasattr(self.generator, "aclose"):
+            await self.generator.aclose()
+        resp = self.upstream_resp_func()
+        if resp:
+            await resp.aclose()
+
+    async def close(self):
+        """Standard close method for older ASGI compatibility."""
+        await self.aclose()
+
+
 class ProxyResponse(Response):
     """
     A specialized Response class that manages upstream httpx response(s) with CDN fallback.
@@ -53,44 +82,56 @@ class ProxyResponse(Response):
         self._current_url_index = 0
 
         async def response_generator():
-            while self._current_url_index < len(self.urls):
-                url = self.urls[self._current_url_index]
-                client = await Network.get_async_client()
+            try:
+                while self._current_url_index < len(self.urls):
+                    url = self.urls[self._current_url_index]
+                    client = await Network.get_async_client()
 
-                try:
-                    proxy_request = client.build_request("GET", url, headers=self.client_headers, cookies=self.cookies)
-                    self.upstream_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-
-                    # If we get a valid streamable status, proceed
-                    if self.upstream_resp.status_code < 400:
-                        print(f"[Proxy] Success with CDN {self._current_url_index}: {url[:50]}...")
-                        try:
-                            async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
-                                yield chunk
-                            return  # Finished successfully
-                        finally:
-                            await self.upstream_resp.aclose()
-                    else:
-                        print(
-                            f"[Proxy] CDN {self._current_url_index} returned {self.upstream_resp.status_code}, trying next..."
+                    try:
+                        proxy_request = client.build_request(
+                            "GET", url, headers=self.client_headers, cookies=self.cookies
                         )
-                        await self.upstream_resp.aclose()
-                except Exception as e:
-                    print(f"[Proxy] CDN {self._current_url_index} failed with error: {e}")
-                    if self.upstream_resp:
-                        await self.upstream_resp.aclose()
+                        self.upstream_resp = await client.send(proxy_request, stream=True, follow_redirects=True)
 
-                self._current_url_index += 1
+                        # If we get a valid streamable status, proceed
+                        if self.upstream_resp.status_code < 400:
+                            print(f"[Proxy] Success with CDN {self._current_url_index}: {url[:50]}...")
+                            try:
+                                async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
+                                    yield chunk
+                                return  # Finished successfully
+                            finally:
+                                await self.upstream_resp.aclose()
+                                self.upstream_resp = None
+                        else:
+                            print(
+                                f"[Proxy] CDN {self._current_url_index} returned {self.upstream_resp.status_code}, trying next..."
+                            )
+                            await self.upstream_resp.aclose()
+                            self.upstream_resp = None
+                    except Exception as e:
+                        print(f"[Proxy] CDN {self._current_url_index} failed with error: {e}")
+                        if self.upstream_resp:
+                            await self.upstream_resp.aclose()
+                            self.upstream_resp = None
 
-            print("[Proxy] All CDNs exhausted.")
+                    self._current_url_index += 1
+                print("[Proxy] All CDNs exhausted.")
+            except (asyncio.CancelledError, GeneratorExit):
+                print("[Proxy] Generator cancelled/exit during streaming.")
+                raise
+            finally:
+                if self.upstream_resp:
+                    await self.upstream_resp.aclose()
+                    self.upstream_resp = None
 
-        super().__init__(response_generator(), *args, **kwargs)
+        super().__init__(ClosingIterator(response_generator(), lambda: self.upstream_resp), *args, **kwargs)
 
     async def aclose(self):
-        """Called by Quart when the response is finished or the client disconnects."""
+        """Explicitly close the body if it has an aclose method."""
+        if hasattr(self.response, "aclose"):
+            await self.response.aclose()
         await super().aclose()
-        if self.upstream_resp:
-            await self.upstream_resp.aclose()
 
 
 @proxy_bp.route("/proxy/dash/<media_type>/<int:qn>")
@@ -228,32 +269,63 @@ async def proxy_main(subpath):
             if not q:
                 return Response("Upstream Error", status=502)
 
-            async def generate_from_manager():
-                reason = "Stream ended"
+            # Extra safety: listen for disconnect via ASGI scope if possible
+            disconnect_event = asyncio.Event()
+
+            async def wait_for_disconnect():
+                disconnect_ext = request.scope.get("extensions", {}).get("http.disconnect")
+                if not disconnect_ext:
+                    return
                 try:
                     while True:
+                        message = await disconnect_ext()
+                        if message["type"] == "http.disconnect":
+                            break
+                except Exception:
+                    pass
+                finally:
+                    disconnect_event.set()
+
+            async def generate_from_manager():
+                reason = "Stream ended"
+                # Start background disconnect listener
+                cleanup_task = asyncio.create_task(wait_for_disconnect())
+                try:
+                    while not disconnect_event.is_set():
                         try:
-                            # Use a reasonable timeout (15s) for keep-alive
-                            chunk = await asyncio.wait_for(q.get(), timeout=15.0)
+                            # Wait for chunk OR disconnect
+                            get_task = asyncio.create_task(q.get())
+                            done, pending = await asyncio.wait(
+                                [get_task, asyncio.create_task(disconnect_event.wait())],
+                                return_when=asyncio.FIRST_COMPLETED,
+                                timeout=15.0,
+                            )
+
+                            for p in pending:
+                                p.cancel()
+
+                            if disconnect_event.is_set():
+                                reason = "Client disconnected (Event)"
+                                break
+
+                            if not done:
+                                # Timeout hit, send keep-alive
+                                if stream.header_ready.is_set():
+                                    yield b"\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0b"
+                                continue
+
+                            chunk = await get_task
                             if chunk is None:
                                 break
                             yield chunk
-                        except asyncio.TimeoutError:
-                            # Send a minimal valid FLV Script Data tag if we have already sent headers
-                            if stream.header_ready.is_set():
-                                # Type 18 (Script Data), Size 0, Time 0, PrevSize 11
-                                # This acts as a keep-alive to prevent Nginx/Hypercorn timeout
-                                yield b"\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0b"
-                            continue
                         except Exception as e:
                             reason = f"Inner generator error: {e}"
                             break
                 except (asyncio.CancelledError, GeneratorExit):
-                    reason = "Client disconnected"
+                    reason = "Client disconnected (Cancel/Exit)"
                     raise
-                except Exception as e:
-                    reason = f"Generator error: {e}"
                 finally:
+                    cleanup_task.cancel()
                     stream.remove_client(client_id, reason=reason)
 
             proxy_resp = Response(generate_from_manager(), status=stream.status_code or 200)
