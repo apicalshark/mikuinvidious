@@ -33,8 +33,8 @@ async def main():
     config.bind = [f"{host}:{port}"]
     config.accesslog = "-"
     config.errorlog = "-"
-    config.keep_alive_timeout = 6000
-    config.response_timeout = None  # Infinite for streaming
+    config.keep_alive_timeout = 5
+    config.response_timeout = 10800  # 3 hours for streaming
 
     sys.stderr.write(f"Starting MikuInvidious (ASGI) on {config.bind[0]}\n")
     sys.stderr.write(f"Hypercorn Config: Keep-Alive={config.keep_alive_timeout}, Response={config.response_timeout}\n")
