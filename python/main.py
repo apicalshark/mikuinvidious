@@ -31,9 +31,10 @@ async def main():
     host = appconf["server"]["host"]
     port = appconf["server"]["port"]
     config.bind = [f"{host}:{port}"]
-    config.accesslog = "-"
+    config.accesslog = None
     config.errorlog = "-"
-    config.keep_alive_timeout = 5
+    config.keep_alive_timeout = 30
+    config.tcp_keepalive = True
     config.response_timeout = 10800  # 3 hours for streaming
 
     sys.stderr.write(f"Starting MikuInvidious (ASGI) on {config.bind[0]}\n")

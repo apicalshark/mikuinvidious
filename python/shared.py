@@ -30,6 +30,7 @@ class Network:
                     cls._async_client = httpx.AsyncClient(
                         proxy=cls.get_proxy(),
                         trust_env=False,
+                        http2=True,
                         timeout=httpx.Timeout(None, connect=10.0),
                         limits=httpx.Limits(
                             max_connections=500,

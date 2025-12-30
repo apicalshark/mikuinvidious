@@ -8,19 +8,28 @@ Standard HTTP servers often have a 60-second default timeout for responses or id
 
 | Layer | Configuration Variable | Value |
 | :--- | :--- | :--- |
-| **Nginx** | `proxy_read_timeout` / `keepalive_timeout` | 10800s |
-| **Hypercorn** | `response_timeout` / `keep_alive_timeout` | None / 10800s |
+| **Nginx** | `proxy_read_timeout` / `keepalive_timeout` | 10800s / 65s |
+| **Nginx** | `keepalive_requests` / `proxy_socket_keepalive` | 1000 / on |
+| **Hypercorn** | `response_timeout` / `keep_alive_timeout` | 10800s / 60s |
+| **Hypercorn** | `tcp_keepalive` | True |
 | **Quart** | `RESPONSE_TIMEOUT` / `BODY_TIMEOUT` | 10800s |
 | **HTTPX** | `httpx.Timeout` (Global) | None (Infinite) |
+| **HTTPX** | `http2` / `keepalive_expiry` | True / 60s |
 
 ## 2. FLV Heartbeats (In-Stream)
 
-If the upstream Bilibili server stops sending data (e.g., during handshakes or silence), the proxy generator sends a minimal valid FLV tag to keep the TCP connection active without corrupting the stream.
+If the upstream Bilibili server stops sending data (e.g., during handshakes or silence), the proxy generator sends a minimal valid FLV tag to keep the TCP connection active without corrupting the stream. This method is confirmed safe for `mpegts.js` as it gracefully ignores unknown or empty Type 18 tags.
 
 - **Tag Type**: 18 (Script Data)
 - **Tag Size**: 0
 - **Payload**: `\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0b` (Includes PrevTagSize)
 - **Interval**: Every 15 seconds of inactivity.
+
+## 3. TCP & HTTP/2 Keep-Alive
+
+In addition to application-level heartbeats, we employ standard network-level keep-alives:
+- **TCP Keepalive**: Enabled in Hypercorn and Nginx to maintain the underlying socket.
+- **HTTP/2 PING**: Enabled in `httpx` to periodically verify connection health at the protocol level.
 
 ## 3. Client-Side Buffering
 
