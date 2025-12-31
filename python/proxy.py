@@ -2,6 +2,7 @@ import asyncio
 import uuid
 from urllib.parse import urlparse
 
+import httpx
 from live_manager import live_manager
 from quart import Blueprint, Response, request
 from shared import Network, appconf, appredis, image_limiter
@@ -55,6 +56,11 @@ class ProxyResponse(Response):
             try:
                 async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
                     yield chunk
+            except httpx.RemoteProtocolError as e:
+                print(f"[Proxy] Upstream connection dropped prematurely: {e}")
+            except Exception as e:
+                print(f"[Proxy] Stream error: {e}")
+                raise  # Re-raise other unexpected errors
             finally:
                 await self.upstream_resp.aclose()
                 print(f"[Proxy] Upstream connection closed.")
