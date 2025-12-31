@@ -116,7 +116,6 @@ async def proxy_dash(media_type, qn):
             k_lower = k.lower()
             if k_lower in [
                 "content-type",
-                "content-length",
                 "content-range",
                 "accept-ranges",
                 "etag",
@@ -261,7 +260,6 @@ async def proxy_main(subpath):
                 k_lower = k.lower()
                 if k_lower in [
                     "content-type",
-                    "content-length",
                     "content-range",
                     "accept-ranges",
                     "etag",
