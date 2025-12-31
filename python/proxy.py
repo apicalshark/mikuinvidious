@@ -70,7 +70,7 @@ class ProxyResponse(Response):
 
 @proxy_bp.route("/proxy/dash/<media_type>/<int:qn>")
 async def proxy_dash(media_type, qn):
-    url = appredis.get(f"miku_dash_url_{media_type}_{qn}")
+    url = await appredis.get(f"miku_dash_url_{media_type}_{qn}")
     if not url:
         return Response("Not Found", status=404)
 
@@ -145,14 +145,14 @@ async def proxy_main(subpath):
                 room_id = parts[0]
                 vqn = parts[1] if len(parts) > 1 else "default"
                 redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
-                url = appredis.get(redis_key)
+                url = await appredis.get(redis_key)
                 if not url and vqn == "default":
-                    fallback_keys = appredis.keys(f"miku_live_{room_id}_*")
+                    fallback_keys = await appredis.keys(f"miku_live_{room_id}_*")
                     if fallback_keys:
-                        url = appredis.get(fallback_keys[0])
+                        url = await appredis.get(fallback_keys[0])
             else:
                 vid, vidx, vqn = req_path.removeprefix("/proxy/video/").split("_")
-                url = appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
+                url = await appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
         except ValueError:
             return Response("Bad Request", status=400)
 
@@ -288,7 +288,7 @@ async def proxy_live_disconnect():
         return Response("Missing room_id or cid", status=400)
 
     redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
-    url = appredis.get(redis_key)
+    url = await appredis.get(redis_key)
 
     if url:
         if isinstance(url, bytes):

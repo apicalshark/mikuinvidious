@@ -3,7 +3,7 @@ import functools
 import os
 
 import httpx
-import redis
+import redis.asyncio as redis
 import toml
 from bilibili_api import Credential
 from bilibili_api.utils.network import request_settings
@@ -151,7 +151,7 @@ class SimpleCache:
                 cache_key = key_prefix % request.full_path
 
                 # Check if we have a cached version
-                cached_val = appredis.get(cache_key)
+                cached_val = await appredis.get(cache_key)
                 if cached_val:
                     return cached_val
 
@@ -160,7 +160,7 @@ class SimpleCache:
 
                 # Only cache if it's a successful string response (rendered template)
                 if isinstance(response, str):
-                    appredis.setex(cache_key, timeout, response)
+                    await appredis.setex(cache_key, timeout, response)
 
                 return response
 

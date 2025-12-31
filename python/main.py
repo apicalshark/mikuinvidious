@@ -14,7 +14,9 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import os
 import sys
+from datetime import datetime
 
 import app as app_module  # noqa: F401
 from hypercorn.asyncio import serve
@@ -22,7 +24,24 @@ from hypercorn.config import Config
 from shared import app, appconf, close_global_client
 
 
+async def monitor_fd():
+    while True:
+        try:
+            # Count open file descriptors via /proc/self/fd (Linux specific)
+            fd_count = len(os.listdir("/proc/self/fd"))
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            sys.stderr.write(f"[{timestamp}] Open FDs: {fd_count}\n")
+            sys.stderr.flush()
+        except Exception as e:
+            sys.stderr.write(f"Error monitoring FDs: {e}\n")
+            sys.stderr.flush()
+        await asyncio.sleep(10)
+
+
 async def main():
+    # Start FD monitor in background
+    asyncio.create_task(monitor_fd())
+
     # Register shutdown hook
     app.after_serving(close_global_client)
 
@@ -33,7 +52,7 @@ async def main():
     config.bind = [f"{host}:{port}"]
     config.accesslog = "-"
     config.errorlog = "-"
-    config.keep_alive_timeout = 30
+    config.keep_alive_timeout = 10
     config.response_timeout = None  # Infinite for streaming
 
     sys.stderr.write(f"Starting MikuInvidious (ASGI) on {config.bind[0]}\n")
@@ -46,4 +65,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        pass
+        sys.exit(0)

@@ -115,11 +115,11 @@ class LiveStream:
                     self.header_ready.clear()
                     self.resp_headers = {}
                     try:
-                        await asyncio.wait_for(self.client_joined.wait(), timeout=30.0)
+                        await asyncio.wait_for(self.client_joined.wait(), timeout=5.0)
                         self.client_joined.clear()
                     except asyncio.TimeoutError:
                         if not self.clients:
-                            print(f"[LiveManager] No clients for 30s, self-destructing: {self.url[:50]}")
+                            print(f"[LiveManager] No clients for 5s, self-destructing: {self.url[:50]}")
                             return
 
                 if not self.is_running:
@@ -156,8 +156,8 @@ class LiveStream:
                             return  # Exit entirely on EOF
                         except asyncio.TimeoutError:
                             # Silence from upstream. Check grace period.
-                            if not self.clients and (time.time() - last_signal_time > 30.0):
-                                print("[LiveManager] No clients for 30s during silence. Killing upstream.")
+                            if not self.clients and (time.time() - last_signal_time > 5.0):
+                                print("[LiveManager] No clients for 5s during silence. Killing upstream.")
                                 return
                             continue
 
@@ -165,8 +165,8 @@ class LiveStream:
                             last_signal_time = time.time()
 
                         # Grace period: 30s
-                        if not self.clients and (time.time() - last_signal_time > 30.0):
-                            print("[LiveManager] No clients for 30s. Killing upstream.")
+                        if not self.clients and (time.time() - last_signal_time > 5.0):
+                            print("[LiveManager] No clients for 5s. Killing upstream.")
                             return  # Exit entirely
 
                         # Process & Broadcast

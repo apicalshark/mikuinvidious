@@ -401,7 +401,7 @@ async def live_room_view(room_id):
 
                 if url:
                     print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
-                    appredis.setex(f"miku_live_{room_id}_{qn_val}", 1800, url)
+                    await appredis.setex(f"miku_live_{room_id}_{qn_val}", 1800, url)
                     return {"quality": qn_val, "new_description": qn_name, "url": url}
             except Exception as e:
                 print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
@@ -412,14 +412,14 @@ async def live_room_view(room_id):
 
         if supported_src:
             # Set default quality as well
-            appredis.setex(f"miku_live_{room_id}", 1800, supported_src[0]["url"])
+            await appredis.setex(f"miku_live_{room_id}", 1800, supported_src[0]["url"])
         else:
             # Final desperate fallback
             try:
                 fb_info = await room.get_room_play_url()
                 if "durl" in fb_info and fb_info["durl"]:
                     u = fb_info["durl"][0]["url"]
-                    appredis.setex(f"miku_live_{room_id}", 1800, u)
+                    await appredis.setex(f"miku_live_{room_id}", 1800, u)
                     supported_src = [{"quality": "default", "new_description": "默认", "url": u}]
             except Exception:
                 pass
@@ -462,18 +462,18 @@ async def video_listen_view(vid, idx=0):
     v = video.Video(bvid=vid, credential=appcred)
 
     async def get_audio_url():
-        if not appredis.exists(f"mikuinv_{vid}_{idx}_0"):
+        if not await appredis.exists(f"mikuinv_{vid}_{idx}_0"):
             try:
                 vsrc = await video_get_dash_for_qn(v, idx)
                 if "dash" in vsrc and "audio" in vsrc["dash"] and vsrc["dash"]["audio"]:
-                    appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc["dash"]["audio"][0]["baseUrl"])
+                    await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc["dash"]["audio"][0]["baseUrl"])
                     return
             except Exception:
                 pass
             try:
                 vsrc_fallback = await video_get_src_for_qn(v, idx, 16)
                 if "durl" in vsrc_fallback and vsrc_fallback["durl"]:
-                    appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc_fallback["durl"][0]["url"])
+                    await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc_fallback["durl"][0]["url"])
             except Exception:
                 pass
 
@@ -519,13 +519,13 @@ async def video_listen_view(vid, idx=0):
 @app.route("/video/m3u8/<vid>/<int:idx>/master.m3u8")
 async def video_master_m3u8_view(vid, idx):
     v = video.Video(bvid=vid, credential=appcred)
-    dash_cache = appredis.get(f"miku_dash_{vid}_{idx}")
+    dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
     if dash_cache:
         dash_data = json.loads(dash_cache)
     else:
         try:
             dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
-            appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(dash_data))
+            await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(dash_data))
         except Exception:
             return "Upstream Timeout", 504
 
@@ -538,13 +538,13 @@ async def video_master_m3u8_view(vid, idx):
 @app.route("/video/m3u8/<vid>/<int:idx>/<media_type>_<int:qn>.m3u8")
 async def video_media_m3u8_view(vid, idx, media_type, qn):
     v = video.Video(bvid=vid, credential=appcred)
-    dash_cache = appredis.get(f"miku_dash_{vid}_{idx}")
+    dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
     if dash_cache:
         dash_data = json.loads(dash_cache)
     else:
         try:
             dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
-            appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(dash_data))
+            await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(dash_data))
         except Exception:
             return "Upstream Timeout", 504
 
@@ -567,7 +567,7 @@ async def api_component_player(vid, idx):
         has_dash, v_supported_src = False, []
 
         # 0. Check Cache First
-        cached_dash = appredis.get(f"miku_dash_{vid}_{idx}")
+        cached_dash = await appredis.get(f"miku_dash_{vid}_{idx}")
         if cached_dash:
             try:
                 dash_data = json.loads(cached_dash)
@@ -584,7 +584,7 @@ async def api_component_player(vid, idx):
             try:
                 data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=4.0)
                 if "dash" in data:
-                    appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(data))
+                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(data))
                     for mt in ["video", "audio"]:
                         tracks = data["dash"].get(mt, [])
                         if mt == "audio" and not tracks and "flac" in data["dash"]:
@@ -592,7 +592,7 @@ async def api_component_player(vid, idx):
                         for item in tracks:
                             url = item.get("baseUrl") or item.get("base_url")
                             if url:
-                                appredis.setex(f"miku_dash_url_{mt}_{item['id']}", 1800, url)
+                                await appredis.setex(f"miku_dash_url_{mt}_{item['id']}", 1800, url)
                     return ("dash", data)
             except Exception:
                 pass
@@ -604,8 +604,8 @@ async def api_component_player(vid, idx):
                 if data and "durl" in data:
                     url = data["durl"][0]["url"]
                     qn = data.get("quality", 16)
-                    appredis.setex(f"mikuinv_{vid}_{idx}_{qn}", 1800, url)
-                    appredis.setex(f"mikuinv_{vid}_{idx}", 1800, url)
+                    await appredis.setex(f"mikuinv_{vid}_{idx}_{qn}", 1800, url)
+                    await appredis.setex(f"mikuinv_{vid}_{idx}", 1800, url)
 
                     support_formats = data.get("support_formats", [])
                     if support_formats:
@@ -614,7 +614,7 @@ async def api_component_player(vid, idx):
                             try:
                                 res_high = await asyncio.wait_for(video_get_src_for_qn(v, idx, first_qn), timeout=4.0)
                                 if "durl" in res_high:
-                                    appredis.setex(f"mikuinv_{vid}_{idx}_{first_qn}", 1800, res_high["durl"][0]["url"])
+                                    await appredis.setex(f"mikuinv_{vid}_{idx}_{first_qn}", 1800, res_high["durl"][0]["url"])
                             except Exception:
                                 pass
                     return ("fallback", data)
@@ -639,7 +639,7 @@ async def api_component_player(vid, idx):
                         ]
                         if v_supported_src:
                             first_qn = v_supported_src[0]["quality"]
-                            if not appredis.exists(f"mikuinv_{vid}_{idx}_{first_qn}"):
+                            if not await appredis.exists(f"mikuinv_{vid}_{idx}_{first_qn}"):
                                 asyncio.create_task(video_get_src_for_qn(v, idx, first_qn))  # Fire and forget
                         return has_dash, v_supported_src
                     elif result_type == "fallback" and result_data:
@@ -704,10 +704,10 @@ async def video_view(vid, idx=0):
     try:
         hist_id = request.cookies.get("hist_id") or os.urandom(8).hex()
         hist_key = f"miku_hist_{hist_id}"
-        appredis.lrem(hist_key, 0, vid)
-        appredis.lpush(hist_key, vid)
-        appredis.ltrim(hist_key, 0, 49)
-        appredis.expire(hist_key, 3600 * 24 * 30)
+        await appredis.lrem(hist_key, 0, vid)
+        await appredis.lpush(hist_key, vid)
+        await appredis.ltrim(hist_key, 0, 49)
+        await appredis.expire(hist_key, 3600 * 24 * 30)
     except Exception:
         pass
 
@@ -776,13 +776,13 @@ async def audio_view(auid):
     a = audio.Audio(auid_int, credential=appcred)
 
     async def get_audio_url():
-        if not appredis.exists(f"mikuinv_{auid}_{0}_0"):
+        if not await appredis.exists(f"mikuinv_{auid}_{0}_0"):
             try:
                 asrc = await a.get_download_url()
                 if "cdns" in asrc and asrc["cdns"]:
-                    appredis.setex(f"mikuinv_{auid}_{0}_0", 1800, asrc["cdns"][0])
+                    await appredis.setex(f"mikuinv_{auid}_{0}_0", 1800, asrc["cdns"][0])
                 elif "url" in asrc:
-                    appredis.setex(f"mikuinv_{auid}_{0}_0", 1800, asrc["url"])
+                    await appredis.setex(f"mikuinv_{auid}_{0}_0", 1800, asrc["url"])
             except Exception:
                 pass
 
@@ -839,13 +839,13 @@ async def audio_list_view(amid, idx=0):
     a = audio.Audio(current_song["id"], credential=appcred)
 
     async def get_audio_url():
-        if not appredis.exists(f"mikuinv_{amid}_{idx}_0"):
+        if not await appredis.exists(f"mikuinv_{amid}_{idx}_0"):
             try:
                 asrc = await a.get_download_url()
                 if "cdns" in asrc and asrc["cdns"]:
-                    appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["cdns"][0])
+                    await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["cdns"][0])
                 elif "url" in asrc:
-                    appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["url"])
+                    await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["url"])
             except Exception:
                 pass
 
@@ -906,7 +906,7 @@ async def history_view():
     if not hist_id:
         return await render_template_with_theme("home.html", videos=[], title="浏览历史", message="您还没有浏览历史。")
 
-    bvids = appredis.lrange(f"miku_hist_{hist_id}", 0, -1)
+    bvids = await appredis.lrange(f"miku_hist_{hist_id}", 0, -1)
     if not bvids:
         return await render_template_with_theme("home.html", videos=[], title="浏览历史", message="您还没有浏览历史。")
 
