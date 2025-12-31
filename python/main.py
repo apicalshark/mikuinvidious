@@ -35,7 +35,7 @@ async def monitor_fd():
         except Exception as e:
             sys.stderr.write(f"Error monitoring FDs: {e}\n")
             sys.stderr.flush()
-        await asyncio.sleep(10)
+        await asyncio.sleep(600)
 
 
 async def main():
