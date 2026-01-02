@@ -15,6 +15,9 @@
 
 from datetime import datetime, timedelta
 
+from markupsafe import Markup
+
+import transformers
 from shared import app
 
 
@@ -46,3 +49,9 @@ def __jinja2_filter_pic(url):
     if url.startswith("//"):
         return "/proxy/pic/" + url[2:]
     return "/proxy/pic/" + url
+
+
+# Safely format descriptions with paragraphs and breaks.
+@app.template_filter("format_desc")
+def __jinja2_filter_format_desc(desc):
+    return Markup(transformers.format_description(desc))

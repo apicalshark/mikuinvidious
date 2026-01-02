@@ -15,6 +15,28 @@ def format_duration(seconds):
         return "00:00"
 
 
+import re
+import html
+
+
+def format_description(raw_desc):
+    """Escapes HTML and formats newlines into paragraphs/breaks."""
+    if not raw_desc:
+        return ""
+    # Split into paragraphs by double newlines
+    paragraphs = re.split(r"\n\s*\n", raw_desc)
+    formatted_paragraphs = []
+    for p in paragraphs:
+        if p.strip():
+            # Escape HTML content to prevent XSS, then format newlines
+            safe_text = html.escape(p.strip())
+            # Replace single newlines within a paragraph with <br>
+            inner = safe_text.replace("\n", "<br>")
+            formatted_paragraphs.append(f"<p>{inner}</p>")
+
+    return "".join(formatted_paragraphs)
+
+
 def transform_video_card(data):
     """Standardizes video objects for grid displays."""
     try:
@@ -109,31 +131,19 @@ def transform_live_card(data):
 
 def transform_live_room(data):
     """Standardizes detailed live room info."""
-    import re
-
     # This depends on the specific API return structure of get_room_info
     room_info = data.get("room_info", {})
     anchor_info = data.get("anchor_info", {})
     base_info = anchor_info.get("base_info", {})
 
     raw_desc = room_info.get("description", "")
-    # Split into paragraphs by double newlines
-    paragraphs = re.split(r"\n\s*\n", raw_desc)
-    formatted_paragraphs = []
-    for p in paragraphs:
-        if p.strip():
-            # Replace single newlines within a paragraph with <br>
-            inner = p.strip().replace("\n", "<br>")
-            formatted_paragraphs.append(f"<p>{inner}</p>")
-
-    formatted_desc = "".join(formatted_paragraphs)
 
     return {
         "room_id": room_info.get("room_id"),
         "title": room_info.get("title"),
         "pic": room_info.get("cover"),
         "online": room_info.get("online"),
-        "description": formatted_desc,
+        "description": raw_desc,
         "area_name": room_info.get("area_name"),
         "parent_area_name": room_info.get("parent_area_name"),
         "live_status": room_info.get("live_status"),  # 1: Live, 0: Offline

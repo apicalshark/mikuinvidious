@@ -614,7 +614,9 @@ async def api_component_player(vid, idx):
                             try:
                                 res_high = await asyncio.wait_for(video_get_src_for_qn(v, idx, first_qn), timeout=4.0)
                                 if "durl" in res_high:
-                                    await appredis.setex(f"mikuinv_{vid}_{idx}_{first_qn}", 1800, res_high["durl"][0]["url"])
+                                    await appredis.setex(
+                                        f"mikuinv_{vid}_{idx}_{first_qn}", 1800, res_high["durl"][0]["url"]
+                                    )
                             except Exception:
                                 pass
                     return ("fallback", data)
