@@ -138,7 +138,7 @@
                                    name="q"
                                    placeholder="{{ '想要搜索点什么？' }}"
                                    class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface-variant text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
-                                   {{ ('value=%s' % q)  if q else '' }} />
+                                   {% if q %}value="{{ q }}"{% endif %} />
                         </div>
                     </form>
                 </div>
