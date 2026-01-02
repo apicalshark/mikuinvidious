@@ -247,7 +247,17 @@
 
                             const msgEl = document.createElement('div');
                             msgEl.className = 'py-1 px-2 hover:bg-surface-variant/10 transition-colors rounded break-words break-all';
-                            msgEl.innerHTML = `<span class="font-bold text-primary mr-1 whitespace-nowrap">${data.user}:</span><span class="text-on-surface opacity-90">${data.text}</span>`;
+                            
+                            const userSpan = document.createElement('span');
+                            userSpan.className = 'font-bold text-primary mr-1 whitespace-nowrap';
+                            userSpan.textContent = `${data.user}:`;
+                            
+                            const textSpan = document.createElement('span');
+                            textSpan.className = 'text-on-surface opacity-90';
+                            textSpan.textContent = data.text;
+                            
+                            msgEl.appendChild(userSpan);
+                            msgEl.appendChild(textSpan);
                             chatContainer.appendChild(msgEl);
 
                             // Add to danmaku overlay

@@ -703,7 +703,15 @@ function createOption(text, val, onClick, list) {
   const btn = document.createElement("button");
   btn.className =
     "w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between group";
-  btn.innerHTML = `<span>${text}</span><i class="icon ion-md-checkmark text-primary opacity-0 group-[.active]:opacity-100"></i>`;
+  
+  const span = document.createElement("span");
+  span.textContent = text;
+  btn.appendChild(span);
+
+  const icon = document.createElement("i");
+  icon.className = "icon ion-md-checkmark text-primary opacity-0 group-[.active]:opacity-100";
+  btn.appendChild(icon);
+
   btn.onclick = (e) => {
     e.stopPropagation();
     onClick();
