@@ -18,7 +18,9 @@ class Network:
 
     @staticmethod
     def get_proxy():
-        return os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy") if appconf["proxy"]["use_proxy"] else None
+        if not appconf["proxy"]["use_proxy"]:
+            return None
+        return appconf["proxy"]["proxy_url"] or None
 
     @classmethod
     async def get_async_client(cls) -> httpx.AsyncClient:
@@ -76,6 +78,7 @@ appconf = {
     "server": {
         "host": os.environ.get("SERVER_HOST", "0.0.0.0"),
         "port": int(os.environ.get("SERVER_PORT", 8888)),
+        "secret_key": os.environ.get("QUART_SECRET_KEY"),
     },
     "display": {"default_theme": "modern"},
     "credential": {
@@ -88,6 +91,7 @@ appconf = {
     },
     "proxy": {
         "use_proxy": os.environ.get("NO_PROXY", "false").lower() not in ["true", "1"],
+        "proxy_url": os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"),
     },
     "render": {
         "use_pandoc": os.environ.get("USE_PANDOC", "false").lower() == "true",
@@ -98,6 +102,7 @@ appconf = {
         "port": int(os.environ.get("REDIS_PORT", 6379)),
         "username": os.environ.get("REDIS_USERNAME"),
         "password": os.environ.get("REDIS_PASSWORD"),
+        "redis_url": os.environ.get("REDIS_URL"),
     },
 }
 
@@ -107,8 +112,8 @@ elif os.path.exists("../config.toml"):
     deep_update(appconf, toml.load("../config.toml"))
 
 # Connect to our nice redis database.
-if os.environ.get("REDIS_URL"):
-    appredis = redis.from_url(os.environ["REDIS_URL"], decode_responses=True)
+if appconf["redis"]["redis_url"]:
+    appredis = redis.from_url(appconf["redis"]["redis_url"], decode_responses=True)
 else:
     appredis = redis.Redis(
         host=appconf["redis"]["host"],
@@ -123,7 +128,7 @@ app = Quart("app", template_folder="../templates", static_folder="../static")
 app.config.from_mapping(appconf["quart"])
 app.config["RESPONSE_TIMEOUT"] = 10800
 app.config["BODY_TIMEOUT"] = 10800
-app.secret_key = os.environ.get("QUART_SECRET_KEY", os.urandom(24).hex())
+app.secret_key = appconf["server"]["secret_key"] or os.urandom(24).hex()
 
 # Configure sessions
 app.config["SESSION_TYPE"] = "redis"
@@ -216,4 +221,4 @@ if appconf["proxy"]["use_proxy"]:
         print(f"[Init] Setting global proxy for bilibili_api: {proxy_url}")
         request_settings.set_proxy(proxy_url)
     else:
-        print("[Init] Proxy enabled but HTTP_PROXY env var not set!")
+        print("[Init] Proxy enabled but no proxy URL found in config.toml or env vars! Falling back to direct connection.")
