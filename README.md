@@ -65,6 +65,8 @@ Key environment variables:
 - `REDIS_URL`: Connection string for Redis.
 - `QUART_SECRET_KEY`: A random secret string for session security.
 
+Additionally, you can use the manage_quic.sh to simplify SSL credential and QUIC setup.
+
 ## License
 
 MikuInvidious is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
