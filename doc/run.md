@@ -37,7 +37,7 @@ pip install -r requirements.txt
 
 ---
 
-## 3. Minimal Configuration
+## 3. Minimal Configuration (full reference is in python/shared.py)
 
 Copy the sample configuration:
 

@@ -37,7 +37,7 @@ pip install -r requirements.txt
 
 ---
 
-## 3. 最小化配置
+## 3. 最小化配置（完整内容可参考 python/shared.py）
 
 复制示例配置：
 
