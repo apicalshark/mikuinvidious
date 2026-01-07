@@ -52,6 +52,10 @@ The easiest way to run MikuInvidious is using Docker Compose.
 
 The application will be available at `http://localhost:8000`.
 
+### Local Installation (Non-Docker)
+
+For a more lightweight, non-Docker setup, please see the [detailed local installation guide](doc/non-docker.md). This is recommended for users with limited system memory or those who prefer to manage their environment directly.
+
 ### Configuration
 
 You can customize the application by editing the `environment` section in `compose.yml` or by creating a `config.toml` file.
