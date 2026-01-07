@@ -27,7 +27,7 @@ sudo apt install python3 python3-venv git
 git clone https://github.com/apicalshark/mikuinvidious.git
 cd mikuinvidious
 
-# 安装依赖项并建立环境
+# 建立环境
 uv sync
 ```
 
