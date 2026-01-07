@@ -33,7 +33,9 @@ uv sync
 
 ---
 
-## 3. Minimal Configuration (full reference is in python/shared.py)
+## 3. Minimal Configuration
+
+For a complete list of all available options and their corresponding environment variables, please see the **[detailed Configuration Reference](configuration.md)**.
 
 Copy the sample configuration:
 
