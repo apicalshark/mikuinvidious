@@ -52,9 +52,9 @@ The easiest way to run MikuInvidious is using Docker Compose.
 
 The application will be available at `http://localhost:8000`.
 
-### Local Installation (No Docker)
+### Local Installation (Without Docker)
 
-For advanced users who want to run the entire application without Docker, please see the [detailed local installation guide](doc/non-docker.md). This guide requires manual installation and configuration of Redis and the Cloudflare Warp client.
+For users who want to run the entire application without Docker, please see the [detailed local installation guide](doc/setup.md). This guide requires manual installation and configuration of Redis and the Cloudflare Warp client.
 
 ### Configuration
 
