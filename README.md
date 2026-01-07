@@ -63,7 +63,34 @@ Key environment variables:
 - `SITE_URL`: The public URL of your instance.
 - `HTTP_PROXY` / `HTTPS_PROXY`: SOCKS5 proxy (configured to use the included `warp` service by default).
 - `REDIS_URL`: Connection string for Redis.
-- `QUART_SECRET_KEY`: A random secret string for session security.
+
+### 🛡️ Security
+
+**IMPORTANT**: You MUST set a strong, random `QUART_SECRET_KEY` for any production instance. This key is critical for securing user sessions.
+
+You can set it in two ways:
+
+1.  **Environment Variable (Recommended for Docker):**
+    Add `QUART_SECRET_KEY` to the `environment` section of your `compose.yml`:
+    ```yaml
+    environment:
+      - QUART_SECRET_KEY=your_super_secret_random_string_here
+    ```
+
+2.  **Configuration File:**
+    Add `secret_key` to your `config.toml` file under the `[server]` section:
+    ```toml
+    [server]
+    secret_key = 'your_super_secret_random_string_here'
+    ```
+
+To generate a secure key, use the following command:
+
+```bash
+openssl rand -hex 32
+```
+
+If you do not set a key, a temporary one will be generated at startup, but **all user sessions will be lost every time the application restarts.**
 
 Additionally, you can use the manage_quic.sh to simplify SSL credential and QUIC setup.
 
