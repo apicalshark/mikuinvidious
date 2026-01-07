@@ -8,7 +8,7 @@ This approach is intended for users who cannot or do not want to use Docker. It 
 
 Before you begin, ensure you have the following installed and running:
 - **Python 3.10+**
-- **Node.js v18+ and npm**
+- **Node.js v18+ and npm** (only for development)
 - **Git**
 - **uv** (the python package manager `pip install uv`)
 - **Redis**
@@ -23,9 +23,20 @@ The application requires two background services to be running: Redis and the Cl
 ### 1. Install and Run Redis
 Redis is required for caching and session storage.
 
--   **macOS:** Install with Homebrew: `brew install redis`, then start it: `brew services start redis`.
--   **Linux (Ubuntu/Debian):** Install with apt: `sudo apt update && sudo apt install redis-server`, then ensure it's running: `sudo systemctl start redis-server`.
--   **Windows:** Follow the official [Redis on Windows installation guide](https://redis.io/docs/getting-started/installation/install-redis-on-windows/).
+-   **macOS (via [Homebrew](https://brew.sh/)):**
+    ```bash
+    brew install redis
+    brew services start redis
+    ```
+
+-   **Linux (Ubuntu/Debian):**
+    ```bash
+    sudo apt update && sudo apt install redis-server
+    sudo systemctl start redis-server
+    ```
+
+-   **Windows:**
+    For Windows, please follow the official [Redis on Windows installation guide](https://redis.io/docs/getting-started/installation/install-redis-on-windows/).
 
 Verify that Redis is running on its default port, `6379`.
 
