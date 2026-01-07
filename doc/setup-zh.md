@@ -57,14 +57,7 @@ Redis 用于缓存和会话存储。
    cd mikuinvidious
    ```
 
-2. **安装依赖项：**
-
-   ```bash
-   # 创建环境并同步
-   uv sync
-   ```
-
-3. **构建 TailwindCSS（仅用于开发）：**
+2. **构建 TailwindCSS（仅用于开发）：**
 
    ```bash
    npm run build:css

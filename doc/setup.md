@@ -57,14 +57,7 @@ Your WARP client is now listening for SOCKS5 connections on port `1080`.
    cd mikuinvidious
    ```
 
-2. **Install Dependencies:**
-
-   ```bash
-   # Creates the environment
-   uv sync
-   ```
-
-3. **Build TailwindCSS(for development only):**
+2. **Build TailwindCSS(for development only):**
 
    ```bash
    npm run build:css
