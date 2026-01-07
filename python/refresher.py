@@ -17,45 +17,27 @@ import toml
 from bilibili_api import Credential, sync
 
 
-def discard_generated_data(fn):
-    with open(fn) as file:
-        lines = file.readlines()
-
-    index = None
-    for i, line in enumerate(lines):
-        if "## GENERATED DATA, DO NOT WRITE ANYTHING BELOW!!! ##\n" in line:
-            index = i
-            break
-
-    if index is not None:
-        with open(fn, "w") as file:
-            file.writelines(lines[:index])
-            return True
-    else:
-        return False
-
-
 def renew_cookies(cred):
     try:
         if sync(cred.check_refresh()):
             sync(cred.refresh())
-            write_cookies(cred)
-            print("Cookies refreshed.")
+            print("Cookies refreshed successfully.")
+            print("\n" + "="*50)
+            print("!! CRITICAL SECURITY WARNING !!")
+            print("Do NOT save these credentials directly in config.toml.")
+            print("Update your environment variables or secrets management system.")
+            print("="*50 + "\n")
+            print("Refreshed Credentials:\n")
+            for k, v in cred.get_cookies().items():
+                env_var = k.upper()
+                print(f"  {env_var}='{v}'")
+            print("\n" + "="*50)
+            print("Example: export SESSDATA='...'")
+            print("="*50 + "\n")
             return True
     except Exception as e:
         print(f"Error refreshing cookies: {e}")
     return False
-
-
-def write_cookies(cred):
-    buf = "" if discard_generated_data("config.toml") else "\n\n"
-    buf += "## GENERATED DATA, DO NOT WRITE ANYTHING BELOW!!! ##\n"
-    buf += "[updatedcred]\n"
-    for k, v in cred.get_cookies().items():
-        buf += f"{k.lower()} = '{v}'\n"
-
-    with open("config.toml", "a") as f:
-        f.write(buf)
 
 
 if __name__ == "__main__":

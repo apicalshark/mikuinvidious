@@ -37,9 +37,7 @@ services:
       # Site Configuration
       - SITE_NAME=MikuInvidious
       - SITE_URL=http://localhost:8000
-      # 🚨 CRITICAL: SET A STRONG, RANDOM SECRET KEY FOR PRODUCTION
-      # Generate one with: openssl rand -hex 32
-      - QUART_SECRET_KEY=
+      - QUART_SECRET_KEY=yoursecretkey12345
       
       # PROXY CONFIGURATION
       - HTTP_PROXY=socks5://warp:1080

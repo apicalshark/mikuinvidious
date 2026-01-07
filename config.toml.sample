@@ -33,13 +33,6 @@ host = '::'
 # Port to listen. Unlike old versions, only this port is used.
 port = 8888
 
-# 🚨 CRITICAL: SET A STRONG, RANDOM SECRET KEY FOR PRODUCTION
-# Generate one with: openssl rand -hex 32
-# This key is used for signing sessions and other security-sensitive data.
-# If you leave this empty, a temporary key will be generated at startup,
-# but all user sessions will be invalidated every time the application restarts.
-secret_key = ''
-
 [credential]
 # Credentials can be used to break auth wall, visit paid resources and unlock video qualities.
 use_cred   = false
