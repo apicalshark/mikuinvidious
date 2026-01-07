@@ -27,12 +27,8 @@ sudo apt install python3 python3-venv git
 git clone https://github.com/apicalshark/mikuinvidious.git
 cd mikuinvidious
 
-# 建立并进入虚拟环境
-python3 -m venv venv
-source venv/bin/activate
-
-# 安装依赖项
-pip install -r requirements.txt
+# 安装依赖项并建立环境
+uv sync
 ```
 
 ---
@@ -58,7 +54,7 @@ cp config.toml.sample config.toml
 
 ```bash
 # 设置 Python 路径并启动
-python3 python/main.py
+uv run python/main.py
 ```
 
 启动后，直接访问 `http://localhost:8888` 即可。

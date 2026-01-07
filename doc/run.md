@@ -27,12 +27,8 @@ sudo apt install python3 python3-venv git
 git clone https://github.com/apicalshark/mikuinvidious.git
 cd mikuinvidious
 
-# Create venv
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies and create environment
+uv sync
 ```
 
 ---
@@ -58,7 +54,7 @@ Execute in the project root directory:
 
 ```bash
 # Set Python path and start
-python3 python/main.py
+uv run python/main.py
 ```
 
 After starting, access `http://localhost:8888`.

@@ -138,14 +138,14 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 2.  **Access:** `http://localhost:8000`
 
 ### Manual Development Setup
-1.  **Prerequisites:** Python 3.8+, Redis server running.
+1.  **Prerequisites:** Python 3.10+, Redis server running.
 2.  **Install Dependencies:**
     ```bash
-    pip install -r requirements.txt
+    uv sync
     ```
 3.  **Run:**
     ```bash
-    python python/main.py
+    uv run python/main.py
     ```
     Access at `http://localhost:8888` (or configured port).
 

@@ -1,0 +1,7 @@
+.venv
+__pycache__
+.git
+.ruff_cache
+config.toml
+*.rdb
+node_modules

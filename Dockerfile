@@ -1,15 +1,12 @@
-FROM python:3.14.2-alpine AS base
-FROM base AS builder
-COPY requirements.txt /requirements.txt
-RUN pip install --user -r /requirements.txt
+FROM astral/uv:python3.14-alpine
 
-FROM base
-COPY --from=builder /root/.local /root/.local
 WORKDIR /app
 
-# Copy requirements and install
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+ENV UV_COMPILE_BYTECODE=1
+
+COPY pyproject.toml uv.lock ./
+
+RUN uv pip install --system --no-cache -r pyproject.toml
 
 # Copy application code
 COPY . .
