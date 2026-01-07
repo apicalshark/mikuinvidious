@@ -4,7 +4,7 @@ WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1
 
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml ./
 
 RUN uv pip install --system --no-cache -r pyproject.toml
 
