@@ -2,11 +2,6 @@
 
 This guide provides step-by-step instructions for setting up and running MikuInvidious on your local machine without using Docker. This method is recommended for users who want to minimize memory usage or prefer managing their development environment directly.
 
-## Why Choose a Non-Docker Setup?
-- **Lower Memory Footprint:** Avoids the overhead of running a Docker daemon and containers.
-- **Direct Environment Control:** Allows for direct management of Python and Node.js versions and dependencies.
-- **Easier Debugging:** Simplifies debugging by running the application directly on your host machine.
-
 ## Prerequisites
 Before you begin, ensure you have the following installed:
 - **Python 3.10+:** [Download Python](https://www.python.org/downloads/)
