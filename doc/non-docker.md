@@ -1,41 +1,50 @@
-# Local Development Guide (Non-Docker App)
+# Local Installation Guide (No Docker)
 
-This guide provides step-by-step instructions for setting up and running the MikuInvidious Python application directly on your local machine.
+This guide provides step-by-step instructions for setting up and running the MikuInvidious application on your local machine without using Docker.
 
-This "hybrid" approach is for developers who want to work on the Python code outside of Docker, offering faster iteration and easier debugging. However, it still uses Docker to run the essential **Redis** and **Warp** (SOCKS5 proxy) services, which are required for full application functionality.
+This approach is intended for users who cannot or do not want to use Docker. It provides the most direct control over the environment but requires manual installation and configuration of all system dependencies.
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
+Before you begin, ensure you have the following installed and running:
 - **Python 3.10+**
 - **Node.js v18+ and npm**
 - **Git**
-- **Docker** (to run dependency services)
 - **uv** (the python package manager `pip install uv`)
+- **Redis**
+- **Cloudflare WARP Desktop Client**
 
 ---
 
-## Step 1: Start Required Services (Redis & Warp)
+## Step 1: Install and Configure Dependencies
 
-The application requires Redis for caching/sessions and Cloudflare Warp for proxying requests to Bilibili. The easiest way to run these is with Docker.
+The application requires two background services to be running: Redis and the Cloudflare WARP proxy.
 
-1.  **Run Redis:**
-    Open a terminal and run the following command to start a Redis container.
-    ```bash
-    docker run --rm -d --name miku_redis -p 6379:6379 redis:alpine
-    ```
+### 1. Install and Run Redis
+Redis is required for caching and session storage.
 
-2.  **Run Warp SOCKS5 Proxy:**
-    In another terminal, run the command below to start the `warp` proxy. This allows the application to access Bilibili content.
-    ```bash
-    docker run --rm -d --name miku_warp -p 1080:1080 \
-      --cap-add=NET_ADMIN --cap-add=MKNOD --cap-add=AUDIT_WRITE \
-      --device /dev/net/tun:/dev/net/tun \
-      caomingjun/warp
-    ```
-    *Note: The `--cap-add` and `--device` flags are necessary for the proxy to function correctly.*
+-   **macOS:** Install with Homebrew: `brew install redis`, then start it: `brew services start redis`.
+-   **Linux (Ubuntu/Debian):** Install with apt: `sudo apt update && sudo apt install redis-server`, then ensure it's running: `sudo systemctl start redis-server`.
+-   **Windows:** Follow the official [Redis on Windows installation guide](https://redis.io/docs/getting-started/installation/install-redis-on-windows/).
 
-You should now have two containers (`miku_redis`, `miku_warp`) running. You can verify this with `docker ps`.
+Verify that Redis is running on its default port, `6379`.
+
+### 2. Install and Configure Cloudflare WARP
+The application requires the Cloudflare WARP client to act as a SOCKS5 proxy to access Bilibili content.
+
+1.  **Install the WARP Client:**
+    Download and install the official client for your operating system from the [Cloudflare 1.1.1.1 website](https://1.1.1.1/).
+
+2.  **Enable Local Proxy Mode:**
+    - Open the WARP client's **Preferences** or **Settings** panel.
+    - Navigate to the **Advanced** tab.
+    - Click **Configure Proxy**.
+    - Check the box to **Enable local proxy**.
+    - Set the **Port** to `1080`.
+    - Save the changes.
+    - Go back to the main WARP settings screen and select the new **"WARP via Local Proxy"** mode.
+
+Your WARP client is now listening for SOCKS5 connections on port `1080`.
 
 ---
 
@@ -59,7 +68,6 @@ You should now have two containers (`miku_redis`, `miku_warp`) running. You can 
     ```
 
 3.  **Install Dependencies:**
-    Install both Python and Node.js dependencies.
     ```bash
     # Install Python packages
     uv sync
@@ -69,7 +77,6 @@ You should now have two containers (`miku_redis`, `miku_warp`) running. You can 
     ```
 
 4.  **Build Frontend Assets:**
-    Compile the Tailwind CSS.
     ```bash
     npm run build:css
     ```
@@ -78,29 +85,26 @@ You should now have two containers (`miku_redis`, `miku_warp`) running. You can 
 
 ## Step 3: Configure the Application
 
-The application needs to know how to connect to the Redis and Warp services you started earlier.
+Create and edit a local configuration file to connect the application to your manually configured services.
 
-1.  **Create a Configuration File:**
-    Copy the sample file to create your local configuration.
+1.  **Create `config.toml`:**
     ```bash
     cp config.toml.sample config.toml
     ```
 
 2.  **Edit `config.toml`:**
-    Open the `config.toml` file and make the following critical changes:
+    Open the file and make the following changes:
 
-    -   In the `[server]` section, set a unique `secret_key`. You can generate one with:
+    -   Under `[server]`, set a unique `secret_key`. Generate one with:
         `python -c 'import secrets; print(secrets.token_hex(16))'`
 
-    -   In the `[redis]` section, ensure the `url` points to your local Redis container:
+    -   Under `[redis]`, ensure the `url` points to your local Redis instance:
         ```toml
-        [redis]
         url = "redis://127.0.0.1:6379"
         ```
 
-    -   In the `[proxy]` section, configure the HTTP and HTTPS proxies to point to your local Warp container:
+    -   Under `[proxy]`, ensure `http_proxy` and `https_proxy` point to your WARP client:
         ```toml
-        [proxy]
         http_proxy = "socks5://127.0.0.1:1080"
         https_proxy = "socks5://127.0.0.1:1080"
         ```
@@ -109,10 +113,10 @@ The application needs to know how to connect to the Redis and Warp services you 
 
 ## Step 4: Run the Application
 
-With the services running and the configuration set, you can now start the Quart server.
+With your dependencies running and your configuration set, start the server:
 
 ```bash
 uv run python/main.py
 ```
 
-The application will be available at **`http://localhost:8888`** (the default port specified in `config.toml.sample`).
+The application will be available at **`http://localhost:8888`** (the default port in `config.toml.sample`).
