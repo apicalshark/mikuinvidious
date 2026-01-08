@@ -20,8 +20,6 @@ from datetime import datetime
 
 import app as app_module  # noqa: F401
 import uvloop
-from hypercorn.asyncio import serve
-from hypercorn.config import Config
 from shared import app, appconf, close_global_client
 
 
@@ -46,20 +44,11 @@ async def main():
     # Register shutdown hook
     app.after_serving(close_global_client)
 
-    config = Config()
-    # Bind to configured host and port to allow cross-container communication
     host = appconf["server"]["host"]
     port = appconf["server"]["port"]
-    config.bind = [f"{host}:{port}"]
-    config.accesslog = "-"
-    config.errorlog = "-"
-    config.keep_alive_timeout = 10
-    config.response_timeout = None  # Infinite for streaming
 
-    sys.stderr.write(f"Starting MikuInvidious (ASGI) on {config.bind[0]}\n")
-    sys.stderr.write(f"Hypercorn Config: Keep-Alive={config.keep_alive_timeout}, Response={config.response_timeout}\n")
+    sys.stderr.write(f"Starting MikuInvidious (ASGI) on {host}:{port}\n")
     sys.stderr.flush()
-    await serve(app, config)
 
 
 if __name__ == "__main__":

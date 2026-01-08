@@ -12,4 +12,4 @@ RUN uv pip install --system --no-cache -r pyproject.toml
 COPY . .
 
 # Run the app from the python directory
-CMD ["python", "python/main.py"]
+CMD ["/usr/local/bin/granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8080", "--working-dir", "python", "main:app"]

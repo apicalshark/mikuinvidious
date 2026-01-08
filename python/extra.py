@@ -16,9 +16,9 @@
 """Bilibili extra apis"""
 
 import asyncio
-import json
 import re
 
+import orjson as json
 from bilibili_api.exceptions import ArgsException
 from bilibili_api.utils.network import Api
 from bs4 import BeautifulSoup
