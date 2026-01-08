@@ -19,6 +19,7 @@ import sys
 from datetime import datetime
 
 import app as app_module  # noqa: F401
+import uvloop
 from hypercorn.asyncio import serve
 from hypercorn.config import Config
 from shared import app, appconf, close_global_client
@@ -63,6 +64,11 @@ async def main():
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        if sys.version_info >= (3, 11):
+            with asyncio.Runner(loop_factory=uvloop.new_event_loop) as runner:
+                runner.run(main())
+        else:
+            uvloop.install()
+            asyncio.run(main())
     except KeyboardInterrupt:
         sys.exit(0)
