@@ -13,13 +13,14 @@
 - **Git**
 - **uv**（Python 包管理器，通过 `pip install uv` 安装）
 - **Redis**
+- **Caddy**（用于反向代理，请参阅 [caddyserver.com/docs/install](https://caddyserver.com/docs/install)）
 - **Cloudflare WARP 桌面客户端**
 
 ---
 
 ## 步骤 1：安装并配置依赖项
 
-应用程序需要运行两个后台服务：Redis 和 Cloudflare WARP 代理。
+应用程序需要运行三个后台服务：Redis、Cloudflare WARP 和 Caddy。
 
 ### 1. 安装并运行 Redis
 
@@ -45,6 +46,44 @@ Redis 用于缓存和会话存储。
    - 返回 WARP 主设置界面，选择新的 **"WARP via Local Proxy"**（通过本地代理的 WARP）模式。
 
 您的 WARP 客户端现在正在端口 `1080` 上监听 SOCKS5 连接。
+
+### 3. 配置 Caddy
+
+Caddy 将作为您的 Web 服务器和反向代理。
+
+1. **安装 Caddy**：请按照 [caddyserver.com/docs/install](https://caddyserver.com/docs/install) 中适用于您操作系统的说明进行安装。
+2. **在项目根目录下创建一个 `Caddyfile`**。
+
+    **本地测试 (HTTP):**
+
+    ```caddy
+    :8000 {
+        handle /static/* {
+            root * ./static
+            file_server
+        }
+        reverse_proxy localhost:8888
+    }
+    ```
+
+    **生产环境 (HTTPS 自动 SSL):**
+    *注意：需要开放 80 和 443 端口，并将域名解析到此服务器。*
+
+    ```caddy
+    yourdomain.com {
+        handle /static/* {
+            root * ./static
+            file_server
+        }
+        reverse_proxy localhost:8888
+    }
+    ```
+
+3. **运行 Caddy**：
+
+    ```bash
+    caddy start
+    ```
 
 ---
 

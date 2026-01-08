@@ -1,0 +1,10 @@
+:8000 {
+    # Serve static files
+    handle /static/* {
+        root * /usr/share/caddy
+        file_server
+    }
+
+    # Proxy everything else to the app
+    reverse_proxy app:8080
+}

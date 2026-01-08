@@ -13,13 +13,14 @@ Before you begin, ensure you have the following installed and running:
 - **Git**
 - **uv** (the python package manager `pip install uv`)
 - **Redis**
+- **Caddy** (for reverse proxy, see [caddyserver.com/docs/install](https://caddyserver.com/docs/install))
 - **Cloudflare WARP Desktop Client**
 
 ---
 
 ## Step 1: Install and Configure Dependencies
 
-The application requires two background services to be running: Redis and the Cloudflare WARP proxy.
+The application requires three background services to be running: Redis, Cloudflare WARP, and Caddy.
 
 ### 1. Install and Run Redis
 
@@ -45,6 +46,44 @@ The application requires the Cloudflare WARP client to act as a SOCKS5 proxy to 
    - Go back to the main WARP settings screen and select the new **"WARP via Local Proxy"** mode.
 
 Your WARP client is now listening for SOCKS5 connections on port `1080`.
+
+### 3. Configure Caddy
+
+Caddy will serve as your web server and reverse proxy.
+
+1. **Install Caddy**: Follow the instructions for your OS at [caddyserver.com/docs/install](https://caddyserver.com/docs/install).
+2. **Create a `Caddyfile`** in the project root.
+
+    **For Local Testing (HTTP):**
+
+    ```caddy
+    :8000 {
+        handle /static/* {
+            root * ./static
+            file_server
+        }
+        reverse_proxy localhost:8888
+    }
+    ```
+
+    **For Production (HTTPS with automatic SSL):**
+    *Note: Requires ports 80 and 443 to be open and your domain pointed to this server.*
+
+    ```caddy
+    yourdomain.com {
+        handle /static/* {
+            root * ./static
+            file_server
+        }
+        reverse_proxy localhost:8888
+    }
+    ```
+
+3. **Run Caddy**:
+
+    ```bash
+    caddy start
+    ```
 
 ---
 

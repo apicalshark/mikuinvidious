@@ -3,98 +3,65 @@ services:
     image: caomingjun/warp
     container_name: miku_warp
     restart: always
-    # add removed rule back (https://github.com/opencontainers/runc/pull/3468)
     device_cgroup_rules:
       - 'c 10:200 rwm'
     ports:
       - "1080:1080"
     environment:
       - WARP_SLEEP=2
-      # - WARP_LICENSE_KEY= # optional
-      # - WARP_ENABLE_NAT=1 # enable nat
     cap_add:
-      # Docker already have them, these are for podman users
       - MKNOD
       - AUDIT_WRITE
-      # additional required cap for warp, both for podman and docker
       - NET_ADMIN
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=0
       - net.ipv4.conf.all.src_valid_mark=1
-      # uncomment for nat
-      # - net.ipv4.ip_forward=1
-      # - net.ipv6.conf.all.forwarding=1
-      # - net.ipv6.conf.all.accept_ra=2
     volumes:
       - /data:/var/lib/cloudflare-warp
 
-  # --- 2. THE PYTHON APP ---
   app:
     build: .
     container_name: miku_app
     restart: always
     environment:
-      # Site Configuration
       - SITE_NAME=MikuInvidious
       - SITE_URL=http://localhost:8000
       - QUART_SECRET_KEY=yoursecretkey12345
-      
-      # PROXY CONFIGURATION
       - HTTP_PROXY=socks5://warp:1080
       - HTTPS_PROXY=socks5://warp:1080
-      
-      # Redis Configuration
       - REDIS_URL=redis://redis:6379
       - NO_PROXY=0
-
-      # Check nginx.conf.template
       - SERVER_PORT=8080
-
       - PYTHONUNBUFFERED=1
-      # - HYPERCORN_RESPONSE_TIMEOUT=10800
-      # - HYPERCORN_KEEP_ALIVE_TIMEOUT=10800
       - SITE_MODIFIED_SOURCE_CODE_URL=https://github.com/apicalshark/mikuinvidious
-      
-      # Bilibili Credentials
       - USE_CRED=false
+      # Bilibili Credentials (Optional)
       - SESSDATA=
       - BILI_JCT=
       - BUVID3=
       - DEDEUSERID=
-      
-      # HTTP/3 (QUIC) CONFIGURATION (Default: OFF)
-      # Enabled via Nginx environment variables below
-      - ENABLE_HTTP3=false
 
-  # --- 3. NGINX ---
-  nginx:
-    image: nginx:alpine
-    container_name: miku_nginx
+  caddy:
+    image: caddy:alpine
+    container_name: miku_caddy
     restart: always
     ports:
       - "8000:8000"
       - "443:443/tcp"
       - "443:443/udp"
-    environment:
-      # These variables control the template in nginx.conf.template
-      - PRIMARY_LISTEN=listen 8000;
-      - HTTP_REDIRECT=
-      - HTTP3_ALT_SVC=
-      - HSTS_HEADER=
-      - SSL_CONFIG=
-      - SSL_CERT_PATH=/etc/nginx/ssl/cert.pem
-      - SSL_KEY_PATH=/etc/nginx/ssl/key.pem
-      - NGINX_ENVSUBST_OUTPUT_DIR=/etc/nginx
     volumes:
-      - ./nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
-      - ./static:/usr/share/nginx/html/static:ro
-      # Mount your SSL certificates here
-      # - ./ssl:/etc/nginx/ssl:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./static:/usr/share/caddy/static
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - app
 
-  # --- 4. REDIS ---
   redis:
     image: redis:alpine
     container_name: miku_redis
     restart: always
+
+volumes:
+  caddy_data:
+  caddy_config:
