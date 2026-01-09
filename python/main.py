@@ -39,7 +39,7 @@ def main():
         task_impl=TaskImpl.asyncio,
         http1_settings=HTTP1Settings(
             keep_alive=True,
-            header_read_timeout=10000,  # 10 seconds in ms
+            header_read_timeout=10,  # 10 seconds
         ),
         http2_settings=HTTP2Settings(
             keep_alive_interval=10000,  # Send ping every 10s
