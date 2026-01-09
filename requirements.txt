@@ -11,5 +11,6 @@ lxml>=6.0.2
 pysocks>=1.7.1
 aiohttp-socks>=0.11.0
 httpx[socks]>=0.28.1
-hypercorn>=0.18.0
+granian>=1.7.0
+rloop>=0.2.0
 uvloop>=0.22.1

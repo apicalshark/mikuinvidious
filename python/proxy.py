@@ -31,14 +31,21 @@ async def render_proxy_pic(req_path):
         resp = None
         try:
             req = client.build_request("GET", url, headers=headers)
-            resp = await client.send(req, follow_redirects=True)
-            return Response(resp.content, status=resp.status_code, content_type=resp.headers.get("content-type"))
+            resp = await client.send(req, stream=True, follow_redirects=True)
+
+            proxy_resp = ProxyResponse(resp, status=resp.status_code)
+            # Add basic headers
+            for k, v in resp.headers.items():
+                if k.lower() in ["content-type", "content-length", "etag", "last-modified"]:
+                    proxy_resp.headers[k] = v
+
+            proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+            return proxy_resp
         except Exception as e:
             print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
-            return Response(str(e), status=502)
-        finally:
             if resp:
                 await resp.aclose()
+            return Response(str(e), status=502)
 
 
 class ProxyResponse(Response):

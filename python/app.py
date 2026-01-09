@@ -13,7 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
+import asyncio
 import os
+import sys
+from datetime import datetime
 from urllib.parse import urlparse
 
 import filters  # noqa: F401
@@ -22,7 +25,39 @@ import views  # noqa: F401
 from bilibili_api import exceptions
 from proxy import proxy_bp
 from quart import make_response, redirect, request, send_from_directory, url_for
-from shared import Network, app, appconf, detect_theme, render_template_with_theme
+from shared import (
+    Network,
+    app,
+    appconf,
+    close_global_client,
+    detect_theme,
+    render_template_with_theme,
+)
+
+
+async def monitor_fd():
+    while True:
+        try:
+            # Count open file descriptors via /proc/self/fd (Linux specific)
+            if os.path.exists("/proc/self/fd"):
+                fd_count = len(os.listdir("/proc/self/fd"))
+                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                sys.stderr.write(f"[{timestamp}] Open FDs: {fd_count}\n")
+                sys.stderr.flush()
+        except Exception as e:
+            sys.stderr.write(f"Error monitoring FDs: {e}\n")
+            sys.stderr.flush()
+        await asyncio.sleep(10)
+
+
+@app.before_serving
+async def start_background_tasks():
+    app.add_background_task(monitor_fd)
+
+
+@app.after_serving
+async def shutdown_cleanup():
+    await close_global_client()
 
 
 @app.after_request
