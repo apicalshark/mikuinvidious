@@ -42,7 +42,7 @@ def main():
             header_read_timeout=10,  # 10 seconds
         ),
         http2_settings=HTTP2Settings(
-            keep_alive_interval=10000,  # Send ping every 10s
+            keep_alive_interval=10,  # Send ping every 10s
             keep_alive_timeout=5,        # Timeout ping after 5s
         ),
         log_access=True,
