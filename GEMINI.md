@@ -5,7 +5,7 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 ## Core Technologies
 - **Language:** Python 3
 - **Web Framework:** [Quart](https://pgjones.gitlab.io/quart/) (Modern asynchronous web framework)
-- **Web Server:** [NGINX](https://nginx.org/) (Reverse proxy) + [Hypercorn](https://github.com/pgjones/hypercorn) (ASGI server)
+- **Web Server:** [Caddy](https://caddyserver.com/) (Reverse proxy) + [Granian](https://github.com/emmett-framework/granian) (Rust-powered ASGI server)
 - **Database/Cache:** [Redis](https://redis.io/) (required for caching video URLs, session management, and credential storage)
 - **API Wrapper:** [bilibili-api-python](https://github.com/nemo2011/bilibili-api)
 - **Video Player:** `hls.js` with `mpegts.js` (for live streams and FLV support)
@@ -14,10 +14,10 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 ## System Architecture
 
 ### High-Level Design
-The system uses **NGINX** as a reverse proxy and static file server, which forwards application requests to **Hypercorn** running the **Quart** (ASGI) application. All logic and proxying are handled within the Quart application using asynchronous I/O.
+The system uses **Caddy** as a reverse proxy and static file server, which forwards application requests to **Granian** running the **Quart** (ASGI) application. All logic and proxying are handled within the Quart application using asynchronous I/O.
 
-*   **Reverse Proxy (NGINX):** Handles incoming traffic (port 8000), serves static assets, and proxies requests to the ASGI server.
-*   **ASGI Server (Hypercorn):** Runs the Quart application (port 8080 in Docker).
+*   **Reverse Proxy (Caddy):** Handles incoming traffic (port 8000), serves static assets, and proxies requests to the ASGI server.
+*   **ASGI Server (Granian):** Runs the Quart application (port 8080 in Docker).
 *   **App Logic (`app.py`):** Main entry point for the application, registering blueprints and routes.
 *   **Reverse Proxy (`proxy.py`):** Handles video and image streaming using Quart's async generators and `httpx`.
 *   **Network Transport:** Integrates with **Cloudflare WARP** (via SOCKS5) to route traffic to Bilibili.
@@ -29,8 +29,8 @@ graph TD
     User((User / Browser))
     
     subgraph "Docker Host"
-        Nginx[NGINX Reverse Proxy<br>(Port 8000)]
-        Hypercorn[Hypercorn ASGI Server<br>(Port 8080)]
+        Caddy[Caddy Reverse Proxy<br>(Port 8000)]
+        Granian[Granian ASGI Server<br>(Port 8080)]
         
         subgraph "MikuInvidious App"
             Router{URL Path?}
@@ -52,10 +52,10 @@ graph TD
     end
 
     %% Flows
-    User --> Nginx
-    Nginx -- "Static Assets" --> Static[Static Files]
-    Nginx -- "App Traffic" --> Hypercorn
-    Hypercorn --> Router
+    User --> Caddy
+    Caddy -- "Static Assets" --> Static[Static Files]
+    Caddy -- "App Traffic" --> Granian
+    Granian --> Router
     
     %% Proxy Path
     Router -- "/proxy/..." --> ProxyRes
@@ -72,8 +72,8 @@ graph TD
     Warp --> BiliServers
     
     %% Returns
-    BiliCDN -.-> Warp -.-> ProxyRes -.-> Hypercorn -.-> Nginx -.-> User
-    BiliServers -.-> Warp -.-> BiliAPI -.-> Views -.-> Hypercorn -.-> Nginx -.-> User
+    BiliCDN -.-> Warp -.-> ProxyRes -.-> Granian -.-> Caddy -.-> User
+    BiliServers -.-> Warp -.-> BiliAPI -.-> Views -.-> Granian -.-> Caddy -.-> User
 ```
 
 ### Component Breakdown
@@ -112,8 +112,8 @@ The production infrastructure consists of four orchestrated services defined in 
 
 | Service | Image | Description |
 | :--- | :--- | :--- |
-| **`app`** | *(Local Build)* | Hypercorn running the Quart application. Exposes port `8080` internally. |
-| **`nginx`** | `nginx:alpine` | Reverse proxy and static asset server. Exposes port `8000`. |
+| **`app`** | *(Local Build)* | Granian running the Quart application. Exposes port `8080` internally. |
+| **`caddy`** | `caddy:alpine` | Reverse proxy and static asset server. Exposes port `8000`. |
 | **`redis`** | `redis:alpine` | Persists sessions and caches API responses. |
 | **`warp`** | `caomingjun/warp` | SOCKS5 proxy (port `1080`) for routing traffic to Bilibili API/CDN. |
 
@@ -151,7 +151,7 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 
 ## Recent Updates
 - **Phase 4 (Stability & Performance):**
-    - **Live Stream Proxy Stabilization:** Resolved 60-second cutoff issues by tuning Hypercorn, Quart, and Nginx timeouts (set to 3 hours).
+    - **Live Stream Proxy Stabilization:** Resolved 60-second cutoff issues by tuning Granian, Quart, and Caddy timeouts (set to 3 hours).
     - **Keep-Alive Mechanism:** Implemented in-stream FLV heartbeats (Type 18 tags) in `live_manager.py` to prevent TCP connection drops.
     - **Frontend Optimization:** Migrated to `mpegts.js` for improved stability and HEVC support.
     - **Resource Management:** Fixed file descriptor leaks in `proxy.py` using `ProxyResponse` and `ClosingIterator`.

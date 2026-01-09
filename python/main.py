@@ -13,62 +13,49 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import asyncio
-import os
 import sys
-from datetime import datetime
+from granian import Granian
+from granian.constants import Interfaces, Loops, TaskImpl
+from granian.http import HTTP1Settings, HTTP2Settings
+from shared import appconf
 
+# Import app to ensure it's initialized and hooks are registered
 import app as app_module  # noqa: F401
-import uvloop
-from hypercorn.asyncio import serve
-from hypercorn.config import Config
-from shared import app, appconf, close_global_client
 
 
-async def monitor_fd():
-    while True:
-        try:
-            # Count open file descriptors via /proc/self/fd (Linux specific)
-            fd_count = len(os.listdir("/proc/self/fd"))
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            sys.stderr.write(f"[{timestamp}] Open FDs: {fd_count}\n")
-            sys.stderr.flush()
-        except Exception as e:
-            sys.stderr.write(f"Error monitoring FDs: {e}\n")
-            sys.stderr.flush()
-        await asyncio.sleep(600)
-
-
-async def main():
-    # Start FD monitor in background
-    asyncio.create_task(monitor_fd())
-
-    # Register shutdown hook
-    app.after_serving(close_global_client)
-
-    config = Config()
+def main():
     # Bind to configured host and port to allow cross-container communication
     host = appconf["server"]["host"]
     port = appconf["server"]["port"]
-    config.bind = [f"{host}:{port}"]
-    config.accesslog = "-"
-    config.errorlog = "-"
-    config.keep_alive_timeout = 10
-    config.response_timeout = None  # Infinite for streaming
 
-    sys.stderr.write(f"Starting MikuInvidious (ASGI) on {config.bind[0]}\n")
-    sys.stderr.write(f"Hypercorn Config: Keep-Alive={config.keep_alive_timeout}, Response={config.response_timeout}\n")
+    # Granian handles the event loop (uvloop) and ASGI interface natively.
+    # We use the string target "app:app" to allow potential multi-worker support.
+    server = Granian(
+        "app:app",
+        address=host,
+        port=port,
+        interface=Interfaces.ASGI,
+        loop=Loops.uvloop,
+        task_impl=TaskImpl.asyncio,
+        http1_settings=HTTP1Settings(
+            keep_alive=True,
+            header_read_timeout=10,  # 10 seconds
+        ),
+        http2_settings=HTTP2Settings(
+            keep_alive_interval=5,  # Send ping every 5s
+            keep_alive_timeout=10,      # Timeout ping after 10s
+        ),
+        log_access=True,
+    )
+
+    sys.stderr.write(f"Starting MikuInvidious (Granian) on {host}:{port}\n")
     sys.stderr.flush()
-    await serve(app, config)
+
+    server.serve()
 
 
 if __name__ == "__main__":
     try:
-        if sys.version_info >= (3, 11):
-            with asyncio.Runner(loop_factory=uvloop.new_event_loop) as runner:
-                runner.run(main())
-        else:
-            uvloop.install()
-            asyncio.run(main())
+        main()
     except KeyboardInterrupt:
         sys.exit(0)
