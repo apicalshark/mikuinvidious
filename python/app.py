@@ -47,7 +47,7 @@ async def monitor_fd():
         except Exception as e:
             sys.stderr.write(f"Error monitoring FDs: {e}\n")
             sys.stderr.flush()
-        await asyncio.sleep(10)
+        await asyncio.sleep(60)  # Check every 60 seconds
 
 
 @app.before_serving
