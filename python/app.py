@@ -36,18 +36,17 @@ from shared import (
 
 
 async def monitor_fd():
+    # Consider making this interval configurable via appconf, e.g., 60 seconds
+    interval = 60
     while True:
         try:
             # Count open file descriptors via /proc/self/fd (Linux specific)
             if os.path.exists("/proc/self/fd"):
                 fd_count = len(os.listdir("/proc/self/fd"))
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                sys.stderr.write(f"[{timestamp}] Open FDs: {fd_count}\n")
-                sys.stderr.flush()
+                app.logger.info(f"Open FDs: {fd_count}")
         except Exception as e:
-            sys.stderr.write(f"Error monitoring FDs: {e}\n")
-            sys.stderr.flush()
-        await asyncio.sleep(10)
+            app.logger.warning(f"Error monitoring FDs: {e}")
+        await asyncio.sleep(interval)
 
 
 @app.before_serving
