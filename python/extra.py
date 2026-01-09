@@ -16,7 +16,7 @@
 """Bilibili extra apis"""
 
 import asyncio
-import json
+import orjson
 import re
 
 from bilibili_api.exceptions import ArgsException
@@ -38,7 +38,7 @@ def get_article_info(article_text, cid):
     }
 
     if match:
-        state = json.loads(match.group(1))
+        state = orjson.loads(match.group(1))
         detail = state.get("detail", {})
 
         # Try to find modules
@@ -97,7 +97,7 @@ def article_to_html(article_text):
         match = pattern.search(article_text)
         if match:
             try:
-                state = json.loads(match.group(1))
+                state = orjson.loads(match.group(1))
                 detail = state.get("detail", {})
                 modules = detail.get("modules", [])
                 if not modules and "item" in detail:

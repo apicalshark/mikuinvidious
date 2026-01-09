@@ -9,6 +9,7 @@ from bilibili_api import Credential
 from bilibili_api.utils.network import request_settings
 from quart import Quart, render_template, request
 from quart_session import Session
+from flask_orjson import OrjsonProvider
 
 
 class Network:
@@ -125,6 +126,7 @@ else:
 
 # Initialize the quart app.
 app = Quart("app", template_folder="../templates", static_folder="../static")
+app.json_provider_class = OrjsonProvider
 app.config.from_mapping(appconf["quart"])
 app.config["RESPONSE_TIMEOUT"] = 10800
 app.config["BODY_TIMEOUT"] = 10800

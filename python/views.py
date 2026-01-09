@@ -14,7 +14,7 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
-import json
+import orjson
 import os
 import re
 import time
@@ -87,7 +87,7 @@ async def live_chat_sse(room_id):
 
         hb_task = asyncio.create_task(heartbeat())
 
-        yield f"data: {json.dumps({'user': 'SYSTEM', 'text': 'Chat connected'})}\n\n"
+        yield f"data: {orjson.dumps({'user': 'SYSTEM', 'text': 'Chat connected'}).decode('utf-8')}\n\n"
 
         try:
             while not stop_event.is_set():
@@ -95,7 +95,7 @@ async def live_chat_sse(room_id):
                 if msg == ": heartbeat":
                     yield ": heartbeat\n\n"
                 else:
-                    yield f"data: {json.dumps(msg)}\n\n"
+                    yield f"data: {orjson.dumps(msg).decode('utf-8')}\n\n"
         except (asyncio.CancelledError, GeneratorExit):
             print(f"[LiveChat] Client disconnected from room {room_id}")
         except Exception as e:
@@ -521,11 +521,11 @@ async def video_master_m3u8_view(vid, idx):
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
     if dash_cache:
-        dash_data = json.loads(dash_cache)
+        dash_data = orjson.loads(dash_cache)
     else:
         try:
             dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
-            await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(dash_data))
+            await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(dash_data))
         except Exception:
             return "Upstream Timeout", 504
 
@@ -540,11 +540,11 @@ async def video_media_m3u8_view(vid, idx, media_type, qn):
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
     if dash_cache:
-        dash_data = json.loads(dash_cache)
+        dash_data = orjson.loads(dash_cache)
     else:
         try:
             dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
-            await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(dash_data))
+            await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(dash_data))
         except Exception:
             return "Upstream Timeout", 504
 
@@ -570,7 +570,7 @@ async def api_component_player(vid, idx):
         cached_dash = await appredis.get(f"miku_dash_{vid}_{idx}")
         if cached_dash:
             try:
-                dash_data = json.loads(cached_dash)
+                dash_data = orjson.loads(cached_dash)
                 has_dash = True
                 v_supported_src = [
                     {"quality": f["quality"], "new_description": f["new_description"]}
@@ -584,7 +584,7 @@ async def api_component_player(vid, idx):
             try:
                 data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=4.0)
                 if "dash" in data:
-                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, json.dumps(data))
+                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
                     for mt in ["video", "audio"]:
                         tracks = data["dash"].get(mt, [])
                         if mt == "audio" and not tracks and "flac" in data["dash"]:
