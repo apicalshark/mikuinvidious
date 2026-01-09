@@ -26,6 +26,8 @@ dependencies = [
     "toml>=0.10.2",
     "uvloop>=0.22.1",
     "werkzeug>=3.1.4",
+    "orjson>=3.9.10",
+    "flask-orjson>=2.0.0",
 ]
 
 [tool.ruff]
