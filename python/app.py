@@ -15,8 +15,6 @@
 
 import asyncio
 import os
-import sys
-from datetime import datetime
 from urllib.parse import urlparse
 
 import filters  # noqa: F401
