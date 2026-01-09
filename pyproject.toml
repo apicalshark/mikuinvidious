@@ -14,7 +14,6 @@ dependencies = [
     "bilibili-api-python>=17.4.1",
     "httpx[socks]>=0.28.1",
     "granian>=1.7.0",
-    "rloop>=0.2.0",
     "jinja2>=3.1.6",
     "lxml>=6.0.2",
     "markupsafe>=3.0.3",
