@@ -35,7 +35,7 @@ from shared import (
 
 async def monitor_fd():
     # Consider making this interval configurable via appconf, e.g., 60 seconds
-    interval = appconf["server"].get("fd_monitor_interval", 60)
+    interval = 60
     while True:
         try:
             # Count open file descriptors via /proc/self/fd (Linux specific)
