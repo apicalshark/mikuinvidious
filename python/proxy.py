@@ -40,12 +40,20 @@ async def render_proxy_pic(req_path):
                     proxy_resp.headers[k] = v
 
             proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
-            return proxy_resp
+
+            # Transfer ownership to ProxyResponse. Set resp to None
+            # to prevent the finally block from closing it.
+            response_to_return = proxy_resp
+            resp = None
+            return response_to_return
         except Exception as e:
             print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
+            return Response(str(e), status=502)
+        finally:
+            # This will run on exceptions and cancellations, ensuring no leak
+            # if the function exits before ownership is transferred.
             if resp:
                 await resp.aclose()
-            return Response(str(e), status=502)
 
 
 class ProxyResponse(Response):
