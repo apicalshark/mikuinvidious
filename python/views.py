@@ -220,6 +220,16 @@ async def search_view():
             card = transformers.transform_live_card(item)
             if card:
                 results.append(card)
+    elif search_type == search.SearchObjectType.ARTICLE:
+        for item in sinfo.get("result", []):
+            card = transformers.transform_article_card(item)
+            if card:
+                results.append(card)
+    elif search_type == search.SearchObjectType.USER:
+        for item in sinfo.get("result", []):
+            card = transformers.transform_user_card(item)
+            if card:
+                results.append(card)
     else:
         results = sinfo.get("result", [])
     return await render_template_with_theme(tmpl, q=q, sinfo=sinfo, rs=results, sort=request.args.get("sort"))

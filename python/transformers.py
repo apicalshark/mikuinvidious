@@ -152,3 +152,37 @@ def transform_live_room(data):
         "face": base_info.get("face"),
         "uid": room_info.get("uid"),
     }
+
+
+def transform_article_card(data):
+    """Standardizes article objects for grid displays."""
+    try:
+        title = data.get("title", "").replace('<em class="keyword">', "").replace("</em>", "")
+        return {
+            "id": data.get("id"),
+            "title": title,
+            "image_urls": data.get("image_urls", []),
+            "mid": data.get("mid"),
+            "author": data.get("author"),
+            "pub_time": data.get("pub_time"),
+            "view": data.get("view", 0),
+        }
+    except Exception:
+        return None
+
+
+def transform_user_card(data):
+    """Standardizes user search results."""
+    try:
+        uname = data.get("uname", "").replace('<em class="keyword">', "").replace("</em>", "")
+        return {
+            "mid": data.get("mid"),
+            "uname": uname,
+            "upic": data.get("upic"),
+            "usign": data.get("usign"),
+            "level": data.get("level"),
+            "fans": data.get("fans", 0),
+            "videos": data.get("videos", 0),
+        }
+    except Exception:
+        return None

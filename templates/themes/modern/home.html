@@ -66,7 +66,7 @@
                                 </a>
                                 <div class="flex gap-3">
                                     <a title="{{ '在哔哩哔哩上观看' }}"
-                                       href="https://www.bilibili.com/video/{{ v['bvid'] }}"
+                                       href="https://{% if v['duration'] == 'LIVE' %}live{% else %}www{% endif %}.bilibili.com/{% if v['duration'] == 'LIVE' %}{% else %}video/{% endif %}{{ v['bvid'] }}"
                                        class="text-on-surface-variant/70 hover:text-red-500 transition-colors">
                                         <i class="icon ion-logo-youtube text-lg"></i>
                                     </a>
