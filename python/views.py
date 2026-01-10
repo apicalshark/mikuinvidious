@@ -212,6 +212,8 @@ async def search_view():
     results = []
     if search_type == search.SearchObjectType.VIDEO:
         for item in sinfo.get("result", []):
+            if item.get("type") in ["ketang", "pugv"]:
+                continue
             card = transformers.transform_video_card(item)
             if card:
                 results.append(card)
