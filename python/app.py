@@ -70,6 +70,9 @@ async def set_hist_id(response):
 
 app.register_blueprint(proxy_bp)
 
+from views_bangumi import bangumi_bp
+app.register_blueprint(bangumi_bp)
+
 ##########################################
 # APIs
 ##########################################

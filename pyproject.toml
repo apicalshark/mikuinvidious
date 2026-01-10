@@ -28,6 +28,8 @@ dependencies = [
     "werkzeug>=3.1.4",
     "orjson>=3.9.10",
     "flask-orjson>=2.0.0",
+    "pyquery>=2.0.1",
+    "zhconv>=1.4.3",
 ]
 
 [tool.ruff]

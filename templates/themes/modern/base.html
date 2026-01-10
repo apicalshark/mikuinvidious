@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8" />
         <meta http-equiv="Content-Security-Policy"
-              content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:;" />
+              content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' wss: https:; worker-src 'self' blob:;" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {% block head %}{% endblock %}
         <link rel="stylesheet" href="/static/themes/modern/css/main.css" />
@@ -136,7 +136,7 @@
         <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/80 transition-colors duration-200">
             <div class="container mx-auto px-4 py-3 md:px-8 max-w-8xl flex flex-col md:flex-row items-center justify-between gap-4">
                 <!-- Brand -->
-                <div class="w-full md:w-auto flex justify-between items-center">
+                <div class="w-full md:w-auto flex justify-between items-center gap-4">
                     <a href="/"
                        class="text-2xl font-bold text-primary hover:text-primary/80 transition-colors index-link tracking-tight">MikuInvidious</a>
                 </div>
@@ -162,6 +162,13 @@
                 </div>
                 <!-- User Actions -->
                 <div class="w-full md:w-auto flex justify-center md:justify-end items-center gap-1 md:gap-2 user-field">
+                    <!-- Bangumi Link -->
+                    <a title="{{ '番剧' }}"
+                       href="/bangumi"
+                       class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100 flex items-center gap-2">
+                        <i class="icon ion-ios-film text-xl"></i>
+                        <span class="text-sm font-medium md:hidden lg:inline">{{ '番剧' }}</span>
+                    </a>
                     <!-- Theme Toggle -->
                     <a id="toggle_theme"
                        href="javascript:void(0)"

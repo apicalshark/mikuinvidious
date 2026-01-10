@@ -12,6 +12,9 @@ site_allow_download = true
 # This will allow (potentially unsafe) error response to be showed directly on site.
 site_show_unsafe_error_response = false
 
+# Enable or disable Nyaa search in Bangumi view.
+nyaa_bangumi = true
+
 # This controls whether the search engines will index your site or not.
 # Available options:
 #    - 'strict', indexing is disallowed.

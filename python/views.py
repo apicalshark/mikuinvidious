@@ -498,20 +498,22 @@ async def video_listen_view(vid, idx=0):
         get_audio_url(),
         return_exceptions=True,
     )
-    vinfo = (
-        results[0]
-        if not isinstance(results[0], Exception)
-        else {
-            "title": vid,
-            "stat": {"view": 0, "like": 0, "coin": 0, "favorite": 0, "share": 0},
-            "owner": {"name": "Unknown", "mid": 0, "face": ""},
-            "desc": "",
-            "pubdate": 0,
-            "tid": 0,
-            "tname": "",
-        }
-    )
-    vtags = results[1] if not isinstance(results[1], Exception) else []
+
+    # 核心數據檢查
+    if isinstance(results[0], Exception) or results[0] is None:
+        err_msg = str(results[0]) if results[0] else "B站返回了空的數據 (可能受到地區限制)"
+        return await render_template_with_theme(
+            "error.html",
+            status="音频模式加载失败",
+            desc=err_msg,
+            suggest="該內容可能受到地區限制或已被下架。"
+        ), 404
+
+    def is_valid(res):
+        return res is not None and not isinstance(res, Exception)
+
+    vinfo = results[0]
+    vtags = results[1] if is_valid(results[1]) else []
     vrelated = results[2] if not isinstance(results[2], Exception) else []
     vcomments = results[3] if not isinstance(results[3], Exception) else {"page": {"count": 0}, "replies": []}
     vset = results[4] if not isinstance(results[4], Exception) else [{"page": 1, "part": vid}]
@@ -668,7 +670,11 @@ async def api_component_player(vid, idx):
 
     # Get Info again briefly just for the macro context (cached by request usually)
     # Actually macro only needs vinfo['pic']
-    vinfo = await v.get_info()
+    try:
+        vinfo = await v.get_info()
+    except Exception:
+        vinfo = {'pic': ''}
+        
     has_dash, supported_src = await get_play_info()
     is_live = False
 
@@ -741,23 +747,29 @@ async def video_view(vid, idx=0):
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
+    # 檢查核心數據是否獲取成功
+    if isinstance(results[0], Exception) or results[0] is None:
+        err_msg = str(results[0]) if results[0] else "B站返回了空的數據 (可能受到地區限制)"
+        print(f"[Video] Error fetching info for {vid}: {err_msg}")
+        # 如果是 404 或 啥都木有，顯示友好提示
+        if "啥都木有" in err_msg or "-404" in err_msg:
+            return await render_template_with_theme(
+                "error.html",
+                status="无法加载视频",
+                desc="B站返回：啥都木有 (-404)",
+                suggest="該影片可能已被刪除、審核中，或是受到地區限制（僅限港澳台）。"
+            ), 404
+        return await render_template_with_theme(
+            "error.html",
+            status="视频加载出错",
+            desc=err_msg,
+            suggest="請嘗試刷新頁面，或檢查伺服器網路連接。"
+        ), 500
+
     def is_valid(res):
         return res is not None and not isinstance(res, Exception)
 
-    vinfo = (
-        results[0]
-        if is_valid(results[0])
-        else {
-            "title": vid,
-            "bvid": vid,
-            "stat": {"view": 0, "like": 0, "coin": 0, "favorite": 0, "share": 0},
-            "owner": {"name": "Unknown", "mid": 0, "face": ""},
-            "desc": "",
-            "pubdate": 0,
-            "tid": 0,
-            "tname": "",
-        }
-    )
+    vinfo = results[0] # 此時 results[0] 肯定是有效的 vinfo 資料
     vtags = results[1] if is_valid(results[1]) else []
     vrelated = results[2] if is_valid(results[2]) else []
     vset = results[3] if is_valid(results[3]) else [{"page": 1, "part": vid}]
