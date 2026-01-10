@@ -1,10 +1,10 @@
 /* Modern Player Styles for MikuInvidious */
 
 media-controller {
-  --media-primary-color: #ffb1da;
-  --media-range-track-active-background: var(--md-sys-color-primary);
-  --media-range-thumb-background: var(--md-sys-color-primary) --media-icon-color: #ffb1da;
-  --media-button-icon-color: #ffb1da;
+  --media-primary-color: #ff9fba;
+  --media-range-track-active-background: var(--media-primary-color);
+  --media-range-thumb-background: var(--media-primary-color);
+  --media-button-icon-color: #ff9fba;
   /* --media-time-range-buffered-color: rgba(255, 177, 218, 0.4); */
   /* --media-control-hover-background: rgba(255, 177, 218, 0.1); */
   background: #000;
@@ -83,7 +83,7 @@ media-controller[media-user-inactive] #danmaku-container {
   border: none;
   height: 100%;
   padding: 0 10px;
-  color: #ffb1da;
+  color: var(--media-button-icon-color);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -132,8 +132,8 @@ media-controller[media-user-inactive] #danmaku-container {
 }
 
 #quality-list button.active {
-  background: var(--md-sys-color-primary) !important;
-  color: #5f1144 !important; /* on-primary color from dark mode */
+  background: var(--media-button-icon-color) !important;
+  color: #000 !important; /* on-primary color from dark mode */
 }
 
 /* Fullscreen Specifics */

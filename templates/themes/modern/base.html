@@ -9,41 +9,59 @@
         <link rel="stylesheet" href="/static/themes/modern/css/main.css" />
         <style>
             :root {
-                /* Material You Sakura Light */
-                --md-sys-color-primary: #9C4174;
-                --md-sys-color-on-primary: #FFFFFF;
-                --md-sys-color-primary-container: #FFD8EC;
-                --md-sys-color-on-primary-container: #3E0021;
-                --md-sys-color-secondary: #755661;
-                --md-sys-color-on-secondary: #FFFFFF;
-                --md-sys-color-secondary-container: #FFD9E6;
-                --md-sys-color-on-secondary-container: #2B151E;
-                --md-sys-color-background: #FFFBFF;
-                --md-sys-color-on-background: #201A1D;
-                --md-sys-color-surface: #FFF0F5;
-                --md-sys-color-on-surface: #201A1D;
-                --md-sys-color-surface-variant: #F2DDE5;
-                --md-sys-color-on-surface-variant: #514349;
-                --md-sys-color-outline: #837379;
+                /* === [Theme Master Controls - Light Mode] === */
+                --theme-primary: #a85383;    /* Main brand color used for key interactive elements */
+                --theme-contrast: -10%;        /* Base contrast offset for surfaces */
+
+                /* Material You Sakura Light - Base Mapping */
+                --md-sys-color-primary: var(--theme-primary);                      /* High-emphasis fills and text */
+                --md-sys-color-on-primary: white;                                  /* Text/icons on top of primary */
+                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), white 65%);  /* Less prominent containers (e.g. active tab) */
+                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), black 80%); /* Text/icons on primary-container */
+                
+                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), #605D62 30%);       /* Less prominent accents */
+                --md-sys-color-on-secondary: white;                                                    /* Text/icons on top of secondary */
+                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), white 75%); /* Secondary element backgrounds */
+                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), black 80%); /* Text/icons on secondary-container */
+
+                /* Background and Surface colors */
+                --md-sys-color-background: color-mix(in srgb, var(--theme-primary), white 90%);    /* Global page background */
+                --md-sys-color-on-background: #201A1D;                                             /* Global body text */
+                --md-sys-color-surface: color-mix(in srgb, var(--theme-primary), white 92%);       /* Neutral surfaces like headers and cards */
+                --md-sys-color-on-surface: #201A1D;                                                /* Text/icons on neutral surfaces */
+
+                /* Dynamic contrast calculation */
+                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 20%); /* Distinct containers like cards and search bars */
+                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), black 60%);                   /* Lower-emphasis text/icons on surface-variant */
+                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 40%);        /* Decorative elements, borders, and dividers */
             }
 
             .dark {
-                /* Material You Sakura Dark (OLED Optimized) */
-                --md-sys-color-primary: #FFB1DA;
-                --md-sys-color-on-primary: #5F1144;
-                --md-sys-color-primary-container: #7D295C;
-                --md-sys-color-on-primary-container: #FFD8EC;
-                --md-sys-color-secondary: #E4BDC9;
-                --md-sys-color-on-secondary: #432933;
-                --md-sys-color-secondary-container: #5C3F49;
-                --md-sys-color-on-secondary-container: #FFD9E6;
-                --md-sys-color-background: #000000;
-                --md-sys-color-on-background: #ECE0E3;
-                --md-sys-color-surface: #000000;
-                --md-sys-color-on-surface: #ECE0E3;
-                --md-sys-color-surface-variant: #1A1A1A;
-                --md-sys-color-on-surface-variant: #D5C2C9;
-                --md-sys-color-outline: #3A2F34;
+                /* === [Theme Master Controls - Dark Mode] === */
+                --theme-primary: #ff97b5;    /* Primary accent color for dark theme prominence */
+                --theme-contrast: 10%;       /* Increased contrast for OLED/Dark surfaces */
+
+                /* Material You Sakura Dark - Base Mapping */
+                --md-sys-color-primary: var(--theme-primary);                      /* Glowing accents and active states */
+                --md-sys-color-on-primary: color-mix(in srgb, var(--theme-primary), black 75%);   /* Text/icons on top of primary */
+                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), black 35%); /* Subtle accent containers */
+                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), white 65%); /* Text/icons on primary-container */
+
+                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), white 40%);        /* Tonal secondary accents */
+                --md-sys-color-on-secondary: color-mix(in srgb, var(--theme-primary), black 80%);     /* Text/icons on top of secondary */
+                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), black 55%); /* Muted secondary backgrounds */
+                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), white 80%); /* Text/icons on secondary-container */
+
+                /* Background and Surface colors */
+                --md-sys-color-background: black;                                                  /* Deep black for OLED power saving */
+                --md-sys-color-on-background: #ECE0E3;                                             /* Primary dark mode text */
+                --md-sys-color-surface: black;                                                     /* Surface foundations */
+                --md-sys-color-on-surface: #ECE0E3;                                                /* Text/icons on surfaces */
+
+                /* Dynamic contrast calculation */
+                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 20%); /* Glowing card backgrounds and inputs */
+                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), white 80%);                      /* High-readability secondary text */
+                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 50%);        /* Dividers and structural borders */
             }
 
             body {
@@ -137,7 +155,7 @@
                                    spellcheck="false"
                                    name="q"
                                    placeholder="{{ '想要搜索点什么？' }}"
-                                   class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface-variant text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
+                                   class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
                                    {% if q %}value="{{ q }}"{% endif %} />
                         </div>
                     </form>
@@ -159,7 +177,7 @@
                 </div>
             </div>
         </header>
-        <div class="container mx-auto px-4 py-8 md:px-8 max-w-8xl flex-grow flex flex-col">
+        <div class="container mx-auto py-8 md:px-8 flex-grow flex flex-col">
             <div id="contents" class="flex-grow">
                 {% block content %}{% endblock %}
             </div>

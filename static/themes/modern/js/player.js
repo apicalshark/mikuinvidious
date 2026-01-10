@@ -709,7 +709,7 @@ function createOption(text, val, onClick, list) {
   btn.appendChild(span);
 
   const icon = document.createElement("i");
-  icon.className = "icon ion-md-checkmark text-primary opacity-0 group-[.active]:opacity-100";
+  icon.className = "icon ion-md-checkmark opacity-0 group-[.active]:opacity-100";
   btn.appendChild(icon);
 
   btn.onclick = (e) => {
