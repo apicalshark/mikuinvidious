@@ -84,5 +84,5 @@ The following free software JavaScript libraries are included in this project:
 | **hls.js** | Apache-2.0 | [github.com/video-dev/hls.js](https://github.com/video-dev/hls.js) |
 | **mpegts.js** | Apache-2.0 | [github.com/xqq/mpegts.js](https://github.com/xqq/mpegts.js) |
 | **media-chrome** | MIT | [github.com/muxinc/media-chrome](https://github.com/muxinc/media-chrome) |
-| **Danmaku** | Expat | [github.com/weizhenye/Danmaku](https://github.com/weizhenye/Danmaku) |
+| **Danmaku** | MIT | [github.com/weizhenye/Danmaku](https://github.com/weizhenye/Danmaku) |
 | **opencc-js** | MIT | [github.com/nk2028/opencc-js](https://github.com/nk2028/opencc-js) |
