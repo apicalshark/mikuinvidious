@@ -42,7 +42,6 @@
         window.ato = {{ 'true' if ato else 'false' }};
         window.is_live = {{ 'true' if is_live else 'false' }};
         window.ep_id = '{{ ep_id if ep_id else "" }}';
-        window.vinfo = {{ vinfo | tojson | safe }};
     </script>
 {% endblock %}
 

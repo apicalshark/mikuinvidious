@@ -694,26 +694,3 @@ def av2bv(x):
         return "".join(r)
     except ValueError:
         raise ArgsException("avid 提供错误，必须是以 av 开头的数字组成的字符串。") from None
-
-
-def bcc_to_vtt(bcc_data):
-    """Convert Bilibili BCC (JSON) subtitle to WebVTT format."""
-    if not bcc_data or "body" not in bcc_data:
-        return "WEBVTT\n\n"
-
-    def format_vtt_time(seconds):
-        m, s = divmod(seconds, 60)
-        h, m = divmod(m, 60)
-        return f"{int(h):02d}:{int(m):02d}:{s:06.3f}"
-
-    vtt = ["WEBVTT", ""]
-    for i, item in enumerate(bcc_data["body"]):
-        start = format_vtt_time(item["from"])
-        end = format_vtt_time(item["to"])
-        content = item["content"]
-        vtt.append(f"{i + 1}")
-        vtt.append(f"{start} --> {end}")
-        vtt.append(content)
-        vtt.append("")
-
-    return "\n".join(vtt)

@@ -201,8 +201,7 @@ async def bangumi_play(ep_id):
             "pubdate": pub_ts,
             "bvid": bvid,
             "cid": cid, 
-            "duration": safe_int(current_ep.get('duration')),
-            "subtitle": res.get('subtitle') or current_ep.get('subtitle') or {}
+            "duration": safe_int(current_ep.get('duration'))
         }
         
         # Construct vset (episode list)

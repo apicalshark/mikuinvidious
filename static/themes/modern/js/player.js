@@ -321,11 +321,6 @@ async function initMikuPlayer() {
   // 1. Danmaku Setup (Using DOM engine for pixel perfection)
   initDanmaku(video, danmakuContainer, controller);
 
-  // 1.5 Subtitle Setup
-  if (window.vinfo && window.vinfo.subtitle) {
-    initSubtitles(video, window.vinfo.subtitle);
-  }
-
   // 2. Quality Selection Logic
   const playerStartTime = performance.now();
   if (window.is_live) {
@@ -738,42 +733,6 @@ function toggleDanmaku() {
     if (btn) btn.style.opacity = "1.0";
   }
   window.dm_status = !window.dm_status;
-}
-
-function initSubtitles(video, subtitleData) {
-  // Clear existing tracks
-  const existingTracks = video.querySelectorAll("track");
-  existingTracks.forEach((track) => track.remove());
-
-  if (!subtitleData || !Array.isArray(subtitleData.list) || subtitleData.list.length === 0) return;
-
-  console.log("[Player] Found subtitles:", subtitleData.list.length);
-  
-  // Sort to find a good default (prefer zh-Hans, zh-Hant, then others)
-  const sortedList = [...subtitleData.list].sort((a, b) => {
-    const prefs = ["zh-Hans", "zh-CN", "zh-Hant", "zh-HK", "zh-TW"];
-    const aIdx = prefs.indexOf(a.lan);
-    const bIdx = prefs.indexOf(b.lan);
-    if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-    if (aIdx !== -1) return -1;
-    if (bIdx !== -1) return 1;
-    return 0;
-  });
-
-  subtitleData.list.forEach((sub, index) => {
-    const track = document.createElement("track");
-    track.kind = "subtitles";
-    track.label = sub.lan_doc;
-    track.srclang = sub.lan;
-    track.src = `/res/subtitle/${window.current_vid}:${window.idx}/${sub.lan}.vtt`;
-    
-    // Set default if it's the first in our sorted preference list
-    if (sub.lan === sortedList[0].lan) {
-      track.default = true;
-    }
-    
-    video.appendChild(track);
-  });
 }
 
 function setupAutoNext(video) {
