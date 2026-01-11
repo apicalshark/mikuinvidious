@@ -2,6 +2,7 @@
 {{ video_player(vid, vinfo, idx, supported_src, is_live, has_dash) }}
 <script>
     window.has_dash = {{ 'true' if has_dash else 'false' }};
+    window.vinfo = {{ vinfo | tojson | safe }};
     // Re-trigger player init since this is loaded via AJAX
     if (window.initMikuPlayer) window.initMikuPlayer();
 </script>

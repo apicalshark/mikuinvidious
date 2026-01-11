@@ -760,7 +760,8 @@ async def api_component_player(vid, idx):
              if current_ep:
                  vinfo = {
                      'pic': current_ep.get('cover') or res.get('cover'),
-                     'title': f"{res.get('title', '')} - {current_ep.get('title', '')}"
+                     'title': f"{res.get('title', '')} - {current_ep.get('title', '')}",
+                     'subtitle': res.get('subtitle') or current_ep.get('subtitle') or {}
                  }
              else:
                  vinfo = await v.get_info()
