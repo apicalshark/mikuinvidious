@@ -325,39 +325,28 @@ async function initMikuPlayer() {
   const playerStartTime = performance.now();
   if (window.is_live) {
     setupLivePlayer(video, qualityList, label);
-  } else if (window.has_dash && Hls.isSupported()) {
-    const m3u8Url = `/video/m3u8/${window.current_vid}/${window.idx}/master.m3u8`;
-    console.log("[Player] Initializing VOD with HLS (DASH-wrapped):", m3u8Url);
+  } else if (window.has_dash) {
+    const mpdUrl = `/video/dash/${window.current_vid}/${window.idx}/manifest.mpd`;
+    console.log("[Player] Initializing VOD with dash.js:", mpdUrl);
 
-    const hls = new Hls({
-      enableWorker: false,
-      lowLatencyMode: false,
-      backBufferLength: 90,
-    });
+    const player = dashjs.MediaPlayer().create();
+    player.initialize(video, mpdUrl, true);
+    window.dashPlayer = player;
 
-    console.time("[Player] HLS Load to ManifestParsed");
-    hls.loadSource(m3u8Url);
-    hls.attachMedia(video);
-    window.hls = hls;
-
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      console.timeEnd("[Player] HLS Load to ManifestParsed");
-      console.log(`[Player] HLS ready in ${(performance.now() - playerStartTime).toFixed(2)}ms`);
-      updateVodHlsQualityMenu(hls, qualityList, label);
-      video.play().catch((error) => {
-        if (error.name === "NotAllowedError") showAutoplayOverlay(video);
-      });
-    });
-
-    hls.on(Hls.Events.ERROR, (event, data) => {
-      console.warn("[Player] HLS Error:", data.details, data.fatal);
-    });
-
-    hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
-      if (hls.autoLevelEnabled) {
-        const level = hls.levels[data.level];
-        label.innerText = `自动 (${level.height}p)`;
+    // Handle autoplay block
+    video.play().catch((error) => {
+      if (error.name === "NotAllowedError") {
+        showAutoplayOverlay(video);
       }
+    });
+
+    player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+      console.log(`[Player] DASH ready in ${(performance.now() - playerStartTime).toFixed(2)}ms`);
+      updateVodDashQualityMenu(player, qualityList, label);
+    });
+
+    player.on(dashjs.MediaPlayer.events.ERROR, (e) => {
+      console.error("[Player] DASH Error:", e);
     });
 
     setupAutoNext(video);
@@ -544,6 +533,68 @@ function setupLivePlayer(video, list, label) {
     updateLiveQualityMenu(video, null, window.liveManager, list, label, false);
   }
   window.isSettingUp = false;
+}
+
+function updateVodDashQualityMenu(player, list, label) {
+  if (!list) return;
+  list.innerHTML = "";
+
+  const bitrates = player.getBitrateInfoListFor("video");
+  if (!bitrates) return;
+
+  // Auto option
+  const autoBtn = createOption(
+    "自动",
+    -1,
+    () => {
+      player.updateSettings({
+        streaming: {
+          abr: {
+            autoSwitchBitrate: {
+              video: true,
+            },
+          },
+        },
+      });
+      label.innerText = "自动";
+    },
+    list
+  );
+  if (player.getSettings().streaming.abr.autoSwitchBitrate.video) {
+    autoBtn.classList.add("active");
+  }
+  list.appendChild(autoBtn);
+
+  // Specific bitrates
+  bitrates.forEach((info) => {
+    // Info.id looks like "video_80_7"
+    const parts = info.id ? info.id.split("_") : [];
+    const qn = parts.length > 1 ? parseInt(parts[1]) : -1;
+    
+    // Try to find matching description from window.supported_src
+    const matched = window.supported_src.find((s) => s.quality === qn);
+    const name = matched ? matched.new_description : `${info.height}p`;
+
+    const btn = createOption(
+      name,
+      info.bitrateIndex,
+      () => {
+        player.updateSettings({
+          streaming: {
+            abr: {
+              autoSwitchBitrate: {
+                video: false,
+              },
+            },
+          },
+        });
+        player.setQualityFor("video", info.bitrateIndex);
+        label.innerText = name;
+      },
+      list
+    );
+    list.appendChild(btn);
+  });
 }
 
 function updateVodHlsQualityMenu(hls, list, label) {

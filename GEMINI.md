@@ -9,7 +9,7 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 - **Web Server:** [Caddy](https://caddyserver.com/) (Reverse proxy) + [Granian](https://github.com/emmett-framework/granian) (Rust-powered ASGI server)
 - **Database/Cache:** [Redis](https://redis.io/) (required for caching video URLs, session management, and credential storage)
 - **API Wrapper:** [bilibili-api-python](https://github.com/nemo2011/bilibili-api)
-- **Video Player:** `hls.js` with `mpegts.js` (for live streams and FLV support)
+- **Video Player:** `hls.js`, `mpegts.js`, and `dash.js` (for live streams, FLV, and DASH support)
 - **Templating:** Jinja2 (with theme support)
 
 ## System Architecture
@@ -104,7 +104,7 @@ graph TD
 ### 2. UI/UX Focus
 
 * **Modern Theme:** Built with Tailwind CSS, supporting both Light and Dark modes. Features a responsive, mobile-first design inspired by Material Design 3.
-- **Playback Experience:** Uses `hls.js` with `mpegts.js` for low-latency live streaming. Includes custom "Click to Play" recovery for autoplay-blocked browsers.
+- **Playback Experience:** Uses `hls.js`, `mpegts.js`, and `dash.js` for low-latency live streaming and high-quality DASH playback. Includes custom "Click to Play" recovery for autoplay-blocked browsers.
 
 ### 3. Codebase Health & Observations
 

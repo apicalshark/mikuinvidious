@@ -22,7 +22,6 @@ import re
 from bilibili_api.exceptions import ArgsException
 from bilibili_api.utils.network import Api
 from bs4 import BeautifulSoup
-import struct
 from shared import Network
 
 
@@ -509,79 +508,95 @@ def generate_vod_master_m3u8(vid, idx, dash_data):
     return "\n".join(master_m3u8)
 
 
-async def fetch_and_parse_sidx(url, index_range, headers=None):
-    """Fetch and parse sidx box from MP4 to get segments."""
-    if not index_range:
+def generate_vod_mpd(vid, idx, dash_data):
+    """Generate DASH MPD from Bilibili DASH data."""
+    if "dash" not in dash_data:
         return None
 
-    try:
-        from shared import COMMON_HEADERS
-        req_headers = (headers or COMMON_HEADERS).copy()
-        req_headers["Range"] = f"bytes={index_range}"
+    dash = dash_data["dash"]
+    duration = dash.get("duration", 0)
+    min_buffer_time = dash.get("minBufferTime", 1.5)
 
-        client = await Network.get_async_client()
-        resp = await client.get(url, headers=req_headers, follow_redirects=True, timeout=10.0)
-        if resp.status_code not in [200, 206]:
-            return None
+    mpd = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static" mediaPresentationDuration="PT{}S" minBufferTime="PT{}S">'.format(
+            duration, min_buffer_time
+        ),
+        '  <Period id="1" start="PT0S">',
+    ]
 
-        return parse_sidx(resp.content)
-    except Exception as e:
-        print(f"[Extra] Error fetching/parsing sidx: {e}")
-        return None
+    # Video Adaptation Set
+    mpd.append('    <AdaptationSet id="1" mimeType="video/mp4" segmentAlignment="true" startWithSAP="1">')
+    for video in dash.get("video", []):
+        qn = video["id"]
+        cid = video.get("codecid") or 0
+        bandwidth = video.get("bandwidth", 0)
+        width = video.get("width", 0)
+        height = video.get("height", 0)
+        frame_rate = video.get("frameRate", "24")
+        codecs = video.get("codecs") or "avc1.64001F"
+
+        # SegmentBase info
+        sb = video.get("SegmentBase", {})
+        init_range = sb.get("Initialization", "0-999")
+        index_range = sb.get("indexRange", "1000-2000")
+        pto = sb.get("presentationTimeOffset", 0)
+        
+        # Calculate timescale from duration if possible
+        track_duration = video.get("duration", 0)
+        timescale = (track_duration // duration) if duration and track_duration else 90000
+
+        mpd.append(
+            '      <Representation id="video_{}_{}" codecs="{}" bandwidth="{}" width="{}" height="{}" frameRate="{}">'.format(
+                qn, cid, codecs, bandwidth, width, height, frame_rate
+            )
+        )
+        mpd.append('        <BaseURL>/proxy/dash/video/{}/{}</BaseURL>'.format(qn, cid))
+        mpd.append('        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(index_range, pto, timescale))
+        mpd.append('          <Initialization range="{}"/>'.format(init_range))
+        mpd.append("        </SegmentBase>")
+        mpd.append("      </Representation>")
+    mpd.append("    </AdaptationSet>")
+
+    # Audio Adaptation Set
+    mpd.append('    <AdaptationSet id="2" mimeType="audio/mp4" segmentAlignment="true" startWithSAP="1">')
+    audio_tracks = dash.get("audio", [])
+    if not audio_tracks and "flac" in dash and dash["flac"]:
+        audio_tracks = dash["flac"].get("audio", []) or [dash["flac"].get("display", {})]
+
+    for audio in audio_tracks:
+        qn = audio.get("id") or audio.get("quality") or 0
+        cid = audio.get("codecid") or 0
+        bandwidth = audio.get("bandwidth", 0)
+        codecs = audio.get("codecs") or "mp4a.40.2"
+
+        sb = audio.get("SegmentBase", {})
+        init_range = sb.get("Initialization", "0-999")
+        index_range = sb.get("indexRange", "1000-2000")
+        pto = sb.get("presentationTimeOffset", 0)
+        
+        # Calculate timescale from duration if possible
+        track_duration = audio.get("duration", 0)
+        timescale = (track_duration // duration) if duration and track_duration else 44100
+
+        mpd.append(
+            '      <Representation id="audio_{}_{}" codecs="{}" bandwidth="{}">'.format(qn, cid, codecs, bandwidth)
+        )
+        mpd.append('        <BaseURL>/proxy/dash/audio/{}/{}</BaseURL>'.format(qn, cid))
+        mpd.append('        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(index_range, pto, timescale))
+        mpd.append('          <Initialization range="{}"/>'.format(init_range))
+        mpd.append("        </SegmentBase>")
+        mpd.append("      </Representation>")
+    mpd.append("    </AdaptationSet>")
+
+    mpd.append("  </Period>")
+    mpd.append("</MPD>")
+
+    return "\n".join(mpd)
 
 
-def parse_sidx(data):
-    """Parse ISO BMFF sidx box."""
-    if len(data) < 12:
-        return None
-
-    # Skip size and type ('sidx')
-    pos = 8
-    version = data[pos]
-    pos += 4  # Skip version (1) and flags (3)
-    pos += 4  # Skip reference_ID (4)
-
-    timescale = struct.unpack(">I", data[pos : pos + 4])[0]
-    pos += 4
-
-    if version == 0:
-        # earliest_presentation_time (4), first_offset (4)
-        ept = struct.unpack(">I", data[pos : pos + 4])[0]
-        pos += 8
-    else:
-        # earliest_presentation_time (8), first_offset (8)
-        ept = struct.unpack(">Q", data[pos : pos + 8])[0]
-        pos += 16
-
-    pos += 2  # Skip reserved
-    reference_count = struct.unpack(">H", data[pos : pos + 2])[0]
-    pos += 2
-
-    segments = []
-    current_offset = 0
-
-    for _ in range(reference_count):
-        if pos + 12 > len(data):
-            break
-
-        # reference_type (1 bit) + referenced_size (31 bits)
-        ref_size = struct.unpack(">I", data[pos : pos + 4])[0] & 0x7FFFFFFF
-        pos += 4
-        # subsegment_duration (32 bits)
-        duration_ticks = struct.unpack(">I", data[pos : pos + 4])[0]
-        pos += 4
-        # starts_with_SAP (1 bit) + SAP_type (3 bits) + SAP_delta_time (28 bits)
-        pos += 4
-
-        duration_sec = duration_ticks / timescale
-        segments.append({"offset": current_offset, "size": ref_size, "duration": duration_sec})
-        current_offset += ref_size
-
-    return {"segments": segments, "ept": ept, "timescale": timescale}
-
-
-def generate_vod_media_m3u8(dash_data, media_type, qn, cid, duration, segments=None, ept=0, timescale=1, pto=0):
-    """Generate HLS Media Playlist with PTO (Presentation Time Offset) support."""
+def generate_vod_media_m3u8(dash_data, media_type, qn, cid, duration):
+    """Generate HLS Media Playlist for a specific quality."""
     if "dash" not in dash_data:
         return None
 
@@ -611,54 +626,18 @@ def generate_vod_media_m3u8(dash_data, media_type, qn, cid, duration, segments=N
     except Exception:
         init_range = init_range_raw
 
-    try:
-        data_start = int(target_media.get("SegmentBase", {}).get("indexRange", "0-0").split("-")[1]) + 1
-    except Exception:
-        data_start = 0
-
     playlist = [
         "#EXTM3U",
-        "#EXT-X-VERSION:6",
+        "#EXT-X-VERSION:3",
         f"#EXT-X-TARGETDURATION:{int(duration) + 1}",
         "#EXT-X-MEDIA-SEQUENCE:0",
         "#EXT-X-PLAYLIST-TYPE:VOD",
         f'#EXT-X-MAP:URI="/proxy/dash/{media_type}/{qn}/{cid}",BYTERANGE="{init_range}"',
+        f"#EXTINF:{duration},",
+        f"/proxy/dash/{media_type}/{qn}/{cid}",
+        "#EXT-X-ENDLIST",
     ]
 
-    if segments:
-        # Calculate timeline adjustment
-        # PeriodStart = (SampleTime - PTO) / Timescale
-        # For the first segment, SampleTime = EPT
-        # So it starts at (EPT - PTO) / Timescale in the period
-        base_offset_sec = (ept - pto) / timescale
-        
-        # Use a fixed epoch for synchronization (PDT)
-        from datetime import datetime, timezone, timedelta
-        # Baseline: 2026-01-01T00:00:00.000Z
-        base_dt = datetime(2026, 1, 1, tzinfo=timezone.utc)
-        start_dt = base_dt + timedelta(seconds=base_offset_sec)
-        playlist.append(f"#EXT-X-PROGRAM-DATE-TIME:{start_dt.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]}Z")
-        
-        for i, seg in enumerate(segments):
-            duration = seg["duration"]
-            range_start = data_start + seg["offset"]
-            range_len = seg["size"]
-            
-            # Format: #EXTINF:duration,
-            playlist.append(f"#EXTINF:{duration:.6f},")
-            playlist.append(f'#EXT-X-BYTERANGE:"{range_len}@{range_start}"')
-            playlist.append(f"/proxy/dash/{media_type}/{qn}/{cid}")
-
-        # If there's a significant positive offset at the start, we might want to hint it
-        if (ept - pto) / timescale > 0.1:
-            # Note: This is a hack, EXT-X-START is usually for the whole master.
-            # But for individual media, we just rely on PTS sync.
-            pass
-    else:
-        playlist.append(f"#EXTINF:{duration},")
-        playlist.append(f"/proxy/dash/{media_type}/{qn}/{cid}")
-
-    playlist.append("#EXT-X-ENDLIST")
     return "\n".join(playlist)
 
 

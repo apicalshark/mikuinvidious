@@ -27,6 +27,7 @@ from extra import (
     av2bv,
     generate_vod_master_m3u8,
     generate_vod_media_m3u8,
+    generate_vod_mpd,
     get_article_info,
     video_get_dash_for_qn,
     video_get_src_for_qn,
@@ -530,6 +531,25 @@ async def video_listen_view(vid, idx=0):
     )
 
 
+@app.route("/video/dash/<vid>/<int:idx>/manifest.mpd")
+async def video_dash_manifest_view(vid, idx):
+    v = video.Video(bvid=vid, credential=appcred)
+    dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
+    if dash_cache:
+        dash_data = orjson.loads(dash_cache)
+    else:
+        try:
+            dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
+            await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(dash_data))
+        except Exception:
+            return "Upstream Timeout", 504
+
+    mpd_content = generate_vod_mpd(vid, idx, dash_data)
+    if not mpd_content:
+        return "Not Found", 404
+    return Response(mpd_content, content_type="application/dash+xml")
+
+
 @app.route("/video/m3u8/<vid>/<int:idx>/master.m3u8")
 async def video_master_m3u8_view(vid, idx):
     v = video.Video(bvid=vid, credential=appcred)
@@ -562,62 +582,9 @@ async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
         except Exception:
             return "Upstream Timeout", 504
 
-    # Try to get segmented info from sidx
-    segmented_info = None
-    seg_cache_key = f"miku_segments_{vid}_{idx}_{media_type}_{qn}_{cid}"
-    cached_segs = await appredis.get(seg_cache_key)
-    if cached_segs:
-        try:
-            segmented_info = orjson.loads(cached_segs)
-        except Exception:
-            pass
-
-    if not segmented_info:
-        # Find the track to get baseUrl and indexRange
-        dash = dash_data.get("dash", {})
-        media_list = dash.get("video" if media_type == "video" else "audio", [])
-        target_media = next(
-            (m for m in media_list if str(m.get("id")) == str(qn) and str(m.get("codecid", 0)) == str(cid)), None
-        )
-        if not target_media and media_type == "audio" and "flac" in dash:
-            target_media = next(
-                (
-                    m
-                    for m in dash["flac"].get("audio", [])
-                    if str(m.get("id")) == str(qn) and str(m.get("codecid", 0)) == str(cid)
-                ),
-                None,
-            )
-
-        if target_media:
-            url = target_media.get("baseUrl") or target_media.get("base_url")
-            index_range = target_media.get("SegmentBase", {}).get("indexRange")
-            if url and index_range:
-                from extra import fetch_and_parse_sidx
-
-                segmented_info = await fetch_and_parse_sidx(url, index_range)
-                if segmented_info:
-                    await appredis.setex(seg_cache_key, 3600, orjson.dumps(segmented_info))
-
-    # Extract synchronization metadata
-    segments = segmented_info.get("segments") if segmented_info else None
-    ept = segmented_info.get("ept", 0) if segmented_info else 0
-    timescale = segmented_info.get("timescale", 1) if segmented_info else 1
-    
-    # Get PTO from dash_data
-    pto = 0
-    if dash_data.get("dash"):
-        media_list = dash_data["dash"].get("video" if media_type == "video" else "audio", [])
-        target_media = next(
-            (m for m in media_list if str(m.get("id")) == str(qn) and str(m.get("codecid", 0)) == str(cid)), None
-        )
-        if target_media:
-            pto = int(target_media.get("SegmentBase", {}).get("presentationTimeOffset", 0))
-
     vinfo = await v.get_info()
     m3u8_content = generate_vod_media_m3u8(
-        dash_data, media_type, qn, cid, vinfo.get("duration", 0), 
-        segments=segments, ept=ept, timescale=timescale, pto=pto
+        dash_data, media_type, qn, cid, vinfo.get("duration", 0)
     )
     if not m3u8_content:
         return "Not Found", 404
