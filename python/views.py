@@ -701,32 +701,41 @@ async def api_component_player(vid, idx):
 
         t_dash = asyncio.create_task(fetch_dash_task())
         t_fallback = asyncio.create_task(fetch_fallback_task())
-        pending = {t_dash, t_fallback}
+        
+        # 1. Wait for DASH with a short timeout first if we want to be snappy
+        # but actually we MUST wait for DASH to avoid the Chrome preload issue.
+        try:
+            res = await asyncio.wait_for(asyncio.shield(t_dash), timeout=3.5)
+            if res and res[1]:
+                result_type, result_data = res
+                has_dash = True
+                v_supported_src = [
+                    {"quality": f["quality"], "new_description": f["new_description"]}
+                    for f in result_data.get("support_formats", [])
+                ]
+                # Pre-fetch first fallback quality in background if needed
+                if v_supported_src:
+                    first_qn = v_supported_src[0]["quality"]
+                    if not await appredis.exists(f"mikuinv_{vid}_{idx}_{first_qn}"):
+                        asyncio.create_task(video_get_src_for_qn(v, idx, first_qn))
+                return has_dash, v_supported_src
+        except Exception:
+            # DASH failed or timed out, proceed to fallback
+            pass
 
-        while pending:
-            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-            for task in done:
-                try:
-                    result_type, result_data = task.result()
-                    if result_type == "dash" and result_data:
-                        has_dash = True
-                        v_supported_src = [
-                            {"quality": f["quality"], "new_description": f["new_description"]}
-                            for f in result_data.get("support_formats", [])
-                        ]
-                        if v_supported_src:
-                            first_qn = v_supported_src[0]["quality"]
-                            if not await appredis.exists(f"mikuinv_{vid}_{idx}_{first_qn}"):
-                                asyncio.create_task(video_get_src_for_qn(v, idx, first_qn))  # Fire and forget
-                        return has_dash, v_supported_src
-                    elif result_type == "fallback" and result_data:
-                        v_supported_src = [
-                            {"quality": f["quality"], "new_description": f["new_description"]}
-                            for f in result_data.get("support_formats", [])
-                        ]
-                        return False, v_supported_src
-                except Exception:
-                    continue
+        # 2. If DASH failed, check Fallback
+        try:
+            res_fb = await t_fallback
+            if res_fb and res_fb[1]:
+                result_type, result_data = res_fb
+                v_supported_src = [
+                    {"quality": f["quality"], "new_description": f["new_description"]}
+                    for f in result_data.get("support_formats", [])
+                ]
+                return False, v_supported_src
+        except Exception:
+            pass
+
         return False, []
 
     # Get Info again briefly just for the macro context (cached by request usually)

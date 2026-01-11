@@ -445,10 +445,14 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None):
                 # print(f"[Debug] PGC Response Text: {pgc_res_raw.text[:500]}")
                 pgc_res = pgc_res_raw.json()
                 if pgc_res and pgc_res.get("code") == 0:
-                     # PGC API result can be a string "suee" or similar if DASH is at top level
                      res_node = pgc_res.get("result")
-                     if isinstance(res_node, dict) and "dash" in res_node:
-                         return res_node
+                     if isinstance(res_node, dict):
+                         # If result is just the dict containing dash/support_formats
+                         if "dash" in res_node:
+                             return res_node
+                         # If result contains data which contains dash (seen in some PGC versions)
+                         if "data" in res_node and isinstance(res_node["data"], dict) and "dash" in res_node["data"]:
+                             return res_node["data"]
                      return pgc_res
             except Exception as pgc_e:
                 print(f"[Extra] PGC Fallback DASH failed: {pgc_e}")
@@ -646,7 +650,7 @@ def generate_vod_media_m3u8(dash_data, media_type, qn, cid, duration, segments=N
             
             # Format: #EXTINF:duration,
             playlist.append(f"#EXTINF:{duration:.6f},")
-            playlist.append(f'#EXT-X-BYTERANGE:"{range_len}@{range_start}"')
+            playlist.append(f"#EXT-X-BYTERANGE:{range_len}@{range_start}")
             playlist.append(f"/proxy/dash/{media_type}/{qn}/{cid}")
 
         # If there's a significant positive offset at the start, we might want to hint it
