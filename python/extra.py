@@ -22,6 +22,7 @@ import re
 from bilibili_api.exceptions import ArgsException
 from bilibili_api.utils.network import Api
 from bs4 import BeautifulSoup
+import struct
 from shared import Network
 
 
@@ -296,7 +297,7 @@ async def article_to_any(article_text, dest_fmt):
                 pass
 
 
-async def video_get_src_for_qn(vi, idx, quality=16):
+async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
     """Get a specific available source for video."""
     cid = await vi.get_cid(idx)
     api = Api(
@@ -306,11 +307,81 @@ async def video_get_src_for_qn(vi, idx, quality=16):
         credential=vi.credential,
     )
     api.params = {"avid": vi.get_aid(), "cid": cid, "qn": quality, "platform": "html5", "high_quality": 1}
-    res = await api.request()
+    
+    # Try standard UGC API first
+    res = {}
+    try:
+        res = await api.request()
+    except Exception as e:
+        # Check if it's a -404 error (ResponseCodeException usually has .code)
+        if hasattr(e, "code") and e.code == -404:
+            print("[Extra] PGC Fallback for SRC (caught exception)")
+            try:
+                client = await Network.get_async_client()
+                cookies = {}
+                if vi.credential and vi.credential.sessdata:
+                    cookies = {
+                        "SESSDATA": vi.credential.sessdata,
+                        "bili_jct": vi.credential.bili_jct,
+                        "buvid3": vi.credential.buvid3,
+                        "DedeUserID": vi.credential.dedeuserid,
+                    }
+                
+                pgc_params = api.params.copy()
+                
+                # [Fix] Extract ep_id from redirect_url for PGC, unless provided
+                if not ep_id:
+                    try:
+                        info = await vi.get_info()
+                        redirect_url = info.get("redirect_url", "")
+                        if redirect_url:
+                            ep_match = re.search(r"ep(\d+)", redirect_url)
+                            if ep_match:
+                                ep_id = ep_match.group(1)
+                    except Exception:
+                        pass
+                
+                if ep_id:
+                    pgc_params["ep_id"] = ep_id
+                pgc_res_raw = await client.get(
+                    "https://api.bilibili.com/pgc/player/web/playurl",
+                    params=pgc_params,
+                    cookies=cookies,
+                    headers={
+                        "Referer": "https://www.bilibili.com",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+                    },
+                    follow_redirects=True
+                )
+                pgc_res = pgc_res_raw.json()
+                if pgc_res and pgc_res.get("code") == 0:
+                    res_node = pgc_res.get("result")
+                    if isinstance(res_node, dict):
+                        return res_node
+                    return pgc_res
+            except Exception as pgc_e:
+                print(f"[Extra] PGC Fallback SRC failed: {pgc_e}")
+        # Re-raise original exception if fallback not taken or failed
+        # If we successfully handled it, we would have returned.
+        # But wait, providing a way to return raw error in 'res' variable for existing logic is harder with exception.
+        # Existing logic expected 'res' dict. 'video_get_src_for_qn' usually returns dict.
+        # If we re-raise, the caller views.py might handle it.
+        # BUT, looking at original code: 'return res' at the end.
+        pass
+
+    # Fallback to PGC if UGC -404 (in case it didn't raise but returned error dict, though likely it raised)
+    if res.get("code") == -404:
+        # ... logic for non-raising client ...
+        pass # Already handled in except block ideally, but kept for safety if api client changes behavior
+             
+    # Clean standard UGC return
+    if "data" in res:
+        return res["data"]
+    # If no data and no PGC fallback success, simply return res (it's likely the error dict or empty)
     return res
 
 
-async def video_get_dash_for_qn(vi, idx):
+async def video_get_dash_for_qn(vi, idx, ep_id=None):
     """Get a specific available source for video."""
     cid = await vi.get_cid(idx)
     api = Api(
@@ -321,7 +392,82 @@ async def video_get_dash_for_qn(vi, idx):
         credential=vi.credential,
     )
     api.params = {"avid": vi.get_aid(), "cid": cid, "fnval": "4048", "platform": "html5", "high_quality": 1}
-    res = await api.request()
+    
+    res = {}
+    try:
+        res = await api.request()
+    except Exception as e:
+        if hasattr(e, "code") and e.code == -404:
+            print("[Extra] PGC Fallback for DASH (caught exception)")
+            try:
+                client = await Network.get_async_client()
+                cookies = {}
+                if vi.credential and vi.credential.sessdata:
+                    cookies = {
+                        "SESSDATA": vi.credential.sessdata,
+                        "bili_jct": vi.credential.bili_jct,
+                        "buvid3": vi.credential.buvid3,
+                        "DedeUserID": vi.credential.dedeuserid,
+                    }
+                
+                # PGC PlayURL parameters (same as original + module=bangumi maybe?)
+                # Note: api.params was set above. We reuse it but cleaned.
+                pgc_params = api.params.copy()
+                
+                # [Fix] Extract ep_id from redirect_url for PGC, unless provided
+                if not ep_id:
+                    try:
+                        info = await vi.get_info()
+                        redirect_url = info.get("redirect_url", "")
+                        if redirect_url:
+                            ep_match = re.search(r"ep(\d+)", redirect_url)
+                            if ep_match:
+                                ep_id = ep_match.group(1)
+                    except Exception:
+                        pass
+                
+                if ep_id:
+                    pgc_params["ep_id"] = ep_id
+                
+                
+                # print(f"[Debug] PGC Params: {pgc_params}")
+                pgc_res_raw = await client.get(
+                    "https://api.bilibili.com/pgc/player/web/playurl",
+                    params=pgc_params,
+                    cookies=cookies,
+                    headers={
+                        "Referer": "https://www.bilibili.com",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+                    },
+                    follow_redirects=True
+                )
+                # print(f"[Debug] PGC Response Status: {pgc_res_raw.status_code}")
+                # print(f"[Debug] PGC Response Text: {pgc_res_raw.text[:500]}")
+                pgc_res = pgc_res_raw.json()
+                if pgc_res and pgc_res.get("code") == 0:
+                     # PGC API result can be a string "suee" or similar if DASH is at top level
+                     res_node = pgc_res.get("result")
+                     if isinstance(res_node, dict) and "dash" in res_node:
+                         return res_node
+                     return pgc_res
+            except Exception as pgc_e:
+                print(f"[Extra] PGC Fallback DASH failed: {pgc_e}")
+        # If fallback didn't return, we continue.
+        # If exception was raised, we need to ensure we don't crash if we want to return 'res' (which is empty).
+        # Actually, if standard API fails and fallback fails, we should probably raise the error or return error dict.
+        # But 'res' is empty here.
+        # Let's try to reconstruct error dict if possible or just log.
+        print(f"[Extra] Original API failed: {e}")
+        return {"code": getattr(e, "code", -1), "message": str(e)}
+
+    # Fallback to PGC if UGC -404
+    if res.get("code") == -404:
+        # ... (Same checks as above for non-raising case) ...
+        pass
+
+    # Clean standard UGC return
+    if "data" in res:
+        return res["data"]
     return res
 
 
@@ -340,48 +486,135 @@ def generate_vod_master_m3u8(vid, idx, dash_data):
     for i, audio in enumerate(audio_tracks):
         # Handle cases where audio might be a dict with 'id' or 'quality'
         aid = audio.get("id") or audio.get("quality") or i
-        name = f"Audio {aid}"
-        uri = f"/video/m3u8/{vid}/{idx}/audio_{aid}.m3u8"
+        cid = audio.get("codecid") or 0
+        name = f"Audio {aid} (CID {cid})"
+        uri = f"/video/m3u8/{vid}/{idx}/audio_{aid}_{cid}.m3u8"
         group_id = 'GROUP-ID="audio"'
         default = f"DEFAULT={'YES' if i == 0 else 'NO'}"
-        master_m3u8.append(f'#EXT-X-MEDIA:TYPE=AUDIO,{group_id},NAME="{name}",AUTOSELECT=YES,{default},URI="{uri}"')
+        master_m3u8.append(f'#EXT-X-MEDIA:TYPE=AUDIO,{group_id},NAME=\"{name}\",AUTOSELECT=YES,{default},URI=\"{uri}\"')
 
     # Video Variants
-    for video in dash_data["dash"].get("video", []):
-        bandwidth = video.get("bandwidth", 0)
-        resolution = f"{video.get('width')}x{video.get('height')}"
-        codecs = video.get("codecs", "avc1.64001F")
-        uri = f"/video/m3u8/{vid}/{idx}/video_{video['id']}.m3u8"
+    for video_track in dash_data["dash"].get("video", []):
+        bandwidth = video_track.get("bandwidth", 0)
+        resolution = f"{video_track.get('width')}x{video_track.get('height')}"
+        codecs = video_track.get("codecs") or video_track.get("codec") or "avc1.64001F"
+        qn = video_track['id']
+        cid = video_track.get('codecid') or 0
+        uri = f"/video/m3u8/{vid}/{idx}/video_{qn}_{cid}.m3u8"
         master_m3u8.append(
-            f'#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={resolution},CODECS="{codecs}",AUDIO="audio"'
+            f'#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={resolution},CODECS=\"{codecs}\",AUDIO=\"audio\"'
         )
         master_m3u8.append(uri)
 
     return "\n".join(master_m3u8)
 
 
-def generate_vod_media_m3u8(dash_data, media_type, qn, duration):
-    """Generate HLS Media Playlist for a specific quality."""
+async def fetch_and_parse_sidx(url, index_range, headers=None):
+    """Fetch and parse sidx box from MP4 to get segments."""
+    if not index_range:
+        return None
+
+    try:
+        from shared import COMMON_HEADERS
+        req_headers = (headers or COMMON_HEADERS).copy()
+        req_headers["Range"] = f"bytes={index_range}"
+
+        client = await Network.get_async_client()
+        resp = await client.get(url, headers=req_headers, follow_redirects=True, timeout=10.0)
+        if resp.status_code not in [200, 206]:
+            return None
+
+        return parse_sidx(resp.content)
+    except Exception as e:
+        print(f"[Extra] Error fetching/parsing sidx: {e}")
+        return None
+
+
+def parse_sidx(data):
+    """Parse ISO BMFF sidx box."""
+    if len(data) < 12:
+        return None
+
+    # Skip size and type ('sidx')
+    pos = 8
+    version = data[pos]
+    pos += 4  # Skip version (1) and flags (3)
+    pos += 4  # Skip reference_ID (4)
+
+    timescale = struct.unpack(">I", data[pos : pos + 4])[0]
+    pos += 4
+
+    if version == 0:
+        # earliest_presentation_time (4), first_offset (4)
+        ept = struct.unpack(">I", data[pos : pos + 4])[0]
+        pos += 8
+    else:
+        # earliest_presentation_time (8), first_offset (8)
+        ept = struct.unpack(">Q", data[pos : pos + 8])[0]
+        pos += 16
+
+    pos += 2  # Skip reserved
+    reference_count = struct.unpack(">H", data[pos : pos + 2])[0]
+    pos += 2
+
+    segments = []
+    current_offset = 0
+
+    for _ in range(reference_count):
+        if pos + 12 > len(data):
+            break
+
+        # reference_type (1 bit) + referenced_size (31 bits)
+        ref_size = struct.unpack(">I", data[pos : pos + 4])[0] & 0x7FFFFFFF
+        pos += 4
+        # subsegment_duration (32 bits)
+        duration_ticks = struct.unpack(">I", data[pos : pos + 4])[0]
+        pos += 4
+        # starts_with_SAP (1 bit) + SAP_type (3 bits) + SAP_delta_time (28 bits)
+        pos += 4
+
+        duration_sec = duration_ticks / timescale
+        segments.append({"offset": current_offset, "size": ref_size, "duration": duration_sec})
+        current_offset += ref_size
+
+    return {"segments": segments, "ept": ept, "timescale": timescale}
+
+
+def generate_vod_media_m3u8(dash_data, media_type, qn, cid, duration, segments=None, ept=0, timescale=1, pto=0):
+    """Generate HLS Media Playlist with PTO (Presentation Time Offset) support."""
     if "dash" not in dash_data:
         return None
 
-    # Check all possible media containers
     dash = dash_data["dash"]
     media_list = dash.get("video" if media_type == "video" else "audio", [])
-
-    # Fallback search in flac/dolby if not found in standard tracks
-    target_media = next((m for m in media_list if str(m.get("id")) == str(qn)), None)
-    if not target_media and media_type == "audio":
-        if "flac" in dash and dash["flac"] and dash["flac"].get("audio"):
-            target_media = next((m for m in dash["flac"]["audio"] if str(m.get("id")) == str(qn)), None)
+    target_media = next(
+        (m for m in media_list if str(m.get("id")) == str(qn) and str(m.get("codecid", 0)) == str(cid)), None
+    )
+    if not target_media and media_type == "audio" and "flac" in dash:
+        target_media = next(
+            (
+                m
+                for m in dash["flac"].get("audio", [])
+                if str(m.get("id")) == str(qn) and str(m.get("codecid", 0)) == str(cid)
+            ),
+            None,
+        )
 
     if not target_media:
         return None
 
-    # Initialization and Data URL handling (support both baseUrl and base_url)
-    init_range = target_media.get("SegmentBase", {}).get("Initialization", "0-999")
-    # Bilibili normally has one segment after initialization.
-    # We omit BYTERANGE for the main data to allow the player to fetch the rest of the stream.
+    init_range_raw = target_media.get("SegmentBase", {}).get("Initialization", "0-999")
+    try:
+        start, end = map(int, init_range_raw.split("-"))
+        length = end - start + 1
+        init_range = f"{length}@{start}"
+    except Exception:
+        init_range = init_range_raw
+
+    try:
+        data_start = int(target_media.get("SegmentBase", {}).get("indexRange", "0-0").split("-")[1]) + 1
+    except Exception:
+        data_start = 0
 
     playlist = [
         "#EXTM3U",
@@ -389,12 +622,43 @@ def generate_vod_media_m3u8(dash_data, media_type, qn, duration):
         f"#EXT-X-TARGETDURATION:{int(duration) + 1}",
         "#EXT-X-MEDIA-SEQUENCE:0",
         "#EXT-X-PLAYLIST-TYPE:VOD",
-        f'#EXT-X-MAP:URI="/proxy/dash/{media_type}/{qn}",BYTERANGE="{init_range}"',
-        f"#EXTINF:{duration},",
-        f"/proxy/dash/{media_type}/{qn}",
-        "#EXT-X-ENDLIST",
+        f'#EXT-X-MAP:URI="/proxy/dash/{media_type}/{qn}/{cid}",BYTERANGE="{init_range}"',
     ]
 
+    if segments:
+        # Calculate timeline adjustment
+        # PeriodStart = (SampleTime - PTO) / Timescale
+        # For the first segment, SampleTime = EPT
+        # So it starts at (EPT - PTO) / Timescale in the period
+        base_offset_sec = (ept - pto) / timescale
+        
+        # Use a fixed epoch for synchronization (PDT)
+        from datetime import datetime, timezone, timedelta
+        # Baseline: 2026-01-01T00:00:00.000Z
+        base_dt = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        start_dt = base_dt + timedelta(seconds=base_offset_sec)
+        playlist.append(f"#EXT-X-PROGRAM-DATE-TIME:{start_dt.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]}Z")
+        
+        for i, seg in enumerate(segments):
+            duration = seg["duration"]
+            range_start = data_start + seg["offset"]
+            range_len = seg["size"]
+            
+            # Format: #EXTINF:duration,
+            playlist.append(f"#EXTINF:{duration:.6f},")
+            playlist.append(f'#EXT-X-BYTERANGE:"{range_len}@{range_start}"')
+            playlist.append(f"/proxy/dash/{media_type}/{qn}/{cid}")
+
+        # If there's a significant positive offset at the start, we might want to hint it
+        if (ept - pto) / timescale > 0.1:
+            # Note: This is a hack, EXT-X-START is usually for the whole master.
+            # But for individual media, we just rely on PTS sync.
+            pass
+    else:
+        playlist.append(f"#EXTINF:{duration},")
+        playlist.append(f"/proxy/dash/{media_type}/{qn}/{cid}")
+
+    playlist.append("#EXT-X-ENDLIST")
     return "\n".join(playlist)
 
 

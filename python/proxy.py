@@ -5,15 +5,9 @@ from urllib.parse import urlparse
 import httpx
 from live_manager import live_manager
 from quart import Blueprint, Response, request
-from shared import Network, appconf, appredis, image_limiter
+from shared import COMMON_HEADERS, Network, appconf, appredis, image_limiter
 
 proxy_bp = Blueprint("proxy", __name__)
-
-
-COMMON_HEADERS = {
-    "referer": "https://www.bilibili.com",
-    "user-agent": "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com)",
-}
 
 
 async def render_proxy_pic(req_path):
@@ -40,6 +34,7 @@ async def render_proxy_pic(req_path):
                     proxy_resp.headers[k] = v
 
             proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+            proxy_resp.headers["X-Accel-Buffering"] = "no"
 
             # Transfer ownership to ProxyResponse. Set resp to None
             # to prevent the finally block from closing it.
@@ -89,9 +84,9 @@ class ProxyResponse(Response):
             await self.upstream_resp.aclose()
 
 
-@proxy_bp.route("/proxy/dash/<media_type>/<int:qn>")
-async def proxy_dash(media_type, qn):
-    url = await appredis.get(f"miku_dash_url_{media_type}_{qn}")
+@proxy_bp.route("/proxy/dash/<media_type>/<int:qn>/<int:cid>")
+async def proxy_dash(media_type, qn, cid):
+    url = await appredis.get(f"miku_dash_url_{media_type}_{qn}_{cid}")
     if not url:
         return Response("Not Found", status=404)
 
@@ -131,6 +126,7 @@ async def proxy_dash(media_type, qn):
             k_lower = k.lower()
             if k_lower in [
                 "content-type",
+                "content-length",
                 "content-range",
                 "accept-ranges",
                 "etag",
@@ -145,6 +141,7 @@ async def proxy_dash(media_type, qn):
             proxy_resp.headers["Content-Type"] = "audio/mp4"
 
         proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+        proxy_resp.headers["X-Accel-Buffering"] = "no"
         return proxy_resp
     except Exception as e:
         print(f"[Proxy] Error in proxy_dash: {e}")
@@ -275,6 +272,7 @@ async def proxy_main(subpath):
                 k_lower = k.lower()
                 if k_lower in [
                     "content-type",
+                    "content-length",
                     "content-range",
                     "accept-ranges",
                     "etag",
@@ -283,6 +281,7 @@ async def proxy_main(subpath):
                     if is_live and k_lower in ["content-type", "connection"]:
                         continue
                     proxy_resp.headers[k] = v
+            proxy_resp.headers["X-Accel-Buffering"] = "no"
             return proxy_resp
         except Exception as e:
             print(f"[Proxy] Error proxying {url}: {e}")

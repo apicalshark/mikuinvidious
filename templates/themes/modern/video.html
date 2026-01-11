@@ -41,6 +41,7 @@
         window.total_pages = {{ vset | length }};
         window.ato = {{ 'true' if ato else 'false' }};
         window.is_live = {{ 'true' if is_live else 'false' }};
+        window.ep_id = '{{ ep_id if ep_id else "" }}';
     </script>
 {% endblock %}
 
@@ -337,7 +338,8 @@
                 <h3 class="font-bold text-on-surface mb-4">{{ '推荐视频' }}</h3>
                 <div class="space-y-4">
                     {% for rv in vrelated %}
-                        <a href="/video/{{ rv['bvid'] }}"
+                        {% set rv_link = '/bangumi/play/' + rv['bvid'] if rv['bvid'].startswith('ep') else '/video/' + rv['bvid'] %}
+                        <a href="{{ rv_link }}"
                            class="flex flex-col sm:flex-row gap-3 group">
                             <div class="w-full sm:w-36 aspect-video flex-shrink-0 relative rounded-lg overflow-hidden">
                                 <img loading="lazy"
@@ -392,7 +394,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (!window.is_live) {
                 // Load Player Component
-                fetch(`/api/component/player/${window.current_vid}/${window.idx}`)
+                fetch(`/api/component/player/${window.current_vid}/${window.idx}?ep_id=${window.ep_id}`)
                     .then(r => r.text())
                     .then(html => {
                         const container = document.getElementById('player-placeholder-wrapper');

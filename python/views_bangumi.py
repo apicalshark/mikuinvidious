@@ -1,4 +1,4 @@
-from quart import Blueprint, request
+from quart import Blueprint, request, jsonify
 import shared
 from bilibili_api import bangumi
 from nyaa import search_nyaa
@@ -6,6 +6,8 @@ import asyncio
 import re
 import json
 import os
+from datetime import datetime
+from extra import av2bv
 
 bangumi_bp = Blueprint('bangumi', __name__, url_prefix='/bangumi')
 
@@ -69,8 +71,6 @@ async def bangumi_home():
         page=pn
     )
 
-from extra import av2bv
-
 @bangumi_bp.route('/view/<int:ssid>')
 async def bangumi_view(ssid):
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
@@ -127,9 +127,130 @@ async def bangumi_view(ssid):
         nyaa_enabled=shared.appconf["site"]["nyaa_bangumi"]
     )
 
+@bangumi_bp.route('/play/ep<int:ep_id>')
+async def bangumi_play(ep_id):
+    from bilibili_api.utils.network import Api
+    
+    # 1. Fetch Season Info using ep_id
+    cred = shared.appcred
+    has_sess = cred and cred.sessdata
+    
+    api = Api(
+        "https://api.bilibili.com/pgc/view/web/season",
+        "GET",
+        verify=(not not has_sess),
+        credential=cred
+    )
+    api.params = {"ep_id": ep_id}
+    
+    try:
+        data = await api.request()
+        # Fix: API might return unwrapped result
+        res = data.get('result', data)
+        
+        # 2. Extract Metadata
+        # Find the specific episode
+        eps = res.get('episodes', [])
+        current_ep = next((e for e in eps if e['id'] == ep_id), None)
+        
+        if not current_ep:
+             for section in res.get('section', []):
+                 for ep in section.get('episodes', []):
+                     if ep['id'] == ep_id:
+                         current_ep = ep
+                         break
+                 if current_ep: break
+        
+        if not current_ep:
+            raise Exception("Episode not found in season data")
+
+        bvid = current_ep.get('bvid')
+        cid = current_ep.get('cid')
+        ssid = res.get('season_id')
+        
+        # Parse pubdate to timestamp (int)
+        pub_time_str = res.get('publish', {}).get('pub_time', '')
+        pub_ts = 0
+        if pub_time_str:
+            try:
+                dt = datetime.strptime(pub_time_str, "%Y-%m-%d %H:%M:%S")
+                pub_ts = int(dt.timestamp())
+            except Exception:
+                pub_ts = 0
+
+        def safe_int(v, default=0):
+            try:
+                if v == '--' or v is None: return default
+                return int(v)
+            except:
+                return default
+
+        # Construct vinfo for video.html
+        vinfo = {
+            "title": f"{res.get('title', '')} - {current_ep.get('title', '')}",
+            "desc": res.get('evaluate', 'No description'),
+            "pic": current_ep.get('cover') or res.get('cover'),
+            "owner": {"name": "Bangumi (Official)", "mid": 0, "face": ""}, 
+            "stat": {
+                "view": safe_int(res.get('stat', {}).get('views')), 
+                "like": safe_int(res.get('stat', {}).get('likes')),
+                "coin": safe_int(res.get('stat', {}).get('coins')),
+                "favorite": safe_int(res.get('stat', {}).get('favorites')),
+                "share": safe_int(res.get('stat', {}).get('share'))
+            },
+            "pubdate": pub_ts,
+            "bvid": bvid,
+            "cid": cid, 
+            "duration": safe_int(current_ep.get('duration'))
+        }
+        
+        # Construct vset (episode list)
+        vset = [{"page": 1, "part": current_ep.get('long_title', current_ep.get('title'))}]
+
+        # Related Videos (Other episodes from all sections)
+        all_eps = res.get('episodes', []).copy()
+        for section in res.get('section', []):
+            all_eps.extend(section.get('episodes', []))
+
+        vrelated = []
+        for ep in all_eps:
+            if ep['id'] == ep_id: continue
+            vrelated.append({
+                "pic": ep.get('cover'),
+                "title": f"{ep.get('title')} - {ep.get('long_title')}",
+                "owner": {"name": "Bangumi"},
+                "stat": {"view": 0, "danmaku": 0},
+                "duration": ep.get('duration', 0),
+                "bvid": f"ep{ep['id']}"
+            })
+
+    except Exception as e:
+        print(f"[Bangumi] Play Error: {e}")
+        return await shared.render_template_with_theme(
+            "error.html", 
+            status="番剧加载失败", 
+            desc=str(e),
+            suggest="请检查网络或稍后重试。"
+        )
+
+    return await shared.render_template_with_theme(
+        "video.html",
+        vid=bvid,
+        vinfo=vinfo,
+        vcomments={"page": {"count": 0}, "replies": []},
+        vrelated=vrelated[:20],
+        keywords="",
+        supported_src=[], 
+        ato=False,
+        idx=0,
+        vset=vset,
+        is_live=False,
+        ep_id=ep_id,
+        ssid=ssid
+    )
+
 @bangumi_bp.route('/api/nyaa/<int:ssid>')
 async def bangumi_nyaa_api(ssid):
-    from quart import jsonify
     if not shared.appconf["site"]["nyaa_bangumi"]:
         return jsonify({'sidebar_html': '', 'ep_torrents': {}})
 
@@ -224,8 +345,6 @@ async def bangumi_nyaa_api(ssid):
             ep_torrents[ep_num].append(t)
         else:
             collection_torrents.append(t)
-
-    from quart import jsonify
     
     sidebar_html = await shared.render_template_with_theme(
         "components/nyaa_sidebar.html",

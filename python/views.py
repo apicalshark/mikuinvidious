@@ -271,7 +271,7 @@ async def read_view(cid):
     try:
         ua = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36 Edg/111.0.1661.62"
+            "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
         )
         _req = client.build_request("GET", url, headers={"User-Agent": ua})
         req = await client.send(_req, follow_redirects=True)
@@ -549,8 +549,8 @@ async def video_master_m3u8_view(vid, idx):
     return Response(m3u8_content, content_type="application/vnd.apple.mpegurl")
 
 
-@app.route("/video/m3u8/<vid>/<int:idx>/<media_type>_<int:qn>.m3u8")
-async def video_media_m3u8_view(vid, idx, media_type, qn):
+@app.route("/video/m3u8/<vid>/<int:idx>/<media_type>_<int:qn>_<int:cid>.m3u8")
+async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
     if dash_cache:
@@ -562,8 +562,63 @@ async def video_media_m3u8_view(vid, idx, media_type, qn):
         except Exception:
             return "Upstream Timeout", 504
 
+    # Try to get segmented info from sidx
+    segmented_info = None
+    seg_cache_key = f"miku_segments_{vid}_{idx}_{media_type}_{qn}_{cid}"
+    cached_segs = await appredis.get(seg_cache_key)
+    if cached_segs:
+        try:
+            segmented_info = orjson.loads(cached_segs)
+        except Exception:
+            pass
+
+    if not segmented_info:
+        # Find the track to get baseUrl and indexRange
+        dash = dash_data.get("dash", {})
+        media_list = dash.get("video" if media_type == "video" else "audio", [])
+        target_media = next(
+            (m for m in media_list if str(m.get("id")) == str(qn) and str(m.get("codecid", 0)) == str(cid)), None
+        )
+        if not target_media and media_type == "audio" and "flac" in dash:
+            target_media = next(
+                (
+                    m
+                    for m in dash["flac"].get("audio", [])
+                    if str(m.get("id")) == str(qn) and str(m.get("codecid", 0)) == str(cid)
+                ),
+                None,
+            )
+
+        if target_media:
+            url = target_media.get("baseUrl") or target_media.get("base_url")
+            index_range = target_media.get("SegmentBase", {}).get("indexRange")
+            if url and index_range:
+                from extra import fetch_and_parse_sidx
+
+                segmented_info = await fetch_and_parse_sidx(url, index_range)
+                if segmented_info:
+                    await appredis.setex(seg_cache_key, 3600, orjson.dumps(segmented_info))
+
+    # Extract synchronization metadata
+    segments = segmented_info.get("segments") if segmented_info else None
+    ept = segmented_info.get("ept", 0) if segmented_info else 0
+    timescale = segmented_info.get("timescale", 1) if segmented_info else 1
+    
+    # Get PTO from dash_data
+    pto = 0
+    if dash_data.get("dash"):
+        media_list = dash_data["dash"].get("video" if media_type == "video" else "audio", [])
+        target_media = next(
+            (m for m in media_list if str(m.get("id")) == str(qn) and str(m.get("codecid", 0)) == str(cid)), None
+        )
+        if target_media:
+            pto = int(target_media.get("SegmentBase", {}).get("presentationTimeOffset", 0))
+
     vinfo = await v.get_info()
-    m3u8_content = generate_vod_media_m3u8(dash_data, media_type, qn, vinfo.get("duration", 0))
+    m3u8_content = generate_vod_media_m3u8(
+        dash_data, media_type, qn, cid, vinfo.get("duration", 0), 
+        segments=segments, ept=ept, timescale=timescale, pto=pto
+    )
     if not m3u8_content:
         return "Not Found", 404
     return Response(m3u8_content, content_type="application/vnd.apple.mpegurl")
@@ -575,6 +630,11 @@ async def video_media_m3u8_view(vid, idx, media_type, qn):
 @app.route("/api/component/player/<vid>/<int:idx>")
 async def api_component_player(vid, idx):
     v = video.Video(bvid=vid, credential=appcred)
+    ep_id = request.args.get("ep_id")
+    if ep_id and ep_id.isdigit():
+        ep_id = int(ep_id)
+    else:
+        ep_id = None
 
     # Task to get play URLs (DASH and Fallback) - RACE MODE REUSED
     async def get_play_info():
@@ -596,7 +656,7 @@ async def api_component_player(vid, idx):
 
         async def fetch_dash_task():
             try:
-                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=4.0)
+                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=4.0)
                 if "dash" in data:
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
                     for mt in ["video", "audio"]:
@@ -605,8 +665,9 @@ async def api_component_player(vid, idx):
                             tracks = data["dash"]["flac"].get("audio", [])
                         for item in tracks:
                             url = item.get("baseUrl") or item.get("base_url")
+                            cid = item.get("codecid") or 0
                             if url:
-                                await appredis.setex(f"miku_dash_url_{mt}_{item['id']}", 1800, url)
+                                await appredis.setex(f"miku_dash_url_{mt}_{item['id']}_{cid}", 1800, url)
                     return ("dash", data)
             except Exception:
                 pass
@@ -614,7 +675,7 @@ async def api_component_player(vid, idx):
 
         async def fetch_fallback_task():
             try:
-                data = await asyncio.wait_for(video_get_src_for_qn(v, idx), timeout=4.0)
+                data = await asyncio.wait_for(video_get_src_for_qn(v, idx, ep_id=ep_id), timeout=4.0)
                 if data and "durl" in data:
                     url = data["durl"][0]["url"]
                     qn = data.get("quality", 16)
@@ -671,7 +732,31 @@ async def api_component_player(vid, idx):
     # Get Info again briefly just for the macro context (cached by request usually)
     # Actually macro only needs vinfo['pic']
     try:
-        vinfo = await v.get_info()
+        if ep_id:
+             from bilibili_api.utils.network import Api
+             api = Api("https://api.bilibili.com/pgc/view/web/season", "GET", verify=(not not (appcred and appcred.sessdata)), credential=appcred)
+             api.params = {"ep_id": ep_id}
+             pgc_data = await api.request()
+             res = pgc_data.get('result', pgc_data)
+             eps = res.get('episodes', [])
+             current_ep = next((e for e in eps if e['id'] == ep_id), None)
+             if not current_ep:
+                 for section in res.get('section', []):
+                     for ep in section.get('episodes', []):
+                         if ep['id'] == ep_id:
+                             current_ep = ep
+                             break
+                     if current_ep: break
+             
+             if current_ep:
+                 vinfo = {
+                     'pic': current_ep.get('cover') or res.get('cover'),
+                     'title': f"{res.get('title', '')} - {current_ep.get('title', '')}"
+                 }
+             else:
+                 vinfo = await v.get_info()
+        else:
+            vinfo = await v.get_info()
     except Exception:
         vinfo = {'pic': ''}
         

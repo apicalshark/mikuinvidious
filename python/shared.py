@@ -12,6 +12,12 @@ from quart_session import Session
 from flask_orjson import OrjsonProvider
 
 
+COMMON_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+    "Referer": "https://www.bilibili.com",
+}
+
+
 class Network:
     _async_client = None
     _sync_client = None
