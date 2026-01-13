@@ -348,7 +348,7 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
                     cookies=cookies,
                     headers={
                         "Referer": "https://www.bilibili.com",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
                     },
                     follow_redirects=True
                 )
@@ -436,7 +436,7 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None):
                     cookies=cookies,
                     headers={
                         "Referer": "https://www.bilibili.com",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
                     },
                     follow_redirects=True
                 )
@@ -551,7 +551,7 @@ def generate_vod_mpd(vid, idx, dash_data):
                 qn, cid, codecs, bandwidth, width, height, frame_rate
             )
         )
-        mpd.append('        <BaseURL>/proxy/dash/video/{}/{}</BaseURL>'.format(qn, cid))
+        mpd.append('        <BaseURL>/proxy/dash/{}/{}/video/{}/{}</BaseURL>'.format(vid, idx, qn, cid))
         mpd.append('        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(index_range, pto, timescale))
         mpd.append('          <Initialization range="{}"/>'.format(init_range))
         mpd.append("        </SegmentBase>")
@@ -582,7 +582,7 @@ def generate_vod_mpd(vid, idx, dash_data):
         mpd.append(
             '      <Representation id="audio_{}_{}" codecs="{}" bandwidth="{}">'.format(qn, cid, codecs, bandwidth)
         )
-        mpd.append('        <BaseURL>/proxy/dash/audio/{}/{}</BaseURL>'.format(qn, cid))
+        mpd.append('        <BaseURL>/proxy/dash/{}/{}/audio/{}/{}</BaseURL>'.format(vid, idx, qn, cid))
         mpd.append('        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(index_range, pto, timescale))
         mpd.append('          <Initialization range="{}"/>'.format(init_range))
         mpd.append("        </SegmentBase>")
@@ -595,7 +595,7 @@ def generate_vod_mpd(vid, idx, dash_data):
     return "\n".join(mpd)
 
 
-def generate_vod_media_m3u8(dash_data, media_type, qn, cid, duration):
+def generate_vod_media_m3u8(dash_data, media_type, qn, cid, duration, vid, idx):
     """Generate HLS Media Playlist for a specific quality."""
     if "dash" not in dash_data:
         return None
@@ -632,9 +632,9 @@ def generate_vod_media_m3u8(dash_data, media_type, qn, cid, duration):
         f"#EXT-X-TARGETDURATION:{int(duration) + 1}",
         "#EXT-X-MEDIA-SEQUENCE:0",
         "#EXT-X-PLAYLIST-TYPE:VOD",
-        f'#EXT-X-MAP:URI="/proxy/dash/{media_type}/{qn}/{cid}",BYTERANGE="{init_range}"',
+        f'#EXT-X-MAP:URI="/proxy/dash/{vid}/{idx}/{media_type}/{qn}/{cid}",BYTERANGE="{init_range}"',
         f"#EXTINF:{duration},",
-        f"/proxy/dash/{media_type}/{qn}/{cid}",
+        f"/proxy/dash/{vid}/{idx}/{media_type}/{qn}/{cid}",
         "#EXT-X-ENDLIST",
     ]
 

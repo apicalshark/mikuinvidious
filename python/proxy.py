@@ -84,9 +84,9 @@ class ProxyResponse(Response):
             await self.upstream_resp.aclose()
 
 
-@proxy_bp.route("/proxy/dash/<media_type>/<int:qn>/<int:cid>")
-async def proxy_dash(media_type, qn, cid):
-    url = await appredis.get(f"miku_dash_url_{media_type}_{qn}_{cid}")
+@proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
+async def proxy_dash(vid, idx, media_type, qn, cid):
+    url = await appredis.get(f"miku_dash_url_{vid}_{idx}_{media_type}_{qn}_{cid}")
     if not url:
         return Response("Not Found", status=404)
 

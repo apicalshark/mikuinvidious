@@ -271,8 +271,7 @@ async def read_view(cid):
     req = None
     try:
         ua = (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+            "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com) 8.76.0 os/android model/WTF mobi_app/android build/8760000 channel/not_found innerVer/8760010 osVer/15 network/2"
         )
         _req = client.build_request("GET", url, headers={"User-Agent": ua})
         req = await client.send(_req, follow_redirects=True)
@@ -465,6 +464,23 @@ async def live_room_view(room_id):
         return await render_template_with_theme("error.html", status="直播错误", desc=str(e)), 500
 
 
+async def populate_dash_redis(vid, idx, dash_data):
+    """Populate individual DASH segment URLs into Redis for the proxy."""
+    if not dash_data or "dash" not in dash_data:
+        return
+    for mt in ["video", "audio"]:
+        tracks = dash_data["dash"].get(mt, [])
+        if mt == "audio" and not tracks and "flac" in dash_data["dash"]:
+            tracks = dash_data["dash"]["flac"].get("audio", [])
+        for item in tracks:
+            url = item.get("baseUrl") or item.get("base_url")
+            # qn is 'id', cid is 'codecid'
+            qn = item.get("id")
+            cid = item.get("codecid") or 0
+            if url and qn is not None:
+                await appredis.setex(f"miku_dash_url_{vid}_{idx}_{mt}_{qn}_{cid}", 1800, url)
+
+
 @app.route("/video_listen/<vid>")
 @app.route("/video_listen/<vid>:<idx>")
 @app.route("/video_listen/<vid>/")
@@ -544,6 +560,7 @@ async def video_dash_manifest_view(vid, idx):
         except Exception:
             return "Upstream Timeout", 504
 
+    await populate_dash_redis(vid, idx, dash_data)
     mpd_content = generate_vod_mpd(vid, idx, dash_data)
     if not mpd_content:
         return "Not Found", 404
@@ -563,6 +580,7 @@ async def video_master_m3u8_view(vid, idx):
         except Exception:
             return "Upstream Timeout", 504
 
+    await populate_dash_redis(vid, idx, dash_data)
     m3u8_content = generate_vod_master_m3u8(vid, idx, dash_data)
     if not m3u8_content:
         return "Not Found", 404
@@ -582,9 +600,10 @@ async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
         except Exception:
             return "Upstream Timeout", 504
 
+    await populate_dash_redis(vid, idx, dash_data)
     vinfo = await v.get_info()
     m3u8_content = generate_vod_media_m3u8(
-        dash_data, media_type, qn, cid, vinfo.get("duration", 0)
+        dash_data, media_type, qn, cid, vinfo.get("duration", 0), vid, idx
     )
     if not m3u8_content:
         return "Not Found", 404
@@ -626,15 +645,7 @@ async def api_component_player(vid, idx):
                 data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=4.0)
                 if "dash" in data:
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
-                    for mt in ["video", "audio"]:
-                        tracks = data["dash"].get(mt, [])
-                        if mt == "audio" and not tracks and "flac" in data["dash"]:
-                            tracks = data["dash"]["flac"].get("audio", [])
-                        for item in tracks:
-                            url = item.get("baseUrl") or item.get("base_url")
-                            cid = item.get("codecid") or 0
-                            if url:
-                                await appredis.setex(f"miku_dash_url_{mt}_{item['id']}_{cid}", 1800, url)
+                    await populate_dash_redis(vid, idx, data)
                     return ("dash", data)
             except Exception:
                 pass
@@ -825,6 +836,19 @@ async def video_view(vid, idx=0):
     vtags = results[1] if is_valid(results[1]) else []
     vrelated = results[2] if is_valid(results[2]) else []
     vset = results[3] if is_valid(results[3]) else [{"page": 1, "part": vid}]
+
+    # Pre-cache DASH URLs if proxy is enabled
+    if appconf["proxy"]["use_proxy"]:
+        async def precache_dash():
+            try:
+                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=4.0)
+                if "dash" in data:
+                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
+                    await populate_dash_redis(vid, idx, data)
+            except Exception as e:
+                print(f"[Video] Pre-cache DASH failed for {vid}: {e}")
+        
+        asyncio.create_task(precache_dash())
 
     # Comments and Player are now loaded asynchronously
     vcomments = {"page": {"count": 0}, "replies": []}
