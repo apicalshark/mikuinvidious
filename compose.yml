@@ -32,6 +32,7 @@ services:
       - PYTHONUNBUFFERED=1
       - SITE_MODIFIED_SOURCE_CODE_URL=https://github.com/apicalshark/mikuinvidious
       - USE_CRED=false
+      # Nyaa Search functionality
       - NYAA_BANGUMI=true
       # Bilibili Credentials (Optional)
       - SESSDATA=

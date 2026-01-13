@@ -76,7 +76,7 @@ appconf = {
     "site": {
         "site_name": os.environ.get("SITE_NAME", "MikuInvidious"),
         "site_url": os.environ.get("SITE_URL", "https://example.org"),
-        "site_modified_source_code_url": os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "false").lower() == "true",
+        "site_modified_source_code_url": os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "") if os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "").lower() not in ["false", ""] else False,
         "site_allow_download": os.environ.get("SITE_ALLOW_DOWNLOAD", "true").lower() == "true",
         "site_show_unsafe_error_response": os.environ.get("SITE_SHOW_UNSAFE_ERROR_RESPONSE", "false").lower() == "true",
         "nyaa_bangumi": os.environ.get("NYAA_BANGUMI", "false").lower() == "true",
