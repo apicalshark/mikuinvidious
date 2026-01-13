@@ -3,7 +3,6 @@ from typing import List
 from pyquery import PyQuery as pq
 from shared import Network
 from urllib.parse import urljoin
-import zhconv
 
 class NyaaResult:
     def __init__(self, **kwargs):
@@ -25,21 +24,10 @@ class NyaaResult:
     def to_dict(self):
         return vars(self)
 
-async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 5) -> List[NyaaResult]:
+async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 7) -> List[NyaaResult]:
     """
     Search nyaa.si with automatic page detection and parallel fetching.
     """
-    # 構造繁簡版本
-    query_zh_hant = zhconv.convert(query, 'zh-hant')
-    query_zh_hans = zhconv.convert(query, 'zh-hans')
-    
-    if query_zh_hant != query_zh_hans:
-        combined_query = f"({query_zh_hant}|{query_zh_hans})"
-    else:
-        combined_query = query_zh_hant
-
-    # 由views_bangumi.py控制搜尋詞
-    enhanced_query = combined_query
     
     base_url = "https://nyaa.si/"
     client = await Network.get_async_client()
@@ -48,7 +36,7 @@ async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 5)
         params = {
             'f': '2' if trusted_only else '0',
             'c': '1_3',
-            'q': enhanced_query
+            'q': query
         }
         if page_num > 1:
             params['p'] = page_num

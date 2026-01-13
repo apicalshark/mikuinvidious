@@ -8,6 +8,7 @@ import json
 import os
 from datetime import datetime
 from extra import av2bv
+import zhconv
 
 bangumi_bp = Blueprint('bangumi', __name__, url_prefix='/bangumi')
 
@@ -277,9 +278,13 @@ async def bangumi_nyaa_api(ssid):
         simplified_query = search_query[:10].strip()
     else: simplified_query = search_query
 
+    # 構造繁簡版本
+    simplified_query = f"({zhconv.convert(simplified_query, 'zh-hans')})|({zhconv.convert(simplified_query, 'zh-hant')})"
+    print(f"[Bangumi] Search Query: {simplified_query}")
+
     # 構造帶有中文標籤的搜尋詞 (Nyaa 支援括號聯集搜尋)
     # 加入常用的中文標籤和知名中文小組，確保回傳結果包含中文資源
-    cn_tags = "(CHT|CHS|繁|简|BIG5|喵萌|VCB|LoliHouse|极影|动漫国|幻樱|BeanSub|Lilith|JasinChen)"
+    cn_tags = "(CHT|CHS|繁|简|BIG5|喵萌|VCB|LoliHouse|JasinChen|Raws)"
     final_query = f"{simplified_query} {cn_tags}"
 
     # 3. 執行搜尋
@@ -305,7 +310,7 @@ async def bangumi_nyaa_api(ssid):
         if re.search(r'CHT|CHS|繁|简|BIG5|GB|CHT&CHS|CHS&CHT', title, re.I):
             return True
         # 3. 知名中文小組或關鍵字
-        chinese_keywords = ['喵萌', 'VCB', 'LoliHouse', '抽風', '千夏', '極影', '動漫國', '漫遊', '幻櫻', '悠哈', '豌豆', '風之聖殿', 'BeanSub', 'Lilith']
+        chinese_keywords = ['喵萌', 'VCB', 'LoliHouse', '抽風', '千夏', '極影', '動漫國', '漫遊', '幻櫻', '悠哈', '豌豆', '風之聖殿', 'BeanSub', 'Lilith', 'ANi']
         for kw in chinese_keywords:
             if kw.lower() in title.lower():
                 return True

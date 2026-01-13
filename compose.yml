@@ -16,9 +16,6 @@ services:
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=0
       - net.ipv4.conf.all.src_valid_mark=1
-    volumes:
-      - /data:/var/lib/cloudflare-warp
-
   app:
     build: .
     container_name: miku_app
@@ -35,6 +32,7 @@ services:
       - PYTHONUNBUFFERED=1
       - SITE_MODIFIED_SOURCE_CODE_URL=https://github.com/apicalshark/mikuinvidious
       - USE_CRED=false
+      - NYAA_BANGUMI=true
       # Bilibili Credentials (Optional)
       - SESSDATA=
       - BILI_JCT=
