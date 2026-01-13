@@ -112,14 +112,13 @@
     <!-- Pagination -->
     <div class="mt-10 flex items-center justify-center gap-4">
         {% if page > 1 %}
-            <button onclick="updateFilter('page', {{ page - 1 }})" class="p-2.5 rounded-full bg-surface-variant/20 text-on-surface-variant hover:bg-surface-variant/40 transition-colors">
-                <i class="icon ion-ios-arrow-back"></i>
+            <button onclick="updateFilter('page', {{ page - 1 }})" class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
+                <i class="icon ion-ios-arrow-back"></i> {{ '上一页' }}
             </button>
         {% endif %}
-        <span class="text-xs font-black text-on-surface-variant/30">{{ page }}</span>
         {% if has_next %}
-            <button onclick="updateFilter('page', {{ page + 1 }})" class="p-2.5 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all">
-                <i class="icon ion-ios-arrow-forward"></i>
+            <button onclick="updateFilter('page', {{ page + 1 }})" class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
+                {{ '下一页' }} <i class="icon ion-ios-arrow-forward"></i>
             </button>
         {% endif %}
     </div>

@@ -48,8 +48,8 @@ async def bangumi_home():
         "season_type": ss_type,
         "order": int(order) if order.isdigit() else 3,
         "sort": 0,
-        "pn": pn,
-        "ps": 20
+        "page": pn,
+        "pagesize": 20
     }
     query_params.update(filters)
 
