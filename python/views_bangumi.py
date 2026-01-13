@@ -273,9 +273,9 @@ async def bangumi_nyaa_api(ssid):
     # 壓縮空格
     search_query = re.sub(r'\s+', ' ', search_query).strip()
     
-    # 如果標題太長 (超過 10 個字)，嘗試只取前 10 個字作為關鍵詞以增加匹配率
-    if len(search_query) > 10:
-        simplified_query = search_query[:10].strip()
+    # 如果標題太長 (超過 30 個字)，嘗試只取前 30 個字作為關鍵詞以增加匹配率
+    if len(search_query) > 30:
+        simplified_query = search_query[:30].strip()
     else: simplified_query = search_query
 
     # 構造繁簡版本
