@@ -1,0 +1,64 @@
+[project]
+name = "mikuinvidious"
+version = "0.1.0"
+description = "A free and open-source frontend for Bilibili, inspired by Invidious."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiofiles>=25.1.0",
+    "aiohttp>=3.13.2",
+    "aiohttp-socks>=0.11.0",
+    "anyio>=4.12.1",
+    "apscheduler>=3.11.2",
+    "beautifulsoup4>=4.14.3",
+    "bilibili-api-python>=17.4.1",
+    "httpx[socks]>=0.28.1",
+    "granian>=1.7.0",
+    "jinja2>=3.1.6",
+    "lxml>=6.0.2",
+    "markupsafe>=3.0.3",
+    "pysocks>=1.7.1",
+    "qrcode>=8.2",
+    "qrcode-terminal>=0.8",
+    "quart>=0.20.0",
+    "quart-session>=3.0.0",
+    "redis>=7.1.0",
+    "toml>=0.10.2",
+    "uvloop>=0.22.1",
+    "werkzeug>=3.1.4",
+    "orjson>=3.9.10",
+    "flask-orjson>=2.0.0",
+    "pyquery>=2.0.1",
+    "zhconv>=1.4.3",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C",   # flake8-comprehensions
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.djlint]
+profile = "jinja"
+indent = 4
+preserve_blank_lines = true
+close_void_tags = true
+format_js = false
+format_css = true
+

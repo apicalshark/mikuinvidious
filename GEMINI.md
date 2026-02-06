@@ -3,60 +3,190 @@
 MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invidious. It aims to provide a lightweight, privacy-focused experience for browsing Bilibili content without the need for heavy official clients or extensive tracking.
 
 ## Core Technologies
+
 - **Language:** Python 3
-- **Web Framework:** [Flask](https://flask.palletsprojects.com/) (with async support)
-- **Web Server & Proxy:** [Twisted](https://twistedmatrix.com/) (used for efficient reverse proxying and serving the WSGI application)
+- **Web Framework:** [Quart](https://pgjones.gitlab.io/quart/) (Modern asynchronous web framework)
+- **Web Server:** [Caddy](https://caddyserver.com/) (Reverse proxy) + [Granian](https://github.com/emmett-framework/granian) (Rust-powered ASGI server)
 - **Database/Cache:** [Redis](https://redis.io/) (required for caching video URLs, session management, and credential storage)
 - **API Wrapper:** [bilibili-api-python](https://github.com/nemo2011/bilibili-api)
+- **Video Player:** `hls.js`, `mpegts.js`, and `dash.js` (for live streams, FLV, and DASH support)
 - **Templating:** Jinja2 (with theme support)
 
-## Architecture
-- **Entry Point:** `main.py` starts a Twisted reactor that handles:
-    - **Custom Reverse Proxy:** Efficient reverse proxying for video and image streams via a custom `ReverseProxyResource`. This implementation includes a built-in SOCKS5 client to support proxying via SOCKS5 tunnels (configured via `HTTP_PROXY`).
-    - **Flask Integration:** Routing all other requests to the Flask application via `WSGIResource`.
-- **Application Logic:** 
-    - `app.py`: Initializes the Flask app, error handlers, and some basic routes (login, logout, b23.tv redirection, robots.txt).
-    - `views.py`: Contains the main routing logic for home, search, video, space, and author views.
-    - `shared.py`: Handles configuration loading (environment variables + `config.toml`), Redis connection, and common utility functions like theme detection and template rendering.
-    - `proxy.py`: Contains a Flask Blueprint for proxying. While Twisted's native proxy in `main.py` is preferred for performance and SOCKS5 support, this Blueprint provides a fallback implementation.
-    - `danmaku.py`: Handles fetching and converting Bilibili danmaku (XML to JSON) for the frontend.
-    - `res.py`: Handles danmaku resource fetching routes.
-    - `filters.py`: Contains Jinja2 custom filters for data formatting (date, intsep, secdur, pic).
-    - `extra.py`: Provides Bilibili-specific utilities, including article-to-HTML conversion (using BeautifulSoup and optionally Pandoc) and AV/BV ID conversions.
-    - `refresher.py`: A utility script to refresh Bilibili credentials and update `config.toml`.
-- **Configuration:** Managed via `config.toml` (recommended) or environment variables. Credentials refreshed by `refresher.py` are stored under the `[updatedcred]` section in `config.toml`.
+## System Architecture
 
-## Building and Running
+### High-Level Design
 
-### Prerequisites
-- Python 3.8+
-- Redis server running
-- `pandoc` (optional, for some article conversion features)
+The system uses **Caddy** as a reverse proxy and static file server, which forwards application requests to **Granian** running the **Quart** (ASGI) application. All logic and proxying are handled within the Quart application using asynchronous I/O.
 
-### Setup
-1.  **Install dependencies:**
+- **Reverse Proxy (Caddy):** Handles incoming traffic (port 8000), serves static assets, and proxies requests to the ASGI server.
+- **ASGI Server (Granian):** Runs the Quart application (port 8080 in Docker).
+- **App Logic (`app.py`):** Main entry point for the application, registering blueprints and routes.
+- **Reverse Proxy (`proxy.py`):** Handles video and image streaming using Quart's async generators and `httpx`.
+- **Network Transport:** Integrates with **Cloudflare WARP** (via SOCKS5) to route traffic to Bilibili.
+
+### Request Flowchart
+
+```mermaid
+graph TD
+    User((User / Browser))
+    
+    subgraph "Docker Host"
+        Caddy["Caddy Reverse Proxy<br>(Port 8000)"]
+        Granian["Granian ASGI Server<br>(Port 8080)"]
+        
+        subgraph "MikuInvidious App"
+            Router{URL Path?}
+            ProxyRes["Quart Proxy Blueprint<br>(Async Stream)"]
+            Views["Quart Views<br>(views.py/app.py)"]
+            BiliAPI["Bilibili API Wrapper"]
+        end
+        
+        Redis[("Redis Cache")]
+    end
+    
+    subgraph "Network Services"
+        Warp["Cloudflare WARP<br>(SOCKS5 Proxy)"]
+    end
+    
+    subgraph "External"
+        BiliCDN["Bilibili CDN<br>(Videos/Images)"]
+        BiliServers["Bilibili API Servers"]
+    end
+
+    %% Flows
+    User --> Caddy
+    Caddy -- "Static Assets" --> Static[Static Files]
+    Caddy -- "App Traffic" --> Granian
+    Granian --> Router
+    
+    %% Proxy Path
+    Router -- "/proxy/..." --> ProxyRes
+    ProxyRes -- "Check Cache" --> Redis
+    ProxyRes -- "Stream Content" --> Warp
+    
+    %% App Path
+    Router -- "Other Routes" --> Views
+    Views -- "Get Metadata" --> BiliAPI
+    BiliAPI -- "Fetch Data" --> Warp
+    
+    %% External Connections
+    Warp --> BiliCDN
+    Warp --> BiliServers
+    
+    %% Returns
+    BiliCDN -.-> Warp -.-> ProxyRes -.-> Granian -.-> Caddy -.-> User
+    BiliServers -.-> Warp -.-> BiliAPI -.-> Views -.-> Granian -.-> Caddy -.-> User
+```
+
+### Component Breakdown
+
+- **Application Logic:**
+  - `app.py`: Initializes the Quart app, error handlers, and registers blueprints.
+  - `views.py`: Main routing logic for home, search, video, space, and author views.
+  - `shared.py`: Centralized configuration, `httpx` client management, Redis connection, and theming utilities.
+  - `proxy.py`: Quart Blueprint for media proxying. Uses a robust `ProxyResponse` class and `ClosingIterator` to prevent file descriptor leaks.
+  - `live_manager.py`: Manages persistent live stream connections, chunk buffering, and heartbeat (Type 18) injection.
+  - `danmaku.py`: Fetches and converts Bilibili danmaku.
+  - `extra.py`: Utilities for article-to-HTML conversion and ID manipulation.
+  - `transformers.py`: Data transformation logic to standardize API responses for the frontend.
+  - `filters.py`: Custom Jinja2 template filters (e.g., date formatting).
+  - `res.py`: Serves dynamic resources like Danmaku XML.
+  - `refresher.py`: Utility to refresh Bilibili credentials.
+
+## Deep Analysis & Architectural Insights
+
+### 1. Structural Integrity & Core Patterns
+
+* **Quart Framework:** Chosen for its async capabilities, essential for high-concurrency streaming.
+- **Unified Proxying:** Media streams (video/images) are handled via Quart blueprints, allowing for consistent application-level control, session management, and bypassing region blocks.
+- **Dynamic Theming:** Templates are dynamically selected based on cookies or URL parameters. Currently focuses on the `modern` theme.
+
+### 2. UI/UX Focus
+
+* **Modern Theme:** Built with Tailwind CSS, supporting both Light and Dark modes. Features a responsive, mobile-first design inspired by Material Design 3.
+- **Playback Experience:** Uses `hls.js`, `mpegts.js`, and `dash.js` for low-latency live streaming and high-quality DASH playback. Includes custom "Click to Play" recovery for autoplay-blocked browsers.
+
+### 3. Codebase Health & Observations
+
+* **Streaming Reliability:** Employs `ProxyResponse` (OO design) and `ClosingIterator` to ensure upstream `httpx` connections are closed properly, even on client disconnect.
+- **Performance:** Image proxying uses an aggressive concurrency limit (50x) and CDN resizing (WebP) to ensure fast thumbnail loading.
+- **Timeouts:** Uses long timeouts (up to 3 hours) for streaming routes to prevent idle drops during long-form content.
+
+## Infrastructure (Docker)
+
+The production infrastructure consists of four orchestrated services defined in `compose.yml`:
+
+| Service | Image | Description |
+| :--- | :--- | :--- |
+| **`app`** | *(Local Build)* | Granian running the Quart application. Exposes port `8080` internally. |
+| **`caddy`** | `caddy:alpine` | Reverse proxy and static asset server. Exposes port `8000`. |
+| **`redis`** | `redis:alpine` | Persists sessions and caches API responses. |
+| **`warp`** | `caomingjun/warp` | SOCKS5 proxy (port `1080`) for routing traffic to Bilibili API/CDN. |
+
+## Configuration
+
+Configuration is managed via `config.toml` (recommended) or Environment Variables.
+
+- **`[site]`**: Metadata, Robots policy, and source code link.
+- **`[server]`**: Host and port settings (Default: 8888 for manual run).
+- **`[credential]`**: Bilibili cookies (SESSDATA, etc.) for authenticated access.
+- **`[proxy]`**: Global toggle for media proxying.
+- **`[redis]`**: Redis connection details.
+- **`[render]`**: Configuration for article rendering (Pandoc support).
+
+## Development & Deployment
+
+### Docker Deployment (Recommended)
+
+1. **Run with Docker Compose:**
+
     ```bash
-    pip install -r requirements.txt
+    docker-compose up -d --build
     ```
-2.  **Configure the application:**
-    Copy the sample configuration file and edit it with your settings (Redis host, port, etc.).
+
+2. **Access:** `http://localhost:8000`
+
+### Manual Development Setup
+
+1. **Prerequisites:** Python 3.10+, Redis server running.
+2. **Install Dependencies:**
+
     ```bash
-    cp config.toml.sample config.toml
+    uv sync
     ```
-3.  **Run the application:**
+
+3. **Run:**
+
     ```bash
-    python main.py
+    uv run python/main.py
     ```
-    The application will be available at the host and port specified in `config.toml` (default is `http://[::]:8888`).
+
+    Access at `http://localhost:8888` (or configured port).
+
+## Recent Updates
+
+- **Phase 5 (Infrastructure & Modernization):**
+  - **ASGI Server Migration:** Transitioned to **Granian** (Rust-powered) for improved performance and more efficient resource management.
+  - **Reverse Proxy Migration:** Replaced Nginx with **Caddy**, simplifying the stack and improving static asset delivery.
+  - **High-Performance Serialization:** Migrated from `json` to `orjson` for faster serialization and deserialization of API data.
+  - **Event Loop Optimization:** Configured the application to use `uvloop` when available, boosting asynchronous task execution speed.
+  - **Dependency Management:** Adopted `uv` for faster, more reliable dependency resolution and environment management.
+  - **Documentation Expansion:** Added detailed guides for manual installation and production-ready non-Docker setups.
+- **Phase 4 (Stability & Performance):**
+  - **Live Stream Proxy Stabilization:** Resolved 60-second cutoff issues by tuning Granian, Quart, and Caddy timeouts (set to 3 hours).
+  - **Keep-Alive Mechanism:** Implemented in-stream FLV heartbeats (Type 18 tags) in `live_manager.py` to prevent TCP connection drops.
+  - **Frontend Optimization:** Migrated to `mpegts.js` for improved stability and HEVC support.
+  - **Resource Management:** Fixed file descriptor leaks in `proxy.py` using `ProxyResponse` and `ClosingIterator`.
+  - **Asset Loading Speed:** Implemented aggressive CDN resizing (WebP/suffixes) for all thumbnails and avatars.
+  - **Aspect Ratio Fix:** Corrected video centering for non-16:9 content in fullscreen mode.
+- **Phase 1-3:** Initial implementation of proxying, theming, and Bilibili API integration.
 
 ## Development Conventions
-- **License:** GNU GPL-3.0.
-- **Theming:** Templates are organized under `templates/themes/`. The default theme is `wayback`. Theme detection is handled in `shared.py`.
-- **Static Assets:** Located in `static/`, including customized versions of `video.js` and `danmaku.js`.
-- **Async:** The project uses `flask[async]` and `asyncio` for non-blocking Bilibili API calls. Always use `async def` for view functions that perform I/O.
-- **Proxying:** Image proxying is always enabled for reliability. Video proxying depends on the `use_proxy` setting in `config.toml` (or `NO_PROXY` environment variable).
-    - **Direct Mode (`use_proxy = false`):** **Only** Akamai mirrors are allowed (via 302 Redirect). All other video mirrors are blocked with a 403 error to prevent non-working direct connections.
-    - **Proxy Mode (`use_proxy = true`):** All video and image traffic is proxied through the server.
-    - **Note:** The scraper prioritizes Akamai mirrors to maximize availability in Direct Mode. Ensure Redis is configured for caching stream URLs.
-- **B23.tv Redirection:** The application handles `b23.tv` short links by resolving them server-side and redirecting to the corresponding video or article view.
 
+- **License:** GNU GPL-3.0.
+- **Theming:** Templates in `templates/themes/`. Current active theme is `modern`.
+- **Static Assets:** `static/` contains `hls.js`, `mpegts.js`, and `danmaku.js`.
+- **Proxying Strategy:**
+  - **Images:** Always proxied with WebP optimization.
+  - **Videos:** Proxied if `use_proxy=true`. Uses `httpx` with `follow_redirects=True`.
+- **B23.tv:** Short links are resolved server-side.

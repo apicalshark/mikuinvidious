@@ -1,32 +1,25 @@
 {% extends 'themes/modern/base.html' %}
-
-{% block head %}
-<title>错误 - MikuInvidious</title>
-{% endblock %}
-
+{% block head %}<title>错误 - MikuInvidious</title>{% endblock %}
 {% block content %}
-<div class="min-h-[60vh] flex items-center justify-center px-4">
-  <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-8 md:p-12 shadow-lg  max-w-lg w-full text-center space-y-6">
-      
-      <div class="w-20 h-20 mx-auto rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-          <i class="icon ion-ios-warning text-4xl text-red-500"></i>
-      </div>
-
-      <div class="space-y-2">
-          <h1 class="text-4xl font-bold text-on-surface tracking-tight">{{ status }}</h1>
-          <p class="text-lg font-medium text-on-surface-variant">{{ desc }}</p>
-      </div>
-
-      <div class="bg-surface-variant/30 rounded-xl p-4 text-sm text-on-surface-variant/80">
-          {{ suggest or "请检查您的请求。如果您认为这是站点问题，请联系网站管理员。如果您是网站管理员，请考虑在下方的源代码链接中报告问题。" }}
-      </div>
-
-      <div class="pt-4">
-          <a href="/" class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-medium hover:bg-primary/90 transition-transform active:scale-95 shadow-md">
-              <i class="icon ion-ios-home"></i>
-              返回首页
-          </a>
-      </div>
-  </div>
-</div>
+    <div class="min-h-[60vh] flex items-center justify-center px-4">
+        <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-8 md:p-12 shadow-lg  max-w-lg w-full text-center space-y-6">
+            <div class="w-20 h-20 mx-auto rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                <i class="icon ion-ios-warning text-4xl text-red-500"></i>
+            </div>
+            <div class="space-y-2">
+                <h1 class="text-4xl font-bold text-on-surface tracking-tight">{{ status }}</h1>
+                <p class="text-lg font-medium text-on-surface-variant">{{ desc }}</p>
+            </div>
+            <div class="bg-surface-variant/30 rounded-xl p-4 text-sm text-on-surface-variant/80">
+                {{ suggest or "请检查您的请求。如果您认为这是站点问题，请联系网站管理员。如果您是网站管理员，请考虑在下方的源代码链接中报告问题。" }}
+            </div>
+            <div class="pt-4">
+                <a href="/"
+                   class="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-on-primary font-medium hover:bg-primary/90 transition-transform active:scale-95 shadow-md">
+                    <i class="icon ion-ios-home"></i>
+                    返回首页
+                </a>
+            </div>
+        </div>
+    </div>
 {% endblock %}

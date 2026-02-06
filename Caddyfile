@@ -1,0 +1,15 @@
+:8000 {
+    # Serve static files
+    handle /static/* {
+        root * /usr/share/caddy
+        file_server
+    }
+    
+    encode gzip
+
+    # Provide your own cert and private key
+    # tls /path/to/cert.pem /path/to/key.pem
+
+    # Proxy everything else to the app
+    reverse_proxy app:8080
+}

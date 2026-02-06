@@ -1,66 +1,66 @@
 services:
   warp:
     image: caomingjun/warp
-    container_name: warp
+    container_name: miku_warp
     restart: always
-    # add removed rule back (https://github.com/opencontainers/runc/pull/3468)
     device_cgroup_rules:
       - 'c 10:200 rwm'
     ports:
       - "1080:1080"
     environment:
       - WARP_SLEEP=2
-      # - WARP_LICENSE_KEY= # optional
-      # - WARP_ENABLE_NAT=1 # enable nat
     cap_add:
-      # Docker already have them, these are for podman users
       - MKNOD
       - AUDIT_WRITE
-      # additional required cap for warp, both for podman and docker
       - NET_ADMIN
     sysctls:
       - net.ipv6.conf.all.disable_ipv6=0
       - net.ipv4.conf.all.src_valid_mark=1
-      # uncomment for nat
-      # - net.ipv4.ip_forward=1
-      # - net.ipv6.conf.all.forwarding=1
-      # - net.ipv6.conf.all.accept_ra=2
-    volumes:
-      - /data:/var/lib/cloudflare-warp
-
-  # --- 2. THE PYTHON APP ---
   app:
     build: .
     container_name: miku_app
     restart: always
-    ports:
-      - "8000:8888"
-    depends_on:
-      - warp
-      - redis
     environment:
-      # Site Configuration
       - SITE_NAME=MikuInvidious
       - SITE_URL=http://localhost:8000
-      - FLASK_SECRET_KEY=yoursecretkey12345
-      
-      # PROXY CONFIGURATION
+      - QUART_SECRET_KEY=yoursecretkey12345
       - HTTP_PROXY=socks5://warp:1080
       - HTTPS_PROXY=socks5://warp:1080
-      
-      # Redis Configuration
       - REDIS_URL=redis://redis:6379
       - NO_PROXY=0
-      
-      # Bilibili Credentials
+      - SERVER_PORT=8080
+      - PYTHONUNBUFFERED=1
+      - SITE_MODIFIED_SOURCE_CODE_URL=https://github.com/apicalshark/mikuinvidious
       - USE_CRED=false
+      # Nyaa Search functionality
+      - NYAA_BANGUMI=true
+      # Bilibili Credentials (Optional)
       - SESSDATA=
       - BILI_JCT=
       - BUVID3=
       - DEDEUSERID=
 
-  # --- 3. REDIS ---
+  caddy:
+    image: caddy:alpine
+    container_name: miku_caddy
+    restart: always
+    ports:
+      - "8000:8000"
+      - "443:443/tcp"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./static:/usr/share/caddy/static
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
   redis:
     image: redis:alpine
     container_name: miku_redis
     restart: always
+
+volumes:
+  caddy_data:
+  caddy_config:

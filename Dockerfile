@@ -1,10 +1,15 @@
-FROM python:3.12-slim
-RUN apt-get update && apt-get install -y curl
+FROM astral/uv:python3.14-alpine
+
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install gunicorn python-dotenv
+
+ENV UV_COMPILE_BYTECODE=1
+
+COPY pyproject.toml ./
+
+RUN uv pip install --system --no-cache -r pyproject.toml
+
+# Copy application code
 COPY . .
-EXPOSE 8000
-CMD [ "python", "main.py" ]
-#CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker" , "--bind", "0.0.0.0:8000", "app:app"]
+
+# Run the app from the python directory
+CMD ["python", "python/main.py"]

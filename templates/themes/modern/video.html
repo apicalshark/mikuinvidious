@@ -1,242 +1,424 @@
 {% extends 'themes/modern/base.html' %}
+{% from 'macros.html' import video_player %}
 
 {% block head %}
-  <meta name="description" content="{{ vinfo['desc'] }}">
-  <meta name="keywords" content="{{ keywords }}">
+    <meta name="description" content="{{ vinfo['desc'] }}" />
+    <meta name="keywords" content="{{ keywords }}" />
 
-  <meta property="og:site_name" content="{{ vinfo['owner']['name'] }} | MikuInvidious">
-  <meta property="og:url" content="{{ site_url }}/video/{{ vid }}">
-  <meta property="og:title" content="{{ vinfo['title'] }}">
-  <meta property="og:image" content="{{ vinfo['pic'] }}">
-  <meta property="og:description" content="{{ vinfo['desc'] }}">
-  <meta property="og:type" content="video.other">
-  <meta property="og:video:url" content="{{ site_url }}/embed/{{ vid }}">
-  <meta property="og:video:secure_url" content="{{ site_url }}/embed/{{ vid }}">
-  <meta property="og:video:type" content="text/html">
-  <meta property="og:video:width" content="1280">
-  <meta property="og:video:height" content="720">
+    <meta property="og:site_name"
+          content="{{ vinfo['owner']['name'] }} | MikuInvidious" />
+    <meta property="og:url" content="{{ site_url }}/video/{{ vid }}" />
+    <meta property="og:title" content="{{ vinfo['title'] }}" />
+    <meta property="og:image" content="{{ vinfo['pic'] }}" />
+    <meta property="og:description" content="{{ vinfo['desc'] }}" />
+    <meta property="og:type" content="video.other" />
+    <meta property="og:video:url" content="{{ site_url }}/embed/{{ vid }}" />
+    <meta property="og:video:secure_url"
+          content="{{ site_url }}/embed/{{ vid }}" />
+    <meta property="og:video:type" content="text/html" />
+    <meta property="og:video:width" content="1280" />
+    <meta property="og:video:height" content="720" />
 
-  <meta name="twitter:card" content="player">
-  <meta name="twitter:url" content="{{ site_url }}/video/{{ vid }}">
-  <meta name="twitter:title" content="{{ vinfo['title'] }}">
-  <meta name="twitter:description" content="{{ vinfo['desc'] }}">
-  <meta name="twitter:image" content="{{ vinfo['pic'] }}">
-  <meta name="twitter:player" content="{{ site_url }}/embed/{{ vid }}">
-  <meta name="twitter:player:width" content="1280">
-  <meta name="twitter:player:height" content="720">
+    <meta name="twitter:card" content="player" />
+    <meta name="twitter:url" content="{{ site_url }}/video/{{ vid }}" />
+    <meta name="twitter:title" content="{{ vinfo['title'] }}" />
+    <meta name="twitter:description" content="{{ vinfo['desc'] }}" />
+    <meta name="twitter:image" content="{{ vinfo['pic'] }}" />
+    <meta name="twitter:player" content="{{ site_url }}/embed/{{ vid }}" />
+    <meta name="twitter:player:width" content="1280" />
+    <meta name="twitter:player:height" content="720" />
 
-  <link rel="alternate" href="https://www.bilibili.com/video/{{ vid }}">
-  <title>{{ vinfo['title'] }} - MikuInvidious</title>
+    <link rel="alternate" href="https://www.bilibili.com/video/{{ vid }}" />
+    <title>{{ vinfo['title'] }} - MikuInvidious</title>
 
-  <meta name="referrer" content="never">
+    <meta name="referrer" content="never" />
 
-  <link rel="stylesheet" href="/static/themes/modern/css/player.css">
-  <link rel="stylesheet" href="/static/vjs/video-js.min.css">
-  <link rel="stylesheet" href="/static/vjs/videojs-resolution-switcher.css">
+    <link rel="stylesheet" href="/static/themes/modern/css/player.css" />
 
-  <script>
-    current_vid = '{{ vid }}'; idx = {{ idx }}; total_pages = {{ vset|length }};
-    ato = {{ 'true' if ato else 'false' }};
-  </script>
+    <script>
+        window.current_vid = '{{ vid }}';
+        window.idx = {{ idx }};
+        window.total_pages = {{ vset | length }};
+        window.ato = {{ 'true' if ato else 'false' }};
+        window.is_live = {{ 'true' if is_live else 'false' }};
+        window.ep_id = '{{ ep_id if ep_id else "" }}';
+    </script>
 {% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-  
-  <!-- Left Column: Video, Info, Comments -->
-  <div class="lg:col-span-3 space-y-6">
-    
-    <!-- Player Card -->
-    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl overflow-hidden shadow-sm">
-        <!-- Player Wrapper: Force Dark Background -->
-        <div id="player-container" class="relative w-full aspect-video bg-black group">
-            <video style="width:100%; height:100%; outline:none;" playsinline controls poster="{{ vinfo['pic']|pic }}" id="player" class="video-js vjs-big-play-centered player-style-invidious w-full h-full object-contain">
-                {% for src in supported_src %}
-                <source src="/proxy/video/{{ vid }}_{{ idx }}_{{ src['quality'] }}" type="video/mp4" label="{{ src['new_description'] }}" />
-                {% endfor %}
-                <p class="vjs-no-js">
-                To view this video please enable JavaScript, and consider upgrading to a web browser that
-                <a href="https://videojs.com/html5-video-support/" target="_blank">supports HTML5 video</a>
-                </p>
-            </video>
-            <script src="/static/vjs/video.min.js"></script>
-            <script src="/static/vjs/videojs-resolution-switcher.js"></script>
-            <script src="/static/danmakujs/danmaku.min.js"></script>
-        </div>
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-        <!-- Title & Basic Actions -->
-        <div class="p-4 md:p-6 space-y-4">
-            <div class="flex items-start justify-between gap-4">
-                <h1 class="text-xl md:text-2xl font-bold text-on-surface leading-tight break-words line-clamp-2">
-                    {{ vinfo['title'] }}
-                </h1>
-                <a id='avswitch' title="Audio mode" href="/video/{{ vid }}?listen=1{{ '&ato=1' if ato else '' }}" class="flex-shrink-0 p-2 text-on-surface-variant hover:text-primary bg-surface-variant/30 hover:bg-surface-variant/50 rounded-full transition-all">
-                    <i class="icon ion-md-headset text-xl"></i>
-                </a>
+        <!-- Left Column: Video, Info, Comments -->
+        <div class="lg:col-span-3 space-y-6">
+
+            <!-- Player Card -->
+            <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl overflow-hidden shadow-sm">
+                <!-- Player Wrapper: Force Dark Background -->
+                <div id="player-placeholder-wrapper">{{ video_player(vid, vinfo, idx, supported_src, is_live) }}</div>
+
+                <!-- Title & Basic Actions -->
+                <div class="p-4 md:p-6 space-y-4">
+                    <div class="flex items-start justify-between gap-4">
+                        <h1 class="text-xl md:text-2xl font-bold text-on-surface leading-tight break-words line-clamp-2">
+                            {{ vinfo['title'] }}
+                        </h1>
+                        {% if not is_live %}
+                            <a id='avswitch'
+                               title="{{ 'Audio mode' }}"
+                               href="/video/{{ vid }}?listen=1{{ '&ato=1' if ato else '' }}"
+                               class="flex-shrink-0 p-2 text-on-surface-variant hover:text-primary bg-surface-variant/30 hover:bg-surface-variant/50 rounded-full transition-all">
+                                <i class="icon ion-md-headset text-xl"></i>
+                            </a>
+                        {% else %}
+                            <span class="inline-block px-3 py-1 rounded-full bg-red-500 text-white text-sm font-bold animate-pulse">LIVE</span>
+                        {% endif %}
+                    </div>
+
+                    {% if vset|length > 1 and not is_live %}
+                        <div class="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
+                            P{{ vset[idx]['page'] }}: {{ vset[idx]['part'] }}
+                        </div>
+                    {% endif %}
+
+                    <!-- Stats Bar -->
+                    <div class="flex flex-wrap gap-4 md:gap-6 text-sm text-on-surface-variant pb-4">
+                        <div class="flex items-center gap-1.5"
+                             title="{{ '在线人数' if is_live else '播放量' }}">
+                            <i class="icon ion-ios-eye text-lg"></i> {{ vinfo['stat']['view']|intsep }} {{ '在线' if is_live else '' }}
+                        </div>
+                        {% if not is_live %}
+                            <div class="flex items-center gap-1.5" title="{{ '点赞' }}">
+                                <i class="icon ion-ios-thumbs-up text-lg"></i> {{ vinfo['stat']['like']|intsep }}
+                            </div>
+                            <div class="flex items-center gap-1.5" title="{{ '硬币' }}">
+                                <i class="icon ion-logo-bitcoin text-lg"></i> {{ vinfo['stat']['coin']|intsep }}
+                            </div>
+                            <div class="flex items-center gap-1.5" title="{{ '收藏' }}">
+                                <i class="icon ion-ios-bookmark text-lg"></i> {{ vinfo['stat']['favorite']|intsep }}
+                            </div>
+                            <div class="flex items-center gap-1.5" title="{{ '分享' }}">
+                                <i class="icon ion-md-share text-lg"></i> {{ vinfo['stat']['share']|intsep }}
+                            </div>
+                        {% endif %}
+                        <div class="ml-auto flex items-center gap-1.5">
+                            <i class="icon ion-ios-pricetag"></i>
+                            <a href="/vv/{{ vinfo['tid'] }}"
+                               class="hover:text-primary transition-colors">{{ vinfo['tname'] }}</a>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
+                        <!-- Channel Info -->
+                        <a href="/space/{{ vinfo['owner']['mid'] }}"
+                           class="flex items-center gap-3 group w-full md:w-auto">
+                            <img src="{{ (vinfo['owner']['face'] + "@48w_48h.webp")|pic }}"
+                                 alt="{{ vinfo['owner']['name'] }}"
+                                 class="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-primary transition-all" />
+                            <div class="flex flex-col">
+                                <span class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ vinfo['owner']['name'] }}</span>
+                                <span class="text-xs text-on-surface-variant">{{ vinfo['pubdate']|date }}</span>
+                            </div>
+                        </a>
+
+                        <!-- External & Download -->
+                        <div class="flex flex-wrap gap-2 w-full md:w-auto justify-end">
+                            <a href="https://{% if is_live %}live{% else %}www{% endif %}.bilibili.com/{% if is_live %}{% else %}video/{% endif %}{{ vinfo['bvid'] }}"
+                               target="_blank"
+                               class="px-4 py-2 rounded-lg bg-surface-variant/30 text-on-surface hover:bg-[#FF6699] hover:text-white transition-all text-sm font-medium flex items-center gap-2">
+                                <i class="icon ion-logo-youtube"></i>
+                                <span class="hidden sm:inline">哔哩哔哩</span>
+                            </a>
+
+                            {% if site_allow_download and not is_live %}
+                                <form id="download-form"
+                                      class="flex gap-2"
+                                      action="/download"
+                                      method="post"
+                                      rel="noopener"
+                                      target="_blank">
+                                    <input type="hidden" name="id" value="{{ vinfo['bvid'] }}" />
+                                    <input type="hidden" name="cvid" value="{{ idx }}" />
+                                    <select id="download-quality"
+                                            name="qual"
+                                            class="px-3 py-2 rounded-lg bg-surface-variant/30 dark:bg-surface-variant text-on-surface text-sm border-none focus:ring-2 focus:ring-primary cursor-pointer hover:bg-surface-variant/50 transition-colors">
+                                        {% for src in supported_src %}<option value="{{ src['quality'] }}">{{ src['new_description'] }}</option>{% endfor %}
+                                    </select>
+                                    <button id="download-btn"
+                                            type="submit"
+                                            disabled
+                                            class="disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-all text-sm font-medium shadow-md hover:shadow-lg">
+                                        {{ '下载' }}
+                                    </button>
+                                </form>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed  break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
+                        {{ vinfo['desc']|format_desc }}
+                    </div>
+                </div>
             </div>
 
-            {% if vset|length > 1 %}
-            <div class="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                P{{ vset[idx]['page'] }}: {{ vset[idx]['part'] }}
-            </div>
+            <!-- Comments -->
+            {% if not is_live %}
+                <div id="comments-loader-container">
+                    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm">
+                        <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
+                            <i class="icon ion-ios-chatbubbles"></i>
+                            {{ '评论' }} ({{ vcomments['page']['count'] }})
+                        </h3>
+
+                        <div class="space-y-6">
+                            {% if vcomments['replies'] %}
+                                {% for rep in vcomments['replies'] %}
+                                    <div class="flex gap-4 group">
+                                        <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
+                                            <img loading="lazy"
+                                                 class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
+                                                 src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
+                                                 alt="" />
+                                        </a>
+                                        <div class="flex-grow space-y-1">
+                                            <div class="flex items-baseline justify-between">
+                                                <a href="/space/{{ rep['member']['mid'] }}"
+                                                   class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
+                                                <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
+                                            </div>
+                                            <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message'] }}</p>
+                                            <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
+                                                <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="flex flex-col items-center justify-center py-8 space-y-4">
+                                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                    <p class="text-on-surface-variant">{{ '正在加载评论...' }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
             {% endif %}
 
-            <!-- Stats Bar -->
-            <div class="flex flex-wrap gap-4 md:gap-6 text-sm text-on-surface-variant pb-4">
-                <div class="flex items-center gap-1.5" title="播放量">
-                    <i class="icon ion-ios-eye text-lg"></i> {{ vinfo['stat']['view']|intsep }}
-                </div>
-                <div class="flex items-center gap-1.5" title="点赞">
-                    <i class="icon ion-ios-thumbs-up text-lg"></i> {{ vinfo['stat']['like']|intsep }}
-                </div>
-                <div class="flex items-center gap-1.5" title="硬币">
-                    <i class="icon ion-logo-bitcoin text-lg"></i> {{ vinfo['stat']['coin']|intsep }}
-                </div>
-                <div class="flex items-center gap-1.5" title="收藏">
-                    <i class="icon ion-ios-bookmark text-lg"></i> {{ vinfo['stat']['favorite']|intsep }}
-                </div>
-                <div class="flex items-center gap-1.5" title="分享">
-                    <i class="icon ion-md-share text-lg"></i> {{ vinfo['stat']['share']|intsep }}
-                </div>
-                <div class="ml-auto flex items-center gap-1.5">
-                     <i class="icon ion-ios-pricetag"></i>
-                     <a href="/vv/{{ vinfo['tid'] }}" class="hover:text-primary transition-colors">{{ vinfo['tname'] }}</a>
-                </div>
-            </div>
-
-            <!-- Actions -->
-            <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
-                <!-- Channel Info -->
-                <a href="/space/{{ vinfo['owner']['mid'] }}" class="flex items-center gap-3 group w-full md:w-auto">
-                    <img src="{{ vinfo['owner']['face']|pic }}" alt="{{ vinfo['owner']['name'] }}" class="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-primary transition-all">
-                    <div class="flex flex-col">
-                        <span class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ vinfo['owner']['name'] }}</span>
-                        <span class="text-xs text-on-surface-variant">{{ vinfo['pubdate']|date }}</span>
-                    </div>
-                </a>
-
-                <!-- External & Download -->
-                <div class="flex flex-wrap gap-2 w-full md:w-auto justify-end">
-                     <a href="https://www.bilibili.com/video/{{ vinfo['bvid'] }}" target="_blank" class="px-4 py-2 rounded-lg bg-surface-variant/30 text-on-surface hover:bg-[#FF6699] hover:text-white transition-all text-sm font-medium flex items-center gap-2">
-                         <i class="icon ion-logo-youtube"></i>
-                         <span class="hidden sm:inline">哔哩哔哩</span>
-                     </a>
-                     
-                     {% if site_allow_download %}
-                     <form class="flex gap-2" action="/download" method="post" rel="noopener" target="_blank">
-                        <input type="hidden" name="id" value="{{ vinfo['bvid'] }}">
-                        <input type="hidden" name="cvid" value="{{ idx }}">
-                        <select name="qual" class="px-3 py-2 rounded-lg bg-surface-variant/30 dark:bg-surface-variant text-on-surface text-sm border-none focus:ring-2 focus:ring-primary cursor-pointer hover:bg-surface-variant/50 transition-colors">
-                             {% for src in supported_src %}
-                             <option value="{{ src['quality'] }}">{{ src['new_description'] }}</option>
-                             {% endfor %}
-                        </select>
-                        <button type="submit" class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-all text-sm font-medium shadow-md hover:shadow-lg">
-                            下载
-                        </button>
-                     </form>
-                     {% endif %}
-                </div>
-            </div>
-
-            <!-- Description -->
-            <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed  break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
-                {{ vinfo['desc'] }}
-            </div>
         </div>
-    </div>
 
-    <!-- Comments -->
-    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm">
-        <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
-            <i class="icon ion-ios-chatbubbles"></i>
-            评论 ({{ vcomments['page']['count'] }})
-        </h3>
-        
-        <div class="space-y-6">
-            {% if vcomments['replies'] %}
-            {% for rep in vcomments['replies'] %}
-            <div class="flex gap-4 group">
-                <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
-                    <img loading="lazy" class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all" src="{{ "{}@100w".format(rep['member']['avatar'])|pic }}" alt="">
-                </a>
-                <div class="flex-grow space-y-1">
-                    <div class="flex items-baseline justify-between">
-                         <a href="/space/{{ rep['member']['mid'] }}" class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
-                         <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
+        <!-- Right Column: Related Videos or Live Chat -->
+        <div class="lg:col-span-1 space-y-6">
+
+            {% if is_live %}
+                <!-- Live Chat Box -->
+                <!-- UPDATED: Fixed height (h-500px), shrink-0 header, break-words handling -->
+                <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl shadow-sm flex flex-col h-[80svh] border-[3px] border-[#fb7299] sticky top-6 overflow-hidden z-10">
+                    <!-- Header: shrink-0 added so it doesn't collapse -->
+                    <div class="shrink-0 p-3 border-b border-[#fb7299]/30 flex items-center justify-between bg-surface dark:bg-black/10"
+                         title="{{ '实时聊天' }}">
+                        <h3 class="font-bold text-on-surface flex items-center gap-2 uppercase text-base tracking-wider">
+                            <i class="icon ion-md-chatbubbles text-[#fb7299]"></i>
+                            {{ '实时聊天' }}
+                        </h3>
+                        <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
                     </div>
-                    <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message'] }}</p>
-                    <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
-                        <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
+                    <!-- Messages Area: break-words break-all added -->
+                    <div id="live-chat-container"
+                         class="flex-grow overflow-y-auto p-2 text-[13px] leading-relaxed custom-scrollbar bg-black/5 break-words break-all">
+                        <!-- Messages append here -->
+                        <p class="text-on-surface-variant/50 text-center py-4 italic">{{ '正在连接到聊天室...' }}</p>
                     </div>
                 </div>
-            </div>
-            {% endfor %}
-            {% else %}
-            <p class="text-center text-on-surface-variant py-8">暂无评论或评论加载失败</p>
+                <script>
+                    const chatContainer = document.getElementById('live-chat-container');
+                    let eventSource;
+
+                    function connectChat() {
+                        if (eventSource) eventSource.close();
+                        eventSource = new EventSource('/live/chat/{{ vid }}');
+
+                        eventSource.onmessage = function(event) {
+                            const data = JSON.parse(event.data);
+
+                            const loadingMsg = chatContainer.querySelector('.text-center');
+                            if (loadingMsg) chatContainer.innerHTML = '';
+
+                            const isAtBottom = chatContainer.scrollHeight - chatContainer.clientHeight <= chatContainer.scrollTop + 50;
+
+                            const msgEl = document.createElement('div');
+                            msgEl.className = 'py-1 px-2 hover:bg-surface-variant/10 transition-colors rounded break-words break-all';
+                            
+                            const userSpan = document.createElement('span');
+                            userSpan.className = 'font-bold text-primary mr-1 whitespace-nowrap';
+                            userSpan.textContent = `${data.user}:`;
+                            
+                            const textSpan = document.createElement('span');
+                            textSpan.className = 'text-on-surface opacity-90';
+                            textSpan.textContent = data.text;
+                            
+                            msgEl.appendChild(userSpan);
+                            msgEl.appendChild(textSpan);
+                            chatContainer.appendChild(msgEl);
+
+                            // Add to danmaku overlay
+                            if (window.dm && window.dm_status) {
+                                window.dm.emit({
+                                    text: '\n' + data.text,
+                                    mode: 'rtl',
+                                    style: {
+                                        fontSize: '25px',
+                                        color: '#ffffff',
+                                        textShadow: '-1px -1px #000, -1px 1px #000, 1px -1px #000, 1px 1px #000',
+                                        font: '25px sans-serif',
+                                        whiteSpace: 'pre'
+                                    }
+                                });
+                            }
+
+                            if (isAtBottom) {
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            }
+
+                            if (chatContainer.children.length > 200) {
+                                chatContainer.removeChild(chatContainer.firstChild);
+                            }
+                        };
+
+                        eventSource.onerror = function() {
+                            console.log("[Chat] Connection lost, retrying in 5s...");
+                            eventSource.close();
+                            setTimeout(connectChat, 5000);
+                        };
+                    }
+
+                    connectChat();
+                </script>
             {% endif %}
-        </div>
-    </div>
 
-  </div>
-
-  <!-- Right Column: Related Videos -->
-  <div class="lg:col-span-1 space-y-6">
-    
-    <!-- Playlist / Parts -->
-    {% if vset|length > 1 %}
-    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
-        <div class="flex items-center justify-between mb-3">
-             <h3 class="font-bold text-on-surface">选集 ({{ vset|length }})</h3>
-             <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary transition-colors">
-                <input name="continue" id="continue" type="checkbox" class="accent-primary rounded">
-                自动连播
-             </label>
-        </div>
-        <div class="max-h-[60vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-            {% for v in vset  %}
-            <a href="/video/{{ vid }}:{{ v['page']-1 }}" class="flex gap-3 p-2 rounded-lg hover:bg-surface-variant/20 transition-colors {{ 'bg-primary/10' if idx == (v['page']-1) else '' }}">
-                {% if v['first_frame'] %}
-                <div class="w-24 h-14 flex-shrink-0 relative rounded overflow-hidden">
-                    <img loading="lazy" class="w-full h-full object-cover" src="{{ "{}@320w".format(v['first_frame'])|pic }}" alt="">
-                    <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded">{{ v['duration']|secdur }}</span>
-                </div>
-                {% endif %}
-                <div class="flex-grow min-w-0 flex flex-col justify-center">
-                    <p class="text-sm font-medium text-on-surface truncate line-clamp-2 leading-tight {{ 'text-primary' if idx == (v['page']-1) else '' }}">P{{ v['page'] }} {{ v['part'] }}</p>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Recommendations -->
-    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
-        <h3 class="font-bold text-on-surface mb-4">推荐视频</h3>
-        <div class="space-y-4">
-            {% for rv in vrelated  %}
-            <a href="/video/{{ rv['bvid'] }}" class="flex flex-col sm:flex-row gap-3 group">
-                <div class="w-full sm:w-36 aspect-video flex-shrink-0 relative rounded-lg overflow-hidden">
-                    <img loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="{{ "{}@320w".format(rv['pic'])|pic }}" alt="">
-                    <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded shadow-sm">{{ rv['duration']|secdur }}</span>
-                </div>
-                <div class="flex-grow min-w-0 py-0.5">
-                    <p class="text-sm font-bold text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors" title="{{ rv['title'] }}">{{ rv['title'] }}</p>
-                    <div class="mt-1 flex items-center gap-2 text-xs text-on-surface-variant">
-                         <span>{{ rv['owner']['name'] }}</span>
+            <!-- Playlist / Parts -->
+            {% if vset|length > 1 and not is_live %}
+                <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-on-surface">{{ '选集' }} ({{ vset|length }})</h3>
+                        <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary transition-colors">
+                            <input name="continue"
+                                   id="continue"
+                                   type="checkbox"
+                                   class="accent-primary rounded" />
+                            {{ '自动连播' }}
+                        </label>
                     </div>
-                     <div class="flex items-center gap-2 text-xs text-on-surface-variant/70">
-                         <span>{{ rv['stat']['view']|intsep }} 播放</span>
+                    <div class="max-h-[60vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                        {% for v in vset %}
+                            <a href="/video/{{ vid }}:{{ v['page']-1 }}"
+                               class="flex gap-3 p-2 rounded-lg hover:bg-surface-variant/20 transition-colors {{ 'bg-primary/10' if idx == (v['page']-1) else '' }}">
+                                {% if v['first_frame'] %}
+                                    <div class="w-24 h-14 flex-shrink-0 relative rounded overflow-hidden">
+                                        <img loading="lazy"
+                                             class="w-full h-full object-cover"
+                                             src="{{ "{}@320w".format(v['first_frame']) |pic }}"
+                                             alt="" />
+                                        <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded">{{ v['duration']|secdur }}</span>
+                                    </div>
+                                {% endif %}
+                                <div class="flex-grow min-w-0 flex flex-col justify-center">
+                                    <p class="text-sm font-medium text-on-surface truncate line-clamp-2 leading-tight {{ 'text-primary' if idx == (v['page']-1) else '' }}">
+                                        P{{ v['page'] }} {{ v['part'] }}
+                                    </p>
+                                </div>
+                            </a>
+                        {% endfor %}
                     </div>
                 </div>
-            </a>
-            {% endfor %}
+            {% endif %}
+
+            <!-- Recommendations -->
+            <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
+                <h3 class="font-bold text-on-surface mb-4">{{ '推荐视频' }}</h3>
+                <div class="space-y-4">
+                    {% for rv in vrelated %}
+                        {% set rv_link = '/bangumi/play/' + rv['bvid'] if rv['bvid'].startswith('ep') else '/video/' + rv['bvid'] %}
+                        <a href="{{ rv_link }}"
+                           class="flex flex-col sm:flex-row gap-3 group">
+                            <div class="w-full sm:w-36 aspect-video flex-shrink-0 relative rounded-lg overflow-hidden">
+                                <img loading="lazy"
+                                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                     src="{{ "{}@320w".format(rv['pic']) |pic }}"
+                                     alt="" />
+                                <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded shadow-sm">{{ rv['duration']|secdur }}</span>
+                            </div>
+                            <div class="flex-grow min-w-0 py-0.5">
+                                <p class="text-sm font-bold text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors"
+                                   title="{{ rv['title'] }}">{{ rv['title'] }}</p>
+                                <div class="mt-1 flex items-center gap-2 text-xs text-on-surface-variant">
+                                    <span>{{ rv['owner']['name'] }}</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-xs text-on-surface-variant/70">
+                                    <span>{{ rv['stat']['view']|intsep }} {{ '播放' }}</span>
+                                </div>
+                            </div>
+                        </a>
+                    {% endfor %}
+                </div>
+            </div>
+
         </div>
     </div>
 
-  </div>
-</div>
-  
-<script src="/static/themes/modern/js/player.js"></script>
+    <script src="/static/vjs/hls.min.js"></script>
+    <script src="/static/vjs/dash.all.min.js"></script>
+    <script src="/static/vjs/mpegts.js"></script>
+    <script src="/static/vjs/media-chrome.js"></script>
+
+    <script src="/static/danmakujs/danmaku.min.js"></script>
+
+    <script src="/static/themes/modern/js/player.js"></script>
+
+    <script>
+        function updateDownloadDropdown() {
+            const select = document.getElementById('download-quality');
+            const btn = document.getElementById('download-btn');
+            if (!select || !window.supported_src || window.supported_src.length === 0) return;
+
+            select.innerHTML = '';
+            window.supported_src.forEach(src => {
+                const opt = document.createElement('option');
+                opt.value = src.quality;
+                opt.textContent = src.new_description;
+                select.appendChild(opt);
+            });
+
+            if (btn) btn.disabled = false;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!window.is_live) {
+                // Load Player Component
+                fetch(`/api/component/player/${window.current_vid}/${window.idx}?ep_id=${window.ep_id}`)
+                    .then(r => r.text())
+                    .then(html => {
+                        const container = document.getElementById('player-placeholder-wrapper');
+                        if (container) {
+                            container.innerHTML = '';
+                            const range = document.createRange();
+                            container.appendChild(range.createContextualFragment(html));
+
+                            // Update download dropdown once player data is loaded
+                            setTimeout(updateDownloadDropdown, 100);
+                        }
+                    });
+
+                // Load Meta/Comments Component
+                fetch(`/api/component/meta/${window.current_vid}/${window.idx}`)
+                    .then(r => r.text())
+                    .then(html => {
+                        const container = document.getElementById('comments-loader-container');
+                        if (container) {
+                            container.innerHTML = html;
+                        }
+                    });
+            }
+        });
+    </script>
 {% endblock %}

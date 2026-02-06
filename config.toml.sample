@@ -4,13 +4,16 @@ site_url = 'https://example.org'
 
 # You are required to set this if you have any modification to the source code.
 # Learn more at https://www.gnu.org/licenses/agpl-3.0.html.
-site_modified_source_code_url = false
+site_modified_source_code_url = https://github.com/apicalshark/mikuinvidious
 
 # This will not really disable download, it just not shows it.
 site_allow_download = true
 
 # This will allow (potentially unsafe) error response to be showed directly on site.
 site_show_unsafe_error_response = false
+
+# Enable or disable Nyaa search in Bangumi view.
+nyaa_bangumi = true
 
 # This controls whether the search engines will index your site or not.
 # Available options:
@@ -20,10 +23,10 @@ site_show_unsafe_error_response = false
 # Default to 'strict'.
 robots_policy = 'strict'
 
-[flask]
-# Flask Framework Configuration
+[quart]
+# Quart Framework Configuration
 
-[twisted]
+[server]
 # Network interface to listen on:
 #    - local only, use 'localhost'
 #    - ipv4 only, use '0.0.0.0'
@@ -55,16 +58,14 @@ use_pandoc = false
 article_allowed_formats = ['markdown', 'plain', 'html']
 
 [display]
-default_theme = 'wayback'
+default_theme = 'modern'
 
 [redis]
-host = 'localhost'
-port = 6379
-#username = ''
-#password = ''
 
-[admin]
-# Administrator credentials for accessing restricted features
-username = ''
-password = ''
-secret_key = 'CHANGE_THIS_TO_A_RANDOM_SECRET_STRING'
+host = 'localhost'
+
+port = 6379
+
+#username = ''
+
+#password = ''

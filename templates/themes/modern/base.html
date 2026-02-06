@@ -1,218 +1,244 @@
 <!DOCTYPE html>
 <html lang="zh-CN" class="{{ 'dark' if dark_mode else '' }}">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+    <head>
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Security-Policy"
+              content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; font-src 'self' data:; connect-src 'self' wss: https:; worker-src 'self' blob:;" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {% block head %}{% endblock %}
+        <link rel="stylesheet" href="/static/themes/modern/css/main.css" />
+        <style>
+            :root {
+                /* === [Theme Master Controls - Light Mode] === */
+                --theme-primary: #a85383;    /* Main brand color used for key interactive elements */
+                --theme-contrast: -10%;        /* Base contrast offset for surfaces */
 
-  {% block head %}
-  {% endblock %}
-  
-  <link rel="stylesheet" href="/static/themes/modern/css/main.css">
+                /* Material You Sakura Light - Base Mapping */
+                --md-sys-color-primary: var(--theme-primary);                      /* High-emphasis fills and text */
+                --md-sys-color-on-primary: white;                                  /* Text/icons on top of primary */
+                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), white 65%);  /* Less prominent containers (e.g. active tab) */
+                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), black 80%); /* Text/icons on primary-container */
+                
+                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), #605D62 30%);       /* Less prominent accents */
+                --md-sys-color-on-secondary: white;                                                    /* Text/icons on top of secondary */
+                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), white 75%); /* Secondary element backgrounds */
+                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), black 80%); /* Text/icons on secondary-container */
 
-  <style>
-      :root {
-          /* Material You Sakura Light */
-          --md-sys-color-primary: #9C4174;
-          --md-sys-color-on-primary: #FFFFFF;
-          --md-sys-color-primary-container: #FFD8EC;
-          --md-sys-color-on-primary-container: #3E0021;
-          --md-sys-color-secondary: #755661;
-          --md-sys-color-on-secondary: #FFFFFF;
-          --md-sys-color-secondary-container: #FFD9E6;
-          --md-sys-color-on-secondary-container: #2B151E;
-          --md-sys-color-background: #FFFBFF;
-          --md-sys-color-on-background: #201A1D;
-          --md-sys-color-surface: #FFF0F5;
-          --md-sys-color-on-surface: #201A1D;
-          --md-sys-color-surface-variant: #F2DDE5;
-          --md-sys-color-on-surface-variant: #514349;
-          --md-sys-color-outline: #837379;
-      }
-      .dark {
-          /* Material You Sakura Dark (OLED Optimized) */
-          --md-sys-color-primary: #FFB1DA;
-          --md-sys-color-on-primary: #5F1144;
-          --md-sys-color-primary-container: #7D295C;
-          --md-sys-color-on-primary-container: #FFD8EC;
-          --md-sys-color-secondary: #E4BDC9;
-          --md-sys-color-on-secondary: #432933;
-          --md-sys-color-secondary-container: #5C3F49;
-          --md-sys-color-on-secondary-container: #FFD9E6;
-          --md-sys-color-background: #000000;
-          --md-sys-color-on-background: #ECE0E3;
-          --md-sys-color-surface: #000000;
-          --md-sys-color-on-surface: #ECE0E3;
-          --md-sys-color-surface-variant: #1A1A1A;
-          --md-sys-color-on-surface-variant: #D5C2C9;
-          --md-sys-color-outline: #3A2F34;
-      }
+                /* Background and Surface colors */
+                --md-sys-color-background: color-mix(in srgb, var(--theme-primary), white 90%);    /* Global page background */
+                --md-sys-color-on-background: #201A1D;                                             /* Global body text */
+                --md-sys-color-surface: color-mix(in srgb, var(--theme-primary), white 92%);       /* Neutral surfaces like headers and cards */
+                --md-sys-color-on-surface: #201A1D;                                                /* Text/icons on neutral surfaces */
 
-      body {
-          display: flex;
-          flex-direction: column;
-          overflow-y: scroll; /* Prevent layout shift */
-      }
-      #contents {
-          flex: 1;
-      }
-      
-      /* Scrollbar Styling */
-      ::-webkit-scrollbar {
-          width: 8px;
-          height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-          background: transparent; 
-      }
-      ::-webkit-scrollbar-thumb {
-          background: var(--md-sys-color-surface-variant); 
-          border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-          background: var(--md-sys-color-primary); 
-      }
+                /* Dynamic contrast calculation */
+                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 20%); /* Distinct containers like cards and search bars */
+                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), black 60%);                   /* Lower-emphasis text/icons on surface-variant */
+                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 40%);        /* Decorative elements, borders, and dividers */
+            }
 
-      /* Base styles for legacy content compatibility */
-      h1, h2, h3, h4, h5, h6 {
-          font-size: revert;
-          font-weight: 700;
-          line-height: revert;
-      }
-      
-      a { color: inherit; text-decoration: none; }
-      
-      /* Video Player Enforced Dark Theme */
-      .video-js {
-          background-color: #000 !important;
-      }
-      .vjs-control-bar {
-          background-color: rgba(0,0,0,0.7) !important;
-          color: #fff !important;
-      }
-      
-      /* Remove outlines/borders globally as requested, use focus rings */
-      *:focus {
-          outline: none !important;
-      }
-  </style>
+            .dark {
+                /* === [Theme Master Controls - Dark Mode] === */
+                --theme-primary: #ff97b5;    /* Primary accent color for dark theme prominence */
+                --theme-contrast: 10%;       /* Increased contrast for OLED/Dark surfaces */
 
-  <link rel="stylesheet" href="/static/themes/modern/css/ionicons.min.css">
-  
-  <script src="/static/themes/modern/js/_helpers.js"></script>
-</head>
-<body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
-  <span style="display:none" id="dark_mode_pref">{{ 'dark' if dark_mode else 'light' }}</span>
-  
-  <!-- Sticky Header with Glassmorphism (No Border) -->
-  <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/80 transition-colors duration-200">
-      <div class="container mx-auto px-4 py-3 md:px-8 max-w-8xl flex flex-col md:flex-row items-center justify-between gap-4">
-        <!-- Brand -->
-        <div class="w-full md:w-auto flex justify-between items-center">
-          <a href="/" class="text-2xl font-bold text-primary hover:text-primary/80 transition-colors index-link tracking-tight">MikuInvidious</a>
+                /* Material You Sakura Dark - Base Mapping */
+                --md-sys-color-primary: var(--theme-primary);                      /* Glowing accents and active states */
+                --md-sys-color-on-primary: color-mix(in srgb, var(--theme-primary), black 75%);   /* Text/icons on top of primary */
+                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), black 35%); /* Subtle accent containers */
+                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), white 65%); /* Text/icons on primary-container */
+
+                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), white 40%);        /* Tonal secondary accents */
+                --md-sys-color-on-secondary: color-mix(in srgb, var(--theme-primary), black 80%);     /* Text/icons on top of secondary */
+                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), black 55%); /* Muted secondary backgrounds */
+                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), white 80%); /* Text/icons on secondary-container */
+
+                /* Background and Surface colors */
+                --md-sys-color-background: black;                                                  /* Deep black for OLED power saving */
+                --md-sys-color-on-background: #ECE0E3;                                             /* Primary dark mode text */
+                --md-sys-color-surface: black;                                                     /* Surface foundations */
+                --md-sys-color-on-surface: #ECE0E3;                                                /* Text/icons on surfaces */
+
+                /* Dynamic contrast calculation */
+                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 20%); /* Glowing card backgrounds and inputs */
+                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), white 80%);                      /* High-readability secondary text */
+                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 50%);        /* Dividers and structural borders */
+            }
+
+            body {
+                display: flex;
+                flex-direction: column;
+                overflow-y: scroll;
+                /* Prevent layout shift */
+            }
+
+            #contents {
+                flex: 1;
+            }
+
+            /* Scrollbar Styling */
+            ::-webkit-scrollbar {
+                width: 8px;
+                height: 8px;
+            }
+
+            ::-webkit-scrollbar-track {
+                background: transparent;
+            }
+
+            ::-webkit-scrollbar-thumb {
+                background: var(--md-sys-color-surface-variant);
+                border-radius: 4px;
+            }
+
+            ::-webkit-scrollbar-thumb:hover {
+                background: var(--md-sys-color-primary);
+            }
+
+            /* Base styles for legacy content compatibility */
+            h1,
+            h2,
+            h3,
+            h4,
+            h5,
+            h6 {
+                font-size: revert;
+                font-weight: 700;
+                line-height: revert;
+            }
+
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+
+            /* Video Player Enforced Dark Theme */
+            .video-js {
+                background-color: #000 !important;
+            }
+
+            .vjs-control-bar {
+                background-color: rgba(0, 0, 0, 0.7) !important;
+                color: #fff !important;
+            }
+
+            /* Remove outlines/borders globally as requested, use focus rings */
+            *:focus {
+                outline: none !important;
+            }
+        </style>
+        <link rel="stylesheet" href="/static/themes/modern/css/ionicons.min.css" />
+        <script src="/static/themes/modern/js/_helpers.js"></script>
+        <script src="/static/opencc-js/opencc.js"></script>
+    </head>
+    <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
+        <span style="display:none" id="dark_mode_pref">{{ 'dark' if dark_mode else 'light' }}</span>
+        <!-- Sticky Header with Glassmorphism (No Border) -->
+        <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/80 transition-colors duration-200">
+            <div class="container mx-auto px-4 py-3 md:px-8 max-w-8xl flex flex-col md:flex-row items-center justify-between gap-4">
+                <!-- Brand -->
+                <div class="w-full md:w-auto flex justify-between items-center gap-4">
+                    <a href="/"
+                       class="text-2xl font-bold text-primary hover:text-primary/80 transition-colors index-link tracking-tight">MikuInvidious</a>
+                </div>
+                <!-- Search -->
+                <div class="w-full md:flex-1 max-w-2xl backdrop-blur-xl bg-background/80 searchbar">
+                    <form class="w-full" action="/search" method="get">
+                        <div class="relative group">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
+                                <i class="icon ion-ios-search text-xl"></i>
+                            </span>
+                            <input type="search"
+                                   id="searchbox"
+                                   autocomplete="off"
+                                   autocorrect="off"
+                                   autocapitalize="none"
+                                   spellcheck="false"
+                                   name="q"
+                                   placeholder="{{ '想要搜索点什么？' }}"
+                                   class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
+                                   {% if q %}value="{{ q }}"{% endif %} />
+                        </div>
+                    </form>
+                </div>
+                <!-- User Actions -->
+                <div class="w-full md:w-auto flex justify-center md:justify-end items-center gap-1 md:gap-2 user-field">
+                    <!-- Bangumi Link -->
+                    <a title="{{ '番剧' }}"
+                       href="/bangumi"
+                       class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100 flex items-center gap-2">
+                        <i class="icon ion-ios-film text-xl"></i>
+                        <span class="text-sm font-medium md:hidden lg:inline">{{ '番剧' }}</span>
+                    </a>
+                    <!-- Theme Toggle -->
+                    <a id="toggle_theme"
+                       href="javascript:void(0)"
+                       class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+                        <i class="icon ion-ios-moon text-xl"></i>
+                    </a>
+                    <!-- Prefs -->
+                    <a title="{{ '偏好设置' }}"
+                       href="/preferences"
+                       class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+                        <i class="icon ion-ios-cog text-xl"></i>
+                    </a>
+                </div>
+            </div>
+        </header>
+        <div class="container mx-auto py-8 md:px-8 flex-grow flex flex-col">
+            <div id="contents" class="flex-grow">
+                {% block content %}{% endblock %}
+            </div>
+            <footer class="mt-20 pt-10 pb-10 text-sm text-on-surface-variant/80">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
+                    <div class="flex flex-col gap-4">
+                        <div class="flex items-center justify-center md:justify-start gap-2">
+                            <i class="icon ion-logo-github text-xl"></i>
+                            {% if site_modified_source_code_url %}
+                                <a href="https://0xacab.org/johnxina/mikuinvidious"
+                                   class="hover:text-primary transition-colors font-medium">{{ '原始项目源代码' }}</a> /
+                                <a href="{{ site_modified_source_code_url }}"
+                                   class="hover:text-primary transition-colors font-medium">{{ '修改后的源代码' }}</a>
+                            {% else %}
+                                <a href="https://0xacab.org/johnxina/mikuinvidious"
+                                   class="hover:text-primary transition-colors font-medium">{{ '源代码' }}</a>
+                            {% endif %}
+                        </div>
+                        <div class="flex items-center justify-center md:justify-start gap-2">
+                            <i class="icon ion-ios-paper text-xl"></i>
+                            <a href="https://mi.resrv.org/"
+                               class="hover:text-primary transition-colors font-medium">{{ '文档' }}</a>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-4">
+                        <div>
+                            <a href="https://0xacab.org/johnxina/mikuinvidious/-/blob/no-masters/LICENSE"
+                               class="hover:text-primary transition-colors font-medium">{{ '自豪地以 AGPLv3 释出' }}</a>
+                        </div>
+                        <div class="flex items-center justify-center md:justify-start gap-2">
+                            <i class="icon ion-logo-javascript text-xl"></i>
+                            <a rel="jslicense"
+                               href="/licenses"
+                               rel="jslicense"
+                               class="hover:text-primary transition-colors font-medium">{{ '查看 JavaScript 许可证' }}</a>
+                        </div>
+                        <div class="flex items-center justify-center md:justify-start gap-2">
+                            <i class="icon ion-ios-paper text-xl"></i>
+                            <a href="/privacy"
+                               class="hover:text-primary transition-colors font-medium">{{ '隐私条款' }}</a>
+                        </div>
+                    </div>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex items-center justify-center md:justify-start gap-2">
+                            <i class="icon ion-ios-wallet text-xl"></i>
+                            <a href="https://mi.resrv.org/docs/donate"
+                               class="hover:text-primary transition-colors font-medium">{{ '赞助我们' }}</a>
+                        </div>
+                        <span class="opacity-70">{{ '版本信息当前不可用 :-(' }}</span>
+                    </div>
+                </div>
+            </footer>
         </div>
-
-        <!-- Search -->
-        <div class="w-full md:flex-1 max-w-2xl backdrop-blur-xl bg-background/80 searchbar">
-          <form class="w-full" action="/search" method="get">
-            <div class="relative group">
-              <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
-                  <i class="icon ion-ios-search text-xl"></i>
-              </span>
-              <input type="search" id="searchbox" autocomplete="off" autocorrect="off"
-              autocapitalize="none" spellcheck="false" name="q" placeholder="想要搜索点什么？" 
-              class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface-variant text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
-              {{ ('value=%s' % q)  if q else '' }}>
-            </div>
-          </form>
-        </div>
-
-        <!-- User Actions -->
-        <div class="w-full md:w-auto flex justify-center md:justify-end items-center gap-1 md:gap-2 user-field">
-            <!-- Theme Toggle -->
-            <a id="toggle_theme" href="javascript:void(0)" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
-                <i class="icon ion-ios-moon text-xl"></i>
-            </a>
-
-            <!-- Prefs -->
-            <a title="偏好设置" href="/preferences" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
-              <i class="icon ion-ios-cog text-xl"></i>
-            </a>
-
-            {% if proxy_status.use_proxy %}
-            <a title="视频会话开启" class="p-2.5 text-primary">
-              <i class="icon ion-ios-cloud text-xl"></i>
-            </a>
-            <a title="图片会话开启" class="p-2.5 text-primary">
-              <i class="icon ion-ios-camera text-xl"></i>
-            </a>
-            {% endif %}
-
-            <!-- Login/Logout -->
-            {% if session.get('is_admin') %}
-            <a title="登出" href="/logout" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
-              <i class="icon ion-ios-log-out text-xl"></i>
-            </a>
-            {% else %}
-            <a title="登录" href="/login" class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
-              <i class="icon ion-ios-person text-xl"></i>
-            </a>
-            {% endif %}
-        </div>
-      </div>
-  </header>
-
-  <div class="container mx-auto px-4 py-8 md:px-8 max-w-8xl flex-grow flex flex-col">
-      <div id="contents" class="flex-grow">
-      {% block content %}
-      {% endblock %}
-      </div>
-
-      <footer class="mt-20 pt-10 pb-10 text-sm text-on-surface-variant/80">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
-            <div class="flex flex-col gap-4">
-              <div class="flex items-center justify-center md:justify-start gap-2">
-                <i class="icon ion-logo-github text-xl"></i>
-                {% if site_modified_source_code_url %}
-                <a href="https://0xacab.org/johnxina/mikuinvidious" class="hover:text-primary transition-colors font-medium">原始项目源代码</a> /
-                <a href="{{ site_modified_source_code_url }}" class="hover:text-primary transition-colors font-medium">修改后的源代码</a>
-                {% else %}
-                <a href="https://0xacab.org/johnxina/mikuinvidious" class="hover:text-primary transition-colors font-medium">源代码</a>
-                {% endif %}
-              </div>
-              <div class="flex items-center justify-center md:justify-start gap-2">
-                  <i class="icon ion-ios-paper text-xl"></i>
-                  <a href="https://mi.resrv.org/" class="hover:text-primary transition-colors font-medium">文档</a>
-              </div>
-            </div>
-
-            <div class="flex flex-col gap-4">
-                <div>
-                    <a href="https://0xacab.org/johnxina/mikuinvidious/-/blob/no-masters/LICENSE" class="hover:text-primary transition-colors font-medium">自豪地以 AGPLv3 释出</a>
-                </div>
-                <div class="flex items-center justify-center md:justify-start gap-2">
-                    <i class="icon ion-logo-javascript text-xl"></i>
-                    <a rel="jslicense" href="/licenses" rel="jslicense" class="hover:text-primary transition-colors font-medium">查看 JavaScript 许可证</a>
-                </div>
-                <div class="flex items-center justify-center md:justify-start gap-2">
-                    <i class="icon ion-ios-paper text-xl"></i>
-                    <a href="/privacy" class="hover:text-primary transition-colors font-medium">隐私条款</a>
-                </div>
-            </div>
-
-            <div class="flex flex-col gap-4">
-                <div class="flex items-center justify-center md:justify-start gap-2">
-                    <i class="icon ion-ios-wallet text-xl"></i>
-                    <a href="https://mi.resrv.org/docs/donate" class="hover:text-primary transition-colors font-medium">赞助我们</a>
-                </div>
-                <span class="opacity-70">版本信息当前不可用 :-(</span>
-            </div>
-          </div>
-      </footer>
-  </div>
-
-  <script src="/static/themes/modern/js/themes.js"></script>
-
-  {% block lowerbody %}
-  {% endblock %}
-</body>
+        <script src="/static/themes/modern/js/themes.js"></script>
+        {% block lowerbody %}{% endblock %}
+    </body>
 </html>

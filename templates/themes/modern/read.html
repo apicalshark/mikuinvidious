@@ -1,49 +1,54 @@
 {% extends 'themes/modern/base.html' %}
-
 {% block head %}
-  <link rel="alternate" href="https://www.bilibili.com/read/{{ cid }}">
-  <meta name="referrer" content="never">
-  <title>{{ arinfo['title'] }} - 专栏 - MikuInvidious</title>
+    {% if is_opus %}
+        <link rel="alternate" href="https://www.bilibili.com/opus/{{ cid }}" />
+        <title>{{ arinfo['title'] }} - {{ '图文' }} - MikuInvidious</title>
+    {% else %}
+        <link rel="alternate" href="https://www.bilibili.com/read/{{ cid }}" />
+        <title>{{ arinfo['title'] }} - {{ '专栏' }} - MikuInvidious</title>
+    {% endif %}
+    <meta name="referrer" content="never" />
 {% endblock %}
-
 {% block content %}
-<div class="max-w-4xl mx-auto">
-  <!-- Article Header -->
-  <div class="bg-surface dark:bg-surface-variant/20 rounded-t-3xl p-8 md:p-12 pb-6 space-y-6 shadow-sm  mb-px">
-      <h1 class="text-3xl md:text-4xl font-bold text-on-surface leading-tight tracking-tight">
-        {{ arinfo['title'] }}
-      </h1>
-      
-      <div class="flex flex-wrap items-center justify-between gap-6 border-b border-surface-variant/20 pb-6">
-          <a href="/space/{{ arinfo['author']['mid'] }}" class="flex items-center gap-3 group">
-              <img src="{{ arinfo['author']['face']|pic }}" alt="{{ arinfo['author']['name'] }}" class="w-12 h-12 rounded-full ring-2 ring-surface-variant group-hover:ring-primary transition-all object-cover">
-              <div>
-                  <div class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ arinfo['author']['name'] }}</div>
-                  <div class="text-xs text-on-surface-variant">{{ arinfo['publish_time']|date }}</div>
-              </div>
-          </a>
-
-          <div class="flex gap-4 text-on-surface-variant text-sm font-medium">
-             <div class="flex items-center gap-1.5"><i class="icon ion-ios-eye text-lg"></i> {{ arinfo['stats']['view']|intsep }}</div>
-             <div class="flex items-center gap-1.5"><i class="icon ion-ios-thumbs-up text-lg"></i> {{ arinfo['stats']['like']|intsep }}</div>
-             <div class="flex items-center gap-1.5"><i class="icon ion-logo-bitcoin text-lg"></i> {{ arinfo['stats']['coin']|intsep }}</div>
-             <div class="flex items-center gap-1.5"><i class="icon ion-ios-bookmark text-lg"></i> {{ arinfo['stats']['favorite']|intsep }}</div>
-             <div class="flex items-center gap-1.5"><i class="icon ion-md-share text-lg"></i> {{ arinfo['stats']['share']|intsep }}</div>
-          </div>
-      </div>
-  </div>
-
-  <!-- Article Content -->
-  <div class="bg-surface dark:bg-surface-variant/10 rounded-b-3xl p-8 md:p-12 shadow-sm ">
-      <article class="prose prose-lg dark:prose-invert max-w-none 
-          prose-headings:font-bold prose-headings:text-on-surface
-          prose-p:text-on-surface-variant prose-p:leading-relaxed
-          prose-a:text-primary prose-a:no-underline hover:prose-a:underline
-          prose-img:rounded-xl prose-img:shadow-md prose-img:mx-auto
-          prose-blockquote:border-l-primary prose-blockquote:bg-surface-variant/10 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg
-          ">
-          {{ article_content|safe }}
-      </article>
-  </div>
-</div>
+    <div class="max-w-4xl mx-auto">
+        <!-- Article Header -->
+        <div class="bg-surface dark:bg-surface-variant/20 rounded-t-3xl p-8 md:p-12 pb-6 space-y-6 shadow-sm  mb-px">
+            <h1 class="text-3xl md:text-4xl font-bold text-on-surface leading-tight tracking-tight">{{ arinfo['title'] }}</h1>
+            <div class="flex flex-wrap items-center justify-between gap-6 border-b border-surface-variant/20 pb-6">
+                <a href="/space/{{ arinfo['author']['mid'] }}"
+                   class="flex items-center gap-3 group">
+                    <img src="{{ arinfo['author']['face']|pic }}"
+                         alt="{{ arinfo['author']['name'] }}"
+                         class="w-12 h-12 rounded-full ring-2 ring-surface-variant group-hover:ring-primary transition-all object-cover" />
+                    <div>
+                        <div class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ arinfo['author']['name'] }}</div>
+                        <div class="text-xs text-on-surface-variant">{{ arinfo['publish_time']|date }}</div>
+                    </div>
+                </a>
+                <div class="flex gap-4 text-on-surface-variant text-sm font-medium">
+                    <div class="flex items-center gap-1.5">
+                        <i class="icon ion-ios-eye text-lg"></i> {{ arinfo['stats']['view']|intsep }}
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <i class="icon ion-ios-thumbs-up text-lg"></i> {{ arinfo['stats']['like']|intsep }}
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <i class="icon ion-logo-bitcoin text-lg"></i> {{ arinfo['stats']['coin']|intsep }}
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <i class="icon ion-ios-bookmark text-lg"></i> {{ arinfo['stats']['favorite']|intsep }}
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <i class="icon ion-md-share text-lg"></i> {{ arinfo['stats']['share']|intsep }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Article Content -->
+        <div class="bg-surface dark:bg-surface-variant/10 rounded-b-3xl p-8 md:p-12 shadow-sm ">
+            <article class="prose prose-lg dark:prose-invert max-w-none prose-headings:font-bold prose-headings:text-on-surface prose-p:text-on-surface-variant prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-img:rounded-xl prose-img:shadow-md prose-img:mx-auto prose-blockquote:border-l-primary prose-blockquote:bg-surface-variant/10 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg ">
+                {{ article_content|safe }}
+            </article>
+        </div>
+    </div>
 {% endblock %}

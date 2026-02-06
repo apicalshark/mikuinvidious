@@ -1,0 +1,38 @@
+<!-- Comments -->
+{% if not is_live %}
+    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm mb-6">
+        <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
+            <i class="icon ion-ios-chatbubbles"></i>
+            {{ '评论' }} ({{ vcomments['page']['count'] }})
+        </h3>
+        <div class="space-y-6">
+            {% if vcomments['replies'] %}
+                {% for rep in vcomments['replies'] %}
+                    <div class="flex gap-4 group">
+                        <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
+                            <img loading="lazy"
+                                 class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
+                                 src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
+                                 alt="" />
+                        </a>
+                        <div class="flex-grow space-y-1">
+                            <div class="flex items-baseline justify-between">
+                                <a href="/space/{{ rep['member']['mid'] }}"
+                                   class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
+                                <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
+                            </div>
+                            <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message'] }}</p>
+                            <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
+                                <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="text-center text-on-surface-variant py-8">{{ '暂无评论或评论加载失败' }}</p>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
+<!-- Recommendations (For Mobile Layout usually at bottom, but here we just return the block) -->
+<!-- We might need to inject this into the sidebar in the main template, but for now let's keep it simple -->
