@@ -23,7 +23,6 @@ services:
     environment:
       - SITE_NAME=MikuInvidious
       - SITE_URL=http://localhost:8000
-      - QUART_SECRET_KEY=yoursecretkey12345
       - HTTP_PROXY=socks5://warp:1080
       - HTTPS_PROXY=socks5://warp:1080
       - REDIS_URL=redis://redis:6379
