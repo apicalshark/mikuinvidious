@@ -14,11 +14,11 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
-import orjson
 import os
 import re
 import time
 
+import orjson
 import transformers
 from bilibili_api import article, audio, comment, homepage, live, live_area, opus, search, user, video, video_zone
 from extra import (
@@ -177,6 +177,10 @@ async def search_view():
     if m:
         return redirect(url_for("read_view", cid=m.group(0)))
 
+    m = re.search(r"bilibili\.com/opus/(\d+)", q, re.I)
+    if m:
+        return redirect(url_for("read_view", cid=f"opus{m.group(1)}"))
+
     # 3. Live
     m = re.search(r"live\.bilibili\.com/(\d+)", q)
     if m:
@@ -270,9 +274,7 @@ async def read_view(cid):
     client = await Network.get_async_client()
     req = None
     try:
-        ua = (
-            "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com) 8.76.0 os/android model/WTF mobi_app/android build/8760000 channel/not_found innerVer/8760010 osVer/15 network/2"
-        )
+        ua = "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com) 8.76.0 os/android model/WTF mobi_app/android build/8760000 channel/not_found innerVer/8760010 osVer/15 network/2"
         _req = client.build_request("GET", url, headers={"User-Agent": ua})
         req = await client.send(_req, follow_redirects=True)
         if req.status_code != 200:
@@ -520,10 +522,7 @@ async def video_listen_view(vid, idx=0):
     if isinstance(results[0], Exception) or results[0] is None:
         err_msg = str(results[0]) if results[0] else "B站返回了空的數據 (可能受到地區限制)"
         return await render_template_with_theme(
-            "error.html",
-            status="音频模式加载失败",
-            desc=err_msg,
-            suggest="該內容可能受到地區限制或已被下架。"
+            "error.html", status="音频模式加载失败", desc=err_msg, suggest="該內容可能受到地區限制或已被下架。"
         ), 404
 
     def is_valid(res):
@@ -602,9 +601,7 @@ async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
 
     await populate_dash_redis(vid, idx, dash_data)
     vinfo = await v.get_info()
-    m3u8_content = generate_vod_media_m3u8(
-        dash_data, media_type, qn, cid, vinfo.get("duration", 0), vid, idx
-    )
+    m3u8_content = generate_vod_media_m3u8(dash_data, media_type, qn, cid, vinfo.get("duration", 0), vid, idx)
     if not m3u8_content:
         return "Not Found", 404
     return Response(m3u8_content, content_type="application/vnd.apple.mpegurl")
@@ -711,33 +708,40 @@ async def api_component_player(vid, idx):
     # Actually macro only needs vinfo['pic']
     try:
         if ep_id:
-             from bilibili_api.utils.network import Api
-             api = Api("https://api.bilibili.com/pgc/view/web/season", "GET", verify=(not not (appcred and appcred.sessdata)), credential=appcred)
-             api.params = {"ep_id": ep_id}
-             pgc_data = await api.request()
-             res = pgc_data.get('result', pgc_data)
-             eps = res.get('episodes', [])
-             current_ep = next((e for e in eps if e['id'] == ep_id), None)
-             if not current_ep:
-                 for section in res.get('section', []):
-                     for ep in section.get('episodes', []):
-                         if ep['id'] == ep_id:
-                             current_ep = ep
-                             break
-                     if current_ep: break
-             
-             if current_ep:
-                 vinfo = {
-                     'pic': current_ep.get('cover') or res.get('cover'),
-                     'title': f"{res.get('title', '')} - {current_ep.get('title', '')}"
-                 }
-             else:
-                 vinfo = await v.get_info()
+            from bilibili_api.utils.network import Api
+
+            api = Api(
+                "https://api.bilibili.com/pgc/view/web/season",
+                "GET",
+                verify=(not not (appcred and appcred.sessdata)),
+                credential=appcred,
+            )
+            api.params = {"ep_id": ep_id}
+            pgc_data = await api.request()
+            res = pgc_data.get("result", pgc_data)
+            eps = res.get("episodes", [])
+            current_ep = next((e for e in eps if e["id"] == ep_id), None)
+            if not current_ep:
+                for section in res.get("section", []):
+                    for ep in section.get("episodes", []):
+                        if ep["id"] == ep_id:
+                            current_ep = ep
+                            break
+                    if current_ep:
+                        break
+
+            if current_ep:
+                vinfo = {
+                    "pic": current_ep.get("cover") or res.get("cover"),
+                    "title": f"{res.get('title', '')} - {current_ep.get('title', '')}",
+                }
+            else:
+                vinfo = await v.get_info()
         else:
             vinfo = await v.get_info()
     except Exception:
-        vinfo = {'pic': ''}
-        
+        vinfo = {"pic": ""}
+
     has_dash, supported_src = await get_play_info()
     is_live = False
 
@@ -820,25 +824,23 @@ async def video_view(vid, idx=0):
                 "error.html",
                 status="无法加载视频",
                 desc="B站返回：啥都木有 (-404)",
-                suggest="該影片可能已被刪除、審核中，或是受到地區限制（僅限港澳台）。"
+                suggest="該影片可能已被刪除、審核中，或是受到地區限制（僅限港澳台）。",
             ), 404
         return await render_template_with_theme(
-            "error.html",
-            status="视频加载出错",
-            desc=err_msg,
-            suggest="請嘗試刷新頁面，或檢查伺服器網路連接。"
+            "error.html", status="视频加载出错", desc=err_msg, suggest="請嘗試刷新頁面，或檢查伺服器網路連接。"
         ), 500
 
     def is_valid(res):
         return res is not None and not isinstance(res, Exception)
 
-    vinfo = results[0] # 此時 results[0] 肯定是有效的 vinfo 資料
+    vinfo = results[0]  # 此時 results[0] 肯定是有效的 vinfo 資料
     vtags = results[1] if is_valid(results[1]) else []
     vrelated = results[2] if is_valid(results[2]) else []
     vset = results[3] if is_valid(results[3]) else [{"page": 1, "part": vid}]
 
     # Pre-cache DASH URLs if proxy is enabled
     if appconf["proxy"]["use_proxy"]:
+
         async def precache_dash():
             try:
                 data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=4.0)
@@ -847,7 +849,7 @@ async def video_view(vid, idx=0):
                     await populate_dash_redis(vid, idx, data)
             except Exception as e:
                 print(f"[Video] Pre-cache DASH failed for {vid}: {e}")
-        
+
         asyncio.create_task(precache_dash())
 
     # Comments and Player are now loaded asynchronously

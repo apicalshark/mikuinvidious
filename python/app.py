@@ -71,6 +71,7 @@ async def set_hist_id(response):
 app.register_blueprint(proxy_bp)
 
 from views_bangumi import bangumi_bp
+
 app.register_blueprint(bangumi_bp)
 
 ##########################################
@@ -129,6 +130,8 @@ async def b32tv_redirect(b32tvid):
         url = urlparse(location)
         if url.path.startswith("/read/mobile"):
             return redirect(url_for("read_view", cid=f"cv{url.path[13:]}"))
+        elif url.path.startswith("/opus/"):
+            return redirect(url_for("read_view", cid=f"opus{url.path[6:]}"))
         elif url.path.startswith("/video/"):
             return redirect(url_for("video_view", vid=location.split("/")[-1][:12]))
         elif "/audio/au" in url.path:
