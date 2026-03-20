@@ -17,12 +17,12 @@ import asyncio
 import os
 import re
 import time
+from urllib.parse import quote
 
 import orjson
 import transformers
-from bilibili_api import article, audio, comment, homepage, live, live_area, opus, search, user, video, video_zone
+from bilibili_api import audio, comment, homepage, live, opus, search, user, video, video_zone
 from extra import (
-    article_to_any,
     article_to_html,
     av2bv,
     generate_vod_master_m3u8,
@@ -34,6 +34,7 @@ from extra import (
 )
 from quart import Response, redirect, request, url_for
 from shared import Network, app, appconf, appcred, appredis, render_template_with_theme
+from view_utils import is_valid, populate_dash_redis, safe_api
 
 
 @app.route("/live/chat/<int:room_id>")
@@ -98,33 +99,11 @@ async def live_chat_sse(room_id):
                 else:
                     yield f"data: {orjson.dumps(msg).decode('utf-8')}\n\n"
         except (asyncio.CancelledError, GeneratorExit):
-            print(f"[LiveChat] Client disconnected from room {room_id}")
-        except Exception as e:
-            print(f"[LiveChat] Unexpected error in event_stream for room {room_id}: {e}")
-        finally:
-            print(f"[LiveChat] Cleaning up resources for room {room_id}")
-            stop_event.set()
             hb_task.cancel()
             conn_task.cancel()
+            await asyncio.gather(hb_task, conn_task, return_exceptions=True)
 
-            async def cleanup():
-                try:
-                    await asyncio.gather(hb_task, conn_task, return_exceptions=True)
-                except Exception as e:
-                    print(f"[LiveChat] Error during task cancellation: {e}")
-
-            await asyncio.shield(cleanup())
-
-    return Response(
-        event_stream(),
-        content_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "Transfer-Encoding": "chunked",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    return Response(event_stream(), content_type="text/event-stream")
 
 
 @app.route("/licenses")
@@ -134,6 +113,9 @@ async def static_licenses_view():
 
 @app.route("/")
 async def home_view():
+    cached_home = await appredis.get("miku_home_cache")
+    if cached_home:
+        return await render_template_with_theme("home.html", videos=orjson.loads(cached_home))
     api_res = await homepage.get_videos()
     processed_videos = []
     raw_list = []
@@ -145,6 +127,7 @@ async def home_view():
         card = transformers.transform_video_card(v)
         if card:
             processed_videos.append(card)
+    await appredis.setex("miku_home_cache", 300, orjson.dumps(processed_videos))
     return await render_template_with_theme("home.html", videos=processed_videos)
 
 
@@ -239,7 +222,9 @@ async def search_view():
                 results.append(card)
     else:
         results = sinfo.get("result", [])
-    return await render_template_with_theme(tmpl, q=q, sinfo=sinfo, rs=results, sort=request.args.get("sort"))
+    return await render_template_with_theme(
+        tmpl, q=q, q_quoted=quote(q), sinfo=sinfo, rs=results, sort=request.args.get("sort")
+    )
 
 
 @app.route("/space/<mid>")
@@ -258,94 +243,83 @@ async def author_view(mid):
     return await render_template_with_theme("author.html", uinfo=uinfo, uarts=uarticles)
 
 
-@app.route("/read/<cid>")
-@app.route("/read/<cid>/")
-@app.route("/read/mobile/<cid>")
-@app.route("/read/mobile/<cid>/")
+@app.route("/read/cv<int:cid>")
+@app.route("/read/cv<int:cid>/")
+async def read_view_old(cid):
+    return redirect(url_for("read_view", cid=f"cv{cid}"))
+
+
 @app.route("/opus/<cid>")
 @app.route("/opus/<cid>/")
 async def read_view(cid):
     is_opus = "opus" in request.path or not cid.startswith("cv")
     url = (
-        f"https://www.bilibili.com/opus/{cid.replace('opus', '')}"
+        f"https://www.bilibili.com/opus/{cid[4:] if cid.startswith('opus') else cid}"
         if is_opus
         else f"https://www.bilibili.com/read/{cid}"
     )
+
     client = await Network.get_async_client()
     req = None
     try:
-        ua = "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com) 8.76.0 os/android model/WTF mobi_app/android build/8760000 channel/not_found innerVer/8760010 osVer/15 network/2"
+        ua = "Mozilla/5.0 (Linux; Android 15; Pixel 9 Pro Build/AD1A.240905.004; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/133.0.6943.128 Mobile Safari/537.36 BiliApp/8.76.0 mobi_app/android build/8760000 channel/not_found innerVer/8760010 osVer/15 network/2"
         _req = client.build_request("GET", url, headers={"User-Agent": ua})
         req = await client.send(_req, follow_redirects=True)
-        if req.status_code != 200:
-            return await render_template_with_theme(
-                "error.html",
-                status="没有找到文章" if req.status_code == 404 else "服务器错误",
-                desc="后端服务器发送了无效的回复",
-                suggest="这很可能说明您访问的文章不存在，请检查您的请求。" if req.status_code == 404 else None,
-            ), req.status_code
-
-        if (
-            appconf["render"]["use_pandoc"]
-            and request.args.get("format") in appconf["render"]["article_allowed_formats"]
-        ):
-            return await article_to_any(req.text, request.args.get("format"))
-        else:
-            cvid = cid.replace("cv", "").replace("opus", "")
-            try:
-                arinfo = get_article_info(req.text, cid)
-                try:
-                    if is_opus:
-                        o = opus.Opus(int(cvid))
-                        api_info = await o.get_info()
-                        for module in api_info.get("item", {}).get("modules", []):
-                            if module.get("module_stat"):
-                                stat = module["module_stat"]
-                                arinfo["stats"]["like"] = stat.get("like", {}).get("count", arinfo["stats"]["like"])
-                                arinfo["stats"]["coin"] = stat.get("coin", {}).get("count", arinfo["stats"]["coin"])
-                                arinfo["stats"]["favorite"] = stat.get("favorite", {}).get(
-                                    "count", arinfo["stats"]["favorite"]
-                                )
-                                arinfo["stats"]["share"] = stat.get("forward", {}).get(
-                                    "count", arinfo["stats"]["share"]
-                                )
-                    else:
-                        ar = article.Article(int(cvid))
-                        api_info = await ar.get_info()
-                        if api_info.get("stats"):
-                            arinfo["stats"].update(api_info["stats"])
-                        if api_info.get("title") and not arinfo["title"]:
-                            arinfo["title"] = api_info["title"]
-                except Exception:
-                    pass
+        if req.status_code == 200:
+            if is_opus:
+                o = opus.Opus(cid[4:] if cid.startswith("opus") else cid)
+                oinfo = await o.get_info()
+                content = oinfo.get("content", {})
+                processed_html = ""
+                for p in content.get("paragraphs", []):
+                    p_type = p.get("para_type")
+                    if p_type == 1:
+                        processed_html += transformers.format_description(p.get("text", ""))
+                    elif p_type == 2:
+                        for pic in p.get("pics", []):
+                            processed_html += f'<img src="{pic.get("url")}|pic" />'
                 return await render_template_with_theme(
-                    "read.html", cid=cid, arinfo=arinfo, article_content=article_to_html(req.text), is_opus=is_opus
+                    "read.html", title=f"Opus {cid}", content=processed_html, author=oinfo.get("author", {})
                 )
-            except Exception:
+            else:
+                arinfo = get_article_info(req.text, cid)
+                if not arinfo:
+                    return await render_template_with_theme(
+                        "error.html",
+                        status="解析失败",
+                        desc="无法从页面提取文章信息。",
+                        sg="请检查文章是否已被删除或仅限特定端查看。",
+                    )
+
+                article_data = arinfo.get("readInfo", {})
                 return await render_template_with_theme(
-                    "error.html",
-                    status="没有找到文章",
-                    desc="文章不存在或解析错误",
-                    sg="这很可能说明您访问的文章不存在，请检查您的请求。",
-                ), 404
+                    "read.html",
+                    title=article_data.get("title", "Article"),
+                    content=article_to_html(req.text),
+                    author=article_data.get("author", {}),
+                    banner=article_data.get("banner_url"),
+                    stats=article_data.get("stats", {}),
+                )
+        else:
+            return await render_template_with_theme(
+                "error.html", status=f"HTTP {req.status_code}", desc="B站返回了错误代码。"
+            )
     except Exception as e:
-        print(f"[Read] Error fetching article {url}: {e}")
-        return await render_template_with_theme(
-            "error.html", status="网络错误", desc=str(e), suggest="请检查您的网络连接或代理设置。"
-        ), 500
+        print(f"[Read] Error fetching {cid}: {e}")
+        return await render_template_with_theme("error.html", status="网络错误", desc=str(e)), 500
     finally:
         if req:
             await req.aclose()
 
 
 @app.route("/live")
-async def live_list_view():
-    page = request.args.get("i", 1)
+@app.route("/live/")
+async def live_home_view():
     try:
-        data = await live_area.get_list_by_area(area_id=9, page=page)
+        api_res = await live.get_rooms()
         rooms = []
-        for item in data.get("list", []):
-            card = transformers.transform_live_card(item)
+        for r in api_res:
+            card = transformers.transform_live_card(r)
             if card:
                 rooms.append(card)
         return await render_template_with_theme("home.html", videos=rooms, title="直播")
@@ -357,82 +331,36 @@ async def live_list_view():
 async def live_room_view(room_id):
     try:
         room_id_int = int(room_id)
-        room = live.LiveRoom(room_id_int, credential=appcred)
+        l_room = live.LiveRoom(room_id_int, credential=appcred)
+        info = await l_room.get_room_info()
+        if not info:
+            return await render_template_with_theme("error.html", status="直播间不存在", desc="无法找到该直播间"), 404
 
-        # Get basic room info first
-        info_data = await room.get_room_info()
-
-        # Prioritize FLV for live streams as requested
-        try:
-            play_data = await room.get_room_play_info_v2(
-                live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV
-            )
-        except Exception:
-            play_data = await room.get_room_play_info_v2(
-                live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4
-            )
-
-        info = transformers.transform_live_room(info_data)
+        play_data = await l_room.get_play_url()
         qn_list = play_data.get("play_url", {}).get("g_qn_desc", []) or [{"qn": 0, "desc": "默认"}]
 
         async def get_and_cache_qn(qn_val, qn_name):
             try:
-                # Wrap qn_val to satisfy bilibili-api's requirement for an Enum-like object with .value
-                wrapped_qn = type("QN", (), {"value": qn_val})()
-                # Try FLV first
-                q_data = await room.get_room_play_info_v2(
-                    live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV, live_qn=wrapped_qn
-                )
-                stream = q_data.get("play_url", {}).get("stream", [])
-                url = None
-                for s in stream:
-                    for f in s.get("format", []):
-                        for c in f.get("codec", []):
-                            url = c.get("url") or c.get("base_url")
-                            if url:
-                                break
-                        if url:
-                            break
-                    if url:
-                        break
 
-                if not url:
-                    # Fallback to HLS if FLV fails
-                    q_data = await room.get_room_play_info_v2(
-                        live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4, live_qn=wrapped_qn
-                    )
-                    stream = q_data.get("play_url", {}).get("stream", [])
-                    for s in stream:
-                        for f in s.get("format", []):
-                            for c in f.get("codec", []):
-                                url = c.get("url") or c.get("base_url")
-                                if url:
-                                    break
-                            if url:
-                                break
-                        if url:
-                            break
+                class Qn:
+                    def __init__(self, v):
+                        self.value = v
 
+                url = await l_room.get_play_url(qn=Qn(qn_val))
                 if url:
-                    print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
                     await appredis.setex(f"miku_live_{room_id}_{qn_val}", 1800, url)
                     return {"quality": qn_val, "new_description": qn_name, "url": url}
-            except Exception as e:
-                print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
+            except Exception:
+                pass
             return None
 
         q_results = await asyncio.gather(*[get_and_cache_qn(d["qn"], d["desc"]) for d in qn_list])
         supported_src = [r for r in q_results if r]
 
-        if supported_src:
-            # Set default quality as well
-            await appredis.setex(f"miku_live_{room_id}", 1800, supported_src[0]["url"])
-        else:
-            # Final desperate fallback
+        if not supported_src:
             try:
-                fb_info = await room.get_room_play_url()
-                if "durl" in fb_info and fb_info["durl"]:
-                    u = fb_info["durl"][0]["url"]
+                u = await l_room.get_play_url()
+                if u:
                     await appredis.setex(f"miku_live_{room_id}", 1800, u)
                     supported_src = [{"quality": "default", "new_description": "默认", "url": u}]
             except Exception:
@@ -444,11 +372,12 @@ async def live_room_view(room_id):
             "pic": info["pic"],
             "owner": {"name": info["uname"], "mid": info["uid"], "face": info["face"]},
             "stat": {"view": info["online"], "like": 0, "coin": 0, "favorite": 0, "share": 0},
-            "pubdate": info["start_time"],
+            "pubdate": info["live_start_time"],
             "bvid": str(room_id),
-            "tid": 0,
-            "tname": info["area_name"],
+            "cid": 0,
+            "duration": "LIVE",
         }
+
         return await render_template_with_theme(
             "video.html",
             vid=str(room_id),
@@ -466,88 +395,8 @@ async def live_room_view(room_id):
         return await render_template_with_theme("error.html", status="直播错误", desc=str(e)), 500
 
 
-async def populate_dash_redis(vid, idx, dash_data):
-    """Populate individual DASH segment URLs into Redis for the proxy."""
-    if not dash_data or "dash" not in dash_data:
-        return
-    for mt in ["video", "audio"]:
-        tracks = dash_data["dash"].get(mt, [])
-        if mt == "audio" and not tracks and "flac" in dash_data["dash"]:
-            tracks = dash_data["dash"]["flac"].get("audio", [])
-        for item in tracks:
-            url = item.get("baseUrl") or item.get("base_url")
-            # qn is 'id', cid is 'codecid'
-            qn = item.get("id")
-            cid = item.get("codecid") or 0
-            if url and qn is not None:
-                await appredis.setex(f"miku_dash_url_{vid}_{idx}_{mt}_{qn}_{cid}", 1800, url)
-
-
-@app.route("/video_listen/<vid>")
-@app.route("/video_listen/<vid>:<idx>")
-@app.route("/video_listen/<vid>/")
-@app.route("/video_listen/<vid>:<idx>/")
-async def video_listen_view(vid, idx=0):
-    ato, idx = request.args.get("ato") == "1", int(idx)
-    vid = av2bv(vid[2:]) if vid.startswith("av") else vid
-    v = video.Video(bvid=vid, credential=appcred)
-
-    async def get_audio_url():
-        if not await appredis.exists(f"mikuinv_{vid}_{idx}_0"):
-            try:
-                vsrc = await video_get_dash_for_qn(v, idx)
-                if "dash" in vsrc and "audio" in vsrc["dash"] and vsrc["dash"]["audio"]:
-                    await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc["dash"]["audio"][0]["baseUrl"])
-                    return
-            except Exception:
-                pass
-            try:
-                vsrc_fallback = await video_get_src_for_qn(v, idx, 16)
-                if "durl" in vsrc_fallback and vsrc_fallback["durl"]:
-                    await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc_fallback["durl"][0]["url"])
-            except Exception:
-                pass
-
-    results = await asyncio.gather(
-        v.get_info(),
-        v.get_tags(idx),
-        v.get_related(),
-        comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE),
-        v.get_pages(),
-        get_audio_url(),
-        return_exceptions=True,
-    )
-
-    # 核心數據檢查
-    if isinstance(results[0], Exception) or results[0] is None:
-        err_msg = str(results[0]) if results[0] else "B站返回了空的數據 (可能受到地區限制)"
-        return await render_template_with_theme(
-            "error.html", status="音频模式加载失败", desc=err_msg, suggest="該內容可能受到地區限制或已被下架。"
-        ), 404
-
-    def is_valid(res):
-        return res is not None and not isinstance(res, Exception)
-
-    vinfo = results[0]
-    vtags = results[1] if is_valid(results[1]) else []
-    vrelated = results[2] if not isinstance(results[2], Exception) else []
-    vcomments = results[3] if not isinstance(results[3], Exception) else {"page": {"count": 0}, "replies": []}
-    vset = results[4] if not isinstance(results[4], Exception) else [{"page": 1, "part": vid}]
-    return await render_template_with_theme(
-        "video_listen.html",
-        vid=vid,
-        vinfo=vinfo,
-        vrelated=vrelated[:10],
-        vcomments=vcomments,
-        keywords=",".join(x.get("tag_name", "") for x in vtags),
-        ato=ato,
-        idx=idx,
-        vset=vset,
-    )
-
-
-@app.route("/video/dash/<vid>/<int:idx>/manifest.mpd")
-async def video_dash_manifest_view(vid, idx):
+@app.route("/video/dash/<vid>/<int:idx>.mpd")
+async def video_dash_mpd_view(vid, idx):
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
     if dash_cache:
@@ -607,9 +456,6 @@ async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
     return Response(m3u8_content, content_type="application/vnd.apple.mpegurl")
 
 
-# --- ASYNC COMPONENT API ---
-
-
 @app.route("/api/component/player/<vid>/<int:idx>")
 async def api_component_player(vid, idx):
     v = video.Video(bvid=vid, credential=appcred)
@@ -619,11 +465,9 @@ async def api_component_player(vid, idx):
     else:
         ep_id = None
 
-    # Task to get play URLs (DASH and Fallback) - RACE MODE REUSED
     async def get_play_info():
         has_dash, v_supported_src = False, []
 
-        # 0. Check Cache First
         cached_dash = await appredis.get(f"miku_dash_{vid}_{idx}")
         if cached_dash:
             try:
@@ -692,7 +536,7 @@ async def api_component_player(vid, idx):
                         if v_supported_src:
                             first_qn = v_supported_src[0]["quality"]
                             if not await appredis.exists(f"mikuinv_{vid}_{idx}_{first_qn}"):
-                                asyncio.create_task(video_get_src_for_qn(v, idx, first_qn))  # Fire and forget
+                                asyncio.create_task(video_get_src_for_qn(v, idx, first_qn))
                         return has_dash, v_supported_src
                     elif result_type == "fallback" and result_data:
                         v_supported_src = [
@@ -704,21 +548,16 @@ async def api_component_player(vid, idx):
                     continue
         return False, []
 
-    # Get Info again briefly just for the macro context (cached by request usually)
-    # Actually macro only needs vinfo['pic']
     try:
         if ep_id:
             from bilibili_api.utils.network import Api
 
             api = Api(
-                "https://api.bilibili.com/pgc/view/web/season",
-                "GET",
-                verify=(not not (appcred and appcred.sessdata)),
-                credential=appcred,
+                "https://api.bilibili.com/pgc/view/web/season", "GET", verify=(not not appcred), credential=appcred
             )
             api.params = {"ep_id": ep_id}
-            pgc_data = await api.request()
-            res = pgc_data.get("result", pgc_data)
+            data = await api.request()
+            res = data.get("result", data)
             eps = res.get("episodes", [])
             current_ep = next((e for e in eps if e["id"] == ep_id), None)
             if not current_ep:
@@ -758,12 +597,6 @@ async def api_component_player(vid, idx):
 
 @app.route("/api/component/meta/<vid>/<int:idx>")
 async def api_component_meta(vid, idx):
-    async def safe_api(coro, timeout=4.0):
-        try:
-            return await asyncio.wait_for(coro, timeout=timeout)
-        except Exception:
-            return None
-
     tasks = [
         safe_api(comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), 4.0),
     ]
@@ -773,6 +606,65 @@ async def api_component_meta(vid, idx):
     )
 
     return await render_template_with_theme("components/meta_part.html", vid=vid, vcomments=vcomments, is_live=False)
+
+
+@app.route("/video_listen/<vid>")
+@app.route("/video_listen/<vid>:<idx>")
+@app.route("/video_listen/<vid>/")
+@app.route("/video_listen/<vid>:<idx>/")
+async def video_listen_view(vid, idx=0):
+    idx, ato = int(idx), request.args.get("ato") == "1"
+    vid = av2bv(vid[2:]) if vid.startswith("av") else vid
+    v = video.Video(bvid=vid, credential=appcred)
+
+    async def get_audio_url():
+        if not await appredis.exists(f"mikuinv_{vid}_{idx}_0"):
+            try:
+                vsrc = await video_get_dash_for_qn(v, idx)
+                if "dash" in vsrc and "audio" in vsrc["dash"] and vsrc["dash"]["audio"]:
+                    await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc["dash"]["audio"][0]["baseUrl"])
+                    return
+            except Exception:
+                pass
+            try:
+                vsrc_fallback = await video_get_src_for_qn(v, idx, 16)
+                if "durl" in vsrc_fallback and vsrc_fallback["durl"]:
+                    await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc_fallback["durl"][0]["url"])
+            except Exception:
+                pass
+
+    results = await asyncio.gather(
+        v.get_info(),
+        v.get_tags(idx),
+        v.get_related(),
+        comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE),
+        v.get_pages(),
+        get_audio_url(),
+        return_exceptions=True,
+    )
+
+    if isinstance(results[0], Exception) or results[0] is None:
+        err_msg = str(results[0]) if results[0] else "B站返回了空的數據 (可能受到地區限制)"
+        return await render_template_with_theme(
+            "error.html", status="音频模式加载失败", desc=err_msg, suggest="該內容可能受到地區限制或已被下架。"
+        ), 404
+
+    vinfo = results[0]
+    vtags = results[1] if is_valid(results[1]) else []
+    vrelated = results[2] if not isinstance(results[2], Exception) else []
+    vcomments = results[3] if not isinstance(results[3], Exception) else {"page": {"count": 0}, "replies": []}
+    vset = results[4] if not isinstance(results[4], Exception) else [{"page": 1, "part": vid}]
+    return await render_template_with_theme(
+        "video_listen.html",
+        vid=vid,
+        vinfo=vinfo,
+        vrelated=vrelated[:15],
+        vcomments=vcomments,
+        keywords=",".join(x.get("tag_name", "") for x in vtags),
+        ato=ato,
+        idx=idx,
+        vset=vset,
+    )
 
 
 @app.route("/video/<vid>")
@@ -787,7 +679,6 @@ async def video_view(vid, idx=0):
     vid = av2bv(vid[2:]) if vid.startswith("av") else vid
     v = video.Video(bvid=vid, credential=appcred)
 
-    # Pre-caching history
     try:
         hist_id = request.cookies.get("hist_id") or os.urandom(8).hex()
         hist_key = f"miku_hist_{hist_id}"
@@ -798,13 +689,6 @@ async def video_view(vid, idx=0):
     except Exception:
         pass
 
-    # LIGHTWEIGHT FETCH ONLY
-    async def safe_api(coro, timeout=4.0):
-        try:
-            return await asyncio.wait_for(coro, timeout=timeout)
-        except Exception:
-            return None
-
     tasks = [
         safe_api(v.get_info(), 4.0),
         safe_api(v.get_tags(idx), 2.0),
@@ -814,11 +698,9 @@ async def video_view(vid, idx=0):
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # 檢查核心數據是否獲取成功
     if isinstance(results[0], Exception) or results[0] is None:
         err_msg = str(results[0]) if results[0] else "B站返回了空的數據 (可能受到地區限制)"
         print(f"[Video] Error fetching info for {vid}: {err_msg}")
-        # 如果是 404 或 啥都木有，顯示友好提示
         if "啥都木有" in err_msg or "-404" in err_msg:
             return await render_template_with_theme(
                 "error.html",
@@ -830,15 +712,11 @@ async def video_view(vid, idx=0):
             "error.html", status="视频加载出错", desc=err_msg, suggest="請嘗試刷新頁面，或檢查伺服器網路連接。"
         ), 500
 
-    def is_valid(res):
-        return res is not None and not isinstance(res, Exception)
-
-    vinfo = results[0]  # 此時 results[0] 肯定是有效的 vinfo 資料
+    vinfo = results[0]
     vtags = results[1] if is_valid(results[1]) else []
     vrelated = results[2] if is_valid(results[2]) else []
     vset = results[3] if is_valid(results[3]) else [{"page": 1, "part": vid}]
 
-    # Pre-cache DASH URLs if proxy is enabled
     if appconf["proxy"]["use_proxy"]:
 
         async def precache_dash():
@@ -852,7 +730,6 @@ async def video_view(vid, idx=0):
 
         asyncio.create_task(precache_dash())
 
-    # Comments and Player are now loaded asynchronously
     vcomments = {"page": {"count": 0}, "replies": []}
     supported_src = []
     has_dash = False
@@ -1016,8 +893,8 @@ async def history_view():
 
     async def get_v_info(bvid):
         try:
-            v = video.Video(bvid=bvid)
-            return await v.get_info()
+            v_obj = video.Video(bvid=bvid)
+            return await v_obj.get_info()
         except Exception:
             return None
 

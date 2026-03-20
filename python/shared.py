@@ -7,10 +7,9 @@ import redis.asyncio as redis
 import toml
 from bilibili_api import Credential
 from bilibili_api.utils.network import request_settings
+from flask_orjson import OrjsonProvider
 from quart import Quart, render_template, request
 from quart_session import Session
-from flask_orjson import OrjsonProvider
-
 
 COMMON_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",

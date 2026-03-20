@@ -1,11 +1,11 @@
 import asyncio
 import uuid
-from urllib.parse import urlparse
 
 import httpx
 from live_manager import live_manager
+from proxy_utils import get_cookie_jar, get_forwarded_headers, get_target_url
 from quart import Blueprint, Response, request
-from shared import COMMON_HEADERS, Network, appconf, appredis, image_limiter
+from shared import Network, appconf, appredis, image_limiter
 
 proxy_bp = Blueprint("proxy", __name__)
 
@@ -18,7 +18,7 @@ async def render_proxy_pic(req_path):
         if not (domain.endswith(".hdslb.com") or domain.endswith(".biliimg.com")):
             return Response("Forbidden", status=403)
 
-        headers = COMMON_HEADERS.copy()
+        headers = get_forwarded_headers(request.headers)
         url = f"https://{req_path}"
 
         client = await Network.get_async_client()
@@ -45,8 +45,6 @@ async def render_proxy_pic(req_path):
             print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
             return Response(str(e), status=502)
         finally:
-            # This will run on exceptions and cancellations, ensuring no leak
-            # if the function exits before ownership is transferred.
             if resp:
                 await resp.aclose()
 
@@ -60,8 +58,6 @@ class ProxyResponse(Response):
     def __init__(self, upstream_resp, *args, **kwargs):
         self.upstream_resp = upstream_resp
 
-        # Create a generator that yields from the upstream response
-        # and ensures it's closed when the generator is finished.
         async def response_generator():
             try:
                 async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
@@ -70,10 +66,9 @@ class ProxyResponse(Response):
                 print(f"[Proxy] Upstream connection dropped prematurely: {e}")
             except Exception as e:
                 print(f"[Proxy] Stream error: {e}")
-                raise  # Re-raise other unexpected errors
+                raise
             finally:
                 await self.upstream_resp.aclose()
-                print(f"[Proxy] Upstream connection closed.")
 
         super().__init__(response_generator(), *args, **kwargs)
 
@@ -90,22 +85,14 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     if not url:
         return Response("Not Found", status=404)
 
-    if isinstance(url, bytes):
+    if isinstance(url, (bytes, bytearray)):
         url = url.decode()
-    urlp = urlparse(url)
 
     if not appconf["proxy"]["use_proxy"]:
         return Response("Forbidden: Proxying is disabled.", status=403)
 
-    creds = appconf["credential"]
-    cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
-
-    headers = COMMON_HEADERS.copy()
-
-    # Forward headers from client (crucial for Range requests from hls.js)
-    for k, v in request.headers.items():
-        if k.lower() in ["range", "if-range", "x-playback-session-id"]:
-            headers[k.lower()] = v
+    cookie_jar = get_cookie_jar()
+    headers = get_forwarded_headers(request.headers)
 
     client = await Network.get_async_client()
     resp = None
@@ -115,11 +102,9 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
         proxy_resp = ProxyResponse(resp, status=resp.status_code)
 
-        # Ensure cleanup if response is not started
         try:
             proxy_resp.call_on_close(resp.aclose)
         except AttributeError:
-            # Older versions of Quart might not have call_on_close
             pass
 
         for k, v in resp.headers.items():
@@ -134,7 +119,6 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             ]:
                 proxy_resp.headers[k] = v
 
-        # Ensure correct MIME type for fMP4
         if media_type == "video":
             proxy_resp.headers["Content-Type"] = "video/mp4"
         else:
@@ -156,44 +140,20 @@ async def proxy_main(subpath):
 
     if req_path.startswith("/proxy/video/") or req_path.startswith("/proxy/live/"):
         is_live = "/proxy/live/" in req_path
-        try:
-            if is_live:
-                parts = req_path.removeprefix("/proxy/live/").split("?")[0].split("_")
-                room_id = parts[0]
-                vqn = parts[1] if len(parts) > 1 else "default"
-                redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
-                url = await appredis.get(redis_key)
-                if not url and vqn == "default":
-                    fallback_keys = await appredis.keys(f"miku_live_{room_id}_*")
-                    if fallback_keys:
-                        url = await appredis.get(fallback_keys[0])
-            else:
-                vid, vidx, vqn = req_path.removeprefix("/proxy/video/").split("_")
-                url = await appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
-        except ValueError:
-            return Response("Bad Request", status=400)
+        url, info = await get_target_url(req_path)
 
         if not url:
             return Response("Not Found", status=404)
 
-        if isinstance(url, bytes):
+        if isinstance(url, (bytes, bytearray)):
             url = url.decode()
-        urlp = urlparse(url)
 
         if not appconf["proxy"]["use_proxy"]:
             return Response("Forbidden: Proxying is disabled.", status=403)
 
-        creds = appconf["credential"]
-        cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
+        cookie_jar = get_cookie_jar()
+        headers = get_forwarded_headers(request.headers)
 
-        headers = COMMON_HEADERS.copy()
-
-        # Forward headers from client
-        for k, v in request.headers.items():
-            if k.lower() in ["range", "if-range", "x-playback-session-id"]:
-                headers[k.lower()] = v
-
-        # SPECIAL HANDLING FOR LIVE FLV (Muxing/Multiplexing via LiveManager)
         if is_live and ".m3u8" not in url:
             client_id = request.args.get("cid") or str(uuid.uuid4())
             stream, q = await live_manager.subscribe(url, headers, cookie_jar, client_id)
@@ -205,18 +165,14 @@ async def proxy_main(subpath):
                 try:
                     while True:
                         try:
-                            # Use a reasonable timeout (15s) for keep-alive
                             chunk = await asyncio.wait_for(q.get(), timeout=15.0)
                             if chunk is None:
                                 break
                             yield chunk
                         except asyncio.TimeoutError:
-                            # Send a minimal valid FLV Script Data tag if we have already sent headers
                             if stream.header_ready.is_set():
-                                # Type 18, Size 0, Time 0, PrevSize 11
                                 yield b"\x12\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0b"
                             else:
-                                # Still waiting for upstream? Send nothing to avoid corruption
                                 continue
                 except (asyncio.CancelledError, GeneratorExit):
                     reason = "Client disconnected"
@@ -235,30 +191,25 @@ async def proxy_main(subpath):
             proxy_resp.headers["X-Accel-Buffering"] = "no"
             return proxy_resp
 
-        # DIRECT PROXY FOR VOD AND HLS LIVE
         client = await Network.get_async_client()
         resp = None
 
         try:
-            # Send the request and get the response stream
             proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
             resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-            print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
 
             proxy_resp = ProxyResponse(resp, status=resp.status_code)
 
-            # Ensure cleanup if response is not started
             try:
                 proxy_resp.call_on_close(resp.aclose)
             except AttributeError:
                 pass
 
             if request.args.get("dl") == "1" and not is_live:
-                # Ensure filename is safe (alphanumeric + underscores)
+                vid, vidx, vqn = info
                 safe_vid = "".join(c for c in vid if c.isalnum() or c == "_")
                 proxy_resp.headers["Content-Disposition"] = f'attachment; filename="miku_{safe_vid}_p{vidx}_{vqn}.mp4"'
 
-            # Set appropriate content type and connection headers for live streams (Step 3)
             if is_live:
                 proxy_resp.headers["Connection"] = "keep-alive"
                 proxy_resp.headers["Keep-Alive"] = "timeout=10800"
@@ -297,7 +248,6 @@ async def proxy_main(subpath):
 
 @proxy_bp.route("/proxy/live/disconnect", methods=["POST", "GET"])
 async def proxy_live_disconnect():
-    """Manual disconnect ping for live streams to clean up resources immediately."""
     room_id = request.args.get("room_id")
     vqn = request.args.get("vqn", "default")
     client_id = request.args.get("cid")
@@ -309,7 +259,7 @@ async def proxy_live_disconnect():
     url = await appredis.get(redis_key)
 
     if url:
-        if isinstance(url, bytes):
+        if isinstance(url, (bytes, bytearray)):
             url = url.decode()
         if url in live_manager.streams:
             live_manager.streams[url].remove_client(client_id, reason="Client Ping")

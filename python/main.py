@@ -14,13 +14,13 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import sys
+
+# Import app to ensure it's initialized and hooks are registered
+import app as app_module  # noqa: F401
 from granian import Granian
 from granian.constants import Interfaces, Loops, TaskImpl
 from granian.http import HTTP1Settings, HTTP2Settings
 from shared import appconf
-
-# Import app to ensure it's initialized and hooks are registered
-import app as app_module  # noqa: F401
 
 
 def main():

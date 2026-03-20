@@ -34,6 +34,8 @@ from shared import (
     render_template_with_theme,
 )
 
+from .views_bangumi import bangumi_bp
+
 
 async def monitor_fd():
     while True:
@@ -70,7 +72,6 @@ async def set_hist_id(response):
 
 app.register_blueprint(proxy_bp)
 
-from views_bangumi import bangumi_bp
 
 app.register_blueprint(bangumi_bp)
 

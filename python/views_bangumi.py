@@ -1,23 +1,24 @@
-from quart import Blueprint, request, jsonify
-import shared
-from bilibili_api import bangumi
-from nyaa import search_nyaa
 import asyncio
-import re
-import json
 import os
+import re
 from datetime import datetime
-from extra import av2bv
+
+import orjson
+import shared
 import zhconv
+from bilibili_api import bangumi
+from extra import av2bv
+from nyaa import search_nyaa
+from quart import Blueprint, jsonify, request
 
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
 
 # 加載篩選器配置
 params_path = os.path.join(os.path.dirname(bangumi.__file__), "data", "bangumi_index_params.json")
 try:
-    with open(params_path, "r", encoding="utf-8") as f:
-        INDEX_PARAMS = json.load(f)
-except:
+    with open(params_path, encoding="utf-8") as f:
+        INDEX_PARAMS = orjson.loads(f.read())
+except Exception:
     INDEX_PARAMS = {}
 
 
@@ -186,7 +187,7 @@ async def bangumi_play(ep_id):
                 if v == "--" or v is None:
                     return default
                 return int(v)
-            except:
+            except Exception:
                 return default
 
         # Construct vinfo for video.html
