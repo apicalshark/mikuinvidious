@@ -76,7 +76,9 @@ appconf = {
     "site": {
         "site_name": os.environ.get("SITE_NAME", "MikuInvidious"),
         "site_url": os.environ.get("SITE_URL", "https://example.org"),
-        "site_modified_source_code_url": os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "") if os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "").lower() not in ["false", ""] else False,
+        "site_modified_source_code_url": os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "")
+        if os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "").lower() not in ["false", ""]
+        else False,
         "site_allow_download": os.environ.get("SITE_ALLOW_DOWNLOAD", "true").lower() == "true",
         "site_show_unsafe_error_response": os.environ.get("SITE_SHOW_UNSAFE_ERROR_RESPONSE", "false").lower() == "true",
         "nyaa_bangumi": os.environ.get("NYAA_BANGUMI", "false").lower() == "true",
@@ -230,4 +232,6 @@ if appconf["proxy"]["use_proxy"]:
         print(f"[Init] Setting global proxy for bilibili_api: {proxy_url}")
         request_settings.set_proxy(proxy_url)
     else:
-        print("[Init] Proxy enabled but no proxy URL found in config.toml or env vars! Falling back to direct connection.")
+        print(
+            "[Init] Proxy enabled but no proxy URL found in config.toml or env vars! Falling back to direct connection."
+        )

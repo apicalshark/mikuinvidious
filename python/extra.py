@@ -306,7 +306,7 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
         credential=vi.credential,
     )
     api.params = {"avid": vi.get_aid(), "cid": cid, "qn": quality, "platform": "html5", "high_quality": 1}
-    
+
     # Try standard UGC API first
     res = {}
     try:
@@ -325,9 +325,9 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
                         "buvid3": vi.credential.buvid3,
                         "DedeUserID": vi.credential.dedeuserid,
                     }
-                
+
                 pgc_params = api.params.copy()
-                
+
                 # [Fix] Extract ep_id from redirect_url for PGC, unless provided
                 if not ep_id:
                     try:
@@ -339,7 +339,7 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
                                 ep_id = ep_match.group(1)
                     except Exception:
                         pass
-                
+
                 if ep_id:
                     pgc_params["ep_id"] = ep_id
                 pgc_res_raw = await client.get(
@@ -348,9 +348,9 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
                     cookies=cookies,
                     headers={
                         "Referer": "https://www.bilibili.com",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
                     },
-                    follow_redirects=True
+                    follow_redirects=True,
                 )
                 pgc_res = pgc_res_raw.json()
                 if pgc_res and pgc_res.get("code") == 0:
@@ -371,8 +371,8 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
     # Fallback to PGC if UGC -404 (in case it didn't raise but returned error dict, though likely it raised)
     if res.get("code") == -404:
         # ... logic for non-raising client ...
-        pass # Already handled in except block ideally, but kept for safety if api client changes behavior
-             
+        pass  # Already handled in except block ideally, but kept for safety if api client changes behavior
+
     # Clean standard UGC return
     if "data" in res:
         return res["data"]
@@ -391,7 +391,7 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None):
         credential=vi.credential,
     )
     api.params = {"avid": vi.get_aid(), "cid": cid, "fnval": "4048", "platform": "html5", "high_quality": 1}
-    
+
     res = {}
     try:
         res = await api.request()
@@ -408,11 +408,11 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None):
                         "buvid3": vi.credential.buvid3,
                         "DedeUserID": vi.credential.dedeuserid,
                     }
-                
+
                 # PGC PlayURL parameters (same as original + module=bangumi maybe?)
                 # Note: api.params was set above. We reuse it but cleaned.
                 pgc_params = api.params.copy()
-                
+
                 # [Fix] Extract ep_id from redirect_url for PGC, unless provided
                 if not ep_id:
                     try:
@@ -424,11 +424,10 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None):
                                 ep_id = ep_match.group(1)
                     except Exception:
                         pass
-                
+
                 if ep_id:
                     pgc_params["ep_id"] = ep_id
-                
-                
+
                 # print(f"[Debug] PGC Params: {pgc_params}")
                 pgc_res_raw = await client.get(
                     "https://api.bilibili.com/pgc/player/web/playurl",
@@ -436,19 +435,19 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None):
                     cookies=cookies,
                     headers={
                         "Referer": "https://www.bilibili.com",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
                     },
-                    follow_redirects=True
+                    follow_redirects=True,
                 )
                 # print(f"[Debug] PGC Response Status: {pgc_res_raw.status_code}")
                 # print(f"[Debug] PGC Response Text: {pgc_res_raw.text[:500]}")
                 pgc_res = pgc_res_raw.json()
                 if pgc_res and pgc_res.get("code") == 0:
-                     # PGC API result can be a string "suee" or similar if DASH is at top level
-                     res_node = pgc_res.get("result")
-                     if isinstance(res_node, dict) and "dash" in res_node:
-                         return res_node
-                     return pgc_res
+                    # PGC API result can be a string "suee" or similar if DASH is at top level
+                    res_node = pgc_res.get("result")
+                    if isinstance(res_node, dict) and "dash" in res_node:
+                        return res_node
+                    return pgc_res
             except Exception as pgc_e:
                 print(f"[Extra] PGC Fallback DASH failed: {pgc_e}")
         # If fallback didn't return, we continue.
@@ -490,18 +489,18 @@ def generate_vod_master_m3u8(vid, idx, dash_data):
         uri = f"/video/m3u8/{vid}/{idx}/audio_{aid}_{cid}.m3u8"
         group_id = 'GROUP-ID="audio"'
         default = f"DEFAULT={'YES' if i == 0 else 'NO'}"
-        master_m3u8.append(f'#EXT-X-MEDIA:TYPE=AUDIO,{group_id},NAME=\"{name}\",AUTOSELECT=YES,{default},URI=\"{uri}\"')
+        master_m3u8.append(f'#EXT-X-MEDIA:TYPE=AUDIO,{group_id},NAME="{name}",AUTOSELECT=YES,{default},URI="{uri}"')
 
     # Video Variants
     for video_track in dash_data["dash"].get("video", []):
         bandwidth = video_track.get("bandwidth", 0)
         resolution = f"{video_track.get('width')}x{video_track.get('height')}"
         codecs = video_track.get("codecs") or video_track.get("codec") or "avc1.64001F"
-        qn = video_track['id']
-        cid = video_track.get('codecid') or 0
+        qn = video_track["id"]
+        cid = video_track.get("codecid") or 0
         uri = f"/video/m3u8/{vid}/{idx}/video_{qn}_{cid}.m3u8"
         master_m3u8.append(
-            f'#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={resolution},CODECS=\"{codecs}\",AUDIO=\"audio\"'
+            f'#EXT-X-STREAM-INF:BANDWIDTH={bandwidth},RESOLUTION={resolution},CODECS="{codecs}",AUDIO="audio"'
         )
         master_m3u8.append(uri)
 
@@ -541,7 +540,7 @@ def generate_vod_mpd(vid, idx, dash_data):
         init_range = sb.get("Initialization", "0-999")
         index_range = sb.get("indexRange", "1000-2000")
         pto = sb.get("presentationTimeOffset", 0)
-        
+
         # Calculate timescale from duration if possible
         track_duration = video.get("duration", 0)
         timescale = (track_duration // duration) if duration and track_duration else 90000
@@ -551,8 +550,12 @@ def generate_vod_mpd(vid, idx, dash_data):
                 qn, cid, codecs, bandwidth, width, height, frame_rate
             )
         )
-        mpd.append('        <BaseURL>/proxy/dash/{}/{}/video/{}/{}</BaseURL>'.format(vid, idx, qn, cid))
-        mpd.append('        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(index_range, pto, timescale))
+        mpd.append("        <BaseURL>/proxy/dash/{}/{}/video/{}/{}</BaseURL>".format(vid, idx, qn, cid))
+        mpd.append(
+            '        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(
+                index_range, pto, timescale
+            )
+        )
         mpd.append('          <Initialization range="{}"/>'.format(init_range))
         mpd.append("        </SegmentBase>")
         mpd.append("      </Representation>")
@@ -574,7 +577,7 @@ def generate_vod_mpd(vid, idx, dash_data):
         init_range = sb.get("Initialization", "0-999")
         index_range = sb.get("indexRange", "1000-2000")
         pto = sb.get("presentationTimeOffset", 0)
-        
+
         # Calculate timescale from duration if possible
         track_duration = audio.get("duration", 0)
         timescale = (track_duration // duration) if duration and track_duration else 44100
@@ -582,8 +585,12 @@ def generate_vod_mpd(vid, idx, dash_data):
         mpd.append(
             '      <Representation id="audio_{}_{}" codecs="{}" bandwidth="{}">'.format(qn, cid, codecs, bandwidth)
         )
-        mpd.append('        <BaseURL>/proxy/dash/{}/{}/audio/{}/{}</BaseURL>'.format(vid, idx, qn, cid))
-        mpd.append('        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(index_range, pto, timescale))
+        mpd.append("        <BaseURL>/proxy/dash/{}/{}/audio/{}/{}</BaseURL>".format(vid, idx, qn, cid))
+        mpd.append(
+            '        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(
+                index_range, pto, timescale
+            )
+        )
         mpd.append('          <Initialization range="{}"/>'.format(init_range))
         mpd.append("        </SegmentBase>")
         mpd.append("      </Representation>")
