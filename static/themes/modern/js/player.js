@@ -570,7 +570,7 @@ function updateVodDashQualityMenu(player, list, label) {
     // Info.id looks like "video_80_7"
     const parts = info.id ? info.id.split("_") : [];
     const qn = parts.length > 1 ? parseInt(parts[1]) : -1;
-    
+
     // Try to find matching description from window.supported_src
     const matched = window.supported_src.find((s) => s.quality === qn);
     const name = matched ? matched.new_description : `${info.height}p`;
@@ -754,7 +754,7 @@ function createOption(text, val, onClick, list) {
   const btn = document.createElement("button");
   btn.className =
     "w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between group";
-  
+
   const span = document.createElement("span");
   span.textContent = text;
   btn.appendChild(span);
