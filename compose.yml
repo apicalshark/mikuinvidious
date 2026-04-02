@@ -37,6 +37,7 @@ services:
       - SESSDATA=
       - BILI_JCT=
       - BUVID3=
+      - BUVID4=
       - DEDEUSERID=
 
   caddy:

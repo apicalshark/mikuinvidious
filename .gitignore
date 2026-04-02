@@ -7,6 +7,7 @@ config.toml
 .env
 node_modules/
 .ruff_cache
+uv.lock
 
 ssl/
 wgcf/

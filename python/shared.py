@@ -96,6 +96,7 @@ appconf = {
         "sessdata": os.environ.get("SESSDATA"),
         "bili_jct": os.environ.get("BILI_JCT"),
         "buvid3": os.environ.get("BUVID3"),
+        "buvid4": os.environ.get("BUVID4"),
         "dedeuserid": os.environ.get("DEDEUSERID"),
         "ac_time_value": os.environ.get("AC_TIME_VALUE"),
     },
@@ -195,6 +196,7 @@ if appconf["credential"]["use_cred"]:
         sessdata=credstore["sessdata"],
         bili_jct=credstore["bili_jct"],
         buvid3=credstore["buvid3"],
+        buvid4=credstore.get("buvid4"),
         dedeuserid=credstore["dedeuserid"],
         ac_time_value=credstore["ac_time_value"],
     )
