@@ -47,6 +47,7 @@ Allows the instance to make authenticated requests to Bilibili, which can provid
 | `sessdata` | `SESSDATA` | (None) | Your `SESSDATA` cookie value from Bilibili. |
 | `bili_jct` | `BILI_JCT` | (None) | Your `bili_jct` cookie value from Bilibili. |
 | `buvid3` | `BUVID3` | (None) | Your `buvid3` cookie value from Bilibili. |
+| `buvid4` | `BUVID4` | (None) | Your `buvid4` cookie value from Bilibili. |
 | `dedeuserid` | `DEDEUSERID` | (None) | Your `DedeUserID` cookie value from Bilibili. |
 | `ac_time_value` | `AC_TIME_VALUE` | (None) | Your `ac_time_value` cookie value from Bilibili. |
 

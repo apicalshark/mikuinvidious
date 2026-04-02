@@ -66,6 +66,7 @@ if __name__ == "__main__":
         sessdata=credstore["sessdata"],
         bili_jct=credstore["bili_jct"],
         buvid3=credstore["buvid3"],
+        buvid4=credstore.get("buvid4"),
         dedeuserid=credstore["dedeuserid"],
         ac_time_value=credstore["ac_time_value"],
     )

@@ -44,6 +44,7 @@ use_cred   = false
 sessdata   = ''
 bili_jct   = ''
 buvid3     = ''
+buvid4     = ''
 dedeuserid = ''
 
 # Refresh token, can be obtained from the main page by examing `window.localStorage.ac_time_value'.

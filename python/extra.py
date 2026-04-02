@@ -323,6 +323,7 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
                         "SESSDATA": vi.credential.sessdata,
                         "bili_jct": vi.credential.bili_jct,
                         "buvid3": vi.credential.buvid3,
+                        "buvid4": vi.credential.buvid4,
                         "DedeUserID": vi.credential.dedeuserid,
                     }
 
@@ -406,6 +407,7 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None):
                         "SESSDATA": vi.credential.sessdata,
                         "bili_jct": vi.credential.bili_jct,
                         "buvid3": vi.credential.buvid3,
+                        "buvid4": vi.credential.buvid4,
                         "DedeUserID": vi.credential.dedeuserid,
                     }
 

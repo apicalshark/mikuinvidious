@@ -245,7 +245,7 @@ async def search_view():
 @app.route("/space/<mid>")
 @app.route("/space/<mid>/")
 async def space_view(mid):
-    u = user.User(mid)
+    u = user.User(mid, credential=appcred)
     uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=request.args.get("i") or 1, ps=28))
     return await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids)
 
@@ -253,7 +253,7 @@ async def space_view(mid):
 @app.route("/author/<mid>")
 @app.route("/author/<mid>/")
 async def author_view(mid):
-    u = user.User(mid)
+    u = user.User(mid, credential=appcred)
     uinfo, uarticles = await asyncio.gather(u.get_user_info(), u.get_articles(pn=request.args.get("i") or 1, ps=28))
     return await render_template_with_theme("author.html", uinfo=uinfo, uarts=uarticles)
 
@@ -296,7 +296,7 @@ async def read_view(cid):
                 arinfo = get_article_info(req.text, cid)
                 try:
                     if is_opus:
-                        o = opus.Opus(int(cvid))
+                        o = opus.Opus(int(cvid), credential=appcred)
                         api_info = await o.get_info()
                         for module in api_info.get("item", {}).get("modules", []):
                             if module.get("module_stat"):
@@ -1016,7 +1016,7 @@ async def history_view():
 
     async def get_v_info(bvid):
         try:
-            v = video.Video(bvid=bvid)
+            v = video.Video(bvid=bvid, credential=appcred)
             return await v.get_info()
         except Exception:
             return None

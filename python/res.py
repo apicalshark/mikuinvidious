@@ -27,7 +27,7 @@ async def danmaku_res(vid, idx=0):
     if vid.isdigit():
         return jsonify([])
 
-    v = video.Video(bvid=vid)
+    v = video.Video(bvid=vid, credential=appcred)
     try:
         xml = await v.get_danmaku_xml(int(idx))
         return jsonify(danmaku_xml_conv(minidom.parseString(xml)))
