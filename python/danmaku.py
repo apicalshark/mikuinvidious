@@ -17,24 +17,38 @@
 
 
 def danmaku_xml_conv(domtree):
-    return list(map(danmaku_elem_conv, domtree.getElementsByTagName("d")))
+    results = []
+    for d in domtree.getElementsByTagName("d"):
+        res = danmaku_elem_conv(d)
+        if res:
+            results.append(res)
+    return results
 
 
 def danmaku_elem_conv(d):
     p = d.getAttribute("p").split(",")
 
     try:
-        m = ({"6": "ltr", "1": "rtl", "5": "top", "4": "bottom"})[p[1]]
-    except Exception:
+        # Modes: 1:RTL, 4:Bottom, 5:Top, 6:LTR.
+        # Mode 7 & 8 are advanced/special danmaku, which we don't fully support yet.
+        m = ({"6": "ltr", "1": "rtl", "5": "top", "4": "bottom", "7": "rtl", "8": "rtl"})[p[1]]
+    except (KeyError, IndexError):
         return {}
 
-    ftsize = int(p[2]) or 25
-    ftcolor = hex(int(p[3]))[2:]
+    if not d.firstChild or not d.firstChild.data:
+        return {}
+
+    try:
+        ftsize = int(p[2]) or 25
+        ftcolor = hex(int(p[3]))[2:].zfill(6)  # Ensure 6 digits
+    except (ValueError, IndexError):
+        ftsize = 25
+        ftcolor = "ffffff"
 
     return {
         "text": d.firstChild.data,
         "mode": m,
-        "time": float(p[0]),
+        "time": float(p[0]) if len(p) > 0 else 0.0,
         "style": {
             "fontSize": f"{ftsize}px",
             "color": f"#{ftcolor}",

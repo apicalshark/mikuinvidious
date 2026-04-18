@@ -18,19 +18,20 @@ from xml.dom import minidom
 from bilibili_api import video
 from danmaku import danmaku_xml_conv
 from quart import jsonify
-from shared import app
+from shared import app, appcred
 
 
+@app.route("/res/danmaku/<vid>")
 @app.route("/res/danmaku/<vid>:<idx>")
 async def danmaku_res(vid, idx=0):
     # Check if this is a live room ID (all digits)
     if vid.isdigit():
         return jsonify([])
 
-    v = video.Video(bvid=vid, credential=appcred)
     try:
+        v = video.Video(bvid=vid, credential=appcred)
         xml = await v.get_danmaku_xml(int(idx))
         return jsonify(danmaku_xml_conv(minidom.parseString(xml)))
     except Exception as e:
-        print(f"Danmaku error: {e}")
+        print(f"Danmaku error for {vid}:{idx}: {e}")
         return jsonify([])
