@@ -6,7 +6,7 @@ This guide covers deploying MikuInvidious in a production environment using Dock
 
 - **Docker** and **Docker Compose** installed.
 - A domain name (if using HTTPS).
-- Ports **80**, **443 (TCP/UDP)**, and **8000** open on your firewall.
+- Ports **80**, **443 (TCP/UDP)** open on your firewall.
 
 ---
 
