@@ -70,12 +70,17 @@ class ProxyResponse(Response):
                 # Log the error but DO NOT re-raise to avoid noisy tracebacks in Granian/Quart.
                 # The browser will detect truncation via Content-Length if available.
                 print(f"[Proxy] Upstream connection dropped/error: {e}")
+            except (httpx.StreamClosed, httpx.RuntimeError) as e:
+                # Occurs if the stream is closed while we are reading or after consumption
+                print(f"[Proxy] Stream closed or already consumed: {e}")
             except Exception as e:
-                print(f"[Proxy] Stream unexpected error: {e}")
-                # We still raise unexpected errors for debugging
-                raise
+                # We log other unexpected errors but don't re-raise to avoid crashing the ASGI task
+                print(f"[Proxy] Stream unexpected error: {type(e).__name__}: {e}")
             finally:
-                await self.upstream_resp.aclose()
+                try:
+                    await self.upstream_resp.aclose()
+                except Exception:
+                    pass
                 print(f"[Proxy] Upstream connection closed.")
 
         super().__init__(response_generator(), status=status, *args, **kwargs)
