@@ -265,6 +265,10 @@ async def proxy_main(subpath):
                     stream.remove_client(client_id, reason=reason)
 
             proxy_resp = Response(generate_from_manager(), status=stream.status_code or 200)
+            # Re-added these headers for HTTP/1.1 and HTTP/2 stability
+            # Connection and Keep-Alive are hop-by-hop but useful for ASGI->Proxy->Client stability
+            proxy_resp.headers["Connection"] = "keep-alive"
+            proxy_resp.headers["Keep-Alive"] = "timeout=10800"
             proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
             proxy_resp.headers["Content-Type"] = "video/x-flv"
             proxy_resp.headers["X-Miku-Proxy"] = "LiveManager"
