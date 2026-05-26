@@ -5,9 +5,8 @@
         file_server
     }
     
-    encode gzip {
-        not path /proxy/*
-    }
+    @notProxy not path /proxy/*
+    encode @notProxy gzip
 
     # Provide your own cert and private key
     # tls /path/to/cert.pem /path/to/key.pem
