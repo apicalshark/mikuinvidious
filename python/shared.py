@@ -17,14 +17,8 @@ import hashlib
 import time
 
 COMMON_HEADERS = {
-    "User-Agent": "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
     "Referer": "https://www.bilibili.com",
-    "env": "prod",
-    "app-key": "android64",
-    "bili-http-engine": "ignet",
-    "x-bili-metadata-ip-region": "CN",
-    "x-bili-metadata-legal-region": "CN",
-    "x-bili-redirect": "1",
 }
 
 

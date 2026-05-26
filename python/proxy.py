@@ -90,7 +90,14 @@ class ProxyResponse(Response):
         self.headers["Access-Control-Allow-Origin"] = "*"
         self.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Range, X-Miku-Proxy"
         self.headers["X-Accel-Buffering"] = "no"
-        self.headers["Cache-Control"] = "public, max-age=3600" if self.status_code == 200 else "no-cache"
+        
+        # Avoid caching partial content or errors too aggressively
+        if self.status_code == 200:
+            self.headers["Cache-Control"] = "public, max-age=3600"
+        elif self.status_code == 206:
+            self.headers["Cache-Control"] = "no-cache"
+        else:
+            self.headers["Cache-Control"] = "no-store, must-revalidate"
 
     async def aclose(self):
         """Called by Quart when the response is finished or the client disconnects."""
@@ -265,10 +272,6 @@ async def proxy_main(subpath):
                     stream.remove_client(client_id, reason=reason)
 
             proxy_resp = Response(generate_from_manager(), status=stream.status_code or 200)
-            # Re-added these headers for HTTP/1.1 and HTTP/2 stability
-            # Connection and Keep-Alive are hop-by-hop but useful for ASGI->Proxy->Client stability
-            proxy_resp.headers["Connection"] = "keep-alive"
-            proxy_resp.headers["Keep-Alive"] = "timeout=10800"
             proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
             proxy_resp.headers["Content-Type"] = "video/x-flv"
             proxy_resp.headers["X-Miku-Proxy"] = "LiveManager"
