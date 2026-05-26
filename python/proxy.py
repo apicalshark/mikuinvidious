@@ -40,14 +40,7 @@ async def render_proxy_pic(req_path):
                 if k.lower() in ["content-type", "content-length", "etag", "last-modified"]:
                     proxy_resp.headers[k] = v
 
-            proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
-            proxy_resp.headers["X-Accel-Buffering"] = "no"
-
-            # Transfer ownership to ProxyResponse. Set resp to None
-            # to prevent the finally block from closing it.
-            response_to_return = proxy_resp
-            resp = None
-            return response_to_return
+            return proxy_resp
         except Exception as e:
             print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
             return Response(str(e), status=502)
@@ -121,7 +114,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     ticket = await TicketManager.get_ticket()
     if ticket:
         headers["x-bili-ticket"] = ticket
-    
+
     headers["session_id"] = TicketManager._generate_session_id()
     headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
 
@@ -219,7 +212,7 @@ async def proxy_main(subpath):
         ticket = await TicketManager.get_ticket()
         if ticket:
             headers["x-bili-ticket"] = ticket
-        
+
         headers["session_id"] = TicketManager._generate_session_id()
         headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
 
@@ -265,8 +258,6 @@ async def proxy_main(subpath):
                     stream.remove_client(client_id, reason=reason)
 
             proxy_resp = Response(generate_from_manager(), status=stream.status_code or 200)
-            proxy_resp.headers["Connection"] = "keep-alive"
-            proxy_resp.headers["Keep-Alive"] = "timeout=10800"
             proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
             proxy_resp.headers["Content-Type"] = "video/x-flv"
             proxy_resp.headers["X-Miku-Proxy"] = "LiveManager"
@@ -363,4 +354,3 @@ async def proxy_live_disconnect():
             return Response("OK", status=200)
 
     return Response("Stream not found", status=404)
-"Stream not found", status=404)
