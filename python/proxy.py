@@ -57,7 +57,7 @@ class ProxyResponse(Response):
     Ensures that aclose() is called when the response is finished or closed.
     """
 
-    def __init__(self, upstream_resp, *args, **kwargs):
+    def __init__(self, upstream_resp, status=None, *args, **kwargs):
         self.upstream_resp = upstream_resp
 
         # Create a generator that yields from the upstream response
@@ -78,12 +78,12 @@ class ProxyResponse(Response):
                 await self.upstream_resp.aclose()
                 print(f"[Proxy] Upstream connection closed.")
 
-        super().__init__(response_generator(), *args, **kwargs)
+        super().__init__(response_generator(), status=status, *args, **kwargs)
         self.headers["X-Content-Type-Options"] = "nosniff"
         self.headers["Access-Control-Allow-Origin"] = "*"
         self.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Range, X-Miku-Proxy"
         self.headers["X-Accel-Buffering"] = "no"
-        self.headers["Cache-Control"] = "public, max-age=3600" if status == 200 else "no-cache"
+        self.headers["Cache-Control"] = "public, max-age=3600" if self.status_code == 200 else "no-cache"
 
     async def aclose(self):
         """Called by Quart when the response is finished or the client disconnects."""
