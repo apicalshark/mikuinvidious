@@ -40,13 +40,14 @@ async def render_proxy_pic(req_path):
                 if k.lower() in ["content-type", "content-length", "etag", "last-modified"]:
                     proxy_resp.headers[k] = v
 
-            return proxy_resp
+            # Transfer ownership: clear resp so finally block doesn't close it
+            response_to_return = proxy_resp
+            resp = None
+            return response_to_return
         except Exception as e:
             print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
             return Response(str(e), status=502)
         finally:
-            # This will run on exceptions and cancellations, ensuring no leak
-            # if the function exits before ownership is transferred.
             if resp:
                 await resp.aclose()
 
