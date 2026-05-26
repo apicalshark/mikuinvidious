@@ -5,7 +5,14 @@ from urllib.parse import urlparse
 import httpx
 from live_manager import live_manager
 from quart import Blueprint, Response, request
-from shared import COMMON_HEADERS, Network, appconf, appredis, image_limiter
+from shared import (
+    COMMON_HEADERS,
+    Network,
+    TicketManager,
+    appconf,
+    appredis,
+    image_limiter,
+)
 
 proxy_bp = Blueprint("proxy", __name__)
 
@@ -67,12 +74,12 @@ class ProxyResponse(Response):
                 async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
                     yield chunk
             except (httpx.RemoteProtocolError, httpx.ReadError, httpx.WriteError) as e:
-                print(f"[Proxy] Upstream connection error: {e}")
-                # Re-raise so Quart/Hypercorn/Granian can abort the connection properly.
-                # This prevents the client from receiving a partial/truncated file as "successful".
-                raise
+                # Log the error but DO NOT re-raise to avoid noisy tracebacks in Granian/Quart.
+                # The browser will detect truncation via Content-Length if available.
+                print(f"[Proxy] Upstream connection dropped/error: {e}")
             except Exception as e:
                 print(f"[Proxy] Stream unexpected error: {e}")
+                # We still raise unexpected errors for debugging
                 raise
             finally:
                 await self.upstream_resp.aclose()
@@ -109,6 +116,17 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
 
     headers = COMMON_HEADERS.copy()
+
+    # Add Bili-Ticket and dynamic session/trace IDs
+    ticket = await TicketManager.get_ticket()
+    if ticket:
+        headers["x-bili-ticket"] = ticket
+    
+    headers["session_id"] = TicketManager._generate_session_id()
+    headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+
+    if appconf["credential"].get("buvid3"):
+        headers["buvid"] = appconf["credential"]["buvid3"]
 
     # Forward headers from client (crucial for Range requests)
     for k, v in request.headers.items():
@@ -196,6 +214,17 @@ async def proxy_main(subpath):
         cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
 
         headers = COMMON_HEADERS.copy()
+
+        # Add Bili-Ticket and dynamic session/trace IDs
+        ticket = await TicketManager.get_ticket()
+        if ticket:
+            headers["x-bili-ticket"] = ticket
+        
+        headers["session_id"] = TicketManager._generate_session_id()
+        headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+
+        if appconf["credential"].get("buvid3"):
+            headers["buvid"] = appconf["credential"]["buvid3"]
 
         # Forward headers from client
         for k, v in request.headers.items():

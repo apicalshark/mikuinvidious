@@ -12,10 +12,116 @@ from quart_session import Session
 from flask_orjson import OrjsonProvider
 
 
+import hmac
+import hashlib
+import time
+
 COMMON_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2",
     "Referer": "https://www.bilibili.com",
+    "env": "prod",
+    "app-key": "android64",
+    "bili-http-engine": "ignet",
+    "x-bili-metadata-ip-region": "CN",
+    "x-bili-metadata-legal-region": "CN",
+    "x-bili-redirect": "1",
 }
+
+
+class TicketManager:
+    """Manages Bilibili's x-bili-ticket (JWT) for API and CDN requests."""
+
+    _ticket = None
+    _expiry = 0
+    _lock = asyncio.Lock()
+
+    @classmethod
+    def _generate_trace_id(cls):
+        """Generates a random x-bili-trace-id (Base64)."""
+        return os.urandom(16).hex()  # Simple hex representation for now
+
+    @classmethod
+    def _generate_session_id(cls):
+        """Generates a random session_id (8-char hex)."""
+        return os.urandom(4).hex()
+
+    @classmethod
+    async def get_ticket(cls):
+        async with cls._lock:
+            now = int(time.time())
+            # Check local cache
+            if cls._ticket and now < cls._expiry - 60:
+                return cls._ticket
+
+            # Check Redis cache
+            cached_ticket = await appredis.get("miku_bili_ticket")
+            cached_expiry = await appredis.get("miku_bili_ticket_expiry")
+            if cached_ticket and cached_expiry and now < int(cached_expiry) - 60:
+                cls._ticket = cached_ticket
+                cls._expiry = int(cached_expiry)
+                return cls._ticket
+
+            # Generate new ticket
+            try:
+                ticket_data = await cls._fetch_new_ticket()
+                if ticket_data:
+                    cls._ticket = ticket_data["ticket"]
+                    # JWT real expiry is ~8 hours, while API TTL is 3 days.
+                    # We cap the expiry at 7 hours to be safe.
+                    real_ttl = min(int(ticket_data["ttl"]), 7 * 3600)
+                    cls._expiry = now + real_ttl
+                    # Cache in Redis
+                    await appredis.setex("miku_bili_ticket", real_ttl, cls._ticket)
+                    await appredis.setex("miku_bili_ticket_expiry", real_ttl, str(cls._expiry))
+                    return cls._ticket
+            except Exception as e:
+                print(f"[Ticket] Error fetching ticket: {e}")
+
+            return None
+
+    @classmethod
+    async def _fetch_new_ticket(cls):
+        """Calls GenWebTicket API to get a new JWT ticket."""
+        # Use Android key (ec01) for BiliDroid UA compatibility
+        key_id = "ec01"
+        key = b"Ezlc3tgtl"
+        ts = int(time.time())
+
+        # HMAC-SHA256(key, "ts" + ts)
+        hexsign = hmac.new(key, f"ts{ts}".encode(), hashlib.sha256).hexdigest()
+
+        url = "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket"
+        params = {
+            "key_id": key_id,
+            "hexsign": hexsign,
+            "context[ts]": ts,
+            "csrf": appconf["credential"].get("bili_jct", ""),
+        }
+
+        # Need to include buvid3 in cookies if available
+        cookies = {}
+        if appconf["credential"].get("buvid3"):
+            cookies["buvid3"] = appconf["credential"]["buvid3"]
+
+        client = await Network.get_async_client()
+        try:
+            # Use the specific BiliDroid headers for this call
+            headers = COMMON_HEADERS.copy()
+            # buvid is often required as a header too
+            if appconf["credential"].get("buvid3"):
+                headers["buvid"] = appconf["credential"]["buvid3"]
+            
+            resp = await client.post(url, params=params, cookies=cookies, headers=headers, timeout=10.0)
+            data = resp.json()
+            if data.get("code") == 0:
+                print(f"[Ticket] Successfully fetched new ticket. TTL: {data['data']['ttl']}s")
+                return data["data"]
+            else:
+                print(f"[Ticket] API returned error {data.get('code')}: {data.get('message')}")
+        except Exception as e:
+            print(f"[Ticket] Request failed: {e}")
+
+        return None
 
 
 class Network:
