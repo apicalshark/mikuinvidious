@@ -296,10 +296,8 @@ async def proxy_main(subpath):
                 safe_vid = "".join(c for c in vid if c.isalnum() or c == "_")
                 proxy_resp.headers["Content-Disposition"] = f'attachment; filename="miku_{safe_vid}_p{vidx}_{vqn}.mp4"'
 
-            # Set appropriate content type and connection headers for live streams (Step 3)
+            # Set appropriate content type headers for live streams
             if is_live:
-                proxy_resp.headers["Connection"] = "keep-alive"
-                proxy_resp.headers["Keep-Alive"] = "timeout=10800"
                 proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
                 if ".m3u8" in url:
                     proxy_resp.headers["Content-Type"] = "application/x-mpegURL"
@@ -365,3 +363,4 @@ async def proxy_live_disconnect():
             return Response("OK", status=200)
 
     return Response("Stream not found", status=404)
+"Stream not found", status=404)
