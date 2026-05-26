@@ -70,8 +70,9 @@ class ProxyResponse(Response):
                 # Log the error but DO NOT re-raise to avoid noisy tracebacks in Granian/Quart.
                 # The browser will detect truncation via Content-Length if available.
                 print(f"[Proxy] Upstream connection dropped/error: {e}")
-            except (httpx.StreamClosed, httpx.RuntimeError) as e:
+            except (httpx.StreamClosed, RuntimeError) as e:
                 # Occurs if the stream is closed while we are reading or after consumption
+                # httpx raises built-in RuntimeError for "Stream consumed"
                 print(f"[Proxy] Stream closed or already consumed: {e}")
             except Exception as e:
                 # We log other unexpected errors but don't re-raise to avoid crashing the ASGI task
