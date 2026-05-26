@@ -66,16 +66,24 @@ class ProxyResponse(Response):
             try:
                 async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
                     yield chunk
-            except httpx.RemoteProtocolError as e:
-                print(f"[Proxy] Upstream connection dropped prematurely: {e}")
+            except (httpx.RemoteProtocolError, httpx.ReadError, httpx.WriteError) as e:
+                print(f"[Proxy] Upstream connection error: {e}")
+                # Re-raise so Quart/Hypercorn/Granian can abort the connection properly.
+                # This prevents the client from receiving a partial/truncated file as "successful".
+                raise
             except Exception as e:
-                print(f"[Proxy] Stream error: {e}")
-                raise  # Re-raise other unexpected errors
+                print(f"[Proxy] Stream unexpected error: {e}")
+                raise
             finally:
                 await self.upstream_resp.aclose()
                 print(f"[Proxy] Upstream connection closed.")
 
         super().__init__(response_generator(), *args, **kwargs)
+        self.headers["X-Content-Type-Options"] = "nosniff"
+        self.headers["Access-Control-Allow-Origin"] = "*"
+        self.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Range, X-Miku-Proxy"
+        self.headers["X-Accel-Buffering"] = "no"
+        self.headers["Cache-Control"] = "public, max-age=3600" if status == 200 else "no-cache"
 
     async def aclose(self):
         """Called by Quart when the response is finished or the client disconnects."""
@@ -102,9 +110,9 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
     headers = COMMON_HEADERS.copy()
 
-    # Forward headers from client (crucial for Range requests from hls.js)
+    # Forward headers from client (crucial for Range requests)
     for k, v in request.headers.items():
-        if k.lower() in ["range", "if-range", "x-playback-session-id"]:
+        if k.lower() in ["range", "if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
             headers[k.lower()] = v
 
     client = await Network.get_async_client()
@@ -119,7 +127,6 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         try:
             proxy_resp.call_on_close(resp.aclose)
         except AttributeError:
-            # Older versions of Quart might not have call_on_close
             pass
 
         for k, v in resp.headers.items():
@@ -131,17 +138,19 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                 "accept-ranges",
                 "etag",
                 "last-modified",
+                "cache-control",
             ]:
                 proxy_resp.headers[k] = v
 
-        # Ensure correct MIME type for fMP4
-        if media_type == "video":
-            proxy_resp.headers["Content-Type"] = "video/mp4"
-        else:
-            proxy_resp.headers["Content-Type"] = "audio/mp4"
+        # Only override Content-Type if it's generic or missing, and only for successful media responses
+        if resp.status_code in [200, 206]:
+            current_ct = proxy_resp.headers.get("Content-Type", "").lower()
+            if not current_ct or "application/octet-stream" in current_ct:
+                if media_type == "video":
+                    proxy_resp.headers["Content-Type"] = "video/mp4"
+                else:
+                    proxy_resp.headers["Content-Type"] = "audio/mp4"
 
-        proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
-        proxy_resp.headers["X-Accel-Buffering"] = "no"
         return proxy_resp
     except Exception as e:
         print(f"[Proxy] Error in proxy_dash: {e}")
@@ -277,11 +286,22 @@ async def proxy_main(subpath):
                     "accept-ranges",
                     "etag",
                     "last-modified",
+                    "cache-control",
                 ]:
                     if is_live and k_lower in ["content-type", "connection"]:
                         continue
                     proxy_resp.headers[k] = v
-            proxy_resp.headers["X-Accel-Buffering"] = "no"
+
+            # Only override Content-Type if it's generic or missing
+            if resp.status_code in [200, 206] and not is_live:
+                current_ct = proxy_resp.headers.get("Content-Type", "").lower()
+                if not current_ct or "application/octet-stream" in current_ct:
+                    # Guess based on extension or default to video/mp4 for VOD
+                    if ".mp4" in url.lower():
+                        proxy_resp.headers["Content-Type"] = "video/mp4"
+                    elif ".flv" in url.lower():
+                        proxy_resp.headers["Content-Type"] = "video/x-flv"
+
             return proxy_resp
         except Exception as e:
             print(f"[Proxy] Error proxying {url}: {e}")
