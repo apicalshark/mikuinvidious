@@ -4,8 +4,8 @@
     {% set h = dim.get('height', 9) if dim else 9 %}
     {% set ratio = w / h %}
     <div id="player-wrapper"
-         class="relative w-full bg-black md:rounded-xl rounded-none overflow-hidden shadow-2xl"
-         style="aspect-ratio: {{ w }} / {{ h }}; max-height: 75svh;">
+         class="relative w-full bg-black md:rounded-xl rounded-none overflow-hidden shadow-2xl aspect-video"
+         style="max-height: 75vh;">
         {% if not supported_src and not is_live %}
             <div class="absolute inset-0 flex flex-col items-center justify-center gap-4 z-50 bg-black">
                 <div class="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
