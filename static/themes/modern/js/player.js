@@ -382,15 +382,12 @@ async function initMikuPlayer() {
   const volumeMenu = document.getElementById("volume-menu");
 
   if (volumeBtn && volumeMenu && controller) {
-    // Media Chrome's media-mute-button handles mute on click. 
-    // We want to toggle the menu on click, but since media-mute-button 
-    // also reacts to click, we need to be careful.
-    volumeBtn.addEventListener("click", (e) => {
-      // Don't stop propagation immediately if we want Media Chrome to handle mute
-      // But we DO want to toggle our custom menu
+    // Custom volume trigger button
+    volumeBtn.onclick = (e) => {
+      e.stopPropagation();
       const isVisible = volumeMenu.classList.contains("opacity-100");
       toggleVolumeMenu(!isVisible, volumeBtn, volumeMenu, controller);
-    });
+    };
     
     // Close menu when clicking outside
     document.addEventListener("click", (e) => {
