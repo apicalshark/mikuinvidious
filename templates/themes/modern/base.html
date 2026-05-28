@@ -125,6 +125,41 @@
             *:focus {
                 outline: none !important;
             }
+
+            /* Material Design 3 (Material You) Icon Button */
+            .md3-icon-button {
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--md-sys-color-on-surface-variant);
+                transition: background-color 200ms cubic-bezier(0.2, 0, 0, 1), color 200ms, transform 100ms;
+                flex-shrink: 0;
+                cursor: pointer;
+                user-select: none;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            .md3-icon-button:hover {
+                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 92%);
+                color: var(--md-sys-color-primary);
+            }
+
+            .md3-icon-button:focus-visible {
+                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 88%);
+                color: var(--md-sys-color-primary);
+            }
+
+            .md3-icon-button:active {
+                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 88%);
+                transform: scale(0.92);
+            }
+
+            .md3-icon-button i {
+                font-size: 24px;
+            }
         </style>
         <link rel="stylesheet" href="/static/themes/modern/css/ionicons.min.css" />
         <script src="/static/themes/modern/js/_helpers.js"></script>
@@ -141,17 +176,17 @@
                     
                     <!-- Mobile Action Buttons (Visible only on mobile) -->
                     <div class="flex items-center gap-0.5 md:hidden">
-                        <button id="mobile_search_btn" class="p-2 rounded-full hover:bg-surface-variant/50 hover:text-primary transition-colors text-on-surface-variant active:scale-95 duration-100">
-                            <i class="icon ion-ios-search text-2xl"></i>
+                        <button id="mobile_search_btn" class="md3-icon-button">
+                            <i class="icon ion-ios-search"></i>
                         </button>
-                        <a title="{{ '番剧' }}" href="/bangumi" class="p-2 rounded-full hover:bg-surface-variant/50 hover:text-primary transition-colors text-on-surface-variant active:scale-95 duration-100">
-                            <i class="icon ion-ios-film text-2xl"></i>
+                        <a title="{{ '番剧' }}" href="/bangumi" class="md3-icon-button">
+                            <i class="icon ion-ios-film"></i>
                         </a>
-                        <a id="toggle_theme_mobile" href="javascript:void(0)" class="p-2 rounded-full hover:bg-surface-variant/50 hover:text-primary transition-colors text-on-surface-variant active:scale-95 duration-100">
-                            <i class="icon ion-ios-moon text-2xl"></i>
+                        <a id="toggle_theme_mobile" href="javascript:void(0)" class="md3-icon-button">
+                            <i class="icon ion-ios-moon"></i>
                         </a>
-                        <a title="{{ '偏好设置' }}" href="/preferences" class="p-2 rounded-full hover:bg-surface-variant/50 hover:text-primary transition-colors text-on-surface-variant active:scale-95 duration-100">
-                            <i class="icon ion-ios-cog text-2xl"></i>
+                        <a title="{{ '偏好设置' }}" href="/preferences" class="md3-icon-button">
+                            <i class="icon ion-ios-cog"></i>
                         </a>
                     </div>
                 </div>
@@ -179,15 +214,14 @@
 
                 <!-- Desktop Action Buttons (Hidden on mobile) -->
                 <div class="hidden md:flex items-center gap-1 md:gap-2 user-field">
-                    <a title="{{ '番剧' }}" href="/bangumi" class="p-2.5 rounded-full hover:bg-surface-variant/50 hover:text-primary transition-colors text-on-surface-variant active:scale-95 duration-100 flex items-center gap-2">
-                        <i class="icon ion-ios-film text-xl"></i>
-                        <span class="text-sm font-medium md:hidden lg:inline">{{ '番剧' }}</span>
+                    <a title="{{ '番剧' }}" href="/bangumi" class="md3-icon-button">
+                        <i class="icon ion-ios-film"></i>
                     </a>
-                    <a id="toggle_theme" href="javascript:void(0)" class="p-2.5 rounded-full hover:bg-surface-variant/50 hover:text-primary transition-colors text-on-surface-variant active:scale-95 duration-100">
-                        <i class="icon ion-ios-moon text-xl"></i>
+                    <a id="toggle_theme" href="javascript:void(0)" class="md3-icon-button">
+                        <i class="icon ion-ios-moon"></i>
                     </a>
-                    <a title="{{ '偏好设置' }}" href="/preferences" class="p-2.5 rounded-full hover:bg-surface-variant/50 hover:text-primary transition-colors text-on-surface-variant active:scale-95 duration-100">
-                        <i class="icon ion-ios-cog text-xl"></i>
+                    <a title="{{ '偏好設置' }}" href="/preferences" class="md3-icon-button">
+                        <i class="icon ion-ios-cog"></i>
                     </a>
                 </div>
             </div>
