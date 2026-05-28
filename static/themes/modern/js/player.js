@@ -566,7 +566,7 @@ function setupLivePlayer(video, list, label) {
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
         if (hls.autoLevelEnabled) {
           const level = hls.levels[data.level];
-          label.innerText = `自动 (${level.height}p)`;
+          if (label) label.innerText = `自动 (${level.height}p)`;
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -604,7 +604,7 @@ function updateVodDashQualityMenu(player, list, label) {
           },
         },
       });
-      label.innerText = "自动";
+      if (label) label.innerText = "自动";
     },
     list
   );
@@ -637,7 +637,7 @@ function updateVodDashQualityMenu(player, list, label) {
           },
         });
         player.setQualityFor("video", info.bitrateIndex);
-        label.innerText = name;
+        if (label) label.innerText = name;
       },
       list
     );
@@ -655,7 +655,7 @@ function updateVodHlsQualityMenu(hls, list, label) {
     -1,
     () => {
       hls.currentLevel = -1;
-      label.innerText = "自动";
+      if (label) label.innerText = "自动";
     },
     list
   );
@@ -670,7 +670,7 @@ function updateVodHlsQualityMenu(hls, list, label) {
       index,
       () => {
         hls.currentLevel = index;
-        label.innerText = name;
+        if (label) label.innerText = name;
       },
       list
     );
@@ -690,7 +690,7 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
       -1,
       () => {
         hls.currentLevel = -1;
-        label.innerText = "自动";
+        if (label) label.innerText = "自动";
       },
       list
     );
@@ -704,7 +704,7 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
         index,
         () => {
           hls.currentLevel = index;
-          label.innerText = name;
+          if (label) label.innerText = name;
         },
         list
       );
@@ -720,7 +720,7 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
         src.quality,
         () => {
           const newUrl = `/proxy/live/${window.current_vid}_${src.quality}`;
-          label.innerText = src.new_description;
+          if (label) label.innerText = src.new_description;
 
           if (window.liveManager) {
             console.log("[Player] Switching live quality to:", src.new_description);
@@ -744,14 +744,14 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
       // Check if this is the current quality
       if (window.liveManager && window.liveManager.url.includes(`_${src.quality}`)) {
         btn.classList.add("active");
-        label.innerText = src.new_description;
+        if (label) label.innerText = src.new_description;
       } else if (
         !window.liveManager &&
         (video.src.includes(`_${src.quality}`) ||
           (src.quality === firstSrc.quality && !video.src.includes("_")))
       ) {
         btn.classList.add("active");
-        label.innerText = src.new_description;
+        if (label) label.innerText = src.new_description;
       }
       list.appendChild(btn);
     });
@@ -786,13 +786,13 @@ function setupVodQuality(video, list, label) {
           video.removeEventListener("loadedmetadata", onLoaded);
         };
         video.addEventListener("loadedmetadata", onLoaded);
-        label.innerText = src.new_description;
+        if (label) label.innerText = src.new_description;
       },
       list
     );
     if (video.src.includes(`_${src.quality}`)) {
       btn.classList.add("active");
-      label.innerText = src.new_description;
+      if (label) label.innerText = src.new_description;
     }
     list.appendChild(btn);
   });
