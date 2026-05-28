@@ -42,10 +42,9 @@
         </div>
         <!-- Volume Menu Layer -->
         <div id="volume-menu"
-             class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-left z-50 p-3 rounded-xl shadow-2xl border border-white/10 bg-[#181818] pointer-events-auto flex flex-col items-center gap-3 min-w-[40px]">
-            <media-volume-range vertical class="h-24" media-controller="miku-player"></media-volume-range>
-            <div class="w-full h-px bg-white/10"></div>
-            <media-mute-button media-controller="miku-player" class="bg-transparent hover:bg-white/10 rounded-lg transition-colors"></media-mute-button>
+             class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-left z-50 p-2 rounded-xl shadow-2xl border border-white/10 bg-[#181818] pointer-events-auto flex items-center gap-2 min-w-[160px]">
+            <media-mute-button media-controller="miku-player" class="bg-transparent hover:bg-white/10 rounded-lg transition-colors scale-90"></media-mute-button>
+            <media-volume-range class="flex-grow mr-2" media-controller="miku-player"></media-volume-range>
         </div>
         <media-loading-indicator slot="centered-chrome" no-auto-hide class="w-16 h-12 z-20"></media-loading-indicator>
         <!-- Autoplay Unlock Overlay -->
