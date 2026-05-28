@@ -64,16 +64,16 @@
                                     </div>
                                     <span dir="auto" class="font-medium">{{ v['author'] }}</span>
                                 </a>
-                                <div class="flex gap-3">
+                                <div class="flex gap-1">
                                     <a title="{{ '在哔哩哔哩上观看' }}"
                                        href="https://{% if v['duration'] == 'LIVE' %}live{% else %}www{% endif %}.bilibili.com/{% if v['duration'] == 'LIVE' %}{% else %}video/{% endif %}{{ v['bvid'] }}"
-                                       class="text-on-surface-variant/70 hover:text-red-500 transition-colors">
-                                        <i class="icon ion-logo-youtube text-lg"></i>
+                                       class="md3-icon-button-small">
+                                        <i class="icon ion-logo-youtube"></i>
                                     </a>
                                     <a title="{{ '音频模式' }}"
                                        href="/video/{{ v['bvid'] }}?listen=1"
-                                       class="text-on-surface-variant/70 hover:text-primary transition-colors">
-                                        <i class="icon ion-md-headset text-lg"></i>
+                                       class="md3-icon-button-small">
+                                        <i class="icon ion-md-headset"></i>
                                     </a>
                                 </div>
                             </div>

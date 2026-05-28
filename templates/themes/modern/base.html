@@ -168,6 +168,127 @@
             .md3-icon-button i {
                 font-size: 24px;
             }
+
+            .md3-icon-button-small {
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: var(--md-sys-color-on-surface-variant);
+                transition: background-color 200ms cubic-bezier(0.2, 0, 0, 1), 
+                            color 200ms, 
+                            transform 100ms;
+                flex-shrink: 0;
+                cursor: pointer;
+                user-select: none;
+                -webkit-tap-highlight-color: transparent;
+            }
+
+            .md3-icon-button-small:hover {
+                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 92%);
+                color: var(--md-sys-color-primary);
+            }
+
+            .md3-icon-button-small:active {
+                transform: scale(0.9);
+                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 88%);
+            }
+
+            .md3-icon-button-small i {
+                font-size: 18px;
+            }
+
+            /* MD3 Common Button Base */
+            .md3-button {
+                height: 40px;
+                padding: 0 24px;
+                border-radius: 20px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                font-size: 14px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 250ms cubic-bezier(0.2, 0, 0, 1);
+                user-select: none;
+                -webkit-tap-highlight-color: transparent;
+                border: none;
+                outline: none;
+                flex-shrink: 0;
+            }
+
+            /* MD3 Filled Button */
+            .md3-button-filled {
+                background-color: var(--md-sys-color-primary);
+                color: var(--md-sys-color-on-primary);
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+            }
+
+            .md3-button-filled:hover {
+                background-color: color-mix(in srgb, var(--md-sys-color-primary), white 10%);
+                box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.2);
+            }
+
+            .md3-button-filled:active {
+                transform: scale(0.96);
+            }
+
+            .md3-button-filled:disabled {
+                background-color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 88%);
+                color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 62%);
+                box-shadow: none;
+                cursor: default;
+            }
+
+            /* MD3 Tonal Button (Surface Variant style) */
+            .md3-button-tonal {
+                background-color: var(--md-sys-color-secondary-container);
+                color: var(--md-sys-color-on-secondary-container);
+            }
+
+            .md3-button-tonal:hover {
+                background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), black 5%);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            }
+
+            .md3-button-tonal:active {
+                transform: scale(0.96);
+            }
+
+            /* MD3 Outlined Button */
+            .md3-button-outlined {
+                background-color: transparent;
+                border: 1px solid var(--md-sys-color-outline);
+                color: var(--md-sys-color-primary);
+            }
+
+            .md3-button-outlined:hover {
+                background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 92%);
+            }
+
+            .md3-button-outlined:active {
+                background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 88%);
+                transform: scale(0.96);
+            }
+
+            /* MD3 Text Button */
+            .md3-button-text {
+                background-color: transparent;
+                color: var(--md-sys-color-primary);
+                padding: 0 12px;
+            }
+
+            .md3-button-text:hover {
+                background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 92%);
+            }
+
+            .md3-button-text:active {
+                background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 88%);
+                transform: scale(0.96);
+            }
         </style>
         <link rel="stylesheet" href="/static/themes/modern/css/ionicons.min.css" />
         <script src="/static/themes/modern/js/_helpers.js"></script>

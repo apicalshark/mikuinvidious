@@ -9,13 +9,13 @@
         <div class="flex flex-wrap gap-2">
             <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">{{ '搜索类别：' }}</span>
             <a href="/search?q={{ q }}&t=video"
-               class="px-4 py-1.5 rounded-full text-sm font-medium shadow-sm transition-all active:scale-95 {{ 'bg-primary text-on-primary' if request.args.get("t") == 'video' or not request.args.get('t') else 'bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface' }}">{{ '视频' }}</a>
+               class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'video' or not request.args.get('t') else 'md3-button-tonal' }} !h-9 !px-4">{{ '视频' }}</a>
             <a href="/search?q={{ q }}&t=live"
-               class="px-4 py-1.5 rounded-full text-sm font-medium shadow-sm transition-all active:scale-95 {{ 'bg-primary text-on-primary' if request.args.get("t") == 'live' else 'bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface' }}">{{ '直播' }}</a>
+               class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'live' else 'md3-button-tonal' }} !h-9 !px-4">{{ '直播' }}</a>
             <a href="/search?q={{ q }}&t=article"
-               class="px-4 py-1.5 rounded-full text-sm font-medium shadow-sm transition-all active:scale-95 {{ 'bg-primary text-on-primary' if request.args.get("t") == 'article' else 'bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface' }}">{{ '专栏' }}</a>
+               class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'article' else 'md3-button-tonal' }} !h-9 !px-4">{{ '专栏' }}</a>
             <a href="/search?q={{ q }}&t=user"
-               class="px-4 py-1.5 rounded-full text-sm font-medium shadow-sm transition-all active:scale-95 {{ 'bg-primary text-on-primary' if request.args.get("t") == 'user' else 'bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface' }}">{{ 'UP主' }}</a>
+               class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'user' else 'md3-button-tonal' }} !h-9 !px-4">{{ 'UP主' }}</a>
         </div>
         <!-- Sort Tabs -->
         <div class="flex flex-wrap gap-2">
@@ -23,7 +23,7 @@
             {% set sort_opts = [('rank', '综合排序'), ('click', '最多点击'), ('pubdate', '最新发布'), ('dm', '最多弹幕'), ('stow', '最多收藏'), ('scores', '最多评论')] %}
             {% for key, label in sort_opts %}
                 <a href="/search?q={{ q }}&sort={{ key }}&t={{ request.args.get("t") or 'video' }}"
-                   class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {{ 'bg-secondary text-on-secondary' if sort == key or (not sort and key == 'rank') else 'bg-surface-variant/20 text-on-surface-variant hover:bg-surface-variant/40' }}">
+                   class="md3-button {{ 'md3-button-filled !bg-secondary !text-on-secondary' if sort == key or (not sort and key == 'rank') else 'md3-button-tonal' }} !h-9 !px-3 !text-xs">
                     {{ label }}
                 </a>
             {% endfor %}
@@ -80,14 +80,13 @@
                                     <span dir="auto" class="font-medium">{{ (v.get("uname") or v.get('author')) }}</span>
                                 </a>
                                 {% if not is_live %}
-                                    <div class="flex gap-3">
+                                    <div class="flex gap-1">
                                         <a title="{{ '在哔哩哔哩上观看' }}"
                                            href="https://www.bilibili.com/video/{{ v['bvid'] }}"
-                                           class="text-on-surface-variant/70 hover:text-red-500 transition-colors">
-                                            <i class="icon ion-logo-youtube text-lg"></i>
+                                           class="md3-icon-button-small">
+                                            <i class="icon ion-logo-youtube"></i>
                                         </a>
-                                    </div>
-                                {% endif %}
+                                    </div>                                {% endif %}
                             </div>
                             <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
                                 <p dir="auto">{{ v['area_name'] if is_live else v['published']|date }}</p>
@@ -102,13 +101,13 @@
         <div class="mt-10 flex items-center justify-center gap-4">
             {% if sinfo['page'] > 1 %}
                 <a href="/search?q={{ q }}&i={{ sinfo['page']-1 }}&sort={{ sort }}&t={{ request.args.get("t") }}"
-                   class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
+                   class="md3-button md3-button-tonal">
                     <i class="icon ion-ios-arrow-back"></i> {{ '上一页' }}
                 </a>
             {% endif %}
             {% if sinfo['numPages'] > sinfo['page'] %}
                 <a href="/search?q={{ q }}&i={{ sinfo['page']+1 }}&sort={{ sort }}&t={{ request.args.get("t") }}"
-                   class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
+                   class="md3-button md3-button-filled">
                     {{ '下一页' }} <i class="icon ion-ios-arrow-forward"></i>
                 </a>
             {% endif %}
