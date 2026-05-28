@@ -9,20 +9,36 @@ function getCookie(name) {
 }
 
 var toggle_theme = document.getElementById("toggle_theme");
-toggle_theme.href = "javascript:void(0)";
+var toggle_theme_mobile = document.getElementById("toggle_theme_mobile");
 
 var STORAGE_KEY_THEME = "dark_mode";
 var THEME_DARK = "dark";
 var THEME_LIGHT = "light";
 
-// TODO: theme state controlled by system
-toggle_theme.addEventListener("click", function () {
+function handleThemeToggle() {
   const isDarkTheme = helpers.storage.get(STORAGE_KEY_THEME) === THEME_DARK;
   const newTheme = isDarkTheme ? THEME_LIGHT : THEME_DARK;
   setTheme(newTheme);
   helpers.storage.set(STORAGE_KEY_THEME, newTheme);
   helpers.xhr("GET", "/toggle_theme?redirect=false", {}, {});
-});
+}
+
+if (toggle_theme) toggle_theme.addEventListener("click", handleThemeToggle);
+if (toggle_theme_mobile) toggle_theme_mobile.addEventListener("click", handleThemeToggle);
+
+// Mobile search toggle
+var mobile_search_btn = document.getElementById("mobile_search_btn");
+var search_container = document.getElementById("search_container");
+var searchbox = document.getElementById("searchbox");
+
+if (mobile_search_btn && search_container) {
+  mobile_search_btn.addEventListener("click", function () {
+    search_container.classList.toggle("hidden");
+    if (!search_container.classList.contains("hidden")) {
+      searchbox.focus();
+    }
+  });
+}
 
 var toggle_opencc = document.getElementById("toggle_opencc");
 if (toggle_opencc) {
@@ -50,12 +66,14 @@ if (toggle_search_opencc) {
 
 /** @param {THEME_DARK|THEME_LIGHT} theme */
 function setTheme(theme) {
+  const iconClass = theme === THEME_DARK ? "icon ion-ios-sunny" : "icon ion-ios-moon";
+  if (toggle_theme) toggle_theme.children[0].className = iconClass;
+  if (toggle_theme_mobile) toggle_theme_mobile.children[0].className = iconClass;
+
   if (theme === THEME_DARK) {
-    toggle_theme.children[0].className = "icon ion-ios-sunny";
     document.documentElement.classList.add("dark");
     document.documentElement.classList.remove("light");
   } else {
-    toggle_theme.children[0].className = "icon ion-ios-moon";
     document.documentElement.classList.remove("dark");
     document.documentElement.classList.add("light");
   }
