@@ -133,41 +133,31 @@
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
         <span style="display:none" id="dark_mode_pref">{{ 'dark' if dark_mode else 'light' }}</span>
         <!-- Sticky Header with Glassmorphism (No Border) -->
-        <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/80 transition-colors duration-200">
-            <div class="container mx-auto px-4 py-3 md:px-8 max-w-8xl flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">
-                <!-- Brand & Mobile Actions -->
-                <div class="w-full md:w-auto flex justify-between items-center gap-2">
-                    <a href="/"
-                       class="text-2xl font-bold text-primary hover:text-primary/80 transition-colors index-link tracking-tight shrink-0">MikuInvidious</a>
+        <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/80 border-b border-outline/10 transition-colors duration-200">
+            <div class="container mx-auto px-4 py-2.5 md:py-3 md:px-8 max-w-8xl flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">
+                <!-- Brand & Mobile Icons Row -->
+                <div class="w-full md:w-auto flex justify-between items-center">
+                    <a href="/" class="text-2xl font-bold text-primary shrink-0">MikuInvidious</a>
                     
-                    <div class="flex items-center gap-0.5 md:hidden">
-                        <!-- Mobile Search Toggle -->
-                        <button id="mobile_search_btn"
-                                class="p-2 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+                    <!-- Mobile Action Buttons (Visible only on mobile) -->
+                    <div class="flex items-center gap-1 md:hidden">
+                        <button id="mobile_search_btn" class="p-2 rounded-full hover:bg-surface-variant/50 text-on-surface-variant">
                             <i class="icon ion-ios-search text-2xl"></i>
                         </button>
-                        
-                        <!-- Actions (Merged into top row on mobile) -->
-                        <a title="{{ '番剧' }}"
-                           href="/bangumi"
-                           class="p-2 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+                        <a href="/bangumi" class="p-2 rounded-full hover:bg-surface-variant/50 text-on-surface-variant">
                             <i class="icon ion-ios-film text-2xl"></i>
                         </a>
-                        <a id="toggle_theme_mobile"
-                           href="javascript:void(0)"
-                           class="p-2 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+                        <a id="toggle_theme_mobile" href="javascript:void(0)" class="p-2 rounded-full hover:bg-surface-variant/50 text-on-surface-variant">
                             <i class="icon ion-ios-moon text-2xl"></i>
                         </a>
-                        <a title="{{ '偏好设置' }}"
-                           href="/preferences"
-                           class="p-2 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+                        <a href="/preferences" class="p-2 rounded-full hover:bg-surface-variant/50 text-on-surface-variant">
                             <i class="icon ion-ios-cog text-2xl"></i>
                         </a>
                     </div>
                 </div>
 
-                <!-- Search -->
-                <div id="search_container" class="hidden md:block w-full md:flex-1 max-w-2xl searchbar">
+                <!-- Search Container (Hidden on mobile by default, flex on desktop) -->
+                <div id="search_container" class="hidden md:flex w-full md:flex-1 max-w-2xl searchbar">
                     <form class="w-full" action="/search" method="get">
                         <div class="relative group">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
@@ -181,31 +171,21 @@
                                    spellcheck="false"
                                    name="q"
                                    placeholder="{{ '想要搜索点什么？' }}"
-                                   class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
+                                   class="w-full pl-11 pr-4 py-2 rounded-full bg-surface text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
                                    {% if q %}value="{{ q }}"{% endif %} />
                         </div>
                     </form>
                 </div>
 
-                <!-- Desktop User Actions -->
-                <div class="hidden md:flex w-full md:w-auto justify-end items-center gap-1 md:gap-2 user-field">
-                    <!-- Bangumi Link -->
-                    <a title="{{ '番剧' }}"
-                       href="/bangumi"
-                       class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100 flex items-center gap-2">
+                <!-- Desktop Action Buttons (Hidden on mobile) -->
+                <div class="hidden md:flex items-center gap-1 user-field">
+                    <a title="{{ '番剧' }}" href="/bangumi" class="p-2.5 rounded-full hover:bg-surface-variant/50 text-on-surface-variant">
                         <i class="icon ion-ios-film text-xl"></i>
-                        <span class="text-sm font-medium md:hidden lg:inline">{{ '番剧' }}</span>
                     </a>
-                    <!-- Theme Toggle -->
-                    <a id="toggle_theme"
-                       href="javascript:void(0)"
-                       class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+                    <a id="toggle_theme" href="javascript:void(0)" class="p-2.5 rounded-full hover:bg-surface-variant/50 text-on-surface-variant">
                         <i class="icon ion-ios-moon text-xl"></i>
                     </a>
-                    <!-- Prefs -->
-                    <a title="{{ '偏好设置' }}"
-                       href="/preferences"
-                       class="p-2.5 rounded-full hover:bg-surface-variant/50 transition-colors text-on-surface-variant active:scale-95 duration-100">
+                    <a title="{{ '偏好设置' }}" href="/preferences" class="p-2.5 rounded-full hover:bg-surface-variant/50 text-on-surface-variant">
                         <i class="icon ion-ios-cog text-xl"></i>
                     </a>
                 </div>
@@ -224,7 +204,7 @@
                                 <a href="https://0xacab.org/johnxina/mikuinvidious"
                                    class="hover:text-primary transition-colors font-medium">{{ '原始项目源代码' }}</a> /
                                 <a href="{{ site_modified_source_code_url }}"
-                                   class="hover:text-primary transition-colors font-medium">{{ '修改后的源代码' }}</a>
+                                   class="hover:text-primary transition-colors font-medium">{{ '修改後的源代码' }}</a>
                             {% else %}
                                 <a href="https://0xacab.org/johnxina/mikuinvidious"
                                    class="hover:text-primary transition-colors font-medium">{{ '源代码' }}</a>
@@ -239,28 +219,28 @@
                     <div class="flex flex-col gap-4">
                         <div>
                             <a href="https://0xacab.org/johnxina/mikuinvidious/-/blob/no-masters/LICENSE"
-                               class="hover:text-primary transition-colors font-medium">{{ '自豪地以 AGPLv3 释出' }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ '自豪地以 AGPLv3 釋出' }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-logo-javascript text-xl"></i>
                             <a rel="jslicense"
                                href="/licenses"
                                rel="jslicense"
-                               class="hover:text-primary transition-colors font-medium">{{ '查看 JavaScript 许可证' }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ '查看 JavaScript 許可證' }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-paper text-xl"></i>
                             <a href="/privacy"
-                               class="hover:text-primary transition-colors font-medium">{{ '隐私条款' }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ '隱私條款' }}</a>
                         </div>
                     </div>
                     <div class="flex flex-col gap-4">
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-wallet text-xl"></i>
                             <a href="https://mi.resrv.org/docs/donate"
-                               class="hover:text-primary transition-colors font-medium">{{ '赞助我们' }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ '贊助我們' }}</a>
                         </div>
-                        <span class="opacity-70">{{ '版本信息当前不可用 :-(' }}</span>
+                        <span class="opacity-70">{{ '版本信息當前不可用 :-(' }}</span>
                     </div>
                 </div>
             </footer>
