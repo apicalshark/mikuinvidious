@@ -1,10 +1,10 @@
 {
-    # Disable HTTP/3 (QUIC) due to persistent ERR_QUIC_PROTOCOL_ERROR on 206 Partial Content
+    # You should disable HTTP/3 (QUIC) due to persistent ERR_QUIC_PROTOCOL_ERROR on 206 Partial Content
     # responses when proxying Bilibili media streams. Modern browsers' QUIC stacks
     # are sensitive to stream truncation and range request handling in proxies.
-    servers {
-        protocols h1 h2
-    }
+    # servers {
+    #    protocols h1 h2
+    # }
 }
 
 :8000 {
