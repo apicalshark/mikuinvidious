@@ -378,6 +378,21 @@ async function initMikuPlayer() {
     };
   }
 
+  const volumeBtn = document.getElementById("volume-btn");
+  const volumeMenu = document.getElementById("volume-menu");
+
+  if (volumeBtn && volumeMenu && controller) {
+    // We use a custom listener to show the menu, but don't prevent the default mute behavior
+    volumeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isVisible = volumeMenu.classList.contains("opacity-100");
+      toggleVolumeMenu(!isVisible, volumeBtn, volumeMenu, controller);
+    });
+    document.addEventListener("click", () =>
+      toggleVolumeMenu(false, null, volumeMenu, controller)
+    );
+  }
+
   if (qualityBtn && qualityMenu && controller) {
     qualityBtn.onclick = (e) => {
       e.stopPropagation();
@@ -387,6 +402,27 @@ async function initMikuPlayer() {
     document.addEventListener("click", () =>
       toggleQualityMenu(false, null, qualityMenu, controller)
     );
+  }
+}
+
+function toggleVolumeMenu(show, btn, menu, controller) {
+  if (!menu) return;
+  if (show && btn && controller) {
+    const brect = btn.getBoundingClientRect();
+    const crect = controller.getBoundingClientRect();
+
+    // Align with the volume button
+    menu.style.left = brect.left - crect.left + "px";
+    menu.style.bottom = crect.bottom - brect.top + 10 + "px";
+
+    menu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
+    menu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
+    
+    // Auto-hide quality menu if open
+    toggleQualityMenu(false, null, document.getElementById("quality-menu"), controller);
+  } else {
+    menu.classList.add("opacity-0", "pointer-events-none", "scale-95");
+    menu.classList.remove("opacity-100", "scale-100", "pointer-events-auto");
   }
 }
 
@@ -401,6 +437,9 @@ function toggleQualityMenu(show, btn, menu, controller) {
 
     menu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
     menu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
+    
+    // Auto-hide volume menu if open
+    toggleVolumeMenu(false, null, document.getElementById("volume-menu"), controller);
   } else {
     menu.classList.add("opacity-0", "pointer-events-none", "scale-95");
     menu.classList.remove("opacity-100", "scale-100", "pointer-events-auto");
