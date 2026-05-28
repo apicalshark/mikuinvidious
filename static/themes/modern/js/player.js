@@ -313,7 +313,7 @@ async function initMikuPlayer() {
   const qualityList = document.getElementById("quality-list");
   const qualityMenu = document.getElementById("quality-menu");
   const qualityBtn = document.getElementById("quality-btn");
-  const label = document.getElementById("current-quality-label");
+  const label = document.getElementById("current-quality-label"); // Note: This might be null now as we used gear icon
   const controller = document.getElementById("miku-player");
 
   if (!video) return;
@@ -382,15 +382,22 @@ async function initMikuPlayer() {
   const volumeMenu = document.getElementById("volume-menu");
 
   if (volumeBtn && volumeMenu && controller) {
-    // We use a custom listener to show the menu, but don't prevent the default mute behavior
+    // Media Chrome's media-mute-button handles mute on click. 
+    // We want to toggle the menu on click, but since media-mute-button 
+    // also reacts to click, we need to be careful.
     volumeBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
+      // Don't stop propagation immediately if we want Media Chrome to handle mute
+      // But we DO want to toggle our custom menu
       const isVisible = volumeMenu.classList.contains("opacity-100");
       toggleVolumeMenu(!isVisible, volumeBtn, volumeMenu, controller);
     });
-    document.addEventListener("click", () =>
-      toggleVolumeMenu(false, null, volumeMenu, controller)
-    );
+    
+    // Close menu when clicking outside
+    document.addEventListener("click", (e) => {
+      if (!volumeBtn.contains(e.target) && !volumeMenu.contains(e.target)) {
+        toggleVolumeMenu(false, null, volumeMenu, controller);
+      }
+    });
   }
 
   if (qualityBtn && qualityMenu && controller) {
@@ -399,9 +406,11 @@ async function initMikuPlayer() {
       const isVisible = qualityMenu.classList.contains("opacity-100");
       toggleQualityMenu(!isVisible, qualityBtn, qualityMenu, controller);
     };
-    document.addEventListener("click", () =>
-      toggleQualityMenu(false, null, qualityMenu, controller)
-    );
+    document.addEventListener("click", (e) => {
+      if (!qualityBtn.contains(e.target) && !qualityMenu.contains(e.target)) {
+        toggleQualityMenu(false, null, qualityMenu, controller);
+      }
+    });
   }
 }
 
