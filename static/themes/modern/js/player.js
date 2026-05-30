@@ -227,10 +227,13 @@ class VodStreamManager {
     this.url = streamUrl;
     this.player = null;
     this.monitorInterval = null;
+    this.isReconnecting = false;
+    this.reconnectTimer = null;
+    this.destroyed = false;
   }
 
   init() {
-    if (!mpegts.isSupported()) return;
+    if (!mpegts.isSupported() || this.destroyed) return;
 
     console.log("[VodManager] Initializing VOD:", this.url);
     const absoluteUrl = new URL(this.url, window.location.href).href;
@@ -242,7 +245,7 @@ class VodStreamManager {
       {
         enableWorker: false,
         enableStashBuffer: true,
-        stashInitialSize: 1024 * 1024, // 1MB
+        stashInitialSize: 1024 * 384, // 384KB for faster start on slow networks
         autoCleanupSourceBuffer: true,
       }
     );
@@ -260,12 +263,49 @@ class VodStreamManager {
     }
 
     this.startMonitoring();
+    this.handleEvents();
+  }
+
+  handleEvents() {
+    if (!this.player) return;
+
+    this.player.on(mpegts.Events.ERROR, (errorType, errorDetail) => {
+      console.error("[VodManager] Stream Error:", errorType, errorDetail);
+      // Attempt to recover by reloading at current time
+      this.reconnect();
+    });
+  }
+
+  reconnect() {
+    if (this.isReconnecting || this.destroyed) return;
+    this.isReconnecting = true;
+
+    const currentTime = this.video.currentTime;
+    console.log("[VodManager] Connection lost, recovering at:", currentTime.toFixed(2));
+
+    // Destroy existing player but keep this manager alive
+    this.destroy(false);
+
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.destroyed = false;
+      this.init();
+      
+      const onLoaded = () => {
+        console.log("[VodManager] Recovery successful, seeking to:", currentTime.toFixed(2));
+        this.video.currentTime = currentTime;
+        this.video.play().catch(() => {});
+        this.video.removeEventListener("loadedmetadata", onLoaded);
+      };
+      this.video.addEventListener("loadedmetadata", onLoaded);
+      this.isReconnecting = false;
+    }, 2000); // Wait 2s before retry
   }
 
   startMonitoring() {
     if (this.monitorInterval) clearInterval(this.monitorInterval);
     this.monitorInterval = setInterval(() => {
-      if (!this.player || !this.video.buffered.length) return;
+      if (!this.player || !this.video.buffered.length || this.isReconnecting) return;
 
       const end = this.video.buffered.end(this.video.buffered.length - 1);
       const bufferLen = end - this.video.currentTime;
@@ -278,11 +318,20 @@ class VodStreamManager {
     }, 5000);
   }
 
-  destroy() {
+  destroy(isFinal = true) {
+    if (isFinal) this.destroyed = true;
     if (this.monitorInterval) clearInterval(this.monitorInterval);
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    
     if (this.player) {
-      this.player.detachMediaElement();
-      this.player.destroy();
+      try {
+        this.player.pause();
+        this.player.unload();
+        this.player.detachMediaElement();
+        this.player.destroy();
+      } catch (e) {
+        console.error("[VodManager] Error during destroy:", e);
+      }
       this.player = null;
     }
   }
@@ -558,6 +607,25 @@ function setupLivePlayer(video, list, label) {
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         updateLiveQualityMenu(video, hls, null, list, label, true);
         video.play().catch(() => {});
+      });
+
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              console.warn("[Player] Fatal HLS network error, attempting to recover...");
+              hls.startLoad();
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              console.warn("[Player] Fatal HLS media error, attempting to recover...");
+              hls.recoverMediaError();
+              break;
+            default:
+              console.error("[Player] Unrecoverable HLS error:", data);
+              hls.destroy();
+              break;
+          }
+        }
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {

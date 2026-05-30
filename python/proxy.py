@@ -68,16 +68,17 @@ class ProxyResponse(Response):
                 async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
                     yield chunk
             except (httpx.RemoteProtocolError, httpx.ReadError, httpx.WriteError) as e:
-                # Log the error but DO NOT re-raise to avoid noisy tracebacks in Granian/Quart.
-                # The browser will detect truncation via Content-Length if available.
+                # Log the error and re-raise to signal failure to the ASGI server/browser.
+                # This helps mpegts.js/hls.js detect the interruption faster.
                 print(f"[Proxy] Upstream connection dropped/error: {e}")
+                raise
             except (httpx.StreamClosed, RuntimeError) as e:
                 # Occurs if the stream is closed while we are reading or after consumption
-                # httpx raises built-in RuntimeError for "Stream consumed"
                 print(f"[Proxy] Stream closed or already consumed: {e}")
+                # Don't re-raise for already consumed streams as it might be normal termination
             except Exception as e:
-                # We log other unexpected errors but don't re-raise to avoid crashing the ASGI task
                 print(f"[Proxy] Stream unexpected error: {type(e).__name__}: {e}")
+                raise
             finally:
                 try:
                     await self.upstream_resp.aclose()
