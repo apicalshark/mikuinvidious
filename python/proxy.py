@@ -223,8 +223,6 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
     if appconf["credential"].get("buvid3"):
         headers["buvid"] = appconf["credential"]["buvid3"]
-    if appconf["credential"].get("buvid4"):
-        headers["buvid4"] = appconf["credential"]["buvid4"]
 
     # Forward headers from client (crucial for Range requests)
     for k, v in request.headers.items():
@@ -330,8 +328,6 @@ async def proxy_main(subpath):
 
         if appconf["credential"].get("buvid3"):
             headers["buvid"] = appconf["credential"]["buvid3"]
-        if appconf["credential"].get("buvid4"):
-            headers["buvid4"] = appconf["credential"]["buvid4"]
 
         # Forward headers from client
         for k, v in request.headers.items():
