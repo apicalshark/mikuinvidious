@@ -89,12 +89,21 @@ class ProxyResponse(Response):
             try:
                 while True:
                     try:
-                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 256):
+                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 128):
                             yield chunk
                             bytes_yielded += len(chunk)
                         # Success: break the retry loop
                         break
                     except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
+                        # If we have already yielded a significant amount of data,
+                        # internal retries are risky as they might cause decoder errors.
+                        # For MP4/FLV, we only retry if we are still near the beginning
+                        # or if it's a small file.
+                        is_media = self.url and (".mp4" in self.url.lower() or ".flv" in self.url.lower() or "upos" in self.url.lower())
+                        if is_media and bytes_yielded > 1024 * 1024 * 5: # 5MB threshold
+                             print(f"[Proxy] Upstream error deep in stream ({bytes_yielded} bytes), letting it fail for client retry: {repr(e)}")
+                             raise
+
                         if retries >= max_retries or not self.url or not self.client:
                             print(f"[Proxy] Upstream error: {repr(e)}")
                             if not str(e):
@@ -116,7 +125,7 @@ class ProxyResponse(Response):
                         # Prepare retry headers with adjusted Range
                         h = (self.headers_template or COMMON_HEADERS).copy()
                         
-                        # Refresh dynamic IDs on retry to avoid being flagged as a stuck session
+                        # Refresh dynamic IDs on retry
                         h["session_id"] = TicketManager._generate_session_id()
                         h["x-bili-trace-id"] = TicketManager._generate_trace_id()
                         
@@ -167,7 +176,7 @@ class ProxyResponse(Response):
                 print(f"[Proxy] Upstream connection closed.")
 
         super().__init__(response_generator(), status=status, *args, **kwargs)
-        self.headers["X-Content-Type-Options"] = "nosniff"
+        # self.headers["X-Content-Type-Options"] = "nosniff" # Disabled for media sniffing compatibility
         self.headers["Access-Control-Allow-Origin"] = "*"
         self.headers["Access-Control-Expose-Headers"] = (
             "Content-Length, Content-Range, X-Miku-Proxy"
