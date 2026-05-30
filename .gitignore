@@ -9,7 +9,7 @@ node_modules/
 .ruff_cache
 uv.lock
 *.old
-
+logs/caddy/access.log
 
 ssl/
 wgcf/
