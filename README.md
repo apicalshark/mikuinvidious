@@ -47,6 +47,7 @@ The easiest way to run MikuInvidious is using Docker Compose.
 2. **Run with Docker Compose:**
 
    ```bash
+   mv Caddyfile.example Caddyfile
    docker compose up -d
    ```
 

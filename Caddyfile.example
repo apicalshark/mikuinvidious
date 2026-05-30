@@ -1,0 +1,29 @@
+{
+    # You should disable HTTP/3 (QUIC) due to persistent ERR_QUIC_PROTOCOL_ERROR on 206 Partial Content
+    # responses when proxying Bilibili media streams. Modern browsers' QUIC stacks
+    # are sensitive to stream truncation and range request handling in proxies.
+    # servers {
+    #    protocols h1 h2
+    # }
+}
+
+:8000 {
+    # Set root for the site
+    root * /usr/share/caddy
+
+    # Serve static files directly
+    handle /static/* {
+        file_server
+    }
+    
+    @notProxy not path /proxy/*
+    encode @notProxy gzip
+
+    # Provide your own cert and private key
+    # tls /path/to/cert.pem /path/to/key.pem
+
+    # Proxy everything else to the app
+    handle {
+        reverse_proxy app:8080
+    }
+}

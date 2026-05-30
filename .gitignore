@@ -8,6 +8,8 @@ config.toml
 node_modules/
 .ruff_cache
 uv.lock
+*.old
+
 
 ssl/
 wgcf/
