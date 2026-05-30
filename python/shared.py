@@ -127,11 +127,7 @@ class Network:
     def get_proxy():
         if not appconf["proxy"]["use_proxy"]:
             return None
-        url = appconf["proxy"]["proxy_url"] or None
-        if url and url.startswith("socks5://"):
-            # Use socks5h for remote DNS resolution in httpx
-            return url.replace("socks5://", "socks5h://")
-        return url
+        return appconf["proxy"]["proxy_url"] or None
 
     @classmethod
     async def get_async_client(cls) -> httpx.AsyncClient:
@@ -143,7 +139,7 @@ class Network:
                         trust_env=False,
                         http2=True,
                         timeout=httpx.Timeout(None, connect=15.0, pool=30.0, read=60.0),
-                        limits=httpx.Limits(max_connections=200, max_keepalive_connections=50),
+                        limits=httpx.Limits(max_connections=500, max_keepalive_connections=100),
                         follow_redirects=True,
                     )
         return cls._async_client
