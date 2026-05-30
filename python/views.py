@@ -695,8 +695,16 @@ async def api_component_player(vid, idx):
                                 asyncio.create_task(video_get_src_for_qn(v, idx, first_qn))  # Fire and forget
                         return has_dash, v_supported_src
                     elif result_type == "fallback" and result_data:
+                        ext = ""
+                        if "durl" in result_data and result_data["durl"]:
+                            first_url = result_data["durl"][0]["url"]
+                            if ".flv" in first_url.lower():
+                                ext = ".flv"
+                            elif ".mp4" in first_url.lower():
+                                ext = ".mp4"
+
                         v_supported_src = [
-                            {"quality": f["quality"], "new_description": f["new_description"]}
+                            {"quality": f["quality"], "new_description": f["new_description"], "ext": ext}
                             for f in result_data.get("support_formats", [])
                         ]
                         return False, v_supported_src

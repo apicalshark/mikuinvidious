@@ -834,10 +834,15 @@ function setupVodQuality(video, list, label) {
       () => {
         const time = video.currentTime,
           paused = video.paused;
-        const newUrl = `/proxy/video/${window.current_vid}_${window.idx}_${src.quality}`;
+        const ext = src.ext || "";
+        const newUrl = `/proxy/video/${window.current_vid}_${window.idx}_${src.quality}${ext}`;
 
         if (window.vodManager) {
           window.vodManager.destroy();
+          video.src = newUrl;
+          window.vodManager = new VodStreamManager(video, newUrl);
+          window.vodManager.init();
+        } else if (ext === ".flv") {
           video.src = newUrl;
           window.vodManager = new VodStreamManager(video, newUrl);
           window.vodManager.init();

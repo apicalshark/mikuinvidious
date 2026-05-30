@@ -278,7 +278,10 @@ async def proxy_main(subpath):
                     if fallback_keys:
                         url = await appredis.get(fallback_keys[0])
             else:
-                vid, vidx, vqn = req_path.removeprefix("/proxy/video/").split("_")
+                path_to_split = req_path.removeprefix("/proxy/video/")
+                if "." in path_to_split:
+                    path_to_split = path_to_split.rsplit(".", 1)[0]
+                vid, vidx, vqn = path_to_split.split("_")
                 url = await appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
         except ValueError:
             return Response("Bad Request", status=400)

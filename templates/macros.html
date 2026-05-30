@@ -23,7 +23,7 @@
         {% else %}
             <video slot="media"
                    id="player"
-                   {% if supported_src and not has_dash %}src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}"{% endif %}
+                   {% if supported_src and not has_dash %}src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}{{ supported_src[0]['ext'] if supported_src[0]['ext'] else '' }}"{% endif %}
                    poster="{{ vinfo['pic']|pic }}"
                    playsinline
                    crossorigin
