@@ -172,41 +172,10 @@ def deep_update(base_dict, update_dict):
             base_dict[key] = value
 
 
-import subprocess
-
-def get_git_hash():
-    try:
-        hash_val = subprocess.check_output(["git", "rev-parse", "--short=8", "HEAD"]).decode("ascii").strip()
-        # Check if there are uncommitted changes
-        status = subprocess.check_output(["git", "status", "--porcelain"]).decode("ascii").strip()
-        if status:
-            hash_val += "+"
-        return hash_val
-    except Exception:
-        return None
-
-def get_version():
-    try:
-        with open("../pyproject.toml") as f:
-            for line in f:
-                if line.startswith("version = "):
-                    return line.split("=")[1].strip().strip('"')
-    except Exception:
-        try:
-            with open("pyproject.toml") as f:
-                for line in f:
-                    if line.startswith("version = "):
-                        return line.split("=")[1].strip().strip('"')
-        except Exception:
-            return "unknown"
-    return "unknown"
-
 appconf = {
     "site": {
         "site_name": os.environ.get("SITE_NAME", "MikuInvidious"),
         "site_url": os.environ.get("SITE_URL", "https://example.org"),
-        "site_version": get_version(),
-        "site_hash": get_git_hash(),
         "site_modified_source_code_url": os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "")
         if os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "").lower() not in ["false", ""]
         else False,
