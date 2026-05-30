@@ -100,10 +100,7 @@ class ProxyResponse(Response):
                         # For MP4/FLV, we only retry if we are still near the beginning
                         # or if it's a small file.
                         is_media = self.url and (".mp4" in self.url.lower() or ".flv" in self.url.lower() or "upos" in self.url.lower() or ".m4s" in self.url.lower())
-                        if is_media and bytes_yielded > 1024 * 1024 * 100: # 100MB threshold
-                             print(f"[Proxy] Upstream error deep in stream ({bytes_yielded} bytes), letting it fail for client retry: {repr(e)}")
-                             return
-
+                        # Internal retries for media are generally safe as we append bytes at the correct offset
                         if retries >= max_retries or not self.url or not self.client:
                             if bytes_yielded > 0:
                                 print(f"[Proxy] Upstream error after {bytes_yielded} bytes: {repr(e)}")
@@ -178,7 +175,7 @@ class ProxyResponse(Response):
                 print(f"[Proxy] Upstream connection closed.")
 
         super().__init__(response_generator(), status=status, *args, **kwargs)
-        # self.headers["X-Content-Type-Options"] = "nosniff" # Disabled for media sniffing compatibility
+        self.headers["X-Content-Type-Options"] = "nosniff"
         self.headers["Access-Control-Allow-Origin"] = "*"
         self.headers["Access-Control-Expose-Headers"] = (
             "Content-Length, Content-Range, X-Miku-Proxy"
@@ -218,10 +215,13 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
     headers = COMMON_HEADERS.copy()
 
-    # Add Bili-Ticket (if available) but skip dynamic API-only headers for CDN
+    # Add Bili-Ticket and dynamic session/trace IDs
     ticket = await TicketManager.get_ticket()
     if ticket:
         headers["x-bili-ticket"] = ticket
+
+    headers["session_id"] = TicketManager._generate_session_id()
+    headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
 
     if appconf["credential"].get("buvid3"):
         headers["buvid"] = appconf["credential"]["buvid3"]
@@ -323,10 +323,13 @@ async def proxy_main(subpath):
 
         headers = COMMON_HEADERS.copy()
 
-        # Add Bili-Ticket (if available) but skip dynamic API-only headers for CDN
+        # Add Bili-Ticket and dynamic session/trace IDs
         ticket = await TicketManager.get_ticket()
         if ticket:
             headers["x-bili-ticket"] = ticket
+
+        headers["session_id"] = TicketManager._generate_session_id()
+        headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
 
         if appconf["credential"].get("buvid3"):
             headers["buvid"] = appconf["credential"]["buvid3"]

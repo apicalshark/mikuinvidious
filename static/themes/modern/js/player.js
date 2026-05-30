@@ -245,7 +245,7 @@ class VodStreamManager {
       {
         enableWorker: false,
         enableStashBuffer: true,
-        stashInitialSize: 1024 * 384, // 384KB for faster start on slow networks
+        stashInitialSize: 1024 * 1024, // 1MB for stable buffer
         autoCleanupSourceBuffer: true,
       }
     );
@@ -839,15 +839,14 @@ function setupVodQuality(video, list, label) {
 
         if (window.vodManager) {
           window.vodManager.destroy();
-          video.src = newUrl;
+          window.vodManager = null;
+        }
+
+        video.src = newUrl;
+
+        if (ext === ".flv") {
           window.vodManager = new VodStreamManager(video, newUrl);
           window.vodManager.init();
-        } else if (ext === ".flv") {
-          video.src = newUrl;
-          window.vodManager = new VodStreamManager(video, newUrl);
-          window.vodManager.init();
-        } else {
-          video.src = newUrl;
         }
 
         const onLoaded = () => {
