@@ -99,16 +99,15 @@ class ProxyResponse(Response):
                         # internal retries are risky as they might cause decoder errors.
                         # For MP4/FLV, we only retry if we are still near the beginning
                         # or if it's a small file.
-                        is_media = self.url and (".mp4" in self.url.lower() or ".flv" in self.url.lower() or "upos" in self.url.lower())
-                        if is_media and bytes_yielded > 1024 * 1024 * 5: # 5MB threshold
+                        is_media = self.url and (".mp4" in self.url.lower() or ".flv" in self.url.lower() or "upos" in self.url.lower() or ".m4s" in self.url.lower())
+                        if is_media and bytes_yielded > 1024 * 1024 * 100: # 100MB threshold
                              print(f"[Proxy] Upstream error deep in stream ({bytes_yielded} bytes), letting it fail for client retry: {repr(e)}")
-                             raise
+                             return
 
                         if retries >= max_retries or not self.url or not self.client:
-                            print(f"[Proxy] Upstream error: {repr(e)}")
-                            if not str(e):
-                                import traceback
-                                traceback.print_exc()
+                            if bytes_yielded > 0:
+                                print(f"[Proxy] Upstream error after {bytes_yielded} bytes: {repr(e)}")
+                                return
                             raise
                         
                         retries += 1
@@ -166,7 +165,10 @@ class ProxyResponse(Response):
             except Exception as e:
                 # Avoid logging common transport errors as "unexpected" if they were already handled
                 if not isinstance(e, (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError)):
-                    print(f"[Proxy] Stream unexpected error: {type(e).__name__}: {e}")
+                    print(f"[Proxy] Stream unexpected error after {bytes_yielded} bytes: {type(e).__name__}: {e}")
+                
+                if bytes_yielded > 0:
+                    return
                 raise
             finally:
                 try:
