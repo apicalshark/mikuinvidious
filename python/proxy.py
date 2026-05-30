@@ -34,7 +34,9 @@ async def render_proxy_pic(req_path):
             req = client.build_request("GET", url, headers=headers)
             resp = await client.send(req, stream=True, follow_redirects=True)
 
-            proxy_resp = ProxyResponse(resp, status=resp.status_code)
+            proxy_resp = ProxyResponse(
+                resp, status=resp.status_code, url=url, headers=headers, client=client
+            )
             # Add basic headers
             for k, v in resp.headers.items():
                 if k.lower() in ["content-type", "content-length", "etag", "last-modified"]:
@@ -56,42 +58,108 @@ class ProxyResponse(Response):
     """
     A specialized Response class that manages the lifetime of an upstream httpx response.
     Ensures that aclose() is called when the response is finished or closed.
+    Supports transparent retries for unstable upstream connections.
     """
 
-    def __init__(self, upstream_resp, status=None, *args, **kwargs):
+    def __init__(
+        self,
+        upstream_resp,
+        status=None,
+        url=None,
+        headers=None,
+        cookies=None,
+        client=None,
+        *args,
+        **kwargs,
+    ):
         self.upstream_resp = upstream_resp
+        self.url = url
+        self.headers_template = headers
+        self.cookies = cookies
+        self.client = client
 
         # Create a generator that yields from the upstream response
         # and ensures it's closed when the generator is finished.
         async def response_generator():
+            curr_resp = self.upstream_resp
+            bytes_yielded = 0
+            retries = 0
+            max_retries = 3
+
             try:
-                async for chunk in self.upstream_resp.aiter_bytes(chunk_size=1024 * 64):
-                    yield chunk
-            except (httpx.RemoteProtocolError, httpx.ReadError, httpx.WriteError) as e:
-                # Log the error and re-raise to signal failure to the ASGI server/browser.
-                # This helps mpegts.js/hls.js detect the interruption faster.
-                print(f"[Proxy] Upstream connection dropped/error: {e}")
+                while True:
+                    try:
+                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
+                            yield chunk
+                            bytes_yielded += len(chunk)
+                        # Success: break the retry loop
+                        break
+                    except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout) as e:
+                        if retries >= max_retries or not self.url or not self.client:
+                            print(f"[Proxy] Upstream error: {type(e).__name__}: {e}")
+                            raise
+                        
+                        retries += 1
+                        print(f"[Proxy] Upstream error: {e}. Retrying {retries}/{max_retries} from byte {bytes_yielded}...")
+                        
+                        try:
+                            await curr_resp.aclose()
+                        except:
+                            pass
+                        
+                        # Wait a bit before retrying (exponential backoff)
+                        await asyncio.sleep(0.5 * retries)
+                        
+                        # Prepare retry headers with adjusted Range
+                        h = (self.headers_template or COMMON_HEADERS).copy()
+                        orig_range = h.get("range", "bytes=0-")
+                        try:
+                            if "=" in orig_range:
+                                prefix, rrange = orig_range.split("=", 1)
+                                if "-" in rrange:
+                                    start_str, end_str = rrange.split("-", 1)
+                                    start = int(start_str) if start_str else 0
+                                    h["range"] = f"bytes={start + bytes_yielded}-{end_str}"
+                                else:
+                                    start = int(rrange) if rrange else 0
+                                    h["range"] = f"bytes={start + bytes_yielded}-"
+                            else:
+                                h["range"] = f"bytes={bytes_yielded}-"
+                        except:
+                            h["range"] = f"bytes={bytes_yielded}-"
+                        
+                        try:
+                            req = self.client.build_request("GET", self.url, headers=h, cookies=self.cookies)
+                            curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
+                            self.upstream_resp = curr_resp # Update for aclose() tracking
+                        except Exception as re:
+                            print(f"[Proxy] Retry request failed: {re}")
+                            raise e
+                    except (httpx.StreamClosed, RuntimeError) as e:
+                        print(f"[Proxy] Stream closed or already consumed: {e}")
+                        break
+            except (asyncio.CancelledError, GeneratorExit):
+                # Client disconnected, this is normal
                 raise
-            except (httpx.StreamClosed, RuntimeError) as e:
-                # Occurs if the stream is closed while we are reading or after consumption
-                print(f"[Proxy] Stream closed or already consumed: {e}")
-                # Don't re-raise for already consumed streams as it might be normal termination
             except Exception as e:
-                print(f"[Proxy] Stream unexpected error: {type(e).__name__}: {e}")
+                if not isinstance(e, (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout)):
+                    print(f"[Proxy] Stream unexpected error: {type(e).__name__}: {e}")
                 raise
             finally:
                 try:
-                    await self.upstream_resp.aclose()
-                except Exception:
+                    await curr_resp.aclose()
+                except:
                     pass
                 print(f"[Proxy] Upstream connection closed.")
 
         super().__init__(response_generator(), status=status, *args, **kwargs)
         self.headers["X-Content-Type-Options"] = "nosniff"
         self.headers["Access-Control-Allow-Origin"] = "*"
-        self.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Range, X-Miku-Proxy"
+        self.headers["Access-Control-Expose-Headers"] = (
+            "Content-Length, Content-Range, X-Miku-Proxy"
+        )
         self.headers["X-Accel-Buffering"] = "no"
-        
+
         # Avoid caching partial content or errors too aggressively
         if self.status_code == 200:
             self.headers["Cache-Control"] = "public, max-age=3600"
@@ -147,7 +215,14 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
         resp = await client.send(proxy_request, stream=True, follow_redirects=True)
 
-        proxy_resp = ProxyResponse(resp, status=resp.status_code)
+        proxy_resp = ProxyResponse(
+            resp,
+            status=resp.status_code,
+            url=url,
+            headers=headers,
+            cookies=cookie_jar,
+            client=client,
+        )
 
         # Ensure cleanup if response is not started
         try:
@@ -289,7 +364,14 @@ async def proxy_main(subpath):
             resp = await client.send(proxy_request, stream=True, follow_redirects=True)
             print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
 
-            proxy_resp = ProxyResponse(resp, status=resp.status_code)
+            proxy_resp = ProxyResponse(
+                resp,
+                status=resp.status_code,
+                url=url,
+                headers=headers,
+                cookies=cookie_jar,
+                client=client,
+            )
 
             # Ensure cleanup if response is not started
             try:
