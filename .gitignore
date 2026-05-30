@@ -10,6 +10,7 @@ node_modules/
 uv.lock
 *.old
 logs/caddy/access.log
+Caddyfile
 
 ssl/
 wgcf/
