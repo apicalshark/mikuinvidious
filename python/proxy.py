@@ -120,7 +120,7 @@ class ProxyResponse(Response):
                             pass
                         
                         # Wait a bit before retrying (exponential backoff)
-                        await asyncio.sleep(2.0 * retries)
+                        await asyncio.sleep(1.0 * retries)
                         
                         # Prepare retry headers with adjusted Range
                         h = (self.headers_template or COMMON_HEADERS).copy()
@@ -216,27 +216,26 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
     headers = COMMON_HEADERS.copy()
 
-    # Add Bili-Ticket and dynamic session/trace IDs
-    ticket = await TicketManager.get_ticket()
-    if ticket:
-        headers["x-bili-ticket"] = ticket
+        # Add Bili-Ticket (if available) but skip dynamic API-only headers for CDN
+        ticket = await TicketManager.get_ticket()
+        if ticket:
+            headers["x-bili-ticket"] = ticket
 
-    headers["session_id"] = TicketManager._generate_session_id()
-    headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+        if appconf["credential"].get("buvid3"):
+            headers["buvid"] = appconf["credential"]["buvid3"]
+        if appconf["credential"].get("buvid4"):
+            headers["buvid4"] = appconf["credential"]["buvid4"]
 
-    if appconf["credential"].get("buvid3"):
-        headers["buvid"] = appconf["credential"]["buvid3"]
+        # Forward headers from client (crucial for Range requests)
+        for k, v in request.headers.items():
+            if k.lower() in ["range", "if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
+                headers[k.lower()] = v
 
-    # Forward headers from client (crucial for Range requests)
-    for k, v in request.headers.items():
-        if k.lower() in ["range", "if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
-            headers[k.lower()] = v
-
-    client = await Network.get_async_client()
-    resp = None
-    try:
-        proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-        resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+        client = await Network.get_async_client()
+        resp = None
+        try:
+            proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
+            resp = await client.send(proxy_request, stream=True, follow_redirects=True)
 
         proxy_resp = ProxyResponse(
             resp,
@@ -324,16 +323,15 @@ async def proxy_main(subpath):
 
         headers = COMMON_HEADERS.copy()
 
-        # Add Bili-Ticket and dynamic session/trace IDs
+        # Add Bili-Ticket (if available) but skip dynamic API-only headers for CDN
         ticket = await TicketManager.get_ticket()
         if ticket:
             headers["x-bili-ticket"] = ticket
 
-        headers["session_id"] = TicketManager._generate_session_id()
-        headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-
         if appconf["credential"].get("buvid3"):
             headers["buvid"] = appconf["credential"]["buvid3"]
+        if appconf["credential"].get("buvid4"):
+            headers["buvid4"] = appconf["credential"]["buvid4"]
 
         # Forward headers from client
         for k, v in request.headers.items():
