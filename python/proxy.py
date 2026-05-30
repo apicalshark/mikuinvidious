@@ -89,18 +89,21 @@ class ProxyResponse(Response):
             try:
                 while True:
                     try:
-                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
+                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 256):
                             yield chunk
                             bytes_yielded += len(chunk)
                         # Success: break the retry loop
                         break
-                    except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout) as e:
+                    except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
                         if retries >= max_retries or not self.url or not self.client:
-                            print(f"[Proxy] Upstream error: {type(e).__name__}: {e}")
+                            print(f"[Proxy] Upstream error: {repr(e)}")
+                            if not str(e):
+                                import traceback
+                                traceback.print_exc()
                             raise
                         
                         retries += 1
-                        print(f"[Proxy] Upstream error: {e}. Retrying {retries}/{max_retries} from byte {bytes_yielded}...")
+                        print(f"[Proxy] Upstream error: {repr(e)}. Retrying {retries}/{max_retries} from byte {bytes_yielded}...")
                         
                         try:
                             await curr_resp.aclose()
@@ -108,10 +111,15 @@ class ProxyResponse(Response):
                             pass
                         
                         # Wait a bit before retrying (exponential backoff)
-                        await asyncio.sleep(0.5 * retries)
+                        await asyncio.sleep(2.0 * retries)
                         
                         # Prepare retry headers with adjusted Range
                         h = (self.headers_template or COMMON_HEADERS).copy()
+                        
+                        # Refresh dynamic IDs on retry to avoid being flagged as a stuck session
+                        h["session_id"] = TicketManager._generate_session_id()
+                        h["x-bili-trace-id"] = TicketManager._generate_trace_id()
+                        
                         orig_range = h.get("range", "bytes=0-")
                         try:
                             if "=" in orig_range:
@@ -129,9 +137,14 @@ class ProxyResponse(Response):
                             h["range"] = f"bytes={bytes_yielded}-"
                         
                         try:
+                            # Use a fresh request with new IDs and adjusted Range
                             req = self.client.build_request("GET", self.url, headers=h, cookies=self.cookies)
                             curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
                             self.upstream_resp = curr_resp # Update for aclose() tracking
+                            
+                            # Log the new response status
+                            if curr_resp.status_code not in [200, 206]:
+                                print(f"[Proxy] Retry returned status {curr_resp.status_code}")
                         except Exception as re:
                             print(f"[Proxy] Retry request failed: {re}")
                             raise e
@@ -142,7 +155,8 @@ class ProxyResponse(Response):
                 # Client disconnected, this is normal
                 raise
             except Exception as e:
-                if not isinstance(e, (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout)):
+                # Avoid logging common transport errors as "unexpected" if they were already handled
+                if not isinstance(e, (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError)):
                     print(f"[Proxy] Stream unexpected error: {type(e).__name__}: {e}")
                 raise
             finally:
