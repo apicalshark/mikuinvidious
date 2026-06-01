@@ -1,4 +1,5 @@
 import asyncio
+import re
 import uuid
 from urllib.parse import urlparse
 
@@ -54,6 +55,44 @@ async def render_proxy_pic(req_path):
                 await resp.aclose()
 
 
+def _parse_stream_range(upstream_resp, headers_template):
+    """Derive byte range for CDN stitching and the Content-Range header sent to the browser."""
+    content_range = upstream_resp.headers.get("content-range")
+    start_byte = 0
+    end_byte = None
+
+    client_range = (headers_template or {}).get("range", "").strip()
+    client_wants_full = not client_range or re.fullmatch(
+        r"bytes\s*=\s*0\s*-\s*", client_range, re.IGNORECASE
+    )
+    client_open = None
+    open_match = re.fullmatch(r"bytes\s*=\s*(\d+)\s*-\s*", client_range, re.IGNORECASE)
+    if open_match:
+        client_open = int(open_match.group(1))
+
+    if content_range:
+        match = re.match(r"bytes\s+(\d+)-(\d+)(?:/(\d+))?", content_range, re.IGNORECASE)
+        if match:
+            start_byte = int(match.group(1))
+            segment_end = int(match.group(2))
+            total_size = match.group(3)
+            if total_size and (client_wants_full or client_open is not None):
+                end_byte = int(total_size) - 1
+                if client_open is not None:
+                    start_byte = client_open
+            else:
+                end_byte = segment_end
+    elif upstream_resp.status_code == 200:
+        content_length = upstream_resp.headers.get("content-length")
+        if content_length:
+            try:
+                end_byte = int(content_length) - 1
+            except ValueError:
+                pass
+
+    return start_byte, end_byte
+
+
 class ProxyResponse(Response):
     """
     A specialized Response class that manages the lifetime of an upstream httpx response.
@@ -77,40 +116,17 @@ class ProxyResponse(Response):
         self.headers_template = headers
         self.cookies = cookies
         self.client = client
+        self.stitch_start_byte, self.stitch_end_byte = _parse_stream_range(
+            upstream_resp, headers
+        )
 
         # Create a generator that yields from the upstream response
         # and ensures it's closed when the generator is finished.
         async def response_generator():
-            import re
             curr_resp = self.upstream_resp
             bytes_yielded = 0
-
-            # Determine the initial range parameters from upstream response headers
-            content_range = curr_resp.headers.get("content-range")
-            start_byte = 0
-            end_byte = None
-
-            if content_range:
-                match = re.match(r"bytes\s+(\d+)-(\d+)(?:/(\d+))?", content_range, re.IGNORECASE)
-                if match:
-                    start_byte = int(match.group(1))
-                    segment_end = int(match.group(2))
-                    total_size = match.group(3)
-                    client_range = (self.headers_template or {}).get("range", "").strip()
-                    client_wants_full = not client_range or re.fullmatch(
-                        r"bytes\s*=\s*0\s*-\s*", client_range, re.IGNORECASE
-                    )
-                    if total_size and client_wants_full:
-                        end_byte = int(total_size) - 1
-                    else:
-                        end_byte = segment_end
-            elif curr_resp.status_code == 200:
-                content_length = curr_resp.headers.get("content-length")
-                if content_length:
-                    try:
-                        end_byte = int(content_length) - 1
-                    except ValueError:
-                        pass
+            start_byte = self.stitch_start_byte
+            end_byte = self.stitch_end_byte
 
             max_retries = 5
             retry_count = 0
@@ -230,8 +246,7 @@ class ProxyResponse(Response):
                     print(f"[Proxy] Stream finished: {bytes_yielded} bytes delivered, {total_reconnects} CDN reconnect(s).")
 
         super().__init__(response_generator(), status=status, *args, **kwargs)
-        # Body may span multiple CDN connections; upstream Content-Length is not trustworthy.
-        self.headers.pop("Content-Length", None)
+        self.apply_stitch_range_headers()
         self.headers["X-Content-Type-Options"] = "nosniff"
         self.headers["Access-Control-Allow-Origin"] = "*"
         self.headers["Access-Control-Expose-Headers"] = (
@@ -246,6 +261,16 @@ class ProxyResponse(Response):
             self.headers["Cache-Control"] = "no-cache"
         else:
             self.headers["Cache-Control"] = "no-store, must-revalidate"
+
+    def apply_stitch_range_headers(self):
+        """Align 206 Content-Range with the full stitched body the generator will deliver."""
+        self.headers.pop("Content-Length", None)
+        if self.stitch_end_byte is None or self.status_code != 206:
+            return
+        total = self.stitch_end_byte + 1
+        self.headers["Content-Range"] = (
+            f"bytes {self.stitch_start_byte}-{self.stitch_end_byte}/{total}"
+        )
 
     async def aclose(self):
         """Called by Quart when the response is finished or the client disconnects."""
@@ -335,7 +360,11 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                 "last-modified",
                 "cache-control",
             ]:
+                if k_lower in ("content-length", "content-range"):
+                    continue
                 proxy_resp.headers[k] = v
+
+        proxy_resp.apply_stitch_range_headers()
 
         # Only override Content-Type if it's generic or missing, and only for successful media responses
         if resp.status_code in [200, 206]:
@@ -518,7 +547,11 @@ async def proxy_main(subpath):
                 ]:
                     if is_live and k_lower in ["content-type", "connection"]:
                         continue
+                    if k_lower in ("content-length", "content-range"):
+                        continue
                     proxy_resp.headers[k] = v
+
+            proxy_resp.apply_stitch_range_headers()
 
             # Only override Content-Type if it's generic or missing
             if resp.status_code in [200, 206] and not is_live:

@@ -337,17 +337,25 @@ class VodStreamManager {
   }
 }
 
-function trySoftSeekRecovery(video) {
-  const t = video.currentTime;
-  if (t <= 0.5) return false;
-  const target = Math.max(0, t - 3);
-  console.log("[Player] Soft seek recovery:", target.toFixed(2));
-  video.currentTime = target;
-  video.play().catch(() => {});
-  return true;
+function abortVideoLoad(video) {
+  return new Promise((resolve) => {
+    if (!video.src && !video.currentSrc) {
+      resolve();
+      return;
+    }
+    const done = () => {
+      video.removeEventListener("emptied", done);
+      resolve();
+    };
+    video.addEventListener("emptied", done, { once: true });
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    setTimeout(resolve, 400);
+  });
 }
 
-function triggerNativeRecovery(video) {
+async function triggerNativeRecovery(video) {
   if (window.isNativeRecovering) return;
 
   const now = Date.now();
@@ -364,7 +372,7 @@ function triggerNativeRecovery(video) {
 
   console.log("[Player] Triggering native recovery at:", currentTime.toFixed(2));
 
-  video.pause();
+  await abortVideoLoad(video);
   video.src = recoveryUrl.href;
   video.load();
 
@@ -581,21 +589,6 @@ async function initMikuPlayer() {
       console.warn("[Player] Native video error:", err.code, err.message);
 
       if (err.code !== 2 && err.code !== 3 && err.code !== 4) return;
-
-      // Decode glitch from a bad CDN stitch: rewind first to avoid a second full proxy fetch.
-      if (err.code === 3 && !video._decodeSoftRetry) {
-        video._decodeSoftRetry = true;
-        if (trySoftSeekRecovery(video)) {
-          setTimeout(() => {
-            if (video.error && !window.isNativeRecovering) {
-              triggerNativeRecovery(video);
-            }
-            video._decodeSoftRetry = false;
-          }, 1500);
-          return;
-        }
-        video._decodeSoftRetry = false;
-      }
 
       triggerNativeRecovery(video);
     };
