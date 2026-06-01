@@ -267,6 +267,13 @@ class ProxyResponse(Response):
                                 curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
                                 self.headers_template = retry_headers
 
+                            if curr_resp.status_code == 416:
+                                print(
+                                    f"[Proxy] Retry got 416 for range {range_header} — not satisfiable"
+                                )
+                                await curr_resp.aclose()
+                                break
+
                             if curr_resp.status_code != 206:
                                 fail_status = curr_resp.status_code
                                 await curr_resp.aclose()
@@ -682,6 +689,15 @@ async def proxy_main(subpath):
             proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
             resp = await client.send(proxy_request, stream=True, follow_redirects=True)
             print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
+
+            if resp.status_code == 416:
+                client_range = request.headers.get("Range", "")
+                await resp.aclose()
+                print(
+                    f"[Proxy] Upstream 416 Range Not Satisfiable "
+                    f"(client Range: {client_range[:100]}) {url[:55]}"
+                )
+                return Response("Range Not Satisfiable", status=416)
 
             if resp.status_code in (403, 412, 514, 502, 504):
                 print(

@@ -580,45 +580,92 @@ async def fetch_mp4_playurls_parallel(vi, idx, ep_id=None):
     return best
 
 
-def _find_mp4_box(data: bytes, box_type: bytes, start=0):
+def _find_mp4_box(data: bytes, box_type: bytes, start=0, end=None):
+    end = end if end is not None else len(data)
     i = start
-    while i + 8 <= len(data):
+    while i + 8 <= end:
         size = int.from_bytes(data[i : i + 4], "big")
         if size < 8:
-            break
+            if size == 0:
+                size = end - i
+            else:
+                break
+        if i + size > end:
+            size = end - i
         if data[i + 4 : i + 8] == box_type:
             return i, size
         i += size
     return None
 
 
-def _parse_mp4_segment_ranges(data: bytes):
-    """Return (init_range, index_range) strings for DASH SegmentBase."""
+def _parse_mp4_segment_ranges(data: bytes, byte_offset=0):
+    """Return (init_range, index_range) for DASH SegmentBase, or (None, None) if no sidx."""
     moov = _find_mp4_box(data, b"moov")
     if not moov:
         return None, None
     moov_start, moov_size = moov
-    moov_end = moov_start + moov_size - 1
-    init_range = f"0-{moov_end}"
-    sidx = _find_mp4_box(data, b"sidx")
-    if sidx:
-        sidx_start, sidx_size = sidx
-        index_range = f"{sidx_start}-{sidx_start + sidx_size - 1}"
-    else:
-        index_range = init_range
+    moov_end = byte_offset + moov_start + moov_size - 1
+    init_range = f"{byte_offset + moov_start}-{moov_end}"
+
+    sidx = _find_mp4_box(data, b"sidx", start=moov_start + moov_size)
+    if not sidx:
+        return init_range, None
+
+    sidx_start, sidx_size = sidx
+    abs_start = byte_offset + sidx_start
+    index_range = f"{abs_start}-{abs_start + sidx_size - 1}"
     return init_range, index_range
 
 
+async def _probe_mp4_file_size(client, url):
+    headers = await build_cdn_media_headers(forward_range=False)
+    headers["Range"] = "bytes=0-0"
+    resp = await client.get(url, headers=headers, follow_redirects=True)
+    if resp.status_code not in (200, 206):
+        return None
+    cr = resp.headers.get("content-range", "")
+    match = re.match(r"bytes\s+\d+-\d+/(\d+)", cr, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    cl = resp.headers.get("content-length")
+    return int(cl) if cl else None
+
+
 async def probe_mp4_segment_ranges(url):
-    """Fetch file head and parse moov/sidx for dash.js SegmentBase."""
+    """
+    Locate moov (init) and sidx (index) byte ranges for dash.js.
+    B站 durl MP4 often places sidx after moov or near EOF — probe head + tail.
+    Returns (init_range, index_range); index_range is None if not found (use native playback).
+    """
     try:
         client = await Network.get_async_client()
         headers = await build_cdn_media_headers(forward_range=False)
-        headers["Range"] = "bytes=0-2097151"
+        headers["Range"] = "bytes=0-8388607"
         resp = await client.get(url, headers=headers, follow_redirects=True)
         if resp.status_code not in (200, 206):
             return None, None
-        return _parse_mp4_segment_ranges(resp.content)
+        init_range, index_range = _parse_mp4_segment_ranges(resp.content, 0)
+        if index_range and init_range != index_range:
+            return init_range, index_range
+
+        total = await _probe_mp4_file_size(client, url)
+        if not total or total < 65536:
+            return init_range, None
+
+        tail_len = min(524288, total)
+        tail_start = total - tail_len
+        headers["Range"] = f"bytes={tail_start}-"
+        tail_resp = await client.get(url, headers=headers, follow_redirects=True)
+        if tail_resp.status_code not in (200, 206):
+            return init_range, None
+        sidx = _find_mp4_box(tail_resp.content, b"sidx")
+        if sidx and init_range:
+            sidx_start, sidx_size = sidx
+            abs_start = tail_start + sidx_start
+            index_range = f"{abs_start}-{abs_start + sidx_size - 1}"
+            print(f"[Extra] MP4 sidx found in tail @ {index_range} (file size {total})")
+            return init_range, index_range
+        return init_range, None
     except Exception as e:
         print(f"[Extra] MP4 probe failed: {e}")
         return None, None
@@ -674,9 +721,12 @@ async def merge_720p_progressive_into_dash(vid, idx, dash_data, mp4_data):
     )
 
     init_range, index_range = await probe_mp4_segment_ranges(durl[0]["url"])
-    if not init_range:
-        print("[Extra] 720p MP4: moov/sidx probe failed, dash.js may still try progressive URL")
-        init_range, index_range = "0-0", "0-0"
+    if not init_range or not index_range:
+        print(
+            "[Extra] 720p MP4: no separate sidx (muxed progressive) — "
+            "unsuitable for DASH SegmentBase; use native player"
+        )
+        return dash_data
 
     width, height = _format_dims_from_playurl(mp4_data, qn)
     total_size = sum(int(d.get("size") or 0) for d in durl) or int(durl[0].get("size") or 0)
@@ -700,6 +750,7 @@ async def merge_720p_progressive_into_dash(vid, idx, dash_data, mp4_data):
             "indexRange": index_range,
         },
         "_progressive": True,
+        "_muxed": True,
     }
 
     if not dash_data or "dash" not in dash_data:
@@ -708,10 +759,10 @@ async def merge_720p_progressive_into_dash(vid, idx, dash_data, mp4_data):
             "support_formats": list(mp4_data.get("support_formats") or []),
         }
 
-    videos = dash_data["dash"].setdefault("video", [])
-    if not any(int(v.get("id", 0)) == qn for v in videos):
-        videos.append(track)
-        videos.sort(key=lambda v: int(v.get("id", 0)))
+    # Muxed durl MP4 carries A+V; do not mix with separate DASH audio/video tracks.
+    dash_data["dash"]["video"] = [track]
+    dash_data["dash"]["audio"] = []
+    dash_data["_muxed_progressive_qn"] = qn
 
     sf = {int(f.get("quality", 0)): f for f in dash_data.get("support_formats", [])}
     for f in mp4_data.get("support_formats", []) or []:
@@ -779,13 +830,13 @@ async def resolve_playback_from_parallel(vid, idx, vi, dash_data, mp4_data, ep_i
         return True, dash_data
 
     if mp4_data and mp4_qn >= 64 and max_dash < 64:
-        dash_data = await merge_720p_progressive_into_dash(vid, idx, dash_data, mp4_data)
-        if _max_dash_video_qn(dash_data) >= 64:
-            print(f"[Video] Using DASH with merged 720p progressive for {vid}:{idx}")
-            return True, dash_data
+        merged = await merge_720p_progressive_into_dash(vid, idx, dash_data, mp4_data)
+        if merged.get("_muxed_progressive_qn"):
+            print(f"[Video] Using DASH (muxed 720p progressive) for {vid}:{idx}")
+            return True, merged
         formats = await formats_from_playurl(vid, idx, vi, mp4_data, ep_id=ep_id)
         if formats:
-            print(f"[Video] 720p DASH merge failed; using native progressive for {vid}:{idx}")
+            print(f"[Video] Using native progressive 720p for {vid}:{idx}")
             return False, formats
 
     if dash_data:
@@ -873,6 +924,7 @@ def generate_vod_mpd(vid, idx, dash_data):
     dash = dash_data["dash"]
     duration = dash.get("duration", 0)
     min_buffer_time = dash.get("minBufferTime", 1.5)
+    muxed_qn = dash_data.get("_muxed_progressive_qn")
 
     mpd = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -882,9 +934,13 @@ def generate_vod_mpd(vid, idx, dash_data):
         '  <Period id="1" start="PT0S">',
     ]
 
-    # Video Adaptation Set
+    # Video Adaptation Set (muxed 720p progressive = single A+V representation)
+    video_tracks = dash.get("video", [])
+    if muxed_qn:
+        video_tracks = [v for v in video_tracks if v.get("_muxed")]
+
     mpd.append('    <AdaptationSet id="1" mimeType="video/mp4" segmentAlignment="true" startWithSAP="1">')
-    for video in dash.get("video", []):
+    for video in video_tracks:
         qn = video["id"]
         cid = video.get("codecid") or 0
         bandwidth = video.get("bandwidth", 0)
@@ -892,6 +948,8 @@ def generate_vod_mpd(vid, idx, dash_data):
         height = video.get("height", 0)
         frame_rate = video.get("frameRate", "24")
         codecs = video.get("codecs") or "avc1.64001F"
+        if video.get("_muxed"):
+            codecs = "avc1.640028, mp4a.40.2"
 
         # SegmentBase info
         sb = video.get("SegmentBase", {})
@@ -922,7 +980,12 @@ def generate_vod_mpd(vid, idx, dash_data):
         mpd.append("      </Representation>")
     mpd.append("    </AdaptationSet>")
 
-    # Audio Adaptation Set
+    if muxed_qn:
+        mpd.append("  </Period>")
+        mpd.append("</MPD>")
+        return "\n".join(mpd)
+
+    # Audio Adaptation Set (separate DASH audio — not used for muxed progressive)
     mpd.append('    <AdaptationSet id="2" mimeType="audio/mp4" segmentAlignment="true" startWithSAP="1">')
     audio_tracks = dash.get("audio", [])
     if not audio_tracks and "flac" in dash and dash["flac"]:
