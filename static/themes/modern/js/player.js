@@ -339,6 +339,13 @@ class VodStreamManager {
 
 function triggerNativeRecovery(video) {
   if (window.isNativeRecovering) return;
+
+  const now = Date.now();
+  if (window.lastNativeRecoveryTime && now - window.lastNativeRecoveryTime < 30000) {
+    console.warn("[Player] Native recovery cooldown active, skipping to prevent rate limits.");
+    return;
+  }
+  window.lastNativeRecoveryTime = now;
   window.isNativeRecovering = true;
 
   const currentTime = video.currentTime;
@@ -423,8 +430,8 @@ class VodBufferController {
     if (Math.abs(currentTime - this.lastTime) < 0.01) {
       this.stuckDuration += this.CHECK_INTERVAL_MS;
 
-      // If stuck for more than 6 seconds, trigger recovery
-      if (this.stuckDuration >= 6000) {
+      // If stuck for more than 20 seconds, trigger recovery
+      if (this.stuckDuration >= 20000) {
         console.warn(
           `[BufferControl] Playback stalled for ${this.stuckDuration / 1000}s. Triggering recovery.`
         );
