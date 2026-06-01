@@ -697,6 +697,11 @@ function initDanmaku(video, container, controller) {
     });
 
     window.dm_status = true;
+    
+    // Explicitly start danmaku if media is not paused
+    if (!video.paused) {
+        window.dm.play();
+    }
 
     const updateSize = () => {
       if (!window.dm || !video || !container) return;
