@@ -290,7 +290,7 @@ class VodStreamManager {
     this.reconnectTimer = setTimeout(() => {
       this.destroyed = false;
       this.init();
-      
+
       const onLoaded = () => {
         console.log("[VodManager] Recovery successful, seeking to:", currentTime.toFixed(2));
         this.video.currentTime = currentTime;
@@ -322,7 +322,7 @@ class VodStreamManager {
     if (isFinal) this.destroyed = true;
     if (this.monitorInterval) clearInterval(this.monitorInterval);
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    
+
     if (this.player) {
       try {
         this.player.pause();
@@ -333,6 +333,83 @@ class VodStreamManager {
         console.error("[VodManager] Error during destroy:", e);
       }
       this.player = null;
+    }
+  }
+}
+
+class VodBufferController {
+  constructor(videoElement, minBuffer = 1.5, targetBuffer = 4.0) {
+    this.video = videoElement;
+    this.minBuffer = minBuffer;
+    this.targetBuffer = targetBuffer;
+    this.isBuffering = false;
+    this.checkInterval = null;
+  }
+
+  start() {
+    if (this.checkInterval) clearInterval(this.checkInterval);
+    this.checkInterval = setInterval(() => this.checkBuffer(), 250);
+  }
+
+  stop() {
+    if (this.checkInterval) {
+      clearInterval(this.checkInterval);
+      this.checkInterval = null;
+    }
+  }
+
+  getBufferAhead() {
+    const time = this.video.currentTime;
+    for (let i = 0; i < this.video.buffered.length; i++) {
+      const start = this.video.buffered.start(i);
+      const end = this.video.buffered.end(i);
+      if (time >= start && time <= end) {
+        return end - time;
+      }
+    }
+    return 0;
+  }
+
+  checkBuffer() {
+    if (this.video.readyState < 2) {
+      // Video is loading/initializing, let native loading handle it
+      return;
+    }
+
+    if (this.video.ended) {
+      this.isBuffering = false;
+      return;
+    }
+
+    if (this.video.paused && !this.isBuffering) {
+      return;
+    }
+
+    const bufferAhead = this.getBufferAhead();
+    const duration = this.video.duration;
+    const timeToEnd = duration ? duration - this.video.currentTime : Infinity;
+
+    if (!this.isBuffering) {
+      // Underflow: buffer is low, and we are not near the end of the video
+      if (bufferAhead < this.minBuffer && timeToEnd > this.minBuffer) {
+        console.log(
+          `[BufferControl] Buffer underflow: ${bufferAhead.toFixed(2)}s. Pausing for buffering.`
+        );
+        this.isBuffering = true;
+        this.video.pause();
+        this.video.dispatchEvent(new Event("waiting"));
+      }
+    } else {
+      // Recovery: buffer is healthy, or we have buffered to the end
+      if (bufferAhead >= this.targetBuffer || bufferAhead >= timeToEnd) {
+        console.log(`[BufferControl] Buffer recovered: ${bufferAhead.toFixed(2)}s. Resuming.`);
+        this.isBuffering = false;
+        this.video.play().catch((err) => {
+          console.warn("[BufferControl] Resume failed:", err);
+        });
+      } else {
+        this.video.dispatchEvent(new Event("waiting"));
+      }
     }
   }
 }
@@ -366,6 +443,12 @@ async function initMikuPlayer() {
   const controller = document.getElementById("miku-player");
 
   if (!video) return;
+
+  // Clean up old buffer controller if it exists
+  if (window.vodBufferController) {
+    window.vodBufferController.stop();
+    window.vodBufferController = null;
+  }
 
   // 1. Danmaku Setup (Using DOM engine for pixel perfection)
   initDanmaku(video, danmakuContainer, controller);
@@ -418,6 +501,12 @@ async function initMikuPlayer() {
     }
   }
 
+  // 2.5. Buffer Controller for VOD (DASH, FLV, and progressive MP4)
+  if (!window.is_live) {
+    window.vodBufferController = new VodBufferController(video);
+    window.vodBufferController.start();
+  }
+
   // 3. UI Events
   const dmBtn = document.getElementById("danmaku-toggle");
   if (dmBtn) {
@@ -432,23 +521,23 @@ async function initMikuPlayer() {
     video.onerror = () => {
       const err = video.error;
       if (!err || window.isNativeRecovering) return;
-      
+
       console.warn("[Player] Native video error:", err.code, err.message);
-      
+
       // Attempt recovery for network or decode errors
       if (err.code === 2 || err.code === 3 || err.code === 4) {
         window.isNativeRecovering = true;
         const currentTime = video.currentTime;
         const src = video.src;
-        
+
         console.log("[Player] Attempting native recovery at:", currentTime.toFixed(2));
-        
+
         // Brief delay before reload
         setTimeout(() => {
           video.src = ""; // Clear
           video.src = src;
           video.load();
-          
+
           const onLoaded = () => {
             video.currentTime = currentTime;
             video.play().catch(() => {});
@@ -472,7 +561,7 @@ async function initMikuPlayer() {
       const isVisible = volumeMenu.classList.contains("opacity-100");
       toggleVolumeMenu(!isVisible, volumeBtn, volumeMenu, controller);
     };
-    
+
     // Close menu when clicking outside
     document.addEventListener("click", (e) => {
       if (!volumeBtn.contains(e.target) && !volumeMenu.contains(e.target)) {
@@ -507,7 +596,7 @@ function toggleVolumeMenu(show, btn, menu, controller) {
 
     menu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
     menu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
-    
+
     // Auto-hide quality menu if open
     toggleQualityMenu(false, null, document.getElementById("quality-menu"), controller);
   } else {
@@ -527,7 +616,7 @@ function toggleQualityMenu(show, btn, menu, controller) {
 
     menu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
     menu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
-    
+
     // Auto-hide volume menu if open
     toggleVolumeMenu(false, null, document.getElementById("volume-menu"), controller);
   } else {
