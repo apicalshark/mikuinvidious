@@ -91,10 +91,19 @@ class ProxyResponse(Response):
             end_byte = None
 
             if content_range:
-                match = re.match(r"bytes\s+(\d+)-(\d+)", content_range, re.IGNORECASE)
+                match = re.match(r"bytes\s+(\d+)-(\d+)(?:/(\d+))?", content_range, re.IGNORECASE)
                 if match:
                     start_byte = int(match.group(1))
-                    end_byte = int(match.group(2))
+                    segment_end = int(match.group(2))
+                    total_size = match.group(3)
+                    client_range = (self.headers_template or {}).get("range", "").strip()
+                    client_wants_full = not client_range or re.fullmatch(
+                        r"bytes\s*=\s*0\s*-\s*", client_range, re.IGNORECASE
+                    )
+                    if total_size and client_wants_full:
+                        end_byte = int(total_size) - 1
+                    else:
+                        end_byte = segment_end
             elif curr_resp.status_code == 200:
                 content_length = curr_resp.headers.get("content-length")
                 if content_length:
@@ -162,8 +171,9 @@ class ProxyResponse(Response):
                         except:
                             pass
 
-                        # Wait a little bit before retrying (exponential backoff)
-                        await asyncio.sleep(0.5 * retry_count)
+                        # Backoff only when the CDN keeps failing in short succession (retry_count > 1).
+                        if retry_count > 1:
+                            await asyncio.sleep(0.5 * retry_count)
 
                         # Prepare retry request
                         retry_headers = (self.headers_template or {}).copy()
@@ -220,6 +230,8 @@ class ProxyResponse(Response):
                     print(f"[Proxy] Stream finished: {bytes_yielded} bytes delivered, {total_reconnects} CDN reconnect(s).")
 
         super().__init__(response_generator(), status=status, *args, **kwargs)
+        # Body may span multiple CDN connections; upstream Content-Length is not trustworthy.
+        self.headers.pop("Content-Length", None)
         self.headers["X-Content-Type-Options"] = "nosniff"
         self.headers["Access-Control-Allow-Origin"] = "*"
         self.headers["Access-Control-Expose-Headers"] = (
