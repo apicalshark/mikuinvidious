@@ -637,46 +637,6 @@ async def formats_from_playurl(vid, idx, vi, data, ep_id=None):
     ]
 
 
-async def resolve_playback_from_parallel(
-    vid, idx, vi, dash_data, mp4_data, ep_id=None, prefer_dash=False
-):
-    """
-    Pick player mode after parallel DASH + MP4 playurl fetch.
-    Default (prefer_dash=False): native progressive when durl is available (720p via MP4).
-    prefer_dash=True: use DASH tracks when present, MP4 only as fallback.
-    """
-    if prefer_dash and mp4_data and mp4_data.get("dash"):
-        if dash_data:
-            dash_data = _merge_dash_data(dash_data, mp4_data)
-        else:
-            dash_data = mp4_data
-
-    max_dash = _max_dash_video_qn(dash_data) if dash_data else 0
-    mp4_qn = _playurl_granted_qn(mp4_data) if _has_durl(mp4_data) else 0
-    mode = "DASH-first" if prefer_dash else "native-first"
-    print(
-        f"[Video] Parallel compare ({mode}): DASH max id={max_dash}, "
-        f"MP4 granted qn={mp4_qn}"
-    )
-
-    if not prefer_dash:
-        if mp4_data and _has_durl(mp4_data):
-            formats = await formats_from_playurl(vid, idx, vi, mp4_data, ep_id=ep_id)
-            if formats:
-                return False, formats
-        if dash_data:
-            return True, dash_data
-        return False, None
-
-    if dash_data:
-        return True, dash_data
-    if mp4_data and _has_durl(mp4_data):
-        formats = await formats_from_playurl(vid, idx, vi, mp4_data, ep_id=ep_id)
-        if formats:
-            return False, formats
-    return False, None
-
-
 async def video_get_dash_for_qn(vi, idx, ep_id=None):
     """Get DASH playurl via WBI-signed API (bilibili_api Video.get_download_url)."""
     data = None

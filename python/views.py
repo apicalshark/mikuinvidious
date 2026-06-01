@@ -30,7 +30,7 @@ from extra import (
     generate_vod_mpd,
     get_article_info,
     fetch_mp4_playurls_parallel,
-    resolve_playback_from_parallel,
+    formats_from_playurl,
     video_get_dash_for_qn,
     video_get_src_for_qn,
     _max_dash_video_qn,
@@ -629,34 +629,30 @@ async def api_component_player(vid, idx):
     else:
         ep_id = None
 
-    # Task to get play URLs (DASH and Fallback) - RACE MODE REUSED
     async def get_play_info():
-        has_dash, v_supported_src = False, []
-
-        dash_data_cached = None
-        cached_dash = await appredis.get(f"miku_dash_{vid}_{idx}")
         prefer_dash = user_prefers_dash()
-        if cached_dash:
-            try:
-                dash_data_cached = orjson.loads(cached_dash)
-                if prefer_dash and _max_dash_video_qn(dash_data_cached) >= 64:
-                    v_supported_src = [
-                        {"quality": f["quality"], "new_description": f["new_description"]}
-                        for f in dash_data_cached.get("support_formats", [])
-                    ]
-                    return True, v_supported_src
-            except Exception:
-                dash_data_cached = None
 
-        async def fetch_dash_task():
-            if dash_data_cached:
-                return ("dash", dash_data_cached)
+        def _dash_supported_src(dash_data):
+            return [
+                {"quality": f["quality"], "new_description": f["new_description"]}
+                for f in dash_data.get("support_formats", [])
+            ]
+
+        async def _load_dash():
+            cached = await appredis.get(f"miku_dash_{vid}_{idx}")
+            if cached:
+                try:
+                    data = orjson.loads(cached)
+                    if isinstance(data, dict) and data.get("dash"):
+                        return data
+                except Exception:
+                    pass
             try:
                 data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=20.0)
                 if isinstance(data, dict) and data.get("dash"):
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
                     await populate_dash_redis(vid, idx, data)
-                    return ("dash", data)
+                    return data
                 if isinstance(data, dict) and data.get("code"):
                     print(
                         f"[Video] DASH API error for {vid}:{idx}: "
@@ -666,50 +662,37 @@ async def api_component_player(vid, idx):
                 print(f"[Video] DASH fetch timeout for {vid}:{idx}")
             except Exception as e:
                 print(f"[Video] DASH fetch failed for {vid}:{idx}: {e}")
-            return ("dash", None)
+            return None
 
-        async def fetch_mp4_task():
-            try:
-                data = await asyncio.wait_for(
-                    fetch_mp4_playurls_parallel(v, idx, ep_id=ep_id), timeout=20.0
-                )
-                if data:
-                    return ("mp4", data)
-            except asyncio.TimeoutError:
-                print(f"[Video] MP4 parallel fetch timeout for {vid}:{idx}")
-            except Exception as e:
-                print(f"[Video] MP4 parallel fetch failed for {vid}:{idx}: {e}")
-            return ("mp4", None)
+        if prefer_dash:
+            dash_data = await _load_dash()
+            if dash_data:
+                max_qn = _max_dash_video_qn(dash_data)
+                src = _dash_supported_src(dash_data)
+                print(f"[Video] DASH-only mode for {vid}:{idx} ({len(src)} qualities, max qn {max_qn})")
+                return True, src
+            print(f"[Video] DASH-only mode: no DASH for {vid}:{idx}")
+            return False, []
 
-        # DASH (WBI fnval=4048) and MP4 probes (WBI fnval=1/16 + html5) in parallel.
-        dash_result, mp4_result = await asyncio.gather(
-            fetch_dash_task(),
-            fetch_mp4_task(),
-        )
+        try:
+            mp4_data = await asyncio.wait_for(
+                fetch_mp4_playurls_parallel(v, idx, ep_id=ep_id), timeout=20.0
+            )
+        except asyncio.TimeoutError:
+            print(f"[Video] MP4 fetch timeout for {vid}:{idx}")
+            mp4_data = None
+        except Exception as e:
+            print(f"[Video] MP4 fetch failed for {vid}:{idx}: {e}")
+            mp4_data = None
 
-        dash_type, dash_data = dash_result if isinstance(dash_result, tuple) else ("dash", None)
-        mp4_type, mp4_data = mp4_result if isinstance(mp4_result, tuple) else ("mp4", None)
+        if mp4_data and mp4_data.get("durl"):
+            formats = await formats_from_playurl(vid, idx, v, mp4_data, ep_id=ep_id)
+            if formats:
+                qn = mp4_data.get("quality", "?")
+                print(f"[Video] MP4-only mode for {vid}:{idx} (granted qn {qn}, {len(formats)} qualities)")
+                return False, formats
 
-        use_dash, payload = await resolve_playback_from_parallel(
-            vid, idx, v, dash_data, mp4_data, ep_id=ep_id, prefer_dash=prefer_dash
-        )
-
-        if use_dash and payload:
-            dash_data = payload
-            await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(dash_data))
-            await populate_dash_redis(vid, idx, dash_data)
-            max_dash_qn = _max_dash_video_qn(dash_data)
-            v_supported_src = [
-                {"quality": f["quality"], "new_description": f["new_description"]}
-                for f in dash_data.get("support_formats", [])
-            ]
-            print(f"[Video] Using DASH for {vid}:{idx} ({len(v_supported_src)} qualities, max qn {max_dash_qn})")
-            return True, v_supported_src
-
-        if not use_dash and payload:
-            print(f"[Video] Using progressive MP4 for {vid}:{idx} ({len(payload)} qualities)")
-            return False, payload
-
+        print(f"[Video] MP4-only mode: no progressive URL for {vid}:{idx}")
         return False, []
 
     # Get Info again briefly just for the macro context (cached by request usually)

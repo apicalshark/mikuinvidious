@@ -182,11 +182,11 @@ function initPreferences() {
     if (preferDashPref === "1") {
       btnPreferDash.classList.add("bg-primary", "text-on-primary");
       btnPreferDash.classList.remove("bg-surface-variant", "text-on-surface-variant");
-      btnPreferDash.innerText = "已開啟";
+      btnPreferDash.innerText = "已开启";
     } else {
       btnPreferDash.classList.remove("bg-primary", "text-on-primary");
       btnPreferDash.classList.add("bg-surface-variant", "text-on-surface-variant");
-      btnPreferDash.innerText = "已關閉";
+      btnPreferDash.innerText = "已关闭";
     }
   }
 

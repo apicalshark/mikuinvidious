@@ -75,7 +75,7 @@
             <div id="nyaa-sidebar-container">
                 <div class="flex flex-col items-center justify-center py-12 opacity-40">
                     <div class="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p class="text-sm">正在從 Nyaa 搜尋資源...</p>
+                    <p class="text-sm">正在从 Nyaa 搜索资源...</p>
                 </div>
             </div>
             {% endif %}
@@ -133,7 +133,7 @@
                 .catch(err => {
                     console.error('Nyaa Load Error:', err);
                     if (sidebarContainer) {
-                        sidebarContainer.innerHTML = '<div class="text-center py-12 opacity-40 italic">無法載入 Nyaa 資源</div>';
+                        sidebarContainer.innerHTML = '<div class="text-center py-12 opacity-40 italic">无法加载 Nyaa 资源</div>';
                     }
                 });
         });
