@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -73,13 +77,54 @@ func (r *Rotator) getIP(pool []net.IP, isIPv6 bool) net.IP {
 	}
 }
 
+func (r *Rotator) handleHTTP(c net.Conn, firstByte byte) {
+	defer c.Close()
+
+	reader := bufio.NewReader(&bufferedConn{Conn: c, firstByte: firstByte, hasFirst: true})
+	req, err := http.ReadRequest(reader)
+	if err != nil {
+		log.Printf("[HTTP] Error reading request: %v", err)
+		return
+	}
+
+	if req.Method != http.MethodConnect {
+		log.Printf("[HTTP] Unsupported method: %s", req.Method)
+		resp := &http.Response{
+			StatusCode: http.StatusMethodNotAllowed,
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+		}
+		resp.Write(c)
+		return
+	}
+
+	targetConn, err := r.Dial(context.Background(), "tcp", req.Host)
+	if err != nil {
+		log.Printf("[HTTP] Failed to dial %s: %v", req.Host, err)
+		return
+	}
+	defer targetConn.Close()
+
+	fmt.Fprintf(c, "HTTP/1.1 200 Connection Established\r\n\r\n")
+
+	errChan := make(chan error, 2)
+	cp := func(dst, src net.Conn) {
+		_, err := io.Copy(dst, src)
+		errChan <- err
+	}
+
+	go cp(c, targetConn)
+	go cp(targetConn, c)
+
+	<-errChan
+}
+
 func (r *Rotator) Dial(ctx context.Context, network, addr string) (net.Conn, error) {
 	dialer := &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
 	}
 
-	// Determine if target is IPv6
 	host, _, _ := net.SplitHostPort(addr)
 	isIPv6 := false
 	if ip := net.ParseIP(host); ip != nil {
@@ -87,10 +132,6 @@ func (r *Rotator) Dial(ctx context.Context, network, addr string) (net.Conn, err
 			isIPv6 = true
 		}
 	} else {
-		// It's a hostname, we try to see if it resolves to IPv6 primarily if we have IPv6 pool
-		// However, most reliable way is to let Dialer decide, but we need to pick a LocalAddr now.
-		// As a heuristic: if we have IPv6s and it's a dual-stack target, we might want to prefer IPv6.
-		// For simplicity, if we have both pools, we check if the target has AAAA records.
 		ips, _ := net.LookupIP(host)
 		for _, ip := range ips {
 			if ip.To4() == nil {
@@ -106,6 +147,7 @@ func (r *Rotator) Dial(ctx context.Context, network, addr string) (net.Conn, err
 		}
 		return r.ipv4s
 	}(), isIPv6)
+
 	if localIP != nil {
 		if strings.HasPrefix(network, "tcp") {
 			dialer.LocalAddr = &net.TCPAddr{IP: localIP}
@@ -152,6 +194,8 @@ func discoverIPs(ifaceName string) ([]net.IP, []net.IP, error) {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "1081"
@@ -184,12 +228,6 @@ func main() {
 	}
 
 	log.Printf("[Init] Rotator initialized with %d IPv4s and %d IPv6s", len(v4s), len(v6s))
-	for _, ip := range v4s {
-		log.Printf("  - [v4] %s", ip)
-	}
-	for _, ip := range v6s {
-		log.Printf("  - [v6] %s", ip)
-	}
 
 	strategy := strings.ToLower(os.Getenv("ROTATION_STRATEGY"))
 	if strategy == "" {
@@ -209,22 +247,18 @@ func main() {
 		interval: interval,
 	}
 	log.Printf("[Init] Strategy: %s, Periodic Interval: %v", strategy, interval)
-	conf := &socks5.Config{
-		Dial: rotator.Dial,
-	}
 
-	server, err := socks5.New(conf)
+	socksServer, err := socks5.New(&socks5.Config{Dial: rotator.Dial})
 	if err != nil {
 		log.Fatalf("[Fatal] Failed to create SOCKS5 server: %v", err)
 	}
 
-	// Create a custom listener to wrap connections and peek at the first byte for debugging
 	l, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatalf("[Fatal] Failed to listen on :%s: %v", port, err)
 	}
 
-	log.Printf("[Server] Miku-Proxy-Rotator listening on :%s", port)
+	log.Printf("[Server] Miku-Proxy-Rotator (Dual-Mode) listening on :%s", port)
 	
 	for {
 		conn, err := l.Accept()
@@ -234,28 +268,25 @@ func main() {
 		}
 		
 		go func(c net.Conn) {
-			// Small buffer to peek at the first byte
 			buf := make([]byte, 1)
-			c.SetReadDeadline(time.Now().Add(5 * time.Second))
-			n, err := c.Read(buf)
-			c.SetReadDeadline(time.Time{}) // reset
+			c.SetReadDeadline(time.Now().Add(2 * time.Second))
+			_, err := io.ReadFull(c, buf)
+			c.SetReadDeadline(time.Time{})
 
-			if err == nil && n > 0 {
-				if buf[0] == 67 || buf[0] == 71 { // 'C' (CONNECT) or 'G' (GET)
-					log.Printf("[Warning] Detected HTTP request (byte %d) on SOCKS5 port from %s. Please check client configuration.", buf[0], c.RemoteAddr())
-				} else if buf[0] != 5 {
-					log.Printf("[Warning] Unexpected SOCKS version: %d from %s", buf[0], c.RemoteAddr())
-				}
+			if err != nil {
+				c.Close()
+				return
 			}
 
-			// We need to "un-read" the byte for the SOCKS library. 
-			// Since we can't easily unread a net.Conn, we wrap it in a struct that prepends the byte.
-			wrapped := &bufferedConn{Conn: c, firstByte: buf[0], hasFirst: n > 0}
-			if err := server.ServeConn(wrapped); err != nil {
-				// We don't log normal close errors
-				if !strings.Contains(err.Error(), "EOF") && !strings.Contains(err.Error(), "closed") {
-					log.Printf("[Error] ServeConn error: %v", err)
-				}
+			if buf[0] == 5 {
+				wrapped := &bufferedConn{Conn: c, firstByte: buf[0], hasFirst: true}
+				socksServer.ServeConn(wrapped)
+			} else if buf[0] == 'C' || buf[0] == 'G' || buf[0] == 'P' {
+				log.Printf("[HTTP] Handling HTTP proxy request from %s", c.RemoteAddr())
+				rotator.handleHTTP(c, buf[0])
+			} else {
+				log.Printf("[Warning] Unknown protocol byte: %d from %s", buf[0], c.RemoteAddr())
+				c.Close()
 			}
 		}(conn)
 	}
