@@ -556,6 +556,15 @@ async function initMikuPlayer() {
 
     player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
       console.log(`[Player] DASH ready in ${(performance.now() - playerStartTime).toFixed(2)}ms`);
+      const videoReps = player.getRepresentationsByType("video");
+      const hd =
+        videoReps
+          .filter((r) => (r.height || 0) >= 720 || (r.bandwidth || 0) >= 1_500_000)
+          .sort((a, b) => (b.height || 0) - (a.height || 0) || (b.bandwidth || 0) - (a.bandwidth || 0))[0];
+      if (hd) {
+        player.setQualityFor("video", hd);
+        console.log("[Player] Selected 720p DASH representation:", hd.height, "p");
+      }
       updateVodDashQualityMenu(player, qualityList, label);
     });
 

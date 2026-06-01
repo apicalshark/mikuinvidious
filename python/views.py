@@ -478,6 +478,8 @@ async def populate_dash_redis(vid, idx, dash_data):
         if mt == "audio" and not tracks and "flac" in dash_data["dash"]:
             tracks = dash_data["dash"]["flac"].get("audio", [])
         for item in tracks:
+            if item.get("_progressive"):
+                continue
             url = item.get("baseUrl") or item.get("base_url")
             backup = item.get("backupUrl") or item.get("backup_url") or []
             if isinstance(backup, str):

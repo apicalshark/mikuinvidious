@@ -76,8 +76,14 @@ def _parse_client_range_header(client_range):
     return start, int(end_part), "bounded"
 
 
-def _parse_stream_range(upstream_resp, headers_template, stitch=True):
-    """Derive byte range for CDN stitching or single-segment pass-through to the browser."""
+def _parse_stream_range(upstream_resp, headers_template, stitch_mode="file"):
+    """
+    Derive byte range for the response body.
+    file: stitch until full file (client open range + total size).
+    segment: stitch only within the current CDN segment (safe for progressive MP4).
+    off: pass through one upstream body without retry.
+    """
+    file_stitch = stitch_mode == "file"
     content_range = upstream_resp.headers.get("content-range")
     client_range = (headers_template or {}).get("range", "").strip()
     c_start, c_end, c_mode = _parse_client_range_header(client_range)
@@ -99,9 +105,9 @@ def _parse_stream_range(upstream_resp, headers_template, stitch=True):
                 end_byte = c_end
             elif c_mode == "open":
                 start_byte = c_start
-                end_byte = (total_size - 1) if (stitch and total_size) else segment_end
+                end_byte = (total_size - 1) if (file_stitch and total_size) else segment_end
             elif c_mode in ("full", "none") and total_size:
-                if stitch:
+                if file_stitch:
                     start_byte = 0 if c_mode == "full" else up_start
                     end_byte = total_size - 1
                 else:
@@ -146,13 +152,13 @@ class ProxyResponse(Response):
         cookies=None,
         client=None,
         fallback_urls=None,
-        stitch=True,
+        stitch_mode="file",
         *args,
         **kwargs,
     ):
         self.upstream_resp = upstream_resp
         self.url = url
-        self.stitch = stitch
+        self.stitch_mode = stitch_mode
         self._url_candidates = list(
             dict.fromkeys([url] + [u for u in (fallback_urls or []) if u])
         )
@@ -161,7 +167,7 @@ class ProxyResponse(Response):
         self.cookies = cookies
         self.client = client
         self.stitch_start_byte, self.stitch_end_byte, self.stitch_total_size = _parse_stream_range(
-            upstream_resp, headers, stitch=stitch
+            upstream_resp, headers, stitch_mode=stitch_mode
         )
 
         # Create a generator that yields from the upstream response
@@ -198,8 +204,7 @@ class ProxyResponse(Response):
                                 retry_count = 0
                                 bytes_since_retry_reset = 0
 
-                        # Stitch mode: one response must cover the full promised range.
-                        if self.stitch and end_byte is not None:
+                        if self.stitch_mode != "off" and end_byte is not None:
                             expected_bytes = end_byte - start_byte + 1
                             if bytes_yielded < expected_bytes:
                                 raise httpx.RemoteProtocolError(
@@ -207,10 +212,10 @@ class ProxyResponse(Response):
                                 )
                         break
                     except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
-                        if not self.stitch:
+                        if self.stitch_mode == "off":
                             print(
                                 f"[Proxy] Segment ended after {bytes_yielded} bytes "
-                                f"(pass-through, no stitch): {repr(e)}"
+                                f"(pass-through): {repr(e)}"
                             )
                             break
                         if not self.client or not self.url:
@@ -361,7 +366,7 @@ class ProxyResponse(Response):
         self.headers["Content-Range"] = (
             f"bytes {self.stitch_start_byte}-{self.stitch_end_byte}/{total}"
         )
-        if not self.stitch:
+        if self.stitch_mode == "segment":
             segment_len = self.stitch_end_byte - self.stitch_start_byte + 1
             self.headers["Content-Length"] = str(segment_len)
 
@@ -384,6 +389,125 @@ def _parse_dash_url_entry(raw):
     except orjson.JSONDecodeError:
         pass
     return [raw] if raw else []
+
+
+def _parse_progressive_media_entry(raw):
+    """Redis progressive entry: single URL, {primary, backup}, or multipart parts."""
+    if isinstance(raw, bytes):
+        raw = raw.decode()
+    try:
+        data = orjson.loads(raw)
+    except orjson.JSONDecodeError:
+        return {"type": "single", "parts": [{"url": raw, "backup": [], "size": None}]}
+    if isinstance(data, dict) and data.get("type") == "multipart":
+        return data
+    if isinstance(data, dict) and data.get("primary"):
+        return {
+            "type": "single",
+            "parts": [
+                {
+                    "url": data["primary"],
+                    "backup": data.get("backup") or [],
+                    "size": data.get("size"),
+                }
+            ],
+            "total_size": data.get("size"),
+        }
+    return {"type": "single", "parts": [{"url": raw, "backup": [], "size": None}]}
+
+
+def _urls_from_media_part(part):
+    urls = [part["url"]] if part.get("url") else []
+    urls.extend(u for u in (part.get("backup") or []) if u)
+    return urls
+
+
+async def _proxy_progressive_multipart(media, cookie_jar):
+    """Stream a client byte range across multiple B站 durl parts."""
+    parts = media.get("parts") or []
+    total = int(media.get("total_size") or sum(int(p.get("size") or 0) for p in parts))
+    client_range = request.headers.get("Range", "").strip()
+    c_start, c_end, c_mode = _parse_client_range_header(client_range)
+
+    if c_mode in ("none", "full") and not client_range:
+        c_start, c_end = 0, total - 1 if total else None
+    elif c_mode == "open" and total:
+        c_end = total - 1
+    if c_end is None and total:
+        c_end = total - 1
+
+    client = await Network.get_async_client()
+
+    async def multipart_generator():
+        offset = 0
+        for part in parts:
+            size = int(part.get("size") or 0)
+            part_global_end = offset + size - 1 if size else offset
+            if c_end is not None and offset > c_end:
+                break
+            if size and c_start > part_global_end:
+                offset += size
+                continue
+
+            part_start = max(0, c_start - offset)
+            part_end = (c_end - offset) if c_end is not None else (size - 1 if size else None)
+            if size and part_end is not None:
+                part_end = min(part_end, size - 1)
+            if part_end is not None and part_end < part_start:
+                offset += size
+                continue
+
+            urls = _urls_from_media_part(part)
+            if not urls:
+                offset += size
+                continue
+
+            range_hdr = f"bytes={part_start}-"
+            if part_end is not None:
+                range_hdr += str(part_end)
+
+            url = urls[0]
+            headers = await build_cdn_media_headers(forward_range=False)
+            headers["range"] = range_hdr
+            resp = await client.send(
+                client.build_request("GET", url, headers=headers, cookies=cookie_jar),
+                stream=True,
+                follow_redirects=True,
+            )
+            if resp.status_code not in (200, 206):
+                await resp.aclose()
+                for alt in urls[1:]:
+                    headers = await build_cdn_media_headers(forward_range=False)
+                    headers["range"] = range_hdr
+                    resp = await client.send(
+                        client.build_request("GET", alt, headers=headers, cookies=cookie_jar),
+                        stream=True,
+                        follow_redirects=True,
+                    )
+                    if resp.status_code in (200, 206):
+                        break
+                else:
+                    break
+
+            try:
+                async for chunk in resp.aiter_bytes(chunk_size=1024 * 64):
+                    yield chunk
+            finally:
+                await resp.aclose()
+
+            if size:
+                offset += size
+
+    status = 206 if client_range else 200
+    response = Response(multipart_generator(), status=status)
+    response.headers["Accept-Ranges"] = "bytes"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["X-Accel-Buffering"] = "no"
+    if status == 206 and c_end is not None and total:
+        response.headers["Content-Range"] = f"bytes {c_start}-{c_end}/{total}"
+        response.headers["Content-Length"] = str(c_end - c_start + 1)
+    response.headers["Content-Type"] = "video/mp4"
+    return response
 
 
 def _finish_dash_proxy_response(proxy_resp, resp, media_type):
@@ -435,6 +559,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     headers=headers,
                     cookies=cookie_jar,
                     client=client,
+                    stitch_mode="segment",
                 )
                 try:
                     proxy_resp.call_on_close(resp.aclose)
@@ -480,18 +605,26 @@ async def proxy_main(subpath):
                     path_to_split = path_to_split.rsplit(".", 1)[0]
                 vid, vidx, vqn = path_to_split.split("_")
                 raw_url = await appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
-                urls = _parse_dash_url_entry(raw_url) if raw_url else []
+                media = _parse_progressive_media_entry(raw_url) if raw_url else None
         except ValueError:
             return Response("Bad Request", status=400)
-
-        if not urls:
-            return Response("Not Found", status=404)
 
         if not appconf["proxy"]["use_proxy"]:
             return Response("Forbidden: Proxying is disabled.", status=403)
 
         creds = appconf["credential"]
         cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
+
+        if not is_live:
+            if not media or not media.get("parts"):
+                return Response("Not Found", status=404)
+            if media.get("type") == "multipart" and len(media["parts"]) > 1:
+                return await _proxy_progressive_multipart(media, cookie_jar)
+            urls = _urls_from_media_part(media["parts"][0])
+            url = urls[0] if urls else None
+            fallback_urls = urls[1:]
+        elif not urls:
+            return Response("Not Found", status=404)
 
         # SPECIAL HANDLING FOR LIVE FLV (Muxing/Multiplexing via LiveManager)
         if is_live and url and ".m3u8" not in url:
@@ -540,8 +673,9 @@ async def proxy_main(subpath):
         # DIRECT PROXY FOR VOD AND HLS LIVE
         client = await Network.get_async_client()
         resp = None
-        url = urls[0]
-        fallback_urls = urls[1:]
+        if is_live:
+            url = urls[0]
+            fallback_urls = urls[1:]
 
         try:
             headers = await build_cdn_media_headers(forward_range=True)
@@ -582,7 +716,7 @@ async def proxy_main(subpath):
                 cookies=cookie_jar,
                 client=client,
                 fallback_urls=fallback_urls,
-                stitch=False,
+                stitch_mode="segment",
             )
 
             # Ensure cleanup if response is not started
