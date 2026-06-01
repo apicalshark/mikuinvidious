@@ -337,18 +337,47 @@ class VodStreamManager {
   }
 }
 
+function triggerNativeRecovery(video) {
+  if (window.isNativeRecovering) return;
+  window.isNativeRecovering = true;
+
+  const currentTime = video.currentTime;
+  const src = video.src;
+
+  console.log("[Player] Triggering native recovery at:", currentTime.toFixed(2));
+
+  // Brief delay before reload
+  setTimeout(() => {
+    video.src = ""; // Clear
+    video.src = src;
+    video.load();
+
+    const onLoaded = () => {
+      video.currentTime = currentTime;
+      video.play().catch(() => {});
+      video.removeEventListener("loadedmetadata", onLoaded);
+      window.isNativeRecovering = false;
+      console.log("[Player] Native recovery successful.");
+    };
+    video.addEventListener("loadedmetadata", onLoaded);
+  }, 2000);
+}
+
 class VodBufferController {
-  constructor(videoElement, minBuffer = 1.5, targetBuffer = 4.0) {
+  constructor(videoElement, minBuffer = 1.5) {
     this.video = videoElement;
     this.minBuffer = minBuffer;
-    this.targetBuffer = targetBuffer;
-    this.isBuffering = false;
     this.checkInterval = null;
+    this.lastTime = 0;
+    this.stuckDuration = 0;
+    this.CHECK_INTERVAL_MS = 250;
   }
 
   start() {
+    this.lastTime = this.video.currentTime;
+    this.stuckDuration = 0;
     if (this.checkInterval) clearInterval(this.checkInterval);
-    this.checkInterval = setInterval(() => this.checkBuffer(), 250);
+    this.checkInterval = setInterval(() => this.checkBuffer(), this.CHECK_INTERVAL_MS);
   }
 
   stop() {
@@ -372,44 +401,44 @@ class VodBufferController {
 
   checkBuffer() {
     if (this.video.readyState < 2) {
-      // Video is loading/initializing, let native loading handle it
+      this.stuckDuration = 0;
       return;
     }
 
-    if (this.video.ended) {
-      this.isBuffering = false;
+    if (this.video.paused || this.video.ended) {
+      this.stuckDuration = 0;
+      this.lastTime = this.video.currentTime;
       return;
     }
 
-    if (this.video.paused && !this.isBuffering) {
-      return;
-    }
-
+    const currentTime = this.video.currentTime;
     const bufferAhead = this.getBufferAhead();
-    const duration = this.video.duration;
-    const timeToEnd = duration ? duration - this.video.currentTime : Infinity;
 
-    if (!this.isBuffering) {
-      // Underflow: buffer is low, and we are not near the end of the video
-      if (bufferAhead < this.minBuffer && timeToEnd > this.minBuffer) {
-        console.log(
-          `[BufferControl] Buffer underflow: ${bufferAhead.toFixed(2)}s. Pausing for buffering.`
+    // 1. Show loading spinner if buffer is low
+    if (bufferAhead < this.minBuffer) {
+      this.video.dispatchEvent(new Event("waiting"));
+    }
+
+    // 2. Detect if playhead is stuck (not advancing)
+    if (Math.abs(currentTime - this.lastTime) < 0.01) {
+      this.stuckDuration += this.CHECK_INTERVAL_MS;
+
+      // If stuck for more than 6 seconds, trigger recovery
+      if (this.stuckDuration >= 6000) {
+        console.warn(
+          `[BufferControl] Playback stalled for ${this.stuckDuration / 1000}s. Triggering recovery.`
         );
-        this.isBuffering = true;
-        this.video.pause();
-        this.video.dispatchEvent(new Event("waiting"));
+        this.stuckDuration = 0;
+
+        if (window.vodManager) {
+          window.vodManager.reconnect();
+        } else if (!window.dashPlayer && !window.hls) {
+          triggerNativeRecovery(this.video);
+        }
       }
     } else {
-      // Recovery: buffer is healthy, or we have buffered to the end
-      if (bufferAhead >= this.targetBuffer || bufferAhead >= timeToEnd) {
-        console.log(`[BufferControl] Buffer recovered: ${bufferAhead.toFixed(2)}s. Resuming.`);
-        this.isBuffering = false;
-        this.video.play().catch((err) => {
-          console.warn("[BufferControl] Resume failed:", err);
-        });
-      } else {
-        this.video.dispatchEvent(new Event("waiting"));
-      }
+      this.stuckDuration = 0;
+      this.lastTime = currentTime;
     }
   }
 }
@@ -526,27 +555,7 @@ async function initMikuPlayer() {
 
       // Attempt recovery for network or decode errors
       if (err.code === 2 || err.code === 3 || err.code === 4) {
-        window.isNativeRecovering = true;
-        const currentTime = video.currentTime;
-        const src = video.src;
-
-        console.log("[Player] Attempting native recovery at:", currentTime.toFixed(2));
-
-        // Brief delay before reload
-        setTimeout(() => {
-          video.src = ""; // Clear
-          video.src = src;
-          video.load();
-
-          const onLoaded = () => {
-            video.currentTime = currentTime;
-            video.play().catch(() => {});
-            video.removeEventListener("loadedmetadata", onLoaded);
-            window.isNativeRecovering = false;
-            console.log("[Player] Native recovery successful.");
-          };
-          video.addEventListener("loadedmetadata", onLoaded);
-        }, 2000);
+        triggerNativeRecovery(video);
       }
     };
   }
