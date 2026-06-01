@@ -83,97 +83,24 @@ class ProxyResponse(Response):
         async def response_generator():
             curr_resp = self.upstream_resp
             bytes_yielded = 0
-            retries = 0
-            max_retries = 5
 
             try:
-                while True:
-                    try:
-                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
-                            yield chunk
-                            bytes_yielded += len(chunk)
-                        # Success: break the retry loop
-                        break
-                    except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
-                        # For media (MP4/FLV/DASH), we only retry internally if we haven't yielded any bytes yet.
-                        # If we've already sent data, stitching the stream internally is risky and can cause 
-                        # decode errors (NS_ERROR_DOM_MEDIA_DECODE_ERR). It's safer to let it fail so the 
-                        # browser can retry with a clean Range request.
-                        is_media = self.url and (".mp4" in self.url.lower() or ".flv" in self.url.lower() or "upos" in self.url.lower() or ".m4s" in self.url.lower())
-                        if is_media and bytes_yielded > 0:
-                            print(f"[Proxy] Upstream error mid-stream ({bytes_yielded} bytes) for {self.url[:60]}... letting browser handle retry: {repr(e)}")
-                            return
-
-                        if retries >= max_retries or not self.url or not self.client:
-                            if bytes_yielded > 0:
-                                print(f"[Proxy] Upstream error after {bytes_yielded} bytes: {repr(e)}")
-                                return
-                            raise
-                        
-                        retries += 1
-                        # Wait before retrying (exponential backoff)
-                        wait_time = 0.5 * (2 ** (retries - 1))
-                        print(f"[Proxy] Upstream error: {repr(e)}. Retrying {retries}/{max_retries} from byte {bytes_yielded} after {wait_time}s...")
-                        
-                        try:
-                            await curr_resp.aclose()
-                        except:
-                            pass
-                        
-                        await asyncio.sleep(wait_time)
-                        
-                        # Prepare retry headers with adjusted Range
-                        h = (self.headers_template or COMMON_HEADERS).copy()
-                        
-                        # Refresh dynamic IDs on retry to avoid being flagged as a stuck session
-                        h["session_id"] = TicketManager._generate_session_id()
-                        h["x-bili-trace-id"] = TicketManager._generate_trace_id()
-                        
-                        orig_range = h.get("range", "bytes=0-")
-                        try:
-                            if "=" in orig_range:
-                                prefix, rrange = orig_range.split("=", 1)
-                                if "-" in rrange:
-                                    start_str, end_str = rrange.split("-", 1)
-                                    start = int(start_str) if start_str else 0
-                                    h["range"] = f"bytes={start + bytes_yielded}-{end_str}"
-                                else:
-                                    start = int(rrange) if rrange else 0
-                                    h["range"] = f"bytes={start + bytes_yielded}-"
-                            else:
-                                h["range"] = f"bytes={bytes_yielded}-"
-                        except:
-                            h["range"] = f"bytes={bytes_yielded}-"
-                        
-                        try:
-                            # Use a fresh request with new IDs and adjusted Range
-                            req = self.client.build_request("GET", self.url, headers=h, cookies=self.cookies)
-                            curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
-                            self.upstream_resp = curr_resp # Update for aclose() tracking
-                            
-                            # Log the new response status
-                            if curr_resp.status_code not in [200, 206]:
-                                print(f"[Proxy] Retry returned status {curr_resp.status_code}")
-                                if curr_resp.status_code == 416: # Range Not Satisfiable
-                                    print(f"[Proxy] 416 Error. URL: {self.url} Range: {h.get('range')}")
-                                    return
-                        except Exception as re:
-                            print(f"[Proxy] Retry request failed: {re}")
-                            raise e
-                    except (httpx.StreamClosed, RuntimeError) as e:
-                        print(f"[Proxy] Stream closed or already consumed: {e}")
-                        break
+                async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
+                    yield chunk
+                    bytes_yielded += len(chunk)
+            except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
+                # Log the error and exit the generator. This terminates the response
+                # prematurely, allowing the browser/client to detect the truncation
+                # and perform its own recovery (e.g., via Range requests).
+                print(f"[Proxy] Upstream error after {bytes_yielded} bytes for {self.url[:60]}...: {repr(e)}")
+                return
             except (asyncio.CancelledError, GeneratorExit):
                 # Client disconnected, this is normal
                 raise
             except Exception as e:
-                # Avoid logging common transport errors as "unexpected" if they were already handled
-                if not isinstance(e, (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError)):
-                    print(f"[Proxy] Stream unexpected error after {bytes_yielded} bytes: {type(e).__name__}: {e}")
-                
-                if bytes_yielded > 0:
-                    return
-                raise
+                # Unexpected errors
+                print(f"[Proxy] Stream unexpected error after {bytes_yielded} bytes: {type(e).__name__}: {e}")
+                return
             finally:
                 try:
                     await curr_resp.aclose()
