@@ -64,6 +64,18 @@ if (toggle_search_opencc) {
   });
 }
 
+var toggle_prefer_dash = document.getElementById("toggle_prefer_dash");
+if (toggle_prefer_dash) {
+  toggle_prefer_dash.addEventListener("click", function () {
+    const oldVal = helpers.storage.get("prefer_dash") || getCookie("prefer_dash") || "0";
+    const newVal = oldVal === "1" ? "0" : "1";
+    helpers.storage.set("prefer_dash", newVal);
+    document.cookie =
+      "prefer_dash=" + newVal + "; path=/; max-age=" + 3600 * 24 * 365 + "; SameSite=Lax";
+    location.reload();
+  });
+}
+
 /** @param {THEME_DARK|THEME_LIGHT} theme */
 function setTheme(theme) {
   const iconClass = theme === THEME_DARK ? "icon ion-ios-sunny" : "icon ion-ios-moon";
@@ -161,6 +173,20 @@ function initPreferences() {
       btnOpencc.classList.remove("bg-primary", "text-on-primary");
       btnOpencc.classList.add("bg-surface-variant", "text-on-surface-variant");
       btnOpencc.innerText = "已关闭";
+    }
+  }
+
+  const preferDashPref = helpers.storage.get("prefer_dash") || getCookie("prefer_dash") || "0";
+  const btnPreferDash = document.getElementById("toggle_prefer_dash");
+  if (btnPreferDash) {
+    if (preferDashPref === "1") {
+      btnPreferDash.classList.add("bg-primary", "text-on-primary");
+      btnPreferDash.classList.remove("bg-surface-variant", "text-on-surface-variant");
+      btnPreferDash.innerText = "已開啟";
+    } else {
+      btnPreferDash.classList.remove("bg-primary", "text-on-primary");
+      btnPreferDash.classList.add("bg-surface-variant", "text-on-surface-variant");
+      btnPreferDash.innerText = "已關閉";
     }
   }
 

@@ -526,7 +526,7 @@ async function initMikuPlayer() {
     setupLivePlayer(video, qualityList, label);
   } else if (window.has_dash) {
     const mpdUrl = `/video/dash/${window.current_vid}/${window.idx}/manifest.mpd`;
-    console.log("[Player] Initializing VOD with dash.js (preferred):", mpdUrl);
+    console.log("[Player] Initializing VOD with dash.js:", mpdUrl);
 
     const player = dashjs.MediaPlayer().create();
     player.updateSettings({

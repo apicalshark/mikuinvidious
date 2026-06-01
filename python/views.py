@@ -36,7 +36,7 @@ from extra import (
     _max_dash_video_qn,
 )
 from quart import Response, redirect, request, url_for
-from shared import Network, app, appconf, appcred, appredis, render_template_with_theme
+from shared import Network, app, appconf, appcred, appredis, render_template_with_theme, user_prefers_dash
 
 
 @app.route("/live/chat/<int:room_id>")
@@ -635,10 +635,11 @@ async def api_component_player(vid, idx):
 
         dash_data_cached = None
         cached_dash = await appredis.get(f"miku_dash_{vid}_{idx}")
+        prefer_dash = user_prefers_dash()
         if cached_dash:
             try:
                 dash_data_cached = orjson.loads(cached_dash)
-                if _max_dash_video_qn(dash_data_cached) >= 64:
+                if prefer_dash and _max_dash_video_qn(dash_data_cached) >= 64:
                     v_supported_src = [
                         {"quality": f["quality"], "new_description": f["new_description"]}
                         for f in dash_data_cached.get("support_formats", [])
@@ -690,7 +691,7 @@ async def api_component_player(vid, idx):
         mp4_type, mp4_data = mp4_result if isinstance(mp4_result, tuple) else ("mp4", None)
 
         use_dash, payload = await resolve_playback_from_parallel(
-            vid, idx, v, dash_data, mp4_data, ep_id=ep_id
+            vid, idx, v, dash_data, mp4_data, ep_id=ep_id, prefer_dash=prefer_dash
         )
 
         if use_dash and payload:

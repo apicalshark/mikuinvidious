@@ -32,6 +32,12 @@ CDN_MEDIA_HEADERS = {
 }
 
 
+def user_prefers_dash():
+    """Cookie prefer_dash=1 enables DASH-first playback; default is native progressive."""
+    v = request.cookies.get("prefer_dash", "0")
+    return str(v).lower() in ("1", "true", "yes")
+
+
 async def build_cdn_media_headers(forward_range=False, refresh_ticket=False):
     """Headers for UPOS CDN URLs; avoids API-only fields that trigger 403 on media."""
     headers = CDN_MEDIA_HEADERS.copy()

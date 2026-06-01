@@ -31,6 +31,17 @@
 
 
                     </div>
+
+                    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
+                    <div class="text-left">
+                        <div class="font-bold text-on-surface">{{ '優先使用 DASH 播放' }}</div>
+                        <div class="text-sm text-on-surface-variant">{{ '關閉時預設以原生 MP4 播放（較易取得 720p）；開啟時優先 dash.js' }}</div>
+                    </div>
+                    <button id="toggle_prefer_dash"
+                            class="md3-button md3-button-tonal">
+                        {{ '載入中...' }}
+                    </button>
+                    </div>
                     <div class="pt-4 border-t border-surface-variant/30">
                     <a href="/"
                        class="md3-button md3-button-outlined w-full md:w-auto">
