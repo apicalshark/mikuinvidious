@@ -105,15 +105,22 @@ class ProxyResponse(Response):
 
             max_retries = 5
             retry_count = 0
+            total_reconnects = 0
+            # Only reset retry_count after CDN serves a meaningful chunk; tiny drops keep backoff climbing.
+            meaningful_chunk_bytes = 1024 * 1024
+            bytes_since_retry_reset = 0
 
             try:
                 while True:
                     try:
+                        bytes_since_retry_reset = 0
                         async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
                             yield chunk
                             bytes_yielded += len(chunk)
-                            # Reset retry count upon successful reading of data
-                            retry_count = 0
+                            bytes_since_retry_reset += len(chunk)
+                            if bytes_since_retry_reset >= meaningful_chunk_bytes:
+                                retry_count = 0
+                                bytes_since_retry_reset = 0
 
                         # If we reached here, the generator finished normally.
                         # Check if we got all expected bytes (if end_byte is known).
@@ -135,18 +142,20 @@ class ProxyResponse(Response):
                             break
 
                         retry_count += 1
+                        total_reconnects += 1
                         if retry_count > max_retries:
-                            print(f"[Proxy] Max retries reached ({max_retries}) after {bytes_yielded} bytes: {repr(e)}")
+                            print(f"[Proxy] Max retries reached ({max_retries}) after {bytes_yielded} bytes for {self.url[:60]}...")
                             break
+
+                        # Only log on consecutive failures (retry_count > 1), not routine CDN drops
+                        if retry_count > 1:
+                            print(f"[Proxy] Consecutive retry ({retry_count}/{max_retries}) after {bytes_yielded} bytes for {self.url[:60]}...")
 
                         # Calculate new range
                         next_start = start_byte + bytes_yielded
                         range_header = f"bytes={next_start}-"
                         if end_byte is not None:
                             range_header += str(end_byte)
-
-                        if retry_count > 1:
-                            print(f"[Proxy] Connection lost after {bytes_yielded} bytes. Retrying ({retry_count}/{max_retries}) with range {range_header} for {self.url[:60]}...: {repr(e)}")
 
                         try:
                             await curr_resp.aclose()
@@ -207,7 +216,8 @@ class ProxyResponse(Response):
                     await curr_resp.aclose()
                 except:
                     pass
-                print(f"[Proxy] Upstream connection closed.")
+                if total_reconnects > 0:
+                    print(f"[Proxy] Stream finished: {bytes_yielded} bytes delivered, {total_reconnects} CDN reconnect(s).")
 
         super().__init__(response_generator(), status=status, *args, **kwargs)
         self.headers["X-Content-Type-Options"] = "nosniff"
