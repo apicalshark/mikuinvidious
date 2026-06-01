@@ -168,6 +168,17 @@ class ProxyResponse(Response):
                                 await curr_resp.aclose()
                                 break
 
+                            # Verify that the returned content-range matches next_start
+                            retry_content_range = curr_resp.headers.get("content-range")
+                            if retry_content_range:
+                                r_match = re.match(r"bytes\s+(\d+)-", retry_content_range, re.IGNORECASE)
+                                if r_match:
+                                    actual_start = int(r_match.group(1))
+                                    if actual_start != next_start:
+                                        print(f"[Proxy] Retry range mismatch: expected start {next_start}, got {actual_start}")
+                                        await curr_resp.aclose()
+                                        break
+
                             self.upstream_resp = curr_resp
                         except Exception as retry_err:
                             print(f"[Proxy] Retry connection attempt failed: {retry_err}")
