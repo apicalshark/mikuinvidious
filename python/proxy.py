@@ -84,22 +84,17 @@ class ProxyResponse(Response):
             curr_resp = self.upstream_resp
             bytes_yielded = 0
             retries = 0
-            max_retries = 3
+            max_retries = 5
 
             try:
                 while True:
                     try:
-                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 128):
+                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
                             yield chunk
                             bytes_yielded += len(chunk)
                         # Success: break the retry loop
                         break
                     except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
-                        # If we have already yielded a significant amount of data,
-                        # internal retries are risky as they might cause decoder errors.
-                        # For MP4/FLV, we only retry if we are still near the beginning
-                        # or if it's a small file.
-                        is_media = self.url and (".mp4" in self.url.lower() or ".flv" in self.url.lower() or "upos" in self.url.lower() or ".m4s" in self.url.lower())
                         # Internal retries for media are generally safe as we append bytes at the correct offset
                         if retries >= max_retries or not self.url or not self.client:
                             if bytes_yielded > 0:
@@ -108,20 +103,21 @@ class ProxyResponse(Response):
                             raise
                         
                         retries += 1
-                        print(f"[Proxy] Upstream error: {repr(e)}. Retrying {retries}/{max_retries} from byte {bytes_yielded}...")
+                        # Wait before retrying (exponential backoff)
+                        wait_time = 0.5 * (2 ** (retries - 1))
+                        print(f"[Proxy] Upstream error: {repr(e)}. Retrying {retries}/{max_retries} from byte {bytes_yielded} after {wait_time}s...")
                         
                         try:
                             await curr_resp.aclose()
                         except:
                             pass
                         
-                        # Wait a bit before retrying (exponential backoff)
-                        await asyncio.sleep(1.0 * retries)
+                        await asyncio.sleep(wait_time)
                         
                         # Prepare retry headers with adjusted Range
                         h = (self.headers_template or COMMON_HEADERS).copy()
                         
-                        # Refresh dynamic IDs on retry
+                        # Refresh dynamic IDs on retry to avoid being flagged as a stuck session
                         h["session_id"] = TicketManager._generate_session_id()
                         h["x-bili-trace-id"] = TicketManager._generate_trace_id()
                         
@@ -150,6 +146,9 @@ class ProxyResponse(Response):
                             # Log the new response status
                             if curr_resp.status_code not in [200, 206]:
                                 print(f"[Proxy] Retry returned status {curr_resp.status_code}")
+                                if curr_resp.status_code == 416: # Range Not Satisfiable
+                                    print(f"[Proxy] 416 Error. URL: {self.url} Range: {h.get('range')}")
+                                    return
                         except Exception as re:
                             print(f"[Proxy] Retry request failed: {re}")
                             raise e
@@ -225,6 +224,8 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
     if appconf["credential"].get("buvid3"):
         headers["buvid"] = appconf["credential"]["buvid3"]
+    if appconf["credential"].get("buvid4"):
+        headers["buvid4"] = appconf["credential"]["buvid4"]
 
     # Forward headers from client (crucial for Range requests)
     for k, v in request.headers.items():
@@ -333,6 +334,8 @@ async def proxy_main(subpath):
 
         if appconf["credential"].get("buvid3"):
             headers["buvid"] = appconf["credential"]["buvid3"]
+        if appconf["credential"].get("buvid4"):
+            headers["buvid4"] = appconf["credential"]["buvid4"]
 
         # Forward headers from client
         for k, v in request.headers.items():

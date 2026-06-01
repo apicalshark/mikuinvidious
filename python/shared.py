@@ -19,6 +19,10 @@ COMMON_HEADERS = {
     # "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
     "User-Agent": "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2",
     "Referer": "https://www.bilibili.com",
+    "env": "prod",
+    "app-key": "android64",
+    "x-bili-metadata-ip-region": "CN",
+    "x-bili-metadata-legal-region": "CN",
 }
 
 
@@ -93,9 +97,9 @@ class Network:
                     cls._async_client = httpx.AsyncClient(
                         proxy=cls.get_proxy(),
                         trust_env=False,
-                        http2=False,
-                        timeout=httpx.Timeout(None, connect=15.0, pool=30.0, read=60.0),
-                        limits=httpx.Limits(max_connections=500, max_keepalive_connections=100),
+                        http2=True,
+                        timeout=httpx.Timeout(None, connect=15.0, pool=60.0, read=60.0),
+                        limits=httpx.Limits(max_connections=200, max_keepalive_connections=50),
                         follow_redirects=True,
                     )
         return cls._async_client
