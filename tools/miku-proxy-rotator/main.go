@@ -218,8 +218,64 @@ func main() {
 		log.Fatalf("[Fatal] Failed to create SOCKS5 server: %v", err)
 	}
 
-	log.Printf("[Server] Miku-Proxy-Rotator listening on :%s", port)
-	if err := server.ListenAndServe("tcp", ":"+port); err != nil {
-		log.Fatalf("[Fatal] Server failed: %v", err)
+	// Create a custom listener to wrap connections and peek at the first byte for debugging
+	l, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		log.Fatalf("[Fatal] Failed to listen on :%s: %v", port, err)
 	}
+
+	log.Printf("[Server] Miku-Proxy-Rotator listening on :%s", port)
+	
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			log.Printf("[Error] Accept error: %v", err)
+			continue
+		}
+		
+		go func(c net.Conn) {
+			// Small buffer to peek at the first byte
+			buf := make([]byte, 1)
+			c.SetReadDeadline(time.Now().Add(5 * time.Second))
+			n, err := c.Read(buf)
+			c.SetReadDeadline(time.Time{}) // reset
+
+			if err == nil && n > 0 {
+				if buf[0] == 67 || buf[0] == 71 { // 'C' (CONNECT) or 'G' (GET)
+					log.Printf("[Warning] Detected HTTP request (byte %d) on SOCKS5 port from %s. Please check client configuration.", buf[0], c.RemoteAddr())
+				} else if buf[0] != 5 {
+					log.Printf("[Warning] Unexpected SOCKS version: %d from %s", buf[0], c.RemoteAddr())
+				}
+			}
+
+			// We need to "un-read" the byte for the SOCKS library. 
+			// Since we can't easily unread a net.Conn, we wrap it in a struct that prepends the byte.
+			wrapped := &bufferedConn{Conn: c, firstByte: buf[0], hasFirst: n > 0}
+			if err := server.ServeConn(wrapped); err != nil {
+				// We don't log normal close errors
+				if !strings.Contains(err.Error(), "EOF") && !strings.Contains(err.Error(), "closed") {
+					log.Printf("[Error] ServeConn error: %v", err)
+				}
+			}
+		}(conn)
+	}
+}
+
+type bufferedConn struct {
+	net.Conn
+	firstByte byte
+	hasFirst  bool
+}
+
+func (b *bufferedConn) Read(p []byte) (int, error) {
+	if b.hasFirst {
+		p[0] = b.firstByte
+		b.hasFirst = false
+		if len(p) == 1 {
+			return 1, nil
+		}
+		n, err := b.Conn.Read(p[1:])
+		return n + 1, err
+	}
+	return b.Conn.Read(p)
 }
