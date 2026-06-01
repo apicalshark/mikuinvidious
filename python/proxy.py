@@ -81,26 +81,102 @@ class ProxyResponse(Response):
         # Create a generator that yields from the upstream response
         # and ensures it's closed when the generator is finished.
         async def response_generator():
+            import re
             curr_resp = self.upstream_resp
             bytes_yielded = 0
 
+            # Determine the initial range parameters from upstream response headers
+            content_range = curr_resp.headers.get("content-range")
+            start_byte = 0
+            end_byte = None
+
+            if content_range:
+                match = re.match(r"bytes\s+(\d+)-(\d+)", content_range, re.IGNORECASE)
+                if match:
+                    start_byte = int(match.group(1))
+                    end_byte = int(match.group(2))
+            elif curr_resp.status_code == 200:
+                content_length = curr_resp.headers.get("content-length")
+                if content_length:
+                    try:
+                        end_byte = int(content_length) - 1
+                    except ValueError:
+                        pass
+
+            max_retries = 5
+            retry_count = 0
+
             try:
-                async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
-                    yield chunk
-                    bytes_yielded += len(chunk)
-            except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
-                # Log the error and exit the generator. This terminates the response
-                # prematurely, allowing the browser/client to detect the truncation
-                # and perform its own recovery (e.g., via Range requests).
-                print(f"[Proxy] Upstream error after {bytes_yielded} bytes for {self.url[:60]}...: {repr(e)}")
-                return
-            except (asyncio.CancelledError, GeneratorExit):
-                # Client disconnected, this is normal
-                raise
-            except Exception as e:
-                # Unexpected errors
-                print(f"[Proxy] Stream unexpected error after {bytes_yielded} bytes: {type(e).__name__}: {e}")
-                return
+                while True:
+                    try:
+                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
+                            yield chunk
+                            bytes_yielded += len(chunk)
+                            # Reset retry count upon successful reading of data
+                            retry_count = 0
+
+                        # If we reached here, the generator finished normally.
+                        # Check if we got all expected bytes (if end_byte is known).
+                        if end_byte is not None:
+                            expected_bytes = end_byte - start_byte + 1
+                            if bytes_yielded < expected_bytes:
+                                # Stream terminated early without exception, treat as protocol error/premature close
+                                raise httpx.RemoteProtocolError(
+                                    f"Connection closed early. Yielded {bytes_yielded} of {expected_bytes} bytes."
+                                )
+                        break
+                    except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
+                        if not self.client or not self.url:
+                            print(f"[Proxy] Stream error (no retry client/url) after {bytes_yielded} bytes: {repr(e)}")
+                            break
+
+                        expected_bytes = (end_byte - start_byte + 1) if end_byte is not None else None
+                        if expected_bytes is not None and bytes_yielded >= expected_bytes:
+                            break
+
+                        retry_count += 1
+                        if retry_count > max_retries:
+                            print(f"[Proxy] Max retries reached ({max_retries}) after {bytes_yielded} bytes: {repr(e)}")
+                            break
+
+                        # Calculate new range
+                        next_start = start_byte + bytes_yielded
+                        range_header = f"bytes={next_start}-"
+                        if end_byte is not None:
+                            range_header += str(end_byte)
+
+                        print(f"[Proxy] Connection lost after {bytes_yielded} bytes. Retrying ({retry_count}/{max_retries}) with range {range_header} for {self.url[:60]}...: {repr(e)}")
+
+                        try:
+                            await curr_resp.aclose()
+                        except:
+                            pass
+
+                        # Wait a little bit before retrying (exponential backoff)
+                        await asyncio.sleep(0.5 * retry_count)
+
+                        # Prepare retry request
+                        retry_headers = (self.headers_template or {}).copy()
+                        retry_headers["range"] = range_header
+
+                        try:
+                            req = self.client.build_request("GET", self.url, headers=retry_headers, cookies=self.cookies)
+                            curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
+
+                            if curr_resp.status_code != 206:
+                                print(f"[Proxy] Retry failed: upstream returned status {curr_resp.status_code} instead of 206")
+                                await curr_resp.aclose()
+                                break
+
+                            self.upstream_resp = curr_resp
+                        except Exception as retry_err:
+                            print(f"[Proxy] Retry connection attempt failed: {retry_err}")
+                            break
+                    except (asyncio.CancelledError, GeneratorExit):
+                        raise
+                    except Exception as e:
+                        print(f"[Proxy] Stream unexpected error after {bytes_yielded} bytes: {type(e).__name__}: {e}")
+                        break
             finally:
                 try:
                     await curr_resp.aclose()
