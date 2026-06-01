@@ -55,42 +55,73 @@ async def render_proxy_pic(req_path):
                 await resp.aclose()
 
 
+def _parse_client_range_header(client_range):
+    """
+    Parse the browser Range request.
+    Returns (start, end_inclusive_or_none, mode) with mode in full|open|bounded|none.
+    """
+    if not client_range:
+        return 0, None, "none"
+
+    match = re.match(r"bytes\s*=\s*(\d+)\s*-\s*(\d*)", client_range.strip(), re.IGNORECASE)
+    if not match:
+        return 0, None, "none"
+
+    start = int(match.group(1))
+    end_part = match.group(2)
+    if end_part == "":
+        return (0, None, "full") if start == 0 else (start, None, "open")
+    return start, int(end_part), "bounded"
+
+
 def _parse_stream_range(upstream_resp, headers_template):
     """Derive byte range for CDN stitching and the Content-Range header sent to the browser."""
     content_range = upstream_resp.headers.get("content-range")
-    start_byte = 0
-    end_byte = None
-
     client_range = (headers_template or {}).get("range", "").strip()
-    client_wants_full = not client_range or re.fullmatch(
-        r"bytes\s*=\s*0\s*-\s*", client_range, re.IGNORECASE
-    )
-    client_open = None
-    open_match = re.fullmatch(r"bytes\s*=\s*(\d+)\s*-\s*", client_range, re.IGNORECASE)
-    if open_match:
-        client_open = int(open_match.group(1))
+    c_start, c_end, c_mode = _parse_client_range_header(client_range)
+
+    start_byte = c_start
+    end_byte = None
+    total_size = None
 
     if content_range:
         match = re.match(r"bytes\s+(\d+)-(\d+)(?:/(\d+))?", content_range, re.IGNORECASE)
         if match:
-            start_byte = int(match.group(1))
+            up_start = int(match.group(1))
             segment_end = int(match.group(2))
-            total_size = match.group(3)
-            if total_size and (client_wants_full or client_open is not None):
-                end_byte = int(total_size) - 1
-                if client_open is not None:
-                    start_byte = client_open
+            if match.group(3):
+                total_size = int(match.group(3))
+
+            if c_mode == "bounded":
+                start_byte = c_start
+                end_byte = c_end
+            elif c_mode == "open" and total_size:
+                start_byte = c_start
+                end_byte = total_size - 1
+            elif c_mode in ("full", "none") and total_size:
+                start_byte = 0 if c_mode == "full" else up_start
+                end_byte = total_size - 1
             else:
+                start_byte = up_start
                 end_byte = segment_end
     elif upstream_resp.status_code == 200:
         content_length = upstream_resp.headers.get("content-length")
         if content_length:
             try:
                 end_byte = int(content_length) - 1
+                if c_mode == "bounded":
+                    start_byte = c_start
+                    end_byte = min(c_end, end_byte)
+                elif c_mode == "open":
+                    start_byte = c_start
             except ValueError:
                 pass
 
-    return start_byte, end_byte
+    if c_mode == "bounded" and c_end is not None:
+        start_byte = c_start
+        end_byte = c_end
+
+    return start_byte, end_byte, total_size
 
 
 class ProxyResponse(Response):
@@ -116,7 +147,7 @@ class ProxyResponse(Response):
         self.headers_template = headers
         self.cookies = cookies
         self.client = client
-        self.stitch_start_byte, self.stitch_end_byte = _parse_stream_range(
+        self.stitch_start_byte, self.stitch_end_byte, self.stitch_total_size = _parse_stream_range(
             upstream_resp, headers
         )
 
@@ -128,9 +159,10 @@ class ProxyResponse(Response):
             start_byte = self.stitch_start_byte
             end_byte = self.stitch_end_byte
 
-            max_retries = 5
+            max_retries = 12
             retry_count = 0
             total_reconnects = 0
+            skip_leading = 0
             # Only reset retry_count after CDN serves a meaningful chunk; tiny drops keep backoff climbing.
             meaningful_chunk_bytes = 1024 * 1024
             bytes_since_retry_reset = 0
@@ -140,6 +172,12 @@ class ProxyResponse(Response):
                     try:
                         bytes_since_retry_reset = 0
                         async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
+                            if skip_leading:
+                                if skip_leading >= len(chunk):
+                                    skip_leading -= len(chunk)
+                                    continue
+                                chunk = chunk[skip_leading:]
+                                skip_leading = 0
                             yield chunk
                             bytes_yielded += len(chunk)
                             bytes_since_retry_reset += len(chunk)
@@ -187,10 +225,6 @@ class ProxyResponse(Response):
                         except:
                             pass
 
-                        # Backoff only when the CDN keeps failing in short succession (retry_count > 1).
-                        if retry_count > 1:
-                            await asyncio.sleep(0.5 * retry_count)
-
                         # Prepare retry request
                         retry_headers = (self.headers_template or {}).copy()
                         retry_headers["range"] = range_header
@@ -219,15 +253,23 @@ class ProxyResponse(Response):
 
                             # Verify that the returned content-range matches next_start
                             retry_content_range = curr_resp.headers.get("content-range")
+                            retry_skip = 0
                             if retry_content_range:
-                                r_match = re.match(r"bytes\s+(\d+)-", retry_content_range, re.IGNORECASE)
+                                r_match = re.match(
+                                    r"bytes\s+(\d+)-(\d+)", retry_content_range, re.IGNORECASE
+                                )
                                 if r_match:
                                     actual_start = int(r_match.group(1))
-                                    if actual_start != next_start:
-                                        print(f"[Proxy] Retry range mismatch: expected start {next_start}, got {actual_start}")
+                                    if actual_start > next_start:
+                                        print(
+                                            f"[Proxy] Retry range gap: expected {next_start}, got {actual_start}"
+                                        )
                                         await curr_resp.aclose()
                                         break
+                                    if actual_start < next_start:
+                                        retry_skip = next_start - actual_start
 
+                            skip_leading = retry_skip
                             self.upstream_resp = curr_resp
                         except Exception as retry_err:
                             print(f"[Proxy] Retry connection attempt failed: {retry_err}")
@@ -267,7 +309,7 @@ class ProxyResponse(Response):
         self.headers.pop("Content-Length", None)
         if self.stitch_end_byte is None or self.status_code != 206:
             return
-        total = self.stitch_end_byte + 1
+        total = self.stitch_total_size or (self.stitch_end_byte + 1)
         self.headers["Content-Range"] = (
             f"bytes {self.stitch_start_byte}-{self.stitch_end_byte}/{total}"
         )

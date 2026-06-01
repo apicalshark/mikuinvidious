@@ -458,8 +458,11 @@ class VodBufferController {
     if (Math.abs(currentTime - this.lastTime) < 0.01) {
       this.stuckDuration += this.CHECK_INTERVAL_MS;
 
-      // If stuck for more than 20 seconds, trigger recovery
-      if (this.stuckDuration >= 20000) {
+      // If stuck for a long time, trigger recovery (skip while another recovery is active).
+      if (this.stuckDuration >= 30000) {
+        if (window.isNativeRecovering || this.video.error) {
+          return;
+        }
         console.warn(
           `[BufferControl] Playback stalled for ${this.stuckDuration / 1000}s. Triggering recovery.`
         );
@@ -567,7 +570,10 @@ async function initMikuPlayer() {
 
   // 2.5. Buffer Controller for VOD (DASH, FLV, and progressive MP4)
   if (!window.is_live) {
-    window.vodBufferController = new VodBufferController(video);
+    const src = video.src || "";
+    const isNativeMp4 = !window.has_dash && !src.includes(".flv");
+    const minBuffer = isNativeMp4 ? 4.0 : 1.5;
+    window.vodBufferController = new VodBufferController(video, minBuffer);
     window.vodBufferController.start();
   }
 
@@ -588,9 +594,20 @@ async function initMikuPlayer() {
 
       console.warn("[Player] Native video error:", err.code, err.message);
 
-      if (err.code !== 2 && err.code !== 3 && err.code !== 4) return;
+      // Decode errors: reloading the whole MP4 often makes things worse (H264/FFmpeg/OOM).
+      // Let Firefox retry via its own Range requests; only rewind once.
+      if (err.code === 3) {
+        if (!video._decodeSeekTried && video.currentTime > 1) {
+          video._decodeSeekTried = true;
+          video.currentTime = Math.max(0, video.currentTime - 2);
+          video.play().catch(() => {});
+        }
+        return;
+      }
 
-      triggerNativeRecovery(video);
+      if (err.code === 2 || err.code === 4) {
+        triggerNativeRecovery(video);
+      }
     };
   }
 
