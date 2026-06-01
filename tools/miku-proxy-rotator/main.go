@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -25,10 +24,10 @@ type Rotator struct {
 	idxV6 int
 
 	// State for Periodic
-	lastRotate  time.Time
-	interval    time.Duration
-	currentV4   net.IP
-	currentV6   net.IP
+	lastRotate time.Time
+	interval   time.Duration
+	currentV4  net.IP
+	currentV6  net.IP
 }
 
 func (r *Rotator) getIP(pool []net.IP, isIPv6 bool) net.IP {
@@ -153,8 +152,6 @@ func discoverIPs(ifaceName string) ([]net.IP, []net.IP, error) {
 }
 
 func main() {
-	rand.Seed(time.Now().UnixNano())
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "1081"
