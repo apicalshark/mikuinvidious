@@ -145,7 +145,8 @@ class ProxyResponse(Response):
                         if end_byte is not None:
                             range_header += str(end_byte)
 
-                        print(f"[Proxy] Connection lost after {bytes_yielded} bytes. Retrying ({retry_count}/{max_retries}) with range {range_header} for {self.url[:60]}...: {repr(e)}")
+                        if retry_count > 1:
+                            print(f"[Proxy] Connection lost after {bytes_yielded} bytes. Retrying ({retry_count}/{max_retries}) with range {range_header} for {self.url[:60]}...: {repr(e)}")
 
                         try:
                             await curr_resp.aclose()
