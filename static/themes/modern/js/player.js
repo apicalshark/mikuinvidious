@@ -427,6 +427,41 @@ async function initMikuPlayer() {
     };
   }
 
+  // 4. Global Error Recovery for Native Player (MP4/Progressive)
+  if (!window.vodManager && !window.dashPlayer && !window.hls) {
+    video.onerror = () => {
+      const err = video.error;
+      if (!err || window.isNativeRecovering) return;
+      
+      console.warn("[Player] Native video error:", err.code, err.message);
+      
+      // Attempt recovery for network or decode errors
+      if (err.code === 2 || err.code === 3 || err.code === 4) {
+        window.isNativeRecovering = true;
+        const currentTime = video.currentTime;
+        const src = video.src;
+        
+        console.log("[Player] Attempting native recovery at:", currentTime.toFixed(2));
+        
+        // Brief delay before reload
+        setTimeout(() => {
+          video.src = ""; // Clear
+          video.src = src;
+          video.load();
+          
+          const onLoaded = () => {
+            video.currentTime = currentTime;
+            video.play().catch(() => {});
+            video.removeEventListener("loadedmetadata", onLoaded);
+            window.isNativeRecovering = false;
+            console.log("[Player] Native recovery successful.");
+          };
+          video.addEventListener("loadedmetadata", onLoaded);
+        }, 2000);
+      }
+    };
+  }
+
   const volumeBtn = document.getElementById("volume-btn");
   const volumeMenu = document.getElementById("volume-menu");
 

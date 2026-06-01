@@ -95,7 +95,15 @@ class ProxyResponse(Response):
                         # Success: break the retry loop
                         break
                     except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
-                        # Internal retries for media are generally safe as we append bytes at the correct offset
+                        # For media (MP4/FLV/DASH), we only retry internally if we haven't yielded any bytes yet.
+                        # If we've already sent data, stitching the stream internally is risky and can cause 
+                        # decode errors (NS_ERROR_DOM_MEDIA_DECODE_ERR). It's safer to let it fail so the 
+                        # browser can retry with a clean Range request.
+                        is_media = self.url and (".mp4" in self.url.lower() or ".flv" in self.url.lower() or "upos" in self.url.lower() or ".m4s" in self.url.lower())
+                        if is_media and bytes_yielded > 0:
+                            print(f"[Proxy] Upstream error mid-stream ({bytes_yielded} bytes) for {self.url[:60]}... letting browser handle retry: {repr(e)}")
+                            return
+
                         if retries >= max_retries or not self.url or not self.client:
                             if bytes_yielded > 0:
                                 print(f"[Proxy] Upstream error after {bytes_yielded} bytes: {repr(e)}")
