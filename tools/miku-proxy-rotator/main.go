@@ -227,19 +227,23 @@ func main() {
 	}
 
 	if ifaceName != "" {
-		log.Printf("[Init] Discovering IPs on interface: %s", ifaceName)
-		v4, v6, err := discoverIPs(ifaceName)
-		if err != nil {
-			log.Fatalf("[Error] IP discovery failed: %v", err)
-		}
-		for _, ip := range v4 {
-			if !skipIPs[ip.String()] {
-				v4s = append(v4s, ip)
+		for _, name := range strings.Split(ifaceName, ",") {
+			name = strings.TrimSpace(name)
+			log.Printf("[Init] Discovering IPs on interface: %s", name)
+			v4, v6, err := discoverIPs(name)
+			if err != nil {
+				log.Printf("[Warning] IP discovery failed for %s: %v", name, err)
+				continue
 			}
-		}
-		for _, ip := range v6 {
-			if !skipIPs[ip.String()] {
-				v6s = append(v6s, ip)
+			for _, ip := range v4 {
+				if !skipIPs[ip.String()] {
+					v4s = append(v4s, ip)
+				}
+			}
+			for _, ip := range v6 {
+				if !skipIPs[ip.String()] {
+					v6s = append(v6s, ip)
+				}
 			}
 		}
 	}
