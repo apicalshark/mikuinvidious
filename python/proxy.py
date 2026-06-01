@@ -141,11 +141,16 @@ class ProxyResponse(Response):
         headers=None,
         cookies=None,
         client=None,
+        fallback_urls=None,
         *args,
         **kwargs,
     ):
         self.upstream_resp = upstream_resp
         self.url = url
+        self._url_candidates = list(
+            dict.fromkeys([url] + [u for u in (fallback_urls or []) if u])
+        )
+        self._url_index = 0
         self.headers_template = headers
         self.cookies = cookies
         self.client = client
@@ -235,22 +240,53 @@ class ProxyResponse(Response):
                             req = self.client.build_request("GET", self.url, headers=retry_headers, cookies=self.cookies)
                             curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
 
-                            if curr_resp.status_code in [403, 412, 514]:
-                                print(f"[Proxy] Retry failed with status {curr_resp.status_code}. Refreshing ticket and retrying...")
+                            if curr_resp.status_code in (403, 412, 514, 502, 504):
+                                print(
+                                    f"[Proxy] Retry got {curr_resp.status_code}; "
+                                    f"refreshing ticket for {self.url[:60]}..."
+                                )
                                 await curr_resp.aclose()
-                                ticket = await TicketManager.get_ticket(force_refresh=True)
-                                if ticket:
-                                    retry_headers["x-bili-ticket"] = ticket
-                                else:
-                                    retry_headers.pop("x-bili-ticket", None)
-                                retry_headers["session_id"] = TicketManager._generate_session_id()
-                                retry_headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+                                retry_headers = await build_cdn_media_headers(forward_range=False, refresh_ticket=True)
+                                retry_headers["range"] = range_header
                                 req = self.client.build_request("GET", self.url, headers=retry_headers, cookies=self.cookies)
                                 curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
+                                self.headers_template = retry_headers
 
                             if curr_resp.status_code != 206:
-                                print(f"[Proxy] Retry failed: upstream returned status {curr_resp.status_code} instead of 206")
+                                fail_status = curr_resp.status_code
                                 await curr_resp.aclose()
+                                if self._url_index + 1 < len(self._url_candidates):
+                                    self._url_index += 1
+                                    self.url = self._url_candidates[self._url_index]
+                                    retry_count = max(0, retry_count - 1)
+                                    print(
+                                        f"[Proxy] Retry failed ({fail_status}); "
+                                        f"switching to backup CDN ({self._url_index + 1}/{len(self._url_candidates)})"
+                                    )
+                                    retry_headers = await build_cdn_media_headers(forward_range=False)
+                                    retry_headers["range"] = range_header
+                                    req = self.client.build_request("GET", self.url, headers=retry_headers, cookies=self.cookies)
+                                    curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
+                                    if curr_resp.status_code == 206:
+                                        self.headers_template = retry_headers
+                                        retry_content_range = curr_resp.headers.get("content-range")
+                                        retry_skip = 0
+                                        if retry_content_range:
+                                            r_match = re.match(
+                                                r"bytes\s+(\d+)-(\d+)",
+                                                retry_content_range,
+                                                re.IGNORECASE,
+                                            )
+                                            if r_match:
+                                                actual_start = int(r_match.group(1))
+                                                if actual_start < next_start:
+                                                    retry_skip = next_start - actual_start
+                                        skip_leading = retry_skip
+                                        self.upstream_resp = curr_resp
+                                        continue
+                                print(
+                                    f"[Proxy] Retry failed: upstream returned status {fail_status} instead of 206"
+                                )
                                 break
 
                             # Verify that the returned content-range matches next_start
@@ -412,31 +448,31 @@ async def proxy_main(subpath):
     if req_path.startswith("/proxy/video/") or req_path.startswith("/proxy/live/"):
         is_live = "/proxy/live/" in req_path
         try:
+            urls = []
             if is_live:
                 parts = req_path.removeprefix("/proxy/live/").split("?")[0].split("_")
                 room_id = parts[0]
                 vqn = parts[1] if len(parts) > 1 else "default"
                 redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
-                url = await appredis.get(redis_key)
-                if not url and vqn == "default":
+                raw_live = await appredis.get(redis_key)
+                if not raw_live and vqn == "default":
                     fallback_keys = await appredis.keys(f"miku_live_{room_id}_*")
                     if fallback_keys:
-                        url = await appredis.get(fallback_keys[0])
+                        raw_live = await appredis.get(fallback_keys[0])
+                urls = _parse_dash_url_entry(raw_live) if raw_live else []
+                url = urls[0] if urls else None
             else:
                 path_to_split = req_path.removeprefix("/proxy/video/")
                 if "." in path_to_split:
                     path_to_split = path_to_split.rsplit(".", 1)[0]
                 vid, vidx, vqn = path_to_split.split("_")
-                url = await appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
+                raw_url = await appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
+                urls = _parse_dash_url_entry(raw_url) if raw_url else []
         except ValueError:
             return Response("Bad Request", status=400)
 
-        if not url:
+        if not urls:
             return Response("Not Found", status=404)
-
-        if isinstance(url, bytes):
-            url = url.decode()
-        urlp = urlparse(url)
 
         if not appconf["proxy"]["use_proxy"]:
             return Response("Forbidden: Proxying is disabled.", status=403)
@@ -444,30 +480,14 @@ async def proxy_main(subpath):
         creds = appconf["credential"]
         cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
 
-        headers = COMMON_HEADERS.copy()
-
-        # Add Bili-Ticket and dynamic session/trace IDs
-        ticket = await TicketManager.get_ticket()
-        if ticket:
-            headers["x-bili-ticket"] = ticket
-
-        headers["session_id"] = TicketManager._generate_session_id()
-        headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-
-        if appconf["credential"].get("buvid3"):
-            headers["buvid"] = appconf["credential"]["buvid3"]
-        if appconf["credential"].get("buvid4"):
-            headers["buvid4"] = appconf["credential"]["buvid4"]
-
-        # Forward headers from client
-        for k, v in request.headers.items():
-            if k.lower() in ["range", "if-range", "x-playback-session-id"]:
-                headers[k.lower()] = v
-
         # SPECIAL HANDLING FOR LIVE FLV (Muxing/Multiplexing via LiveManager)
-        if is_live and ".m3u8" not in url:
+        if is_live and url and ".m3u8" not in url:
+            live_headers = COMMON_HEADERS.copy()
+            ticket = await TicketManager.get_ticket()
+            if ticket:
+                live_headers["x-bili-ticket"] = ticket
             client_id = request.args.get("cid") or str(uuid.uuid4())
-            stream, q = await live_manager.subscribe(url, headers, cookie_jar, client_id)
+            stream, q = await live_manager.subscribe(url, live_headers, cookie_jar, client_id)
             if not q:
                 return Response("Upstream Error", status=502)
 
@@ -507,26 +527,39 @@ async def proxy_main(subpath):
         # DIRECT PROXY FOR VOD AND HLS LIVE
         client = await Network.get_async_client()
         resp = None
+        url = urls[0]
+        fallback_urls = urls[1:]
 
         try:
-            # Send the request and get the response stream
+            headers = await build_cdn_media_headers(forward_range=True)
             proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
             resp = await client.send(proxy_request, stream=True, follow_redirects=True)
             print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
 
-            if resp.status_code in [403, 412, 514]:
-                print(f"[Proxy] Direct stream failed with status {resp.status_code}. Refreshing ticket and retrying...")
+            if resp.status_code in (403, 412, 514, 502, 504):
+                print(
+                    f"[Proxy] Direct stream failed with status {resp.status_code}. "
+                    f"Refreshing ticket and retrying..."
+                )
                 await resp.aclose()
-                ticket = await TicketManager.get_ticket(force_refresh=True)
-                if ticket:
-                    headers["x-bili-ticket"] = ticket
-                else:
-                    headers.pop("x-bili-ticket", None)
-                headers["session_id"] = TicketManager._generate_session_id()
-                headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+                headers = await build_cdn_media_headers(forward_range=True, refresh_ticket=True)
                 proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
                 resp = await client.send(proxy_request, stream=True, follow_redirects=True)
                 print(f"[Proxy] Retried direct stream after ticket refresh: {url[:50]}... Status: {resp.status_code}")
+
+            if resp.status_code not in (200, 206) and fallback_urls:
+                await resp.aclose()
+                for alt in fallback_urls:
+                    headers = await build_cdn_media_headers(forward_range=True)
+                    proxy_request = client.build_request("GET", alt, headers=headers, cookies=cookie_jar)
+                    resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+                    print(f"[Proxy] Trying backup CDN: {alt[:50]}... Status: {resp.status_code}")
+                    if resp.status_code in (200, 206):
+                        url = alt
+                        fallback_urls = [u for u in urls if u != alt]
+                        break
+                else:
+                    return Response("Upstream Error", status=resp.status_code if resp else 502)
 
             proxy_resp = ProxyResponse(
                 resp,
@@ -535,6 +568,7 @@ async def proxy_main(subpath):
                 headers=headers,
                 cookies=cookie_jar,
                 client=client,
+                fallback_urls=fallback_urls,
             )
 
             # Ensure cleanup if response is not started

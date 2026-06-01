@@ -578,13 +578,24 @@ async def fetch_mp4_playurls_parallel(vi, idx, ep_id=None):
     return best
 
 
+def _progressive_url_payload(durl_item):
+    """Redis value for progressive proxy: {primary, backup} like DASH segments."""
+    url = durl_item.get("url")
+    backup = durl_item.get("backup_url") or durl_item.get("backupUrl") or []
+    if isinstance(backup, str):
+        backup = [backup]
+    return orjson.dumps({"primary": url, "backup": backup})
+
+
 async def formats_from_playurl(vid, idx, vi, data, ep_id=None):
     """Cache progressive URLs from an already-fetched playurl (no new playurl in parallel path)."""
     if not _has_durl(data):
         return None
 
     qn = data.get("quality", 64)
-    await appredis.setex(f"mikuinv_{vid}_{idx}_{qn}", 1800, data["durl"][0]["url"])
+    await appredis.setex(
+        f"mikuinv_{vid}_{idx}_{qn}", 1800, _progressive_url_payload(data["durl"][0])
+    )
 
     ext = ".mp4" if ".mp4" in data["durl"][0]["url"].lower() else ""
     if ".flv" in data["durl"][0]["url"].lower():
@@ -597,7 +608,9 @@ async def formats_from_playurl(vid, idx, vi, data, ep_id=None):
         try:
             res = await video_get_src_for_qn(vi, idx, fq, ep_id=ep_id)
             if res and "durl" in res:
-                await appredis.setex(f"mikuinv_{vid}_{idx}_{fq}", 1800, res["durl"][0]["url"])
+                await appredis.setex(
+                    f"mikuinv_{vid}_{idx}_{fq}", 1800, _progressive_url_payload(res["durl"][0])
+                )
         except Exception:
             pass
 
