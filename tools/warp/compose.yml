@@ -18,7 +18,7 @@ services:
     container_name: microwarp_http
     restart: always
     network_mode: host
-    command: "-L=http://127.0.0.1:1081 -F=socks5://127.0.0.1:1080"
+    command: "-L=http://:1081 -F=socks5://127.0.0.1:1080"
     depends_on:
       - microwarp
 
