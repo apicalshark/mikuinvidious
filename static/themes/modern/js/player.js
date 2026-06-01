@@ -526,9 +526,22 @@ async function initMikuPlayer() {
     setupLivePlayer(video, qualityList, label);
   } else if (window.has_dash) {
     const mpdUrl = `/video/dash/${window.current_vid}/${window.idx}/manifest.mpd`;
-    console.log("[Player] Initializing VOD with dash.js:", mpdUrl);
+    console.log("[Player] Initializing VOD with dash.js (preferred):", mpdUrl);
 
     const player = dashjs.MediaPlayer().create();
+    player.updateSettings({
+      streaming: {
+        abr: {
+          autoSwitchBitrate: { video: true },
+        },
+        buffer: {
+          bufferTimeAtTopQuality: 20,
+          bufferTimeAtTopQualityLongForm: 30,
+          bufferTimeDefault: 12,
+          bufferToKeep: 20,
+        },
+      },
+    });
     player.initialize(video, mpdUrl, true);
     window.dashPlayer = player;
 

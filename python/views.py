@@ -639,7 +639,7 @@ async def api_component_player(vid, idx):
 
         async def fetch_dash_task():
             try:
-                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=4.0)
+                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=8.0)
                 if "dash" in data:
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
                     await populate_dash_redis(vid, idx, data)
@@ -674,42 +674,44 @@ async def api_component_player(vid, idx):
                 pass
             return ("fallback", None)
 
-        t_dash = asyncio.create_task(fetch_dash_task())
-        t_fallback = asyncio.create_task(fetch_fallback_task())
-        pending = {t_dash, t_fallback}
+        # Fetch both in parallel; prefer DASH when available (do not return on first-completed).
+        dash_result, fallback_result = await asyncio.gather(
+            fetch_dash_task(),
+            fetch_fallback_task(),
+        )
 
-        while pending:
-            done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
-            for task in done:
-                try:
-                    result_type, result_data = task.result()
-                    if result_type == "dash" and result_data:
-                        has_dash = True
-                        v_supported_src = [
-                            {"quality": f["quality"], "new_description": f["new_description"]}
-                            for f in result_data.get("support_formats", [])
-                        ]
-                        if v_supported_src:
-                            first_qn = v_supported_src[0]["quality"]
-                            if not await appredis.exists(f"mikuinv_{vid}_{idx}_{first_qn}"):
-                                asyncio.create_task(video_get_src_for_qn(v, idx, first_qn))  # Fire and forget
-                        return has_dash, v_supported_src
-                    elif result_type == "fallback" and result_data:
-                        ext = ""
-                        if "durl" in result_data and result_data["durl"]:
-                            first_url = result_data["durl"][0]["url"]
-                            if ".flv" in first_url.lower():
-                                ext = ".flv"
-                            elif ".mp4" in first_url.lower():
-                                ext = ".mp4"
+        dash_type, dash_data = dash_result if isinstance(dash_result, tuple) else ("dash", None)
+        fb_type, fb_data = fallback_result if isinstance(fallback_result, tuple) else ("fallback", None)
 
-                        v_supported_src = [
-                            {"quality": f["quality"], "new_description": f["new_description"], "ext": ext}
-                            for f in result_data.get("support_formats", [])
-                        ]
-                        return False, v_supported_src
-                except Exception:
-                    continue
+        if dash_data:
+            has_dash = True
+            v_supported_src = [
+                {"quality": f["quality"], "new_description": f["new_description"]}
+                for f in dash_data.get("support_formats", [])
+            ]
+            if v_supported_src:
+                first_qn = v_supported_src[0]["quality"]
+                if not await appredis.exists(f"mikuinv_{vid}_{idx}_{first_qn}"):
+                    asyncio.create_task(video_get_src_for_qn(v, idx, first_qn, ep_id=ep_id))
+            print(f"[Video] Using DASH for {vid}:{idx} ({len(v_supported_src)} qualities)")
+            return has_dash, v_supported_src
+
+        if fb_data:
+            ext = ""
+            if "durl" in fb_data and fb_data["durl"]:
+                first_url = fb_data["durl"][0]["url"]
+                if ".flv" in first_url.lower():
+                    ext = ".flv"
+                elif ".mp4" in first_url.lower():
+                    ext = ".mp4"
+
+            v_supported_src = [
+                {"quality": f["quality"], "new_description": f["new_description"], "ext": ext}
+                for f in fb_data.get("support_formats", [])
+            ]
+            print(f"[Video] DASH unavailable, using progressive for {vid}:{idx}")
+            return False, v_supported_src
+
         return False, []
 
     # Get Info again briefly just for the macro context (cached by request usually)
@@ -851,10 +853,11 @@ async def video_view(vid, idx=0):
 
         async def precache_dash():
             try:
-                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=4.0)
+                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=8.0)
                 if "dash" in data:
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
                     await populate_dash_redis(vid, idx, data)
+                    print(f"[Video] Pre-cached DASH for {vid}:{idx}")
             except Exception as e:
                 print(f"[Video] Pre-cache DASH failed for {vid}: {e}")
 
