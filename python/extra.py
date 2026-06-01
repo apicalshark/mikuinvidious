@@ -22,7 +22,7 @@ import re
 from bilibili_api.exceptions import ArgsException
 from bilibili_api.utils.network import Api
 from bs4 import BeautifulSoup
-from shared import Network, appredis
+from shared import Network
 
 
 def get_article_info(article_text, cid):
@@ -381,288 +381,94 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
     return res
 
 
-async def _pgc_dash_playurl(vi, idx, ep_id=None):
-    """Bangumi/PGC playurl fallback when UGC WBI playurl is unavailable."""
-    cid = await vi.get_cid(idx)
-    client = await Network.get_async_client()
-    cookies = {}
-    if vi.credential and vi.credential.sessdata:
-        cookies = {
-            "SESSDATA": vi.credential.sessdata,
-            "bili_jct": vi.credential.bili_jct,
-            "buvid3": vi.credential.buvid3,
-            "buvid4": vi.credential.buvid4,
-            "DedeUserID": vi.credential.dedeuserid,
-        }
-
-    if not ep_id:
-        try:
-            info = await vi.get_info()
-            redirect_url = info.get("redirect_url", "")
-            if redirect_url:
-                ep_match = re.search(r"ep(\d+)", redirect_url)
-                if ep_match:
-                    ep_id = ep_match.group(1)
-        except Exception:
-            pass
-
-    pgc_params = {
-        "avid": vi.get_aid(),
-        "cid": cid,
-        "fnval": 4048,
-        "fnver": 0,
-        "fourk": 1,
-        "qn": 127,
-    }
-    if ep_id:
-        pgc_params["ep_id"] = ep_id
-
-    pgc_res_raw = await client.get(
-        "https://api.bilibili.com/pgc/player/web/playurl",
-        params=pgc_params,
-        cookies=cookies,
-        headers={
-            "Referer": "https://www.bilibili.com",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-        },
-        follow_redirects=True,
-    )
-    pgc_res = pgc_res_raw.json()
-    if pgc_res and pgc_res.get("code") == 0:
-        res_node = pgc_res.get("result")
-        if isinstance(res_node, dict) and "dash" in res_node:
-            return res_node
-    return None
-
-
-def _max_dash_video_qn(data):
-    videos = (data or {}).get("dash", {}).get("video", [])
-    if not videos:
-        return 0
-    return max(int(v.get("id", 0)) for v in videos)
-
-
-async def _wbi_playurl(vi, idx, qn=127, fnval=4048, platform=None):
-    """WBI-signed playurl with explicit qn/fnval."""
+async def video_get_dash_for_qn(vi, idx, ep_id=None):
+    """Get a specific available source for video."""
     cid = await vi.get_cid(idx)
     api = Api(
-        "https://api.bilibili.com/x/player/wbi/playurl",
+        "https://api.bilibili.com/x/player/playurl",
         "GET",
+        verify=(not not vi.credential.sessdata),
+        json_body=True,
         credential=vi.credential,
-        wbi=True,
     )
-    params = {
-        "qn": int(qn),
-        "fnval": int(fnval),
-        "fnver": 0,
-        "fourk": 1,
-        "gaia_source": "pre-load",
-        "isGaiaAvoided": "true",
-        "avid": vi.get_aid(),
-        "bvid": vi.get_bvid(),
-        "cid": cid,
-        "from_client": "BROWSER",
-        "web_location": 1315873,
-    }
-    if platform:
-        params["platform"] = platform
-        if platform == "html5":
-            params["high_quality"] = 1
-    return await api.update_params(**params).result
+    api.params = {"avid": vi.get_aid(), "cid": cid, "fnval": "4048", "platform": "html5", "high_quality": 1}
 
-
-def _merge_dash_data(base, extra):
-    """Merge supplemental playurl into base DASH (higher qn tracks)."""
-    if not base or "dash" not in base or not extra or "dash" not in extra:
-        return base
-
-    def track_key(track):
-        return (int(track.get("id", 0)), int(track.get("codecid", 0)))
-
-    video_by_key = {track_key(v): v for v in base["dash"].get("video", [])}
-    for v in extra["dash"].get("video", []):
-        k = track_key(v)
-        if k not in video_by_key or int(v.get("id", 0)) > int(video_by_key[k].get("id", 0)):
-            video_by_key[k] = v
-    base["dash"]["video"] = sorted(video_by_key.values(), key=lambda v: int(v.get("id", 0)))
-
-    audio_by_key = {track_key(a): a for a in base["dash"].get("audio", [])}
-    for a in extra["dash"].get("audio", []):
-        k = track_key(a)
-        if k not in audio_by_key:
-            audio_by_key[k] = a
-    base["dash"]["audio"] = list(audio_by_key.values())
-
-    sf = {int(f.get("quality", 0)): f for f in base.get("support_formats", [])}
-    for f in extra.get("support_formats", []):
-        q = int(f.get("quality", 0))
-        if q not in sf:
-            sf[q] = f
-    base["support_formats"] = sorted(sf.values(), key=lambda f: int(f.get("quality", 0)), reverse=True)
-    return base
-
-
-async def _supplement_dash_qualities(vi, idx, data):
-    """Request higher qn/fnval playurls when the bulk DASH response omits 720p+ tracks."""
-    if not data.get("dash", {}).get("video"):
-        return data
-
-    combos = [
-        (64, 16),
-        (80, 16),
-        (64, 4048),
-        (80, 4048),
-        (64, 848),
-        (80, 848),
-        (116, 16),
-        (127, 16),
-    ]
-    for qn, fnval in combos:
-        if _max_dash_video_qn(data) >= qn:
-            continue
-        try:
-            extra = await _wbi_playurl(vi, idx, qn=qn, fnval=fnval)
-            if not isinstance(extra, dict) or not extra.get("dash"):
-                continue
-            ids = sorted({int(v.get("id", 0)) for v in extra["dash"].get("video", [])})
-            print(f"[Extra] DASH try qn={qn} fnval={fnval} -> video ids {ids}")
-            before = _max_dash_video_qn(data)
-            data = _merge_dash_data(data, extra)
-            after = _max_dash_video_qn(data)
-            if after > before:
-                print(f"[Extra] DASH supplemented qn={qn} fnval={fnval}: max {before} -> {after}")
-        except Exception as e:
-            print(f"[Extra] DASH try qn={qn} fnval={fnval} failed: {e}")
-    return data
-
-
-def _playurl_granted_qn(data):
-    if not data:
-        return 0
-    return int(data.get("quality", 0))
-
-
-def _has_durl(data):
-    return bool(data and data.get("durl"))
-
-
-async def fetch_mp4_playurls_parallel(vi, idx, ep_id=None):
-    """
-    Run alongside DASH fetch: same credential, comparable WBI playurl + legacy html5 at qn=64.
-    Picks the best durl response (highest granted qn).
-    """
-    probes = [
-        ("WBI fnval=1 qn=64 (MP4)", lambda: _wbi_playurl(vi, idx, qn=64, fnval=1)),
-        ("WBI fnval=16 qn=64 (DASH)", lambda: _wbi_playurl(vi, idx, qn=64, fnval=16)),
-        ("WBI fnval=4048 qn=64", lambda: _wbi_playurl(vi, idx, qn=64, fnval=4048)),
-        ("legacy html5 playurl qn=64", lambda: video_get_src_for_qn(vi, idx, 64, ep_id=ep_id)),
-    ]
-
-    results = await asyncio.gather(*(fn() for _, fn in probes), return_exceptions=True)
-
-    best = None
-    best_qn = 0
-    for (label, _), res in zip(probes, results):
-        if isinstance(res, Exception):
-            print(f"[Video] Parallel MP4 {label} error: {res}")
-            continue
-        if not isinstance(res, dict):
-            continue
-        granted = _playurl_granted_qn(res)
-        vmax = _max_dash_video_qn(res) if res.get("dash") else 0
-        print(
-            f"[Video] Parallel MP4 {label}: granted={granted} "
-            f"durl={_has_durl(res)} dash_max_id={vmax or '-'}"
-        )
-        if _has_durl(res) and granted >= best_qn:
-            best_qn = granted
-            best = res
-    return best
-
-
-def _progressive_url_payload(durl_list):
-    """Redis value: single {primary, backup} or multipart {type, parts, total_size}."""
-    if isinstance(durl_list, dict):
-        durl_list = [durl_list]
-    if len(durl_list) == 1:
-        item = durl_list[0]
-        url = item.get("url")
-        backup = item.get("backup_url") or item.get("backupUrl") or []
-        if isinstance(backup, str):
-            backup = [backup]
-        return orjson.dumps({"primary": url, "backup": backup, "size": item.get("size")})
-
-    parts = []
-    total = 0
-    for item in sorted(durl_list, key=lambda d: int(d.get("order", 0))):
-        backup = item.get("backup_url") or item.get("backupUrl") or []
-        if isinstance(backup, str):
-            backup = [backup]
-        size = int(item.get("size") or 0)
-        total += size
-        parts.append({"url": item.get("url"), "backup": backup, "size": size})
-    return orjson.dumps({"type": "multipart", "parts": parts, "total_size": total})
-
-
-async def formats_from_playurl(vid, idx, vi, data, ep_id=None):
-    """Cache progressive URLs from an already-fetched playurl (no new playurl in parallel path)."""
-    if not _has_durl(data):
-        return None
-
-    qn = data.get("quality", 64)
-    await appredis.setex(
-        f"mikuinv_{vid}_{idx}_{qn}", 1800, _progressive_url_payload(data["durl"])
-    )
-
-    ext = ".mp4" if ".mp4" in data["durl"][0]["url"].lower() else ""
-    if ".flv" in data["durl"][0]["url"].lower():
-        ext = ".flv"
-
-    for f in data.get("support_formats", []):
-        fq = f.get("quality")
-        if fq is None or fq == qn:
-            continue
-        try:
-            res = await video_get_src_for_qn(vi, idx, fq, ep_id=ep_id)
-            if res and "durl" in res:
-                await appredis.setex(
-                    f"mikuinv_{vid}_{idx}_{fq}", 1800, _progressive_url_payload(res["durl"])
-                )
-        except Exception:
-            pass
-
-    return [
-        {"quality": f["quality"], "new_description": f["new_description"], "ext": ext}
-        for f in data.get("support_formats", [])
-    ]
-
-
-async def video_get_dash_for_qn(vi, idx, ep_id=None):
-    """Get DASH playurl via WBI-signed API (bilibili_api Video.get_download_url)."""
-    data = None
+    res = {}
     try:
-        data = await vi.get_download_url(page_index=idx)
-        if isinstance(data, dict) and data.get("dash"):
-            data = await _supplement_dash_qualities(vi, idx, data)
-            ids = sorted({int(v.get("id", 0)) for v in data["dash"].get("video", [])})
-            print(f"[Extra] DASH video qualities (id): {ids}")
-            return data
-        if isinstance(data, dict):
-            print(f"[Extra] WBI playurl has no dash, keys={list(data.keys())[:12]}")
+        res = await api.request()
     except Exception as e:
-        code = getattr(e, "code", None)
-        if code == -404 or "404" in str(e):
-            print("[Extra] PGC fallback for DASH (WBI -404)")
-            pgc_data = await _pgc_dash_playurl(vi, idx, ep_id=ep_id)
-            if pgc_data:
-                return await _supplement_dash_qualities(vi, idx, pgc_data)
-        print(f"[Extra] get_download_url failed: {code or type(e).__name__}: {e}")
-        return {"code": code if code is not None else -1, "message": str(e)}
+        if hasattr(e, "code") and e.code == -404:
+            print("[Extra] PGC Fallback for DASH (caught exception)")
+            try:
+                client = await Network.get_async_client()
+                cookies = {}
+                if vi.credential and vi.credential.sessdata:
+                    cookies = {
+                        "SESSDATA": vi.credential.sessdata,
+                        "bili_jct": vi.credential.bili_jct,
+                        "buvid3": vi.credential.buvid3,
+                        "buvid4": vi.credential.buvid4,
+                        "DedeUserID": vi.credential.dedeuserid,
+                    }
 
-    pgc_data = await _pgc_dash_playurl(vi, idx, ep_id=ep_id)
-    if pgc_data:
-        return await _supplement_dash_qualities(vi, idx, pgc_data)
-    return data if isinstance(data, dict) else {}
+                # PGC PlayURL parameters (same as original + module=bangumi maybe?)
+                # Note: api.params was set above. We reuse it but cleaned.
+                pgc_params = api.params.copy()
+
+                # [Fix] Extract ep_id from redirect_url for PGC, unless provided
+                if not ep_id:
+                    try:
+                        info = await vi.get_info()
+                        redirect_url = info.get("redirect_url", "")
+                        if redirect_url:
+                            ep_match = re.search(r"ep(\d+)", redirect_url)
+                            if ep_match:
+                                ep_id = ep_match.group(1)
+                    except Exception:
+                        pass
+
+                if ep_id:
+                    pgc_params["ep_id"] = ep_id
+
+                # print(f"[Debug] PGC Params: {pgc_params}")
+                pgc_res_raw = await client.get(
+                    "https://api.bilibili.com/pgc/player/web/playurl",
+                    params=pgc_params,
+                    cookies=cookies,
+                    headers={
+                        "Referer": "https://www.bilibili.com",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+                    },
+                    follow_redirects=True,
+                )
+                # print(f"[Debug] PGC Response Status: {pgc_res_raw.status_code}")
+                # print(f"[Debug] PGC Response Text: {pgc_res_raw.text[:500]}")
+                pgc_res = pgc_res_raw.json()
+                if pgc_res and pgc_res.get("code") == 0:
+                    # PGC API result can be a string "suee" or similar if DASH is at top level
+                    res_node = pgc_res.get("result")
+                    if isinstance(res_node, dict) and "dash" in res_node:
+                        return res_node
+                    return pgc_res
+            except Exception as pgc_e:
+                print(f"[Extra] PGC Fallback DASH failed: {pgc_e}")
+        # If fallback didn't return, we continue.
+        # If exception was raised, we need to ensure we don't crash if we want to return 'res' (which is empty).
+        # Actually, if standard API fails and fallback fails, we should probably raise the error or return error dict.
+        # But 'res' is empty here.
+        # Let's try to reconstruct error dict if possible or just log.
+        print(f"[Extra] Original API failed: {e}")
+        return {"code": getattr(e, "code", -1), "message": str(e)}
+
+    # Fallback to PGC if UGC -404
+    if res.get("code") == -404:
+        # ... (Same checks as above for non-raising case) ...
+        pass
+
+    # Clean standard UGC return
+    if "data" in res:
+        return res["data"]
+    return res
 
 
 def generate_vod_master_m3u8(vid, idx, dash_data):
@@ -711,6 +517,7 @@ def generate_vod_mpd(vid, idx, dash_data):
     dash = dash_data["dash"]
     duration = dash.get("duration", 0)
     min_buffer_time = dash.get("minBufferTime", 1.5)
+
     mpd = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static" mediaPresentationDuration="PT{}S" minBufferTime="PT{}S">'.format(
@@ -719,6 +526,7 @@ def generate_vod_mpd(vid, idx, dash_data):
         '  <Period id="1" start="PT0S">',
     ]
 
+    # Video Adaptation Set
     mpd.append('    <AdaptationSet id="1" mimeType="video/mp4" segmentAlignment="true" startWithSAP="1">')
     for video in dash.get("video", []):
         qn = video["id"]
@@ -755,6 +563,7 @@ def generate_vod_mpd(vid, idx, dash_data):
         mpd.append("      </Representation>")
     mpd.append("    </AdaptationSet>")
 
+    # Audio Adaptation Set
     mpd.append('    <AdaptationSet id="2" mimeType="audio/mp4" segmentAlignment="true" startWithSAP="1">')
     audio_tracks = dash.get("audio", [])
     if not audio_tracks and "flac" in dash and dash["flac"]:

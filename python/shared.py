@@ -25,32 +25,6 @@ COMMON_HEADERS = {
     "x-bili-metadata-legal-region": "CN",
 }
 
-# Minimal headers for bilivideo/upos CDN segment fetches (DASH / progressive media).
-CDN_MEDIA_HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Referer": "https://www.bilibili.com/",
-}
-
-
-def user_prefers_dash():
-    """Cookie prefer_dash=1 enables DASH-first playback; default is native progressive."""
-    v = request.cookies.get("prefer_dash", "0")
-    return str(v).lower() in ("1", "true", "yes")
-
-
-async def build_cdn_media_headers(forward_range=False, refresh_ticket=False):
-    """Headers for UPOS CDN URLs; avoids API-only fields that trigger 403 on media."""
-    headers = CDN_MEDIA_HEADERS.copy()
-    if forward_range:
-        for k, v in request.headers.items():
-            kl = k.lower()
-            if kl in ("range", "if-range"):
-                headers[kl] = v
-    ticket = await TicketManager.get_ticket(force_refresh=refresh_ticket)
-    if ticket:
-        headers["x-bili-ticket"] = ticket
-    return headers
-
 
 class TicketManager:
     """Manages Bilibili's x-bili-ticket (JWT) for API and CDN requests."""

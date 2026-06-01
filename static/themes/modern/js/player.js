@@ -449,8 +449,8 @@ class VodBufferController {
     const currentTime = this.video.currentTime;
     const bufferAhead = this.getBufferAhead();
 
-    // 1. Show loading spinner if buffer is low (not when decode already failed)
-    if (bufferAhead < this.minBuffer && !this.video.error) {
+    // 1. Show loading spinner if buffer is low
+    if (bufferAhead < this.minBuffer) {
       this.video.dispatchEvent(new Event("waiting"));
     }
 
@@ -529,21 +529,6 @@ async function initMikuPlayer() {
     console.log("[Player] Initializing VOD with dash.js:", mpdUrl);
 
     const player = dashjs.MediaPlayer().create();
-    player.updateSettings({
-      streaming: {
-        abr: {
-          autoSwitchBitrate: { video: true },
-          // Prefer 720p on start when available (qn 64 ≈ 1.5Mbps baseline).
-          initialBitrate: { video: 1500 },
-        },
-        buffer: {
-          bufferTimeAtTopQuality: 20,
-          bufferTimeAtTopQualityLongForm: 30,
-          stableBufferTime: 12,
-          bufferToKeep: 20,
-        },
-      },
-    });
     player.initialize(video, mpdUrl, true);
     window.dashPlayer = player;
 
@@ -556,31 +541,6 @@ async function initMikuPlayer() {
 
     player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
       console.log(`[Player] DASH ready in ${(performance.now() - playerStartTime).toFixed(2)}ms`);
-      const bitrates = player.getBitrateInfoListFor("video");
-      if (bitrates && bitrates.length) {
-        const hd = bitrates
-          .filter((b) => (b.height || 0) >= 720 || (b.bandwidth || 0) >= 1_500_000)
-          .sort(
-            (a, b) =>
-              (b.height || 0) - (a.height || 0) ||
-              (b.bandwidth || 0) - (a.bandwidth || 0)
-          )[0];
-        if (hd) {
-          player.updateSettings({
-            streaming: {
-              abr: { autoSwitchBitrate: { video: false } },
-            },
-          });
-          player.setQualityFor("video", hd.bitrateIndex);
-          if (label) {
-            const matched = window.supported_src.find(
-              (s) => s.quality === parseInt((hd.id || "").split("_")[1], 10)
-            );
-            label.innerText = matched ? matched.new_description : `${hd.height}p`;
-          }
-          console.log("[Player] Selected 720p DASH track:", hd.height, "p");
-        }
-      }
       updateVodDashQualityMenu(player, qualityList, label);
     });
 
@@ -634,34 +594,13 @@ async function initMikuPlayer() {
 
       console.warn("[Player] Native video error:", err.code, err.message);
 
-      // Decode errors: proxy stitch corruption or bad segment — avoid full reload; try seek then lower qn.
+      // Decode errors: reloading the whole MP4 often makes things worse (H264/FFmpeg/OOM).
+      // Let Firefox retry via its own Range requests; only rewind once.
       if (err.code === 3) {
         if (!video._decodeSeekTried && video.currentTime > 1) {
           video._decodeSeekTried = true;
           video.currentTime = Math.max(0, video.currentTime - 2);
           video.play().catch(() => {});
-          return;
-        }
-        if (!video._decodeFallbackTried && window.supported_src?.length > 1) {
-          const currentQn = parseInt(
-            (video.src.match(/_(\d+)(?:\.[a-z0-9]+)?(?:\?|$)/i) || [])[1] || "0",
-            10
-          );
-          const lower = [...window.supported_src]
-            .filter((s) => s.quality < currentQn)
-            .sort((a, b) => b.quality - a.quality)[0];
-          if (lower) {
-            video._decodeFallbackTried = true;
-            console.warn(
-              "[Player] Decode error, switching to lower quality:",
-              lower.new_description
-            );
-            const ext = lower.ext || "";
-            video.src = `/proxy/video/${window.current_vid}_${window.idx}_${lower.quality}${ext}`;
-            video._decodeSeekTried = false;
-            video.load();
-            video.play().catch(() => {});
-          }
         }
         return;
       }
@@ -755,14 +694,6 @@ function initDanmaku(video, container, controller) {
       media: video,
       comments: ds,
       engine: "dom",
-    });
-
-    if (!video.paused) {
-      window.dm.play();
-    }
-
-    video.addEventListener("play", () => {
-      if (window.dm) window.dm.play();
     });
 
     window.dm_status = true;
