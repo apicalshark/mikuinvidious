@@ -22,7 +22,7 @@ import re
 from bilibili_api.exceptions import ArgsException
 from bilibili_api.utils.network import Api
 from bs4 import BeautifulSoup
-from shared import Network
+from shared import Network, appredis
 
 
 def get_article_info(article_text, cid):
@@ -435,8 +435,15 @@ async def _pgc_dash_playurl(vi, idx, ep_id=None):
     return None
 
 
-async def _wbi_playurl(vi, idx, qn=127, fnval=4048):
-    """WBI-signed playurl with explicit qn (B站 DASH 在 qn=127 時常只回 480p，需用 64/80 補充)."""
+def _max_dash_video_qn(data):
+    videos = (data or {}).get("dash", {}).get("video", [])
+    if not videos:
+        return 0
+    return max(int(v.get("id", 0)) for v in videos)
+
+
+async def _wbi_playurl(vi, idx, qn=127, fnval=4048, platform=None):
+    """WBI-signed playurl with explicit qn/fnval."""
     cid = await vi.get_cid(idx)
     api = Api(
         "https://api.bilibili.com/x/player/wbi/playurl",
@@ -446,7 +453,7 @@ async def _wbi_playurl(vi, idx, qn=127, fnval=4048):
     )
     params = {
         "qn": int(qn),
-        "fnval": fnval,
+        "fnval": int(fnval),
         "fnver": 0,
         "fourk": 1,
         "gaia_source": "pre-load",
@@ -457,6 +464,10 @@ async def _wbi_playurl(vi, idx, qn=127, fnval=4048):
         "from_client": "BROWSER",
         "web_location": 1315873,
     }
+    if platform:
+        params["platform"] = platform
+        if platform == "html5":
+            params["high_quality"] = 1
     return await api.update_params(**params).result
 
 
@@ -492,30 +503,69 @@ def _merge_dash_data(base, extra):
 
 
 async def _supplement_dash_qualities(vi, idx, data):
-    """Request higher qn playurls when the bulk DASH response omits 720p+ tracks."""
-    videos = data.get("dash", {}).get("video", [])
-    if not videos:
+    """Request higher qn/fnval playurls when the bulk DASH response omits 720p+ tracks."""
+    if not data.get("dash", {}).get("video"):
         return data
-    max_qn = max(int(v.get("id", 0)) for v in videos)
-    targets = []
-    if max_qn < 64:
-        targets.append(64)
-    if max_qn < 80:
-        targets.append(80)
-    if max_qn < 116:
-        targets.append(116)
-    for qn in targets:
+
+    combos = [
+        (64, 16),
+        (80, 16),
+        (64, 4048),
+        (80, 4048),
+        (116, 16),
+        (127, 16),
+    ]
+    for qn, fnval in combos:
+        if _max_dash_video_qn(data) >= qn:
+            continue
         try:
-            extra = await _wbi_playurl(vi, idx, qn=qn)
-            if isinstance(extra, dict) and extra.get("dash"):
-                before = max(int(v.get("id", 0)) for v in data["dash"].get("video", []) or [0])
-                data = _merge_dash_data(data, extra)
-                after = max(int(v.get("id", 0)) for v in data["dash"].get("video", []) or [0])
-                if after > before:
-                    print(f"[Extra] DASH supplemented qn={qn}: max video id {before} -> {after}")
+            extra = await _wbi_playurl(vi, idx, qn=qn, fnval=fnval)
+            if not isinstance(extra, dict) or not extra.get("dash"):
+                continue
+            ids = sorted({int(v.get("id", 0)) for v in extra["dash"].get("video", [])})
+            print(f"[Extra] DASH try qn={qn} fnval={fnval} -> video ids {ids}")
+            before = _max_dash_video_qn(data)
+            data = _merge_dash_data(data, extra)
+            after = _max_dash_video_qn(data)
+            if after > before:
+                print(f"[Extra] DASH supplemented qn={qn} fnval={fnval}: max {before} -> {after}")
         except Exception as e:
-            print(f"[Extra] DASH supplement qn={qn} failed: {e}")
+            print(f"[Extra] DASH try qn={qn} fnval={fnval} failed: {e}")
     return data
+
+
+async def prepare_progressive_sources(vid, idx, vi, ep_id=None, probe_qn=64):
+    """
+    Cache progressive MP4 URLs (html5 playurl) for each listed quality.
+    Returns supported_src list for the player, or None if probe_qn is unavailable.
+    """
+    data = await video_get_src_for_qn(vi, idx, probe_qn, ep_id=ep_id)
+    if not data or "durl" not in data:
+        return None
+
+    qn = data.get("quality", probe_qn)
+    await appredis.setex(f"mikuinv_{vid}_{idx}_{qn}", 1800, data["durl"][0]["url"])
+
+    ext = ".mp4" if ".mp4" in data["durl"][0]["url"].lower() else ""
+    if ".flv" in data["durl"][0]["url"].lower():
+        ext = ".flv"
+
+    formats = data.get("support_formats", [])
+    for f in formats:
+        fq = f.get("quality")
+        if fq is None or fq == qn:
+            continue
+        try:
+            res = await video_get_src_for_qn(vi, idx, fq, ep_id=ep_id)
+            if res and "durl" in res:
+                await appredis.setex(f"mikuinv_{vid}_{idx}_{fq}", 1800, res["durl"][0]["url"])
+        except Exception:
+            pass
+
+    return [
+        {"quality": f["quality"], "new_description": f["new_description"], "ext": ext}
+        for f in formats
+    ]
 
 
 async def video_get_dash_for_qn(vi, idx, ep_id=None):
@@ -525,10 +575,8 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None):
         data = await vi.get_download_url(page_index=idx)
         if isinstance(data, dict) and data.get("dash"):
             data = await _supplement_dash_qualities(vi, idx, data)
-            videos = data["dash"].get("video", [])
-            if videos:
-                ids = sorted({int(v.get("id", 0)) for v in videos})
-                print(f"[Extra] DASH video qualities (id): {ids}")
+            ids = sorted({int(v.get("id", 0)) for v in data["dash"].get("video", [])})
+            print(f"[Extra] DASH video qualities (id): {ids}")
             return data
         if isinstance(data, dict):
             print(f"[Extra] WBI playurl has no dash, keys={list(data.keys())[:12]}")
