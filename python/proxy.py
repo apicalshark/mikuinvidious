@@ -4,6 +4,7 @@ import uuid
 from urllib.parse import urlparse
 
 import httpx
+import orjson
 from live_manager import live_manager
 from quart import Blueprint, Response, request
 from shared import (
@@ -12,6 +13,7 @@ from shared import (
     TicketManager,
     appconf,
     appredis,
+    build_cdn_media_headers,
     image_limiter,
 )
 
@@ -321,15 +323,54 @@ class ProxyResponse(Response):
             await self.upstream_resp.aclose()
 
 
+def _parse_dash_url_entry(raw):
+    """Redis value: plain URL string or JSON {primary, backup}."""
+    if isinstance(raw, bytes):
+        raw = raw.decode()
+    try:
+        data = orjson.loads(raw)
+        if isinstance(data, dict) and data.get("primary"):
+            urls = [data["primary"], *(data.get("backup") or [])]
+            return [u for u in urls if u]
+    except orjson.JSONDecodeError:
+        pass
+    return [raw] if raw else []
+
+
+def _dash_stream_response(resp, media_type):
+    """Pass-through CDN bytes for DASH init/index/media ranges (no stitch/retry loop)."""
+    status = resp.status_code
+
+    async def body():
+        try:
+            async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
+                yield chunk
+        finally:
+            await resp.aclose()
+
+    out = Response(body(), status=status)
+    out.headers["Access-Control-Allow-Origin"] = "*"
+    out.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Range"
+    out.headers["X-Accel-Buffering"] = "no"
+    if status in (200, 206):
+        out.headers["Cache-Control"] = "no-cache"
+        ct = resp.headers.get("content-type", "").lower()
+        if not ct or "application/octet-stream" in ct:
+            out.headers["Content-Type"] = "video/mp4" if media_type == "video" else "audio/mp4"
+        else:
+            out.headers["Content-Type"] = resp.headers.get("content-type")
+        for k in ("content-range", "accept-ranges", "content-length"):
+            if k in resp.headers:
+                out.headers[k] = resp.headers[k]
+    return out
+
+
 @proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
 async def proxy_dash(vid, idx, media_type, qn, cid):
-    url = await appredis.get(f"miku_dash_url_{vid}_{idx}_{media_type}_{qn}_{cid}")
-    if not url:
+    raw = await appredis.get(f"miku_dash_url_{vid}_{idx}_{media_type}_{qn}_{cid}")
+    urls = _parse_dash_url_entry(raw) if raw else []
+    if not urls:
         return Response("Not Found", status=404)
-
-    if isinstance(url, bytes):
-        url = url.decode()
-    urlp = urlparse(url)
 
     if not appconf["proxy"]["use_proxy"]:
         return Response("Forbidden: Proxying is disabled.", status=403)
@@ -337,91 +378,34 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     creds = appconf["credential"]
     cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
 
-    headers = COMMON_HEADERS.copy()
-
-    # Add Bili-Ticket and dynamic session/trace IDs
-    ticket = await TicketManager.get_ticket()
-    if ticket:
-        headers["x-bili-ticket"] = ticket
-
-    headers["session_id"] = TicketManager._generate_session_id()
-    headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-
-    if appconf["credential"].get("buvid3"):
-        headers["buvid"] = appconf["credential"]["buvid3"]
-    if appconf["credential"].get("buvid4"):
-        headers["buvid4"] = appconf["credential"]["buvid4"]
-
-    # Forward headers from client (crucial for Range requests)
-    for k, v in request.headers.items():
-        if k.lower() in ["range", "if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
-            headers[k.lower()] = v
-
     client = await Network.get_async_client()
-    resp = None
+
+    async def fetch(url, refresh_ticket=False):
+        headers = await build_cdn_media_headers(forward_range=True, refresh_ticket=refresh_ticket)
+        req = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
+        return await client.send(req, stream=True, follow_redirects=True)
+
     try:
-        proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-        resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-
-        if resp.status_code in [403, 412, 514]:
-            print(f"[Proxy] proxy_dash upstream returned status {resp.status_code}. Refreshing ticket and retrying...")
+        ticket_refreshed = False
+        for url in urls:
+            resp = await fetch(url)
+            if resp.status_code in (200, 206):
+                return _dash_stream_response(resp, media_type)
+            if resp.status_code in (403, 412, 514) and not ticket_refreshed:
+                await resp.aclose()
+                ticket_refreshed = True
+                resp = await fetch(url, refresh_ticket=True)
+                if resp.status_code in (200, 206):
+                    return _dash_stream_response(resp, media_type)
             await resp.aclose()
-            ticket = await TicketManager.get_ticket(force_refresh=True)
-            if ticket:
-                headers["x-bili-ticket"] = ticket
-            else:
-                headers.pop("x-bili-ticket", None)
-            headers["session_id"] = TicketManager._generate_session_id()
-            headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-            proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-            resp = await client.send(proxy_request, stream=True, follow_redirects=True)
 
-        proxy_resp = ProxyResponse(
-            resp,
-            status=resp.status_code,
-            url=url,
-            headers=headers,
-            cookies=cookie_jar,
-            client=client,
+        print(
+            f"[Proxy] proxy_dash failed for {vid}:{idx} {media_type}/{qn}/{cid} "
+            f"({len(urls)} url(s), last status 403)"
         )
-
-        # Ensure cleanup if response is not started
-        try:
-            proxy_resp.call_on_close(resp.aclose)
-        except AttributeError:
-            pass
-
-        for k, v in resp.headers.items():
-            k_lower = k.lower()
-            if k_lower in [
-                "content-type",
-                "content-length",
-                "content-range",
-                "accept-ranges",
-                "etag",
-                "last-modified",
-                "cache-control",
-            ]:
-                if k_lower in ("content-length", "content-range"):
-                    continue
-                proxy_resp.headers[k] = v
-
-        proxy_resp.apply_stitch_range_headers()
-
-        # Only override Content-Type if it's generic or missing, and only for successful media responses
-        if resp.status_code in [200, 206]:
-            current_ct = proxy_resp.headers.get("Content-Type", "").lower()
-            if not current_ct or "application/octet-stream" in current_ct:
-                if media_type == "video":
-                    proxy_resp.headers["Content-Type"] = "video/mp4"
-                else:
-                    proxy_resp.headers["Content-Type"] = "audio/mp4"
-
-        return proxy_resp
+        return Response("Upstream Forbidden", status=403)
     except Exception as e:
         print(f"[Proxy] Error in proxy_dash: {e}")
-        if resp:
-            await resp.aclose()
         return Response(str(e), status=502)
 
 

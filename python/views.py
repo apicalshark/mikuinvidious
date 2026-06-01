@@ -476,11 +476,16 @@ async def populate_dash_redis(vid, idx, dash_data):
             tracks = dash_data["dash"]["flac"].get("audio", [])
         for item in tracks:
             url = item.get("baseUrl") or item.get("base_url")
-            # qn is 'id', cid is 'codecid'
+            backup = item.get("backupUrl") or item.get("backup_url") or []
+            if isinstance(backup, str):
+                backup = [backup]
             qn = item.get("id")
             cid = item.get("codecid") or 0
             if url and qn is not None:
-                await appredis.setex(f"miku_dash_url_{vid}_{idx}_{mt}_{qn}_{cid}", 1800, url)
+                payload = orjson.dumps({"primary": url, "backup": backup})
+                await appredis.setex(
+                    f"miku_dash_url_{vid}_{idx}_{mt}_{qn}_{cid}", 1800, payload
+                )
 
 
 @app.route("/video_listen/<vid>")

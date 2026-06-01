@@ -537,7 +537,7 @@ async function initMikuPlayer() {
         buffer: {
           bufferTimeAtTopQuality: 20,
           bufferTimeAtTopQualityLongForm: 30,
-          bufferTimeDefault: 12,
+          stableBufferTime: 12,
           bufferToKeep: 20,
         },
       },
