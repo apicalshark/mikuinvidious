@@ -125,19 +125,33 @@ func (r *Rotator) Dial(ctx context.Context, network, addr string) (net.Conn, err
 		KeepAlive: 30 * time.Second,
 	}
 
-	host, _, _ := net.SplitHostPort(addr)
+	host, port, _ := net.SplitHostPort(addr)
 	isIPv6 := false
+	targetAddr := addr
+
 	if ip := net.ParseIP(host); ip != nil {
 		if ip.To4() == nil {
 			isIPv6 = true
 		}
 	} else {
+		// Preference Logic: If we have IPv6 pool, try to find an AAAA record for the host
 		ips, _ := net.LookupIP(host)
+		var v4, v6 net.IP
 		for _, ip := range ips {
 			if ip.To4() == nil {
-				isIPv6 = true
-				break
+				v6 = ip
+			} else {
+				v4 = ip
 			}
+		}
+
+		// If we have an IPv6 pool AND the target supports IPv6, FORCE use IPv6
+		if len(r.ipv6s) > 0 && v6 != nil {
+			isIPv6 = true
+			targetAddr = net.JoinHostPort(v6.String(), port)
+		} else if v4 != nil {
+			isIPv6 = false
+			targetAddr = net.JoinHostPort(v4.String(), port)
 		}
 	}
 
@@ -154,12 +168,12 @@ func (r *Rotator) Dial(ctx context.Context, network, addr string) (net.Conn, err
 		} else if strings.HasPrefix(network, "udp") {
 			dialer.LocalAddr = &net.UDPAddr{IP: localIP}
 		}
-		log.Printf("[Rotator] Outgoing (%s) via %s -> %s", network, localIP, addr)
+		log.Printf("[Rotator] Outgoing (%s) via %s -> %s (Target: %s)", network, localIP, addr, targetAddr)
 	} else {
 		log.Printf("[Rotator] Outgoing (%s) via default -> %s", network, addr)
 	}
 
-	return dialer.DialContext(ctx, network, addr)
+	return dialer.DialContext(ctx, network, targetAddr)
 }
 
 func discoverIPs(ifaceName string) ([]net.IP, []net.IP, error) {
