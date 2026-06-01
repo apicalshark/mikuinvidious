@@ -1,0 +1,26 @@
+services:
+  microwarp:
+    image: ghcr.io/ccbkkb/microwarp:latest
+    container_name: microwarp
+    restart: always
+    ports:
+      - "1080:1080"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    volumes:
+      - warp_data:/etc/wireguard
+
+  microwarp-http:
+    image: gogost/gost:latest
+    container_name: microwarp_http
+    restart: always
+    network_mode: host
+    command: "-L=http://127.0.0.1:1081 -F=socks5://127.0.0.1:1080"
+    depends_on:
+      - microwarp
+
+volumes:
+  warp_data:
