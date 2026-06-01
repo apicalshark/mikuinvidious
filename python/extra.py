@@ -534,50 +534,63 @@ async def _supplement_dash_qualities(vi, idx, data):
     return data
 
 
-async def progressive_over_dash_if_better(vid, idx, vi, dash_data, ep_id=None):
+def _playurl_granted_qn(data):
+    if not data:
+        return 0
+    return int(data.get("quality", 0))
+
+
+def _has_durl(data):
+    return bool(data and data.get("durl"))
+
+
+async def fetch_mp4_playurls_parallel(vi, idx, ep_id=None):
     """
-    When DASH only has low qn (e.g. 480p) but html5 progressive can reach 720p+, return formats.
-    B站訪客帳號常見：DASH 只有 16/32，durl 在 qn=64 仍可下載。
+    Run alongside DASH fetch: same credential, comparable WBI playurl + legacy html5 at qn=64.
+    Picks the best durl response (highest granted qn).
     """
-    if _max_dash_video_qn(dash_data) >= 64:
+    probes = [
+        ("WBI fnval=1 qn=64 (MP4)", lambda: _wbi_playurl(vi, idx, qn=64, fnval=1)),
+        ("WBI fnval=16 qn=64 (DASH)", lambda: _wbi_playurl(vi, idx, qn=64, fnval=16)),
+        ("WBI fnval=4048 qn=64", lambda: _wbi_playurl(vi, idx, qn=64, fnval=4048)),
+        ("legacy html5 playurl qn=64", lambda: video_get_src_for_qn(vi, idx, 64, ep_id=ep_id)),
+    ]
+
+    results = await asyncio.gather(*(fn() for _, fn in probes), return_exceptions=True)
+
+    best = None
+    best_qn = 0
+    for (label, _), res in zip(probes, results):
+        if isinstance(res, Exception):
+            print(f"[Video] Parallel MP4 {label} error: {res}")
+            continue
+        if not isinstance(res, dict):
+            continue
+        granted = _playurl_granted_qn(res)
+        vmax = _max_dash_video_qn(res) if res.get("dash") else 0
+        print(
+            f"[Video] Parallel MP4 {label}: granted={granted} "
+            f"durl={_has_durl(res)} dash_max_id={vmax or '-'}"
+        )
+        if _has_durl(res) and granted >= best_qn:
+            best_qn = granted
+            best = res
+    return best
+
+
+async def formats_from_playurl(vid, idx, vi, data, ep_id=None):
+    """Cache progressive URLs from an already-fetched playurl (no new playurl in parallel path)."""
+    if not _has_durl(data):
         return None
 
-    for probe_qn in (64, 80, 116):
-        try:
-            data = await video_get_src_for_qn(vi, idx, probe_qn, ep_id=ep_id)
-        except Exception as e:
-            print(f"[Video] Progressive probe qn={probe_qn} failed: {e}")
-            continue
-        if not data or "durl" not in data:
-            continue
-        granted = int(data.get("quality", 0))
-        print(f"[Video] Progressive probe qn={probe_qn} -> granted qn {granted}")
-        if granted < 64:
-            continue
-        formats = await prepare_progressive_sources(vid, idx, vi, ep_id=ep_id, probe_qn=granted)
-        if formats:
-            return formats
-    return None
-
-
-async def prepare_progressive_sources(vid, idx, vi, ep_id=None, probe_qn=64):
-    """
-    Cache progressive MP4 URLs (html5 playurl) for each listed quality.
-    Returns supported_src list for the player, or None if probe_qn is unavailable.
-    """
-    data = await video_get_src_for_qn(vi, idx, probe_qn, ep_id=ep_id)
-    if not data or "durl" not in data:
-        return None
-
-    qn = data.get("quality", probe_qn)
+    qn = data.get("quality", 64)
     await appredis.setex(f"mikuinv_{vid}_{idx}_{qn}", 1800, data["durl"][0]["url"])
 
     ext = ".mp4" if ".mp4" in data["durl"][0]["url"].lower() else ""
     if ".flv" in data["durl"][0]["url"].lower():
         ext = ".flv"
 
-    formats = data.get("support_formats", [])
-    for f in formats:
+    for f in data.get("support_formats", []):
         fq = f.get("quality")
         if fq is None or fq == qn:
             continue
@@ -590,8 +603,42 @@ async def prepare_progressive_sources(vid, idx, vi, ep_id=None, probe_qn=64):
 
     return [
         {"quality": f["quality"], "new_description": f["new_description"], "ext": ext}
-        for f in formats
+        for f in data.get("support_formats", [])
     ]
+
+
+async def resolve_playback_from_parallel(vid, idx, vi, dash_data, mp4_data, ep_id=None):
+    """
+    Compare parallel DASH vs MP4 playurl results and pick player mode.
+    Returns (use_dash: bool, payload) where payload is dash dict or supported_src list.
+    """
+    if mp4_data and mp4_data.get("dash"):
+        if dash_data:
+            dash_data = _merge_dash_data(dash_data, mp4_data)
+        else:
+            dash_data = mp4_data
+
+    max_dash = _max_dash_video_qn(dash_data) if dash_data else 0
+    mp4_qn = _playurl_granted_qn(mp4_data) if _has_durl(mp4_data) else 0
+    print(f"[Video] Parallel compare: DASH max video id={max_dash}, MP4 best granted qn={mp4_qn}")
+
+    if dash_data and max_dash >= 64:
+        return True, dash_data
+
+    if mp4_data and mp4_qn >= 64:
+        formats = await formats_from_playurl(vid, idx, vi, mp4_data, ep_id=ep_id)
+        if formats:
+            return False, formats
+
+    if dash_data:
+        return True, dash_data
+
+    if mp4_data and _has_durl(mp4_data):
+        formats = await formats_from_playurl(vid, idx, vi, mp4_data, ep_id=ep_id)
+        if formats:
+            return False, formats
+
+    return False, None
 
 
 async def video_get_dash_for_qn(vi, idx, ep_id=None):
