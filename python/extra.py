@@ -381,94 +381,82 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
     return res
 
 
-async def video_get_dash_for_qn(vi, idx, ep_id=None):
-    """Get a specific available source for video."""
+async def _pgc_dash_playurl(vi, idx, ep_id=None):
+    """Bangumi/PGC playurl fallback when UGC WBI playurl is unavailable."""
     cid = await vi.get_cid(idx)
-    api = Api(
-        "https://api.bilibili.com/x/player/playurl",
-        "GET",
-        verify=(not not vi.credential.sessdata),
-        json_body=True,
-        credential=vi.credential,
+    client = await Network.get_async_client()
+    cookies = {}
+    if vi.credential and vi.credential.sessdata:
+        cookies = {
+            "SESSDATA": vi.credential.sessdata,
+            "bili_jct": vi.credential.bili_jct,
+            "buvid3": vi.credential.buvid3,
+            "buvid4": vi.credential.buvid4,
+            "DedeUserID": vi.credential.dedeuserid,
+        }
+
+    if not ep_id:
+        try:
+            info = await vi.get_info()
+            redirect_url = info.get("redirect_url", "")
+            if redirect_url:
+                ep_match = re.search(r"ep(\d+)", redirect_url)
+                if ep_match:
+                    ep_id = ep_match.group(1)
+        except Exception:
+            pass
+
+    pgc_params = {
+        "avid": vi.get_aid(),
+        "cid": cid,
+        "fnval": 4048,
+        "fnver": 0,
+        "fourk": 1,
+        "qn": 127,
+    }
+    if ep_id:
+        pgc_params["ep_id"] = ep_id
+
+    pgc_res_raw = await client.get(
+        "https://api.bilibili.com/pgc/player/web/playurl",
+        params=pgc_params,
+        cookies=cookies,
+        headers={
+            "Referer": "https://www.bilibili.com",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+        },
+        follow_redirects=True,
     )
-    api.params = {"avid": vi.get_aid(), "cid": cid, "fnval": "4048", "platform": "html5", "high_quality": 1}
+    pgc_res = pgc_res_raw.json()
+    if pgc_res and pgc_res.get("code") == 0:
+        res_node = pgc_res.get("result")
+        if isinstance(res_node, dict) and "dash" in res_node:
+            return res_node
+    return None
 
-    res = {}
+
+async def video_get_dash_for_qn(vi, idx, ep_id=None):
+    """Get DASH playurl via WBI-signed API (bilibili_api Video.get_download_url)."""
     try:
-        res = await api.request()
+        data = await vi.get_download_url(page_index=idx)
+        if isinstance(data, dict) and data.get("dash"):
+            return data
+        if isinstance(data, dict):
+            print(f"[Extra] WBI playurl has no dash, keys={list(data.keys())[:12]}")
     except Exception as e:
-        if hasattr(e, "code") and e.code == -404:
-            print("[Extra] PGC Fallback for DASH (caught exception)")
-            try:
-                client = await Network.get_async_client()
-                cookies = {}
-                if vi.credential and vi.credential.sessdata:
-                    cookies = {
-                        "SESSDATA": vi.credential.sessdata,
-                        "bili_jct": vi.credential.bili_jct,
-                        "buvid3": vi.credential.buvid3,
-                        "buvid4": vi.credential.buvid4,
-                        "DedeUserID": vi.credential.dedeuserid,
-                    }
+        code = getattr(e, "code", None)
+        if code == -404 or "404" in str(e):
+            print("[Extra] PGC fallback for DASH (WBI -404)")
+            pgc_data = await _pgc_dash_playurl(vi, idx, ep_id=ep_id)
+            if pgc_data:
+                return pgc_data
+        print(f"[Extra] get_download_url failed: {code or type(e).__name__}: {e}")
+        return {"code": code if code is not None else -1, "message": str(e)}
 
-                # PGC PlayURL parameters (same as original + module=bangumi maybe?)
-                # Note: api.params was set above. We reuse it but cleaned.
-                pgc_params = api.params.copy()
-
-                # [Fix] Extract ep_id from redirect_url for PGC, unless provided
-                if not ep_id:
-                    try:
-                        info = await vi.get_info()
-                        redirect_url = info.get("redirect_url", "")
-                        if redirect_url:
-                            ep_match = re.search(r"ep(\d+)", redirect_url)
-                            if ep_match:
-                                ep_id = ep_match.group(1)
-                    except Exception:
-                        pass
-
-                if ep_id:
-                    pgc_params["ep_id"] = ep_id
-
-                # print(f"[Debug] PGC Params: {pgc_params}")
-                pgc_res_raw = await client.get(
-                    "https://api.bilibili.com/pgc/player/web/playurl",
-                    params=pgc_params,
-                    cookies=cookies,
-                    headers={
-                        "Referer": "https://www.bilibili.com",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-                    },
-                    follow_redirects=True,
-                )
-                # print(f"[Debug] PGC Response Status: {pgc_res_raw.status_code}")
-                # print(f"[Debug] PGC Response Text: {pgc_res_raw.text[:500]}")
-                pgc_res = pgc_res_raw.json()
-                if pgc_res and pgc_res.get("code") == 0:
-                    # PGC API result can be a string "suee" or similar if DASH is at top level
-                    res_node = pgc_res.get("result")
-                    if isinstance(res_node, dict) and "dash" in res_node:
-                        return res_node
-                    return pgc_res
-            except Exception as pgc_e:
-                print(f"[Extra] PGC Fallback DASH failed: {pgc_e}")
-        # If fallback didn't return, we continue.
-        # If exception was raised, we need to ensure we don't crash if we want to return 'res' (which is empty).
-        # Actually, if standard API fails and fallback fails, we should probably raise the error or return error dict.
-        # But 'res' is empty here.
-        # Let's try to reconstruct error dict if possible or just log.
-        print(f"[Extra] Original API failed: {e}")
-        return {"code": getattr(e, "code", -1), "message": str(e)}
-
-    # Fallback to PGC if UGC -404
-    if res.get("code") == -404:
-        # ... (Same checks as above for non-raising case) ...
-        pass
-
-    # Clean standard UGC return
-    if "data" in res:
-        return res["data"]
-    return res
+    pgc_data = await _pgc_dash_playurl(vi, idx, ep_id=ep_id)
+    if pgc_data:
+        return pgc_data
+    return data if isinstance(data, dict) else {}
 
 
 def generate_vod_master_m3u8(vid, idx, dash_data):

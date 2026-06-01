@@ -639,13 +639,20 @@ async def api_component_player(vid, idx):
 
         async def fetch_dash_task():
             try:
-                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=8.0)
-                if "dash" in data:
+                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=12.0)
+                if isinstance(data, dict) and data.get("dash"):
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
                     await populate_dash_redis(vid, idx, data)
                     return ("dash", data)
-            except Exception:
-                pass
+                if isinstance(data, dict) and data.get("code"):
+                    print(
+                        f"[Video] DASH API error for {vid}:{idx}: "
+                        f"code={data.get('code')} msg={str(data.get('message', ''))[:120]}"
+                    )
+            except asyncio.TimeoutError:
+                print(f"[Video] DASH fetch timeout for {vid}:{idx}")
+            except Exception as e:
+                print(f"[Video] DASH fetch failed for {vid}:{idx}: {e}")
             return ("dash", None)
 
         async def fetch_fallback_task():
