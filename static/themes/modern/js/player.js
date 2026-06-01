@@ -700,7 +700,7 @@ function initDanmaku(video, container, controller) {
     
     // Explicitly start danmaku if media is not paused
     if (!video.paused) {
-        window.dm.play();
+        window.dm.show();
     }
 
     const updateSize = () => {
