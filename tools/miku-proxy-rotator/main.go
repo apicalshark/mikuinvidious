@@ -217,20 +217,40 @@ func main() {
 
 	var v4s, v6s []net.IP
 	ifaceName := os.Getenv("BIND_INTERFACE")
+	staticIPs := os.Getenv("BIND_IPS")
+	skipIPs := make(map[string]bool)
+	if s := os.Getenv("SKIP_IPS"); s != "" {
+		for _, ip := range strings.Split(s, ",") {
+			skipIPs[strings.TrimSpace(ip)] = true
+		}
+		log.Printf("[Init] Skipping IPs: %v", os.Getenv("SKIP_IPS"))
+	}
+
 	if ifaceName != "" {
 		log.Printf("[Init] Discovering IPs on interface: %s", ifaceName)
 		v4, v6, err := discoverIPs(ifaceName)
 		if err != nil {
 			log.Fatalf("[Error] IP discovery failed: %v", err)
 		}
-		v4s = append(v4s, v4...)
-		v6s = append(v6s, v6...)
+		for _, ip := range v4 {
+			if !skipIPs[ip.String()] {
+				v4s = append(v4s, ip)
+			}
+		}
+		for _, ip := range v6 {
+			if !skipIPs[ip.String()] {
+				v6s = append(v6s, ip)
+			}
+		}
 	}
 
-	staticIPs := os.Getenv("BIND_IPS")
 	if staticIPs != "" {
 		for _, s := range strings.Split(staticIPs, ",") {
-			ip := net.ParseIP(strings.TrimSpace(s))
+			s = strings.TrimSpace(s)
+			if skipIPs[s] {
+				continue
+			}
+			ip := net.ParseIP(s)
 			if ip != nil {
 				if ip.To4() != nil {
 					v4s = append(v4s, ip)

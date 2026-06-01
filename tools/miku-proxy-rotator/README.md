@@ -38,6 +38,7 @@ services:
 - `PORT`: SOCKS5 port to listen on (default: `1081`).
 - `BIND_INTERFACE`: Automatically find Global IPv4/IPv6 addresses on this interface.
 - `BIND_IPS`: A comma-separated list of specific IPs to use.
+- `SKIP_IPS`: A comma-separated list of IPs to exclude from the rotation pool (e.g., exclude the primary host IP).
 - `ROTATION_STRATEGY`: `random`, `round-robin`, or `periodic`.
 - `ROTATION_INTERVAL`: Duration for `periodic` strategy (default: `5m`).
 
