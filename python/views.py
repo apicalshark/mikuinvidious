@@ -29,7 +29,7 @@ from extra import (
     generate_vod_media_m3u8,
     generate_vod_mpd,
     get_article_info,
-    prepare_progressive_sources,
+    progressive_over_dash_if_better,
     video_get_dash_for_qn,
     video_get_src_for_qn,
     _max_dash_video_qn,
@@ -699,14 +699,15 @@ async def api_component_player(vid, idx):
 
         if dash_data:
             max_dash_qn = _max_dash_video_qn(dash_data)
-            if max_dash_qn < 64:
-                prog_formats = await prepare_progressive_sources(vid, idx, v, ep_id=ep_id, probe_qn=64)
-                if prog_formats and max(f["quality"] for f in prog_formats) >= 64:
-                    print(
-                        f"[Video] DASH capped at qn {max_dash_qn}; "
-                        f"using progressive MP4 for 720p+ ({len(prog_formats)} qualities)"
-                    )
-                    return False, prog_formats
+            prog_formats = await progressive_over_dash_if_better(
+                vid, idx, v, dash_data, ep_id=ep_id
+            )
+            if prog_formats:
+                print(
+                    f"[Video] DASH capped at qn {max_dash_qn}; "
+                    f"using progressive MP4 for 720p+ ({len(prog_formats)} qualities)"
+                )
+                return False, prog_formats
 
             has_dash = True
             v_supported_src = [

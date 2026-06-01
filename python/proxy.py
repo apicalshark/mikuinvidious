@@ -337,32 +337,15 @@ def _parse_dash_url_entry(raw):
     return [raw] if raw else []
 
 
-def _dash_stream_response(resp, media_type):
-    """Pass-through CDN bytes for DASH init/index/media ranges (no stitch/retry loop)."""
-    status = resp.status_code
-
-    async def body():
-        try:
-            async for chunk in resp.aiter_bytes(chunk_size=64 * 1024):
-                yield chunk
-        finally:
-            await resp.aclose()
-
-    out = Response(body(), status=status)
-    out.headers["Access-Control-Allow-Origin"] = "*"
-    out.headers["Access-Control-Expose-Headers"] = "Content-Length, Content-Range"
-    out.headers["X-Accel-Buffering"] = "no"
-    if status in (200, 206):
-        out.headers["Cache-Control"] = "no-cache"
+def _finish_dash_proxy_response(proxy_resp, resp, media_type):
+    proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+    proxy_resp.headers["X-Accel-Buffering"] = "no"
+    proxy_resp.apply_stitch_range_headers()
+    if resp.status_code in (200, 206):
         ct = resp.headers.get("content-type", "").lower()
         if not ct or "application/octet-stream" in ct:
-            out.headers["Content-Type"] = "video/mp4" if media_type == "video" else "audio/mp4"
-        else:
-            out.headers["Content-Type"] = resp.headers.get("content-type")
-        for k in ("content-range", "accept-ranges", "content-length"):
-            if k in resp.headers:
-                out.headers[k] = resp.headers[k]
-    return out
+            proxy_resp.headers["Content-Type"] = "video/mp4" if media_type == "video" else "audio/mp4"
+    return proxy_resp
 
 
 @proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
@@ -389,19 +372,32 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         ticket_refreshed = False
         for url in urls:
             resp = await fetch(url)
-            if resp.status_code in (200, 206):
-                return _dash_stream_response(resp, media_type)
             if resp.status_code in (403, 412, 514) and not ticket_refreshed:
                 await resp.aclose()
                 ticket_refreshed = True
                 resp = await fetch(url, refresh_ticket=True)
-                if resp.status_code in (200, 206):
-                    return _dash_stream_response(resp, media_type)
+
+            if resp.status_code in (200, 206):
+                headers = await build_cdn_media_headers(forward_range=True)
+                proxy_resp = ProxyResponse(
+                    resp,
+                    status=resp.status_code,
+                    url=url,
+                    headers=headers,
+                    cookies=cookie_jar,
+                    client=client,
+                )
+                try:
+                    proxy_resp.call_on_close(resp.aclose)
+                except AttributeError:
+                    pass
+                return _finish_dash_proxy_response(proxy_resp, resp, media_type)
+
             await resp.aclose()
 
         print(
             f"[Proxy] proxy_dash failed for {vid}:{idx} {media_type}/{qn}/{cid} "
-            f"({len(urls)} url(s), last status 403)"
+            f"({len(urls)} url(s))"
         )
         return Response("Upstream Forbidden", status=403)
     except Exception as e:

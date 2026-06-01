@@ -534,6 +534,32 @@ async def _supplement_dash_qualities(vi, idx, data):
     return data
 
 
+async def progressive_over_dash_if_better(vid, idx, vi, dash_data, ep_id=None):
+    """
+    When DASH only has low qn (e.g. 480p) but html5 progressive can reach 720p+, return formats.
+    B站訪客帳號常見：DASH 只有 16/32，durl 在 qn=64 仍可下載。
+    """
+    if _max_dash_video_qn(dash_data) >= 64:
+        return None
+
+    for probe_qn in (64, 80, 116):
+        try:
+            data = await video_get_src_for_qn(vi, idx, probe_qn, ep_id=ep_id)
+        except Exception as e:
+            print(f"[Video] Progressive probe qn={probe_qn} failed: {e}")
+            continue
+        if not data or "durl" not in data:
+            continue
+        granted = int(data.get("quality", 0))
+        print(f"[Video] Progressive probe qn={probe_qn} -> granted qn {granted}")
+        if granted < 64:
+            continue
+        formats = await prepare_progressive_sources(vid, idx, vi, ep_id=ep_id, probe_qn=granted)
+        if formats:
+            return formats
+    return None
+
+
 async def prepare_progressive_sources(vid, idx, vi, ep_id=None, probe_qn=64):
     """
     Cache progressive MP4 URLs (html5 playurl) for each listed quality.
