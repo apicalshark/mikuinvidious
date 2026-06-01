@@ -757,6 +757,14 @@ function initDanmaku(video, container, controller) {
       engine: "dom",
     });
 
+    if (!video.paused) {
+      window.dm.play();
+    }
+
+    video.addEventListener("play", () => {
+      if (window.dm) window.dm.play();
+    });
+
     window.dm_status = true;
 
     const updateSize = () => {
