@@ -110,7 +110,7 @@ class Network:
             cls._sync_client = httpx.Client(
                 proxy=cls.get_proxy(),
                 trust_env=False,
-                http2=True,
+                http2=False,
                 timeout=10.0,
                 limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
             )
