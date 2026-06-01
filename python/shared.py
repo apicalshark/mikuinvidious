@@ -44,20 +44,29 @@ class TicketManager:
         return os.urandom(4).hex()
 
     @classmethod
-    async def get_ticket(cls):
+    async def get_ticket(cls, force_refresh=False):
         async with cls._lock:
             now = int(time.time())
-            # Check local cache
-            if cls._ticket and now < cls._expiry - 60:
-                return cls._ticket
+            if not force_refresh:
+                # Check local cache
+                if cls._ticket and now < cls._expiry - 60:
+                    return cls._ticket
 
-            # Check Redis cache
-            cached_ticket = await appredis.get("miku_bili_ticket")
-            cached_expiry = await appredis.get("miku_bili_ticket_expiry")
-            if cached_ticket and cached_expiry and now < int(cached_expiry) - 60:
-                cls._ticket = cached_ticket
-                cls._expiry = int(cached_expiry)
-                return cls._ticket
+                # Check Redis cache
+                cached_ticket = await appredis.get("miku_bili_ticket")
+                cached_expiry = await appredis.get("miku_bili_ticket_expiry")
+                if cached_ticket and cached_expiry and now < int(cached_expiry) - 60:
+                    cls._ticket = cached_ticket
+                    cls._expiry = int(cached_expiry)
+                    return cls._ticket
+
+            if force_refresh:
+                from bilibili_api.utils.network import refresh_bili_ticket
+                refresh_bili_ticket()
+                cls._ticket = None
+                cls._expiry = 0
+                await appredis.delete("miku_bili_ticket")
+                await appredis.delete("miku_bili_ticket_expiry")
 
             # Generate new ticket using upstream bilibili_api
             try:

@@ -163,6 +163,19 @@ class ProxyResponse(Response):
                             req = self.client.build_request("GET", self.url, headers=retry_headers, cookies=self.cookies)
                             curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
 
+                            if curr_resp.status_code in [403, 412, 514]:
+                                print(f"[Proxy] Retry failed with status {curr_resp.status_code}. Refreshing ticket and retrying...")
+                                await curr_resp.aclose()
+                                ticket = await TicketManager.get_ticket(force_refresh=True)
+                                if ticket:
+                                    retry_headers["x-bili-ticket"] = ticket
+                                else:
+                                    retry_headers.pop("x-bili-ticket", None)
+                                retry_headers["session_id"] = TicketManager._generate_session_id()
+                                retry_headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+                                req = self.client.build_request("GET", self.url, headers=retry_headers, cookies=self.cookies)
+                                curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
+
                             if curr_resp.status_code != 206:
                                 print(f"[Proxy] Retry failed: upstream returned status {curr_resp.status_code} instead of 206")
                                 await curr_resp.aclose()
@@ -259,6 +272,19 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     try:
         proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
         resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+
+        if resp.status_code in [403, 412, 514]:
+            print(f"[Proxy] proxy_dash upstream returned status {resp.status_code}. Refreshing ticket and retrying...")
+            await resp.aclose()
+            ticket = await TicketManager.get_ticket(force_refresh=True)
+            if ticket:
+                headers["x-bili-ticket"] = ticket
+            else:
+                headers.pop("x-bili-ticket", None)
+            headers["session_id"] = TicketManager._generate_session_id()
+            headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+            proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
+            resp = await client.send(proxy_request, stream=True, follow_redirects=True)
 
         proxy_resp = ProxyResponse(
             resp,
@@ -413,6 +439,20 @@ async def proxy_main(subpath):
             proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
             resp = await client.send(proxy_request, stream=True, follow_redirects=True)
             print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
+
+            if resp.status_code in [403, 412, 514]:
+                print(f"[Proxy] Direct stream failed with status {resp.status_code}. Refreshing ticket and retrying...")
+                await resp.aclose()
+                ticket = await TicketManager.get_ticket(force_refresh=True)
+                if ticket:
+                    headers["x-bili-ticket"] = ticket
+                else:
+                    headers.pop("x-bili-ticket", None)
+                headers["session_id"] = TicketManager._generate_session_id()
+                headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+                proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
+                resp = await client.send(proxy_request, stream=True, follow_redirects=True)
+                print(f"[Proxy] Retried direct stream after ticket refresh: {url[:50]}... Status: {resp.status_code}")
 
             proxy_resp = ProxyResponse(
                 resp,
