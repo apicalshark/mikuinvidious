@@ -533,6 +533,8 @@ async function initMikuPlayer() {
       streaming: {
         abr: {
           autoSwitchBitrate: { video: true },
+          // Prefer 720p on start when available (qn 64 ≈ 1.5Mbps baseline).
+          initialBitrate: { video: 1500 },
         },
         buffer: {
           bufferTimeAtTopQuality: 20,

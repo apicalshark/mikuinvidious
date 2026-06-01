@@ -644,7 +644,7 @@ async def api_component_player(vid, idx):
 
         async def fetch_dash_task():
             try:
-                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=12.0)
+                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=20.0)
                 if isinstance(data, dict) and data.get("dash"):
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
                     await populate_dash_redis(vid, idx, data)

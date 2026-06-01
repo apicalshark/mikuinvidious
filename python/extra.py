@@ -435,11 +435,100 @@ async def _pgc_dash_playurl(vi, idx, ep_id=None):
     return None
 
 
+async def _wbi_playurl(vi, idx, qn=127, fnval=4048):
+    """WBI-signed playurl with explicit qn (B站 DASH 在 qn=127 時常只回 480p，需用 64/80 補充)."""
+    cid = await vi.get_cid(idx)
+    api = Api(
+        "https://api.bilibili.com/x/player/wbi/playurl",
+        "GET",
+        credential=vi.credential,
+        wbi=True,
+    )
+    params = {
+        "qn": int(qn),
+        "fnval": fnval,
+        "fnver": 0,
+        "fourk": 1,
+        "gaia_source": "pre-load",
+        "isGaiaAvoided": "true",
+        "avid": vi.get_aid(),
+        "bvid": vi.get_bvid(),
+        "cid": cid,
+        "from_client": "BROWSER",
+        "web_location": 1315873,
+    }
+    return await api.update_params(**params).result
+
+
+def _merge_dash_data(base, extra):
+    """Merge supplemental playurl into base DASH (higher qn tracks)."""
+    if not base or "dash" not in base or not extra or "dash" not in extra:
+        return base
+
+    def track_key(track):
+        return (int(track.get("id", 0)), int(track.get("codecid", 0)))
+
+    video_by_key = {track_key(v): v for v in base["dash"].get("video", [])}
+    for v in extra["dash"].get("video", []):
+        k = track_key(v)
+        if k not in video_by_key or int(v.get("id", 0)) > int(video_by_key[k].get("id", 0)):
+            video_by_key[k] = v
+    base["dash"]["video"] = sorted(video_by_key.values(), key=lambda v: int(v.get("id", 0)))
+
+    audio_by_key = {track_key(a): a for a in base["dash"].get("audio", [])}
+    for a in extra["dash"].get("audio", []):
+        k = track_key(a)
+        if k not in audio_by_key:
+            audio_by_key[k] = a
+    base["dash"]["audio"] = list(audio_by_key.values())
+
+    sf = {int(f.get("quality", 0)): f for f in base.get("support_formats", [])}
+    for f in extra.get("support_formats", []):
+        q = int(f.get("quality", 0))
+        if q not in sf:
+            sf[q] = f
+    base["support_formats"] = sorted(sf.values(), key=lambda f: int(f.get("quality", 0)), reverse=True)
+    return base
+
+
+async def _supplement_dash_qualities(vi, idx, data):
+    """Request higher qn playurls when the bulk DASH response omits 720p+ tracks."""
+    videos = data.get("dash", {}).get("video", [])
+    if not videos:
+        return data
+    max_qn = max(int(v.get("id", 0)) for v in videos)
+    targets = []
+    if max_qn < 64:
+        targets.append(64)
+    if max_qn < 80:
+        targets.append(80)
+    if max_qn < 116:
+        targets.append(116)
+    for qn in targets:
+        try:
+            extra = await _wbi_playurl(vi, idx, qn=qn)
+            if isinstance(extra, dict) and extra.get("dash"):
+                before = max(int(v.get("id", 0)) for v in data["dash"].get("video", []) or [0])
+                data = _merge_dash_data(data, extra)
+                after = max(int(v.get("id", 0)) for v in data["dash"].get("video", []) or [0])
+                if after > before:
+                    print(f"[Extra] DASH supplemented qn={qn}: max video id {before} -> {after}")
+        except Exception as e:
+            print(f"[Extra] DASH supplement qn={qn} failed: {e}")
+    return data
+
+
 async def video_get_dash_for_qn(vi, idx, ep_id=None):
     """Get DASH playurl via WBI-signed API (bilibili_api Video.get_download_url)."""
+    data = None
     try:
         data = await vi.get_download_url(page_index=idx)
         if isinstance(data, dict) and data.get("dash"):
+            data = await _supplement_dash_qualities(vi, idx, data)
+            videos = data["dash"].get("video", [])
+            if videos:
+                ids = sorted({int(v.get("id", 0)) for v in videos})
+                print(f"[Extra] DASH video qualities (id): {ids}")
             return data
         if isinstance(data, dict):
             print(f"[Extra] WBI playurl has no dash, keys={list(data.keys())[:12]}")
@@ -449,13 +538,13 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None):
             print("[Extra] PGC fallback for DASH (WBI -404)")
             pgc_data = await _pgc_dash_playurl(vi, idx, ep_id=ep_id)
             if pgc_data:
-                return pgc_data
+                return await _supplement_dash_qualities(vi, idx, pgc_data)
         print(f"[Extra] get_download_url failed: {code or type(e).__name__}: {e}")
         return {"code": code if code is not None else -1, "message": str(e)}
 
     pgc_data = await _pgc_dash_playurl(vi, idx, ep_id=ep_id)
     if pgc_data:
-        return pgc_data
+        return await _supplement_dash_qualities(vi, idx, pgc_data)
     return data if isinstance(data, dict) else {}
 
 
