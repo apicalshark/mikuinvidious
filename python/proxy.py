@@ -76,8 +76,8 @@ def _parse_client_range_header(client_range):
     return start, int(end_part), "bounded"
 
 
-def _parse_stream_range(upstream_resp, headers_template):
-    """Derive byte range for CDN stitching and the Content-Range header sent to the browser."""
+def _parse_stream_range(upstream_resp, headers_template, stitch=True):
+    """Derive byte range for CDN stitching or single-segment pass-through to the browser."""
     content_range = upstream_resp.headers.get("content-range")
     client_range = (headers_template or {}).get("range", "").strip()
     c_start, c_end, c_mode = _parse_client_range_header(client_range)
@@ -97,12 +97,16 @@ def _parse_stream_range(upstream_resp, headers_template):
             if c_mode == "bounded":
                 start_byte = c_start
                 end_byte = c_end
-            elif c_mode == "open" and total_size:
+            elif c_mode == "open":
                 start_byte = c_start
-                end_byte = total_size - 1
+                end_byte = (total_size - 1) if (stitch and total_size) else segment_end
             elif c_mode in ("full", "none") and total_size:
-                start_byte = 0 if c_mode == "full" else up_start
-                end_byte = total_size - 1
+                if stitch:
+                    start_byte = 0 if c_mode == "full" else up_start
+                    end_byte = total_size - 1
+                else:
+                    start_byte = up_start
+                    end_byte = segment_end
             else:
                 start_byte = up_start
                 end_byte = segment_end
@@ -142,11 +146,13 @@ class ProxyResponse(Response):
         cookies=None,
         client=None,
         fallback_urls=None,
+        stitch=True,
         *args,
         **kwargs,
     ):
         self.upstream_resp = upstream_resp
         self.url = url
+        self.stitch = stitch
         self._url_candidates = list(
             dict.fromkeys([url] + [u for u in (fallback_urls or []) if u])
         )
@@ -155,7 +161,7 @@ class ProxyResponse(Response):
         self.cookies = cookies
         self.client = client
         self.stitch_start_byte, self.stitch_end_byte, self.stitch_total_size = _parse_stream_range(
-            upstream_resp, headers
+            upstream_resp, headers, stitch=stitch
         )
 
         # Create a generator that yields from the upstream response
@@ -192,17 +198,21 @@ class ProxyResponse(Response):
                                 retry_count = 0
                                 bytes_since_retry_reset = 0
 
-                        # If we reached here, the generator finished normally.
-                        # Check if we got all expected bytes (if end_byte is known).
-                        if end_byte is not None:
+                        # Stitch mode: one response must cover the full promised range.
+                        if self.stitch and end_byte is not None:
                             expected_bytes = end_byte - start_byte + 1
                             if bytes_yielded < expected_bytes:
-                                # Stream terminated early without exception, treat as protocol error/premature close
                                 raise httpx.RemoteProtocolError(
                                     f"Connection closed early. Yielded {bytes_yielded} of {expected_bytes} bytes."
                                 )
                         break
                     except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
+                        if not self.stitch:
+                            print(
+                                f"[Proxy] Segment ended after {bytes_yielded} bytes "
+                                f"(pass-through, no stitch): {repr(e)}"
+                            )
+                            break
                         if not self.client or not self.url:
                             print(f"[Proxy] Stream error (no retry client/url) after {bytes_yielded} bytes: {repr(e)}")
                             break
@@ -343,7 +353,7 @@ class ProxyResponse(Response):
             self.headers["Cache-Control"] = "no-store, must-revalidate"
 
     def apply_stitch_range_headers(self):
-        """Align 206 Content-Range with the full stitched body the generator will deliver."""
+        """Set 206 Content-Range: full stitched span (DASH) or this CDN segment only (progressive)."""
         self.headers.pop("Content-Length", None)
         if self.stitch_end_byte is None or self.status_code != 206:
             return
@@ -351,6 +361,9 @@ class ProxyResponse(Response):
         self.headers["Content-Range"] = (
             f"bytes {self.stitch_start_byte}-{self.stitch_end_byte}/{total}"
         )
+        if not self.stitch:
+            segment_len = self.stitch_end_byte - self.stitch_start_byte + 1
+            self.headers["Content-Length"] = str(segment_len)
 
     async def aclose(self):
         """Called by Quart when the response is finished or the client disconnects."""
@@ -569,6 +582,7 @@ async def proxy_main(subpath):
                 cookies=cookie_jar,
                 client=client,
                 fallback_urls=fallback_urls,
+                stitch=False,
             )
 
             # Ensure cleanup if response is not started
@@ -606,6 +620,9 @@ async def proxy_main(subpath):
                     if k_lower in ("content-length", "content-range"):
                         continue
                     proxy_resp.headers[k] = v
+
+            if not is_live and resp.status_code in (200, 206):
+                proxy_resp.headers.setdefault("Accept-Ranges", "bytes")
 
             proxy_resp.apply_stitch_range_headers()
 

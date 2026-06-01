@@ -449,8 +449,8 @@ class VodBufferController {
     const currentTime = this.video.currentTime;
     const bufferAhead = this.getBufferAhead();
 
-    // 1. Show loading spinner if buffer is low
-    if (bufferAhead < this.minBuffer) {
+    // 1. Show loading spinner if buffer is low (not when decode already failed)
+    if (bufferAhead < this.minBuffer && !this.video.error) {
       this.video.dispatchEvent(new Event("waiting"));
     }
 
@@ -609,13 +609,34 @@ async function initMikuPlayer() {
 
       console.warn("[Player] Native video error:", err.code, err.message);
 
-      // Decode errors: reloading the whole MP4 often makes things worse (H264/FFmpeg/OOM).
-      // Let Firefox retry via its own Range requests; only rewind once.
+      // Decode errors: proxy stitch corruption or bad segment — avoid full reload; try seek then lower qn.
       if (err.code === 3) {
         if (!video._decodeSeekTried && video.currentTime > 1) {
           video._decodeSeekTried = true;
           video.currentTime = Math.max(0, video.currentTime - 2);
           video.play().catch(() => {});
+          return;
+        }
+        if (!video._decodeFallbackTried && window.supported_src?.length > 1) {
+          const currentQn = parseInt(
+            (video.src.match(/_(\d+)(?:\.[a-z0-9]+)?(?:\?|$)/i) || [])[1] || "0",
+            10
+          );
+          const lower = [...window.supported_src]
+            .filter((s) => s.quality < currentQn)
+            .sort((a, b) => b.quality - a.quality)[0];
+          if (lower) {
+            video._decodeFallbackTried = true;
+            console.warn(
+              "[Player] Decode error, switching to lower quality:",
+              lower.new_description
+            );
+            const ext = lower.ext || "";
+            video.src = `/proxy/video/${window.current_vid}_${window.idx}_${lower.quality}${ext}`;
+            video._decodeSeekTried = false;
+            video.load();
+            video.play().catch(() => {});
+          }
         }
         return;
       }
