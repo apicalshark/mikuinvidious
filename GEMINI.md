@@ -36,9 +36,11 @@ graph TD
         
         subgraph "MikuInvidious App"
             Router{URL Path?}
-            ProxyRes["Quart Proxy Blueprint<br>(Async Stream)"]
-            Views["Quart Views<br>(views.py/app.py)"]
+            ProxyRes["Quart Proxy Blueprint<br>(proxy.py / live_manager.py)"]
+            BangumiBP["Bangumi Blueprint<br>(views_bangumi.py)"]
+            Views["Quart Views<br>(views.py / app.py)"]
             BiliAPI["Bilibili API Wrapper"]
+            NyaaHelper["Nyaa.si Helper<br>(nyaa.py)"]
         end
         
         Redis[("Redis Cache")]
@@ -51,6 +53,7 @@ graph TD
     subgraph "External"
         BiliCDN["Bilibili CDN<br>(Videos/Images)"]
         BiliServers["Bilibili API Servers"]
+        NyaaSI["Nyaa.si<br>(Torrents)"]
     end
 
     %% Flows
@@ -64,10 +67,18 @@ graph TD
     ProxyRes -- "Check Cache" --> Redis
     ProxyRes -- "Stream Content" --> Warp
     
+    %% Bangumi Path
+    Router -- "/bangumi/..." --> BangumiBP
+    BangumiBP --> BiliAPI
+    BangumiBP --> NyaaHelper
+    
     %% App Path
     Router -- "Other Routes" --> Views
     Views -- "Get Metadata" --> BiliAPI
+    
+    %% API / External
     BiliAPI -- "Fetch Data" --> Warp
+    NyaaHelper -- "Search" --> NyaaSI
     
     %% External Connections
     Warp --> BiliCDN
@@ -75,7 +86,8 @@ graph TD
     
     %% Returns
     BiliCDN -.-> Warp -.-> ProxyRes -.-> Granian -.-> Caddy -.-> User
-    BiliServers -.-> Warp -.-> BiliAPI -.-> Views -.-> Granian -.-> Caddy -.-> User
+    BiliServers -.-> Warp -.-> BiliAPI -.-> Views/BangumiBP -.-> Granian -.-> Caddy -.-> User
+    NyaaSI -.-> NyaaHelper -.-> BangumiBP -.-> Granian -.-> Caddy -.-> User
 ```
 
 ### Component Breakdown
@@ -83,10 +95,12 @@ graph TD
 - **Application Logic:**
   - `app.py`: Initializes the Quart app, error handlers, and registers blueprints.
   - `views.py`: Main routing logic for home, search, video, space, and author views.
+  - `views_bangumi.py`: Blueprint for Bangumi (Anime/Show) indexing and playback.
   - `shared.py`: Centralized configuration, `httpx` client management, Redis connection, and theming utilities.
   - `proxy.py`: Quart Blueprint for media proxying. Uses a robust `ProxyResponse` class and `ClosingIterator` to prevent file descriptor leaks.
   - `live_manager.py`: Manages persistent live stream connections, chunk buffering, and heartbeat (Type 18) injection.
   - `danmaku.py`: Fetches and converts Bilibili danmaku.
+  - `nyaa.py`: Scraper and helper for searching Nyaa.si torrents (integrated into Bangumi view).
   - `extra.py`: Utilities for article-to-HTML conversion and ID manipulation.
   - `transformers.py`: Data transformation logic to standardize API responses for the frontend.
   - `filters.py`: Custom Jinja2 template filters (e.g., date formatting).
