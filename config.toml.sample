@@ -1,72 +1,98 @@
 [site]
+# The public name of your instance.
 site_name = 'MikuInvidious'
+
+# The public URL of your instance. Used for metadata and links.
 site_url = 'https://example.org'
 
 # You are required to set this if you have any modification to the source code.
 # Learn more at https://www.gnu.org/licenses/agpl-3.0.html.
-site_modified_source_code_url = https://github.com/apicalshark/mikuinvidious
+# Set to 'false' if no modifications are made.
+site_modified_source_code_url = 'https://github.com/apicalshark/mikuinvidious'
 
-# This will not really disable download, it just not shows it.
+# This will not really disable download, it just hides the download buttons on the UI.
 site_allow_download = true
 
-# This will allow (potentially unsafe) error response to be showed directly on site.
+# This will allow (potentially unsafe) error responses to be showed directly on site.
+# Useful for debugging backend issues.
 site_show_unsafe_error_response = false
 
 # Enable or disable Nyaa search in Bangumi view.
 nyaa_bangumi = true
 
-# This controls whether the search engines will index your site or not.
+# This controls whether search engines will index your site or not.
 # Available options:
-#    - 'strict', indexing is disallowed.
-#	 - 'relexed', search engines can index articles and search page.
-#    - 'PLEASE_INDEX_EVERYTHING', a VERY DANGEROUS option, may give you a lawsuit.
+#    - 'strict': Indexing is disallowed (robots_strict.txt).
+#    - 'relaxed': Search engines can index articles and the search page (robots_relaxed.txt).
+#    - 'PLEASE_INDEX_EVERYTHING': A VERY DANGEROUS option, removes all restrictions.
 # Default to 'strict'.
 robots_policy = 'strict'
 
-[quart]
-# Quart Framework Configuration
-
 [server]
 # Network interface to listen on:
-#    - local only, use 'localhost'
-#    - ipv4 only, use '0.0.0.0'
-#    - both ipv4 or ipv6, use '::'
+#    - local only: use 'localhost'
+#    - ipv4 only: use '0.0.0.0'
+#    - both ipv4 or ipv6: use '::'
 host = '::'
 
-# Port to listen. Unlike old versions, only this port is used.
+# Port to listen on.
 port = 8888
 
-[credential]
-# Credentials can be used to break auth wall, visit paid resources and unlock video qualities.
-use_cred   = false
+# A long, random string used to secure user sessions. 
+# If not set, a random 24-character hex string is generated at startup.
+# It is highly recommended to set a persistent key to avoid logging users out on restart.
+# secret_key = ''
 
-# Sensitive infomation, don't tell anybody. For gathering these, see https://nemo2011.github.io/bilibili-api/#/get-credential.
-sessdata   = ''
-bili_jct   = ''
-buvid3     = ''
-buvid4     = ''
+# Support auto-reload and detailed error messages.
+# Also controlled by the QUART_DEBUG environment variable.
+debug = false
+
+[quart]
+# Quart Framework Configuration
+# You can pass any Quart config keys here (e.g., TEMPLATES_AUTO_RELOAD = true).
+
+[credential]
+# Credentials can be used to break auth walls, visit paid resources and unlock video qualities.
+use_cred = false
+
+# Sensitive information, don't tell anybody. 
+# For gathering these, see https://nemo2011.github.io/bilibili-api/#/get-credential.
+sessdata = ''
+bili_jct = ''
+buvid3 = ''
+buvid4 = ''
 dedeuserid = ''
 
-# Refresh token, can be obtained from the main page by examing `window.localStorage.ac_time_value'.
+# Refresh token, can be obtained from the Bilibili main page by examining `window.localStorage.ac_time_value'.
 ac_time_value = ''
 
 [proxy]
-# If your server is located in China, videos and audo-only videos may likely break if not using proxy.
+# If your server is located outside of China, media proxying is likely required.
 use_proxy = true
 
+# The full URL of the SOCKS5/HTTP proxy. 
+# Example: 'socks5://127.0.0.1:1080'
+# proxy_url = ''
+
 [render]
+# Use Pandoc for article rendering. Requires Pandoc to be installed on the system.
 use_pandoc = false
+
+# A list of formats that Pandoc is allowed to convert from.
 article_allowed_formats = ['markdown', 'plain', 'html']
 
 [display]
+# The default theme for new visitors. Currently only 'modern' is officially supported.
 default_theme = 'modern'
 
 [redis]
+# Redis connection settings. Redis is REQUIRED for caching and session management.
+
+# The full connection URL for Redis. If set, this overrides all other Redis keys.
+# Example: 'redis://127.0.0.1:6379'
+# redis_url = ''
 
 host = 'localhost'
-
 port = 6379
-
-#username = ''
-
-#password = ''
+# username = ''
+# password = ''
