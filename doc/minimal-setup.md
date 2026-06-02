@@ -6,7 +6,7 @@ This tutorial aims to configure the MikuInvidious ASGI Server in a local environ
 
 ### Recommended Environment
 
-- **Python 3.11+**
+- **Python 3.14+**
 - **Redis**: Used for Session and data caching.
 
 ### Install Environment and Redis
@@ -29,6 +29,9 @@ cd mikuinvidious
 
 # Create environment
 uv sync
+
+# Update dependencies (if needed)
+# uv lock --upgrade
 ```
 
 ---

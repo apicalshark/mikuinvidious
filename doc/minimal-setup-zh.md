@@ -6,7 +6,7 @@
 
 ### 推荐环境
 
-- **Python 3.11+**
+- **Python 3.14+**
 - **Redis**: 用于 Session 和数据快取。
 
 ### 安装环境与 Redis
@@ -29,6 +29,9 @@ cd mikuinvidious
 
 # 建立环境
 uv sync
+
+# 更新依赖（如果需要）
+# uv lock --upgrade
 ```
 
 ---

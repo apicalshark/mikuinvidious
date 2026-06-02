@@ -8,7 +8,7 @@
 
 在开始之前，请确保您已安装并运行以下组件：
 
-- **Python 3.10+**
+- **Python 3.14+**
 - **Node.js v18+ 和 npm**（仅用于开发）
 - **Git**
 - **uv**（Python 包管理器，通过 `pip install uv` 安装）
@@ -96,7 +96,14 @@ Caddy 将作为您的 Web 服务器和反向代理。
    cd mikuinvidious
    ```
 
-2. **构建 TailwindCSS（仅用于开发）：**
+2. **安装依赖项：**
+   项目使用 `uv` 管理依赖项。运行以下命令，根据 `uv.lock` 文件将所需的软件包安装到虚拟环境中：
+
+   ```bash
+   uv sync
+   ```
+
+3. **构建 TailwindCSS（仅用于开发）：**
 
    ```bash
    npm run build:css
@@ -104,7 +111,26 @@ Caddy 将作为您的 Web 服务器和反向代理。
 
 ---
 
-## 步骤 3：配置应用程序
+## 步骤 3：管理依赖项（高级）
+
+如果您需要添加或更新依赖项：
+
+- **添加新依赖项：**
+  ```bash
+  uv add <package_name>
+  ```
+- **将所有依赖项更新到最新的兼容版本：**
+  ```bash
+  uv lock --upgrade
+  ```
+- **手动更改 `pyproject.toml` 后同步环境：**
+  ```bash
+  uv sync
+  ```
+
+---
+
+## 步骤 4：配置应用程序
 
 创建并编辑本地配置文件，将应用程序连接到您手动配置的服务。
 

@@ -4,7 +4,7 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 
 ## Core Technologies
 
-- **Language:** Python 3
+- **Language:** Python 3.14+
 - **Web Framework:** [Quart](https://pgjones.gitlab.io/quart/) (Modern asynchronous web framework)
 - **Web Server:** [Caddy](https://caddyserver.com/) (Reverse proxy) + [Granian](https://github.com/emmett-framework/granian) (Rust-powered ASGI server)
 - **Database/Cache:** [Redis](https://redis.io/) (required for caching video URLs, session management, and credential storage)
@@ -148,7 +148,7 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 
 ### Manual Development Setup
 
-1. **Prerequisites:** Python 3.10+, Redis server running.
+1. **Prerequisites:** Python 3.14+, Redis server running.
 2. **Install Dependencies:**
 
     ```bash

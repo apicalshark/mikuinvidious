@@ -8,7 +8,7 @@ This approach is intended for users who cannot or do not want to use Docker. It 
 
 Before you begin, ensure you have the following installed and running:
 
-- **Python 3.10+**
+- **Python 3.14+**
 - **Node.js v18+ and npm** (only for development)
 - **Git**
 - **uv** (the python package manager `pip install uv`)
@@ -96,7 +96,14 @@ Caddy will serve as your web server and reverse proxy.
    cd mikuinvidious
    ```
 
-2. **Build TailwindCSS(for development only):**
+2. **Install Dependencies:**
+   The project uses `uv` to manage dependencies. Run the following command to install the required packages into a virtual environment based on the `uv.lock` file:
+
+   ```bash
+   uv sync
+   ```
+
+3. **Build TailwindCSS (for development only):**
 
    ```bash
    npm run build:css
@@ -104,7 +111,26 @@ Caddy will serve as your web server and reverse proxy.
 
 ---
 
-## Step 3: Configure the Application
+## Step 3: Managing Dependencies (Advanced)
+
+If you need to add or update dependencies:
+
+- **Add a new dependency:**
+  ```bash
+  uv add <package_name>
+  ```
+- **Update all dependencies to their latest compatible versions:**
+  ```bash
+  uv lock --upgrade
+  ```
+- **Sync the environment after manual `pyproject.toml` changes:**
+  ```bash
+  uv sync
+  ```
+
+---
+
+## Step 4: Configure the Application
 
 Create and edit a local configuration file to connect the application to your manually configured services.
 
