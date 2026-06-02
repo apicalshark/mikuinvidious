@@ -6,80 +6,51 @@ This is a fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxin
 
 ## Application Features
 
-### 📺 Video & Media Playback
-
-- **High-Quality Streaming**: Support for DASH and FLV formats
-- **Danmaku Overlay**: Native implementation of scrolling comments (danmaku) for the full Bilibili experience.
-- **Listen Mode**: Save bandwidth and focus on the audio with a dedicated audio-only interface for any video.
-- **Audio Posts**: Full support for Bilibili Audio (au) and Playlists (am) with specialized player controls.
-- **Multi-Part Videos**: Seamless navigation through multi-page video series.
-
-### 🔴 Enhanced Live Streaming
-
-- **Stability-First Proxying**: Custom ASGI-based proxying that prevents the common 60-second idle drops found in standard proxies.
-- **Live Chat**: Real-time SSE (Server-Sent Events) chat integration, allowing you to follow the conversation without official trackers.
-
-### 📖 Content Discovery & Reading
-
-- **Distraction-Free Articles**: Clean, proxied rendering of Bilibili Articles (cv) and Opus (dynamic posts).
-- **Global Search**: Search across videos, live rooms, users, and articles with advanced sorting filters.
-- **User Spaces**: Explore user profiles, their video uploads, and article contributions.
-- **Category Browsing**: Detailed category (Zone) views with the latest content.
-
-### 🛡️ Privacy & Security
-
-- **No-Account Browsing**: Full access to Bilibili content without needing to log in or maintain a Bilibili account.
-- **Media Proxying**: Proxies images and (optional) video streams through the server and Cloudflare WARP to mask your IP address.
-- **Zero Tracking**: Strips away official Bilibili tracking scripts and telemetry.
-- **Local History**: Privacy-respecting browsing history stored locally in your browser and your instance's Redis cache.
+- **Media Playback**: Support for DASH/FLV, danmaku, and multi-part videos.
+- **Listen Mode**: Bandwidth-saving audio-only interface for any video.
+- **Live Streaming**: Stable proxying with heartbeats and real-time SSE chat.
+- **Content Discovery**: Proxied articles (cv/opus) and global search with filters.
+- **Privacy**: No-account browsing, IP masking via media proxying, and zero tracking.
 
 ## Quick Start (Docker)
 
-The easiest way to run MikuInvidious is using Docker Compose.
-
 1. **Clone the repository:**
-
    ```bash
    git clone https://github.com/apicalshark/mikuinvidious
    cd mikuinvidious
    ```
 
 2. **Run with Docker Compose:**
-
    ```bash
-   mv Caddyfile.example Caddyfile
+   cp Caddyfile.example Caddyfile
    docker compose up -d
    ```
-
 The application will be available at `http://localhost:8000`.
 
 ### Local Installation (Without Docker)
 
-For users who want to run the entire application without Docker, please see the [detailed local installation guide](doc/setup.md). This guide uses `uv` for efficient dependency management with `uv.lock`.
+For users who want to run the application manually, see the [local installation guide](doc/setup.md). This project uses `uv` for dependency management.
 
-### Configuration
+## Tech Stack
 
-You can customize the application by editing the `environment` section in `compose.yml` or by creating a `config.toml` file.
-Full reference is in shared.py.
+- **Backend**: Python 3.14+, Quart (ASGI)
+- **Server**: Granian (Rust-powered), Caddy
+- **Cache**: Redis (required)
+- **Frontend**: Tailwind CSS (Modern theme)
 
-Key environment variables:
+## Configuration
 
-- `SITE_NAME`: The name of your instance.
-- `SITE_URL`: The public URL of your instance.
-- `HTTP_PROXY` / `HTTPS_PROXY`: SOCKS5 proxy (configured to use the included `warp` service by default).
-- `REDIS_URL`: Connection string for Redis.
-- `QUART_SECRET_KEY`: A random secret string for session security.
-
-Additionally, you can use the manage_quic.sh to simplify SSL credential and QUIC setup.
+Settings can be customized in `compose.yml` or `config.toml`. Key variables:
+- `SITE_NAME`: Instance name.
+- `SITE_URL`: Public URL.
+- `REDIS_URL`: Redis connection string.
+- `HTTP_PROXY` / `HTTPS_PROXY`: SOCKS5 proxy (uses included `warp` service by default).
 
 ## License
 
-MikuInvidious is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 3 of the License, or (at your option) any later version.
+MikuInvidious is licensed under the **GNU General Public License v3.0**.
 
-### JavaScript Licenses
-
-The following free software JavaScript libraries are included in this project:
-
+### JavaScript Libraries
 | Library | License | Source |
 | :--- | :--- | :--- |
 | **hls.js** | Apache-2.0 | [github.com/video-dev/hls.js](https://github.com/video-dev/hls.js) |
