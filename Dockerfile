@@ -12,4 +12,4 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY . .
 
 # Run the app from the python directory
-CMD ["python", "python/main.py"]
+CMD ["uv", "run", "python", "python/main.py"]
