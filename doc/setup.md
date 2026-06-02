@@ -1,170 +1,206 @@
-# Local Installation Guide (No Docker)
+# MikuInvidious Setup & Development Guide
 
-This guide provides step-by-step instructions for setting up and running the MikuInvidious application on your local machine without using Docker.
-
-This approach is intended for users who cannot or do not want to use Docker. It provides the most direct control over the environment but requires manual installation and configuration of all system dependencies.
-
-## Prerequisites
-
-Before you begin, ensure you have the following installed and running:
-
-- **Python 3.14+**
-- **Node.js v18+ and npm** (only for development)
-- **Git**
-- **uv** (the python package manager `pip install uv`)
-- **Redis**
-- **Caddy** (for reverse proxy, see [caddyserver.com/docs/install](https://caddyserver.com/docs/install))
-- **Cloudflare WARP Desktop Client**
+This guide provides instructions for setting up MikuInvidious for production using Docker, or for local development.
 
 ---
 
-## Step 1: Install and Configure Dependencies
+## 1. Prerequisites & Key Tools
 
-The application requires three background services to be running: Redis, Cloudflare WARP, and Caddy.
+Before you begin, ensure your system has the following tools installed. These are required for both local development and manual installation.
 
-### 1. Install and Run Redis
+### System Dependencies (Linux/Debian/Ubuntu)
 
-Redis is required for caching and session storage.
-Please follow the official [Redis installation guide](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/).
+```bash
+sudo apt update
+sudo apt install python3 python3-venv git curl
+```
 
-Verify that Redis is running on its default port, `6379`.
+### Key Tools & Installation Links
 
-### 2. Install and Configure Cloudflare WARP
-
-The application requires the Cloudflare WARP client to act as a SOCKS5 proxy to access Bilibili content.
-
-1. **Install the WARP Client:**
-   Download and install the official client for your operating system from the [Cloudflare 1.1.1.1 website](https://1.1.1.1/).
-
-2. **Enable Local Proxy Mode:**
-   - Open the WARP client's **Preferences** or **Settings** panel.
-   - Navigate to the **Advanced** tab.
-   - Click **Configure Proxy**.
-   - Check the box to **Enable local proxy**.
-   - Set the **Port** to `1080`.
-   - Save the changes.
-   - Go back to the main WARP settings screen and select the new **"WARP via Local Proxy"** mode.
-
-Your WARP client is now listening for SOCKS5 connections on port `1080`.
-
-### 3. Configure Caddy
-
-Caddy will serve as your web server and reverse proxy.
-
-1. **Install Caddy**: Follow the instructions for your OS at [caddyserver.com/docs/install](https://caddyserver.com/docs/install).
-2. **Create a `Caddyfile`** in the project root.
-
-    **For Local Testing (HTTP):**
-
-    ```caddy
-    :8000 {
-        handle /static/* {
-            root * ./static
-            file_server
-        }
-        reverse_proxy localhost:8888
-    }
-    ```
-
-    **For Production (HTTPS with automatic SSL):**
-    *Note: Requires ports 80 and 443 to be open and your domain pointed to this server.*
-
-    ```caddy
-    yourdomain.com {
-        handle /static/* {
-            root * ./static
-            file_server
-        }
-        reverse_proxy localhost:8888
-    }
-    ```
-
-3. **Run Caddy**:
-
-    ```bash
-    caddy start
-    ```
+- **Python 3.14+**: Required for the backend.
+- **uv**: The recommended Python package manager. Install it via:
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+  *Or via pip: `pip install uv`*
+- **Redis**: Required for caching and session storage. [Install Guide](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
+- **Caddy**: High-performance reverse proxy. [Install Guide](https://caddyserver.com/docs/install)
+- **Node.js v18+ & npm**: Required for building CSS and frontend tools. [Install Guide](https://nodejs.org/en/download/package-manager)
 
 ---
 
-## Step 2: Set Up the Application
+## 2. Local Development
 
-1. **Clone the Repository:**
+If you intend to contribute to MikuInvidious or modify the source code, follow these steps to set up your hacking environment.
+
+### Setup Steps
+
+1. **Install Dependencies:**
+   ```bash
+   uv sync
+   npm install
+   ```
+
+2. **Frontend Assets:**
+   The project uses Tailwind CSS. To build the CSS file:
+   ```bash
+   npm run build:css
+   ```
+
+3. **Running in Debug Mode:**
+   For development, it's recommended to enable debug mode for auto-reloading and detailed error messages:
+   ```bash
+   QUART_DEBUG=true uv run python/main.py
+   ```
+
+4. **Linting and Formatting:**
+   Before submitting changes, ensure your code follows the project's style:
+   ```bash
+   # Lint everything
+   npm run lint
+   
+   # Automatically format everything
+   npm run format
+   ```
+
+---
+
+## 3. Docker Deployment (Recommended for Production)
+
+This is the easiest and most stable way to run MikuInvidious. It includes all necessary dependencies (Redis, Caddy, Cloudflare WARP) pre-configured.
+
+### Prerequisites
+
+- **Docker** and **Docker Compose** installed.
+- A domain name (if using HTTPS).
+- Ports **80**, **443 (TCP/UDP)** open on your firewall.
+
+### Quick Start
+
+1. **Clone the repository:**
 
    ```bash
    git clone https://github.com/apicalshark/mikuinvidious
    cd mikuinvidious
    ```
 
-2. **Install Dependencies:**
-   The project uses `uv` to manage dependencies. Run the following command to install the required packages into a virtual environment based on the `uv.lock` file:
+2. **Configure `compose.yml`:**
+   Update the `SITE_URL` in the `app` service to your domain:
 
-   ```bash
-   uv sync
+   ```yaml
+   environment:
+     - SITE_URL=https://yourdomain.com
    ```
 
-3. **Build TailwindCSS (for development only):**
+3. **Configure `Caddyfile`:**
+   Change the first line to your domain name:
 
+   ```caddy
+   yourdomain.com {
+       handle /static/* {
+           root * /usr/share/caddy
+           file_server
+       }
+       reverse_proxy app:8080
+   }
+   ```
+
+4. **Launch:**
+
+   ```bash
+   docker compose up -d
+   ```
+
+### SSL Management
+
+Caddy handles SSL/TLS certificates automatically by default.
+
+- **Automatic SSL (Recommended):** Caddy will automatically obtain and renew certificates from Let's Encrypt or ZeroSSL. Simply use your domain name in the `Caddyfile`.
+- **Manual Certificates:** If you have existing certificates, mount them in `compose.yml` and update `Caddyfile` with the `tls` directive.
+
+**Important Note on HTTP/3 (QUIC):**
+It is recommended to **disable HTTP/3** in Caddy if you experience `ERR_QUIC_PROTOCOL_ERROR` during video playback. This is often caused by how modern browsers handle 206 Partial Content via QUIC when proxying media streams. You can disable it by adding the following to the top of your `Caddyfile`:
+
+```caddy
+{
+    servers {
+        protocols h1 h2
+    }
+}
+```
+
+---
+
+## 4. Manual Installation (Development/Advanced)
+
+This approach provides direct control over the environment but requires manual configuration of all dependencies.
+
+### Step 1: Install and Configure Dependencies
+
+1. **Redis:** Ensure it is running on port `6379`.
+2. **Caddy:**
+   - Create a `Caddyfile` in the project root:
+     ```caddy
+     :8000 {
+         handle /static/* {
+             root * ./static
+             file_server
+         }
+         reverse_proxy localhost:8888
+     }
+     ```
+   - Start Caddy: `caddy start`
+
+### Step 2: Set Up the Application
+
+1. **Clone and Sync:**
+   ```bash
+   git clone https://github.com/apicalshark/mikuinvidious
+   cd mikuinvidious
+   uv sync
+   ```
+2. **Build TailwindCSS (optional):**
    ```bash
    npm run build:css
    ```
-
----
-
-## Step 3: Managing Dependencies (Advanced)
-
-If you need to add or update dependencies:
-
-- **Add a new dependency:**
-  ```bash
-  uv add <package_name>
-  ```
-- **Update all dependencies to their latest compatible versions:**
-  ```bash
-  uv lock --upgrade
-  ```
-- **Sync the environment after manual `pyproject.toml` changes:**
-  ```bash
-  uv sync
-  ```
-
----
-
-## Step 4: Configure the Application
-
-Create and edit a local configuration file to connect the application to your manually configured services.
-
-1. **Create `config.toml`:**
-
+3. **Configure:**
    ```bash
    cp config.toml.sample config.toml
    ```
+   Edit `config.toml`:
+   - Set `secret_key` in `[server]`.
+   - Ensure `url = "redis://localhost:6379"` in `[redis]`.
+   - Configure `proxy_url` in `[proxy]` if you are using a SOCKS5/HTTP proxy.
 
-2. **Edit `config.toml`:**
-   Open the file and make the following changes:
-   - Under `[server]`, set a unique `secret_key`. Generate one with:
-     `python -c 'import secrets; print(secrets.token_hex(16))'`
-
-   - Under `[redis]`, ensure the `url` points to your local Redis instance:
-
-     ```toml
-     url = "redis://localhost:6379"
-     ```
-
-   - Under `[proxy]`, ensure `proxy_url` point to your WARP client:
-
-     ```toml
-     proxy_url = "socks5://localhost:1080"
-     ```
-
----
-
-## Step 4: Run the Application
-
-With your dependencies running and your configuration set, start the server:
+### Step 3: Run
 
 ```bash
 uv run python/main.py
 ```
 
-The application will be available at **`http://localhost:8888`** (the default port in `config.toml.sample`).
+The application will be available at `http://localhost:8888` (or port 8000 via Caddy).
+
+---
+
+## 5. Configuration
+
+For detailed information on all configuration options, see [configuration.md](./configuration.md).
+
+**Tip (Authentication):** If you need to access 1080P or premium features, fill in your Bilibili Cookies in the `[credential]` section of `config.toml` and set `use_cred = true`.
+
+---
+
+## 6. Maintenance
+
+- **View Logs (Docker):** `docker compose logs -f app`
+- **View Logs (Caddy):** `docker compose logs -f caddy`
+- **Update Application (Docker):**
+  ```bash
+  git pull
+  docker compose up -d --build
+  ```
+- **Update Application (Manual):**
+  ```bash
+  git pull
+  uv sync
+  ```

@@ -14,7 +14,8 @@ Settings related to the site's identity and features.
 | `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | A boolean (`true`/`false`) to show a link to the modified source code. |
 | `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | A boolean (`true`/`false`) to enable or disable video download buttons. |
 | `site_show_unsafe_error_response` | `SITE_SHOW_UNSAFE_ERROR_RESPONSE` | `false` | A boolean (`true`/`false`) to show detailed, potentially unsafe error messages. **Use with caution.** |
-| `robots_policy` | `ROBOTS_POLICY` | `strict` | Controls the `robots.txt` policy. Can be `strict` (disallow all) or `allow` (allow all). |
+| `nyaa_bangumi` | `NYAA_BANGUMI` | `true` | A boolean (`true`/`false`) to enable or disable Nyaa search in Bangumi view. |
+| `robots_policy` | `ROBOTS_POLICY` | `strict` | Controls the `robots.txt` policy. Can be `strict` (disallow all), `relaxed` (allow articles and search), or `PLEASE_INDEX_EVERYTHING` (use with extreme caution). |
 
 ---
 
@@ -25,7 +26,7 @@ Configuration for the web server.
 | --- | --- | --- | --- |
 | `host` | `SERVER_HOST` | `0.0.0.0` | The IP address the application server binds to. |
 | `port` | `SERVER_PORT` | `8888` | The port the application server binds to. |
-| `secret_key` | `QUART_SECRET_KEY` | (A random value) | A long, random string used to secure user sessions. If not set, a temporary key is generated at startup. **It is highly recommended to set a persistent key.** |
+| `secret_key` | `QUART_SECRET_KEY` | (Random Hex) | A long, random string used to secure user sessions. If not set, a random 24-character hex string is generated at startup. **It is highly recommended to set a persistent key.** |
 
 ---
 
@@ -49,7 +50,7 @@ Allows the instance to make authenticated requests to Bilibili, which can provid
 | `buvid3` | `BUVID3` | (None) | Your `buvid3` cookie value from Bilibili. |
 | `buvid4` | `BUVID4` | (None) | Your `buvid4` cookie value from Bilibili. |
 | `dedeuserid` | `DEDEUSERID` | (None) | Your `DedeUserID` cookie value from Bilibili. |
-| `ac_time_value` | `AC_TIME_VALUE` | (None) | Your `ac_time_value` cookie value from Bilibili. |
+| `ac_time_value` | `AC_TIME_VALUE` | (None) | Your `ac_time_value` refresh token from Bilibili local storage. |
 
 ---
 
@@ -58,7 +59,7 @@ Configures the use of a proxy (typically SOCKS5) for all outgoing requests to Bi
 
 | Key | Environment Variable | Default | Description |
 | --- | --- | --- | --- |
-| `use_proxy` | `NO_PROXY` | `true` | A boolean (`true`/`false`) to enable or disable the proxy. **Note:** This is inverted in the environment variable; setting `NO_PROXY=true` sets `use_proxy` to `false`. |
+| `use_proxy` | `NO_PROXY` | `true` | A boolean (`true`/`false`) to enable or disable the proxy. **Note:** This is inverted in the environment variable; setting `NO_PROXY=true` or `NO_PROXY=1` sets `use_proxy` to `false`. |
 | `proxy_url` | `HTTP_PROXY` or `http_proxy` | (None) | The full URL of the SOCKS5 proxy. Example: `socks5://127.0.0.1:1080`. |
 
 ---
@@ -87,4 +88,9 @@ Configuration for connecting to the Redis database, which is required for cachin
 ---
 
 ## `[quart]`
-This section can be used to pass any specific configuration options directly to the Quart framework. These are advanced settings and generally do not need to be changed.
+This section can be used to pass any specific configuration options directly to the Quart framework (e.g., `TEMPLATES_AUTO_RELOAD = true`). These are advanced settings.
+
+**Hardcoded Timeouts:**
+The application sets the following Quart timeouts to **10800 seconds (3 hours)** to support long-form streaming:
+- `RESPONSE_TIMEOUT`
+- `BODY_TIMEOUT`

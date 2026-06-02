@@ -160,6 +160,7 @@ appconf = {
         "host": os.environ.get("SERVER_HOST", "0.0.0.0"),
         "port": int(os.environ.get("SERVER_PORT", 8888)),
         "secret_key": os.environ.get("QUART_SECRET_KEY"),
+        "debug": os.environ.get("QUART_DEBUG", "false").lower() == "true",
     },
     "display": {"default_theme": "modern"},
     "credential": {
@@ -207,6 +208,7 @@ else:
 
 # Initialize the quart app.
 app = Quart("app", template_folder="../templates", static_folder="../static")
+app.debug = appconf["server"]["debug"]
 app.json_provider_class = OrjsonProvider
 app.config.from_mapping(appconf["quart"])
 app.config["RESPONSE_TIMEOUT"] = 10800

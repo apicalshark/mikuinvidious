@@ -28,6 +28,9 @@ def main():
     host = appconf["server"]["host"]
     port = appconf["server"]["port"]
 
+    # Support auto-reload in debug mode
+    debug_mode = appconf["server"]["debug"]
+
     # Granian handles the event loop (uvloop) and ASGI interface natively.
     # We use the string target "app:app" to allow potential multi-worker support.
     server = Granian(
@@ -37,6 +40,7 @@ def main():
         interface=Interfaces.ASGI,
         loop=Loops.uvloop,
         task_impl=TaskImpl.asyncio,
+        reload=debug_mode,
         http1_settings=HTTP1Settings(
             keep_alive=True,
             header_read_timeout=10,  # 10 seconds
