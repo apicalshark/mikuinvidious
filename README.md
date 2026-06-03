@@ -4,6 +4,9 @@ A free as in freedom frontend for Bilibili.
 
 This is a fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxina/mikuinvidious) with my personal preference plus ai slop.
 
+<img width="465" height="411" alt="screenshot1" src="https://github.com/user-attachments/assets/219957ad-871f-4a95-85f5-27eeaf6c3f1c" />
+
+
 ## Application Features
 
 - **Media Playback**: Support for DASH/FLV, danmaku, and multi-part videos.
