@@ -639,7 +639,7 @@ async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_player(vid, idx):
     # Use passed CSP nonce from main page to avoid CSP mismatch
-    passed_nonce = request.args.get("csp_nonce")
+    passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce:
         g.csp_nonce = passed_nonce
     v = video.Video(bvid=vid, credential=appcred)
@@ -796,7 +796,7 @@ async def api_component_player(vid, idx):
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_meta(vid, idx):
     # Use passed CSP nonce from main page to avoid CSP mismatch
-    passed_nonce = request.args.get("csp_nonce")
+    passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce:
         g.csp_nonce = passed_nonce
     async def safe_api(coro, timeout=4.0):

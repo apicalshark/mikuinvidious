@@ -396,9 +396,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (!window.is_live) {
                 const cspNonce = document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') || '';
+                const headers = cspNonce ? { 'X-CSP-Nonce': cspNonce } : {};
                 
                 // Load Player Component
-                fetch(`/api/component/player/${window.current_vid}/${window.idx}?ep_id=${window.ep_id}&csp_nonce=${encodeURIComponent(cspNonce)}`)
+                fetch(`/api/component/player/${window.current_vid}/${window.idx}?ep_id=${window.ep_id}`, { headers })
                     .then(r => r.text())
                     .then(html => {
                         const container = document.getElementById('player-placeholder-wrapper');
@@ -413,7 +414,7 @@
                     });
 
                 // Load Meta/Comments Component
-                fetch(`/api/component/meta/${window.current_vid}/${window.idx}?csp_nonce=${encodeURIComponent(cspNonce)}`)
+                fetch(`/api/component/meta/${window.current_vid}/${window.idx}`, { headers })
                     .then(r => r.text())
                     .then(html => {
                         const container = document.getElementById('comments-loader-container');
