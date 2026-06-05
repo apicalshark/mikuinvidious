@@ -33,15 +33,15 @@ def safe_json_loads(data: str | bytes, default=None):
 
 from bilibili_api.utils.network import get_bili_ticket
 
-def get_common_headers(appconf):
+def get_common_headers(bili_conf):
     """Get common headers for Bilibili API requests from config."""
     return {
-        "User-Agent": appconf.get("bili_user_agent", "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2"),
-        "Referer": appconf.get("bili_referer", "https://www.bilibili.com"),
-        "env": appconf.get("bili_env", "prod"),
-        "app-key": appconf.get("bili_app_key", "android64"),
-        "x-bili-metadata-ip-region": appconf.get("bili_ip_region", "CN"),
-        "x-bili-metadata-legal-region": appconf.get("bili_legal_region", "CN"),
+        "User-Agent": bili_conf.get("user_agent", "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2"),
+        "Referer": bili_conf.get("referer", "https://www.bilibili.com"),
+        "env": bili_conf.get("env", "prod"),
+        "app-key": bili_conf.get("app_key", "android64"),
+        "x-bili-metadata-ip-region": bili_conf.get("ip_region", "CN"),
+        "x-bili-metadata-legal-region": bili_conf.get("legal_region", "CN"),
     }
 
 
