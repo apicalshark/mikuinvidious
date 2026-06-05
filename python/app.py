@@ -64,9 +64,17 @@ async def shutdown_cleanup():
 
 
 @app.before_request
-async def generate_csp_nonce():
-    """Generate CSP nonce for inline scripts."""
+async def setup_request():
+    """Generate CSP nonce and initialize history ID."""
     g.csp_nonce = secrets.token_urlsafe(16)
+    
+    hist_id = request.cookies.get("hist_id")
+    if not hist_id or not re.match(r'^[a-f0-9]{16}$', hist_id):
+        g.hist_id = os.urandom(8).hex()
+        g.set_hist_cookie = True
+    else:
+        g.hist_id = hist_id
+        g.set_hist_cookie = False
 
 
 @app.context_processor
@@ -77,11 +85,9 @@ def inject_csp_nonce():
 
 @app.after_request
 async def set_hist_id(response):
-    hist_id = request.cookies.get("hist_id")
-    if not hist_id or not re.match(r'^[a-f0-9]{16}$', hist_id):
-        hist_id = os.urandom(8).hex()
+    if getattr(g, 'set_hist_cookie', False):
         is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
-        response.set_cookie("hist_id", hist_id, max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure)
+        response.set_cookie("hist_id", g.hist_id, max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure)
     return response
 
 
