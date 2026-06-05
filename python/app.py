@@ -162,7 +162,7 @@ async def toggle_theme_api():
 async def b32tv_redirect(b32tvid):
     # Validate b32tvid format (base32, typically 6-12 chars)
     import re
-    if not re.match(r'^[A-Za-z2-7]{6,12}$', b32tvid):
+    if not re.match(r'^[A-Za-z0-9]{6,12}$', b32tvid):
         abort(400, description="Invalid short link format")
     
     client = await Network.get_async_client()
