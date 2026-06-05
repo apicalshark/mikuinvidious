@@ -42,7 +42,7 @@ class RateLimiter:
         # Count current requests
         pipe.zcard(redis_key)
         # Add current request
-        pipe.zadd(redis_key, {str(now): now})
+        pipe.zadd(redis_key, {f"{now}:{time.time_ns()}": now})
         # Set expiry
         pipe.expire(redis_key, window + 1)
         results = await pipe.execute()
