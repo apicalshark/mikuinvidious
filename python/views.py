@@ -837,10 +837,7 @@ async def video_view(vid, idx=0):
 
     # Pre-caching history
     try:
-        hist_id = request.cookies.get("hist_id")
-        # Validate hist_id format (16-char hex)
-        if not hist_id or not re.match(r'^[a-f0-9]{16}$', hist_id):
-            hist_id = None
+        hist_id = getattr(g, "hist_id", None)
         if hist_id:
             hist_key = f"miku_hist_{hist_id}"
             await appredis.lrem(hist_key, 0, vid)
