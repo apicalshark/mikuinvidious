@@ -8,14 +8,13 @@ services:
       - SITE_URL=http://localhost:8000
       - HTTP_PROXY=
       - HTTPS_PROXY=
-      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - REDIS_URL=redis://redis:6379
       - NO_PROXY=0
       - SERVER_PORT=8080
       - PYTHONUNBUFFERED=1
       - SITE_MODIFIED_SOURCE_CODE_URL=https://github.com/apicalshark/mikuinvidious
       - USE_CRED=false
       # QUART_SECRET_KEY is auto-generated at container startup (see docker-entrypoint.sh)
-      # REDIS_PASSWORD is auto-generated at container startup
       # Nyaa Search functionality
       - NYAA_BANGUMI=true
       # Bilibili Credentials (Optional)
@@ -47,9 +46,6 @@ services:
     image: redis:alpine
     container_name: miku_redis
     restart: always
-    command: redis-server --requirepass ${REDIS_PASSWORD}
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD}
 
 volumes:
   caddy_data:
