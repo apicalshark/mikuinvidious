@@ -17,8 +17,8 @@ import os
 import hmac
 import hashlib
 import time
-from quart import request, session, current_app
-from shared import appredis
+from functools import wraps
+from quart import request, session
 
 CSRF_TOKEN_KEY = "csrf_token"
 CSRF_TOKEN_TTL = 3600  # 1 hour
