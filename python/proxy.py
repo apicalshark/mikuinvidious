@@ -84,7 +84,7 @@ async def render_proxy_pic(req_path):
             content_type = resp.headers.get("content-type", "").lower()
             allowed_image_types = [
                 "image/jpeg", "image/jpg", "image/png", "image/gif",
-                "image/webp", "image/bmp", "image/svg+xml", "image/avif"
+                "image/webp", "image/bmp", "image/avif"
             ]
             if not any(content_type.startswith(t) for t in allowed_image_types):
                 print(f"[Proxy] Invalid Content-Type for image: {content_type}")
