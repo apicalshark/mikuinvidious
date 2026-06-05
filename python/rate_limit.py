@@ -108,7 +108,8 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
                 key = await key_func(request)
             else:
                 # Default: IP + endpoint
-                ip = request.headers.get("X-Forwarded-For", request.remote_addr).split(",")[0].strip()
+                ip_header = request.headers.get("X-Forwarded-For")
+                ip = ip_header.split(",")[0].strip() if ip_header else (request.remote_addr or "127.0.0.1")
                 key = f"{ip}:{request.path}"
             
             limiter = get_rate_limiter()
