@@ -6,28 +6,28 @@ from urllib.parse import urlparse
 
 import httpx
 from live_manager import live_manager
-from quart import Blueprint, Response, request, abort
+from quart import Blueprint, Response, abort, request
+from rate_limit import RATE_LIMITS, rate_limit
 from shared import (
     Network,
     TicketManager,
     appconf,
     appredis,
-    image_limiter,
     get_common_headers,
+    image_limiter,
 )
-from rate_limit import rate_limit, RATE_LIMITS
 
 proxy_bp = Blueprint("proxy", __name__)
 
 
-def is_safe_proxy_url(url: str) -> bool:
+async def is_safe_proxy_url(url: str) -> bool:
     """Validate that a URL is safe to proxy (not pointing to internal/private IPs)."""
     try:
         parsed = urlparse(url)
         hostname = parsed.hostname
         if not hostname:
             return False
-        
+
         # Allow only specific Bilibili CDN domains
         allowed_domains = [
             ".hdslb.com",
@@ -37,23 +37,23 @@ def is_safe_proxy_url(url: str) -> bool:
             ".bilibili.com",
             ".acgvideo.com",
         ]
-        
+
         if not any(hostname == d.lstrip(".") or hostname.endswith(d) for d in allowed_domains):
             return False
-        
+
         # Resolve and check IP
         import socket
         try:
-            ip = socket.gethostbyname(hostname)
+            ip = await asyncio.to_thread(socket.gethostbyname, hostname)
             ip_obj = ipaddress.ip_address(ip)
-            
+
             # Block private, loopback, link-local, multicast, reserved
-            if (ip_obj.is_private or ip_obj.is_loopback or 
+            if (ip_obj.is_private or ip_obj.is_loopback or
                 ip_obj.is_link_local or ip_obj.is_multicast or ip_obj.is_reserved):
                 return False
         except socket.gaierror:
             return False
-        
+
         return True
     except Exception:
         return False
@@ -62,14 +62,14 @@ def is_safe_proxy_url(url: str) -> bool:
 async def render_proxy_pic(req_path):
     async with image_limiter:
         req_path = req_path[11:]
-        
+
         # Prevent path traversal
         if ".." in req_path or req_path.startswith("/"):
             return Response("Forbidden", status=403)
-        
+
         url = f"https://{req_path}"
-        
-        if not is_safe_proxy_url(url):
+
+        if not await is_safe_proxy_url(url):
             return Response("Forbidden", status=403)
 
         headers = get_common_headers(appconf["bili"]).copy()
@@ -389,8 +389,8 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
     if not appconf["proxy"]["use_proxy"]:
         return Response("Forbidden: Proxying is disabled.", status=403)
-    
-    if not is_safe_proxy_url(url):
+
+    if not await is_safe_proxy_url(url):
         return Response("Forbidden: Invalid proxy target", status=403)
 
     creds = appconf["credential"]
@@ -520,8 +520,8 @@ async def proxy_main(subpath):
 
         if not appconf["proxy"]["use_proxy"]:
             return Response("Forbidden: Proxying is disabled.", status=403)
-        
-        if not is_safe_proxy_url(url):
+
+        if not await is_safe_proxy_url(url):
             return Response("Forbidden: Invalid proxy target", status=403)
 
         creds = appconf["credential"]
@@ -686,11 +686,11 @@ async def proxy_main(subpath):
 async def proxy_live_disconnect():
     """Manual disconnect ping for live streams to clean up resources immediately."""
     from csrf import validate_csrf_token
-    
+
     token = request.headers.get("X-CSRF-Token") or request.args.get("csrf_token")
     if not await validate_csrf_token(token):
         abort(403, description="CSRF token validation failed")
-    
+
     room_id = request.args.get("room_id")
     vqn = request.args.get("vqn", "default")
     client_id = request.args.get("cid")
