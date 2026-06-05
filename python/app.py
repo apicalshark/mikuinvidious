@@ -15,6 +15,8 @@
 
 import asyncio
 import os
+import re
+import secrets
 import sys
 from datetime import datetime
 from urllib.parse import urlparse
@@ -23,19 +25,17 @@ import filters  # noqa: F401
 import res  # noqa: F401
 import views  # noqa: F401
 from bilibili_api import exceptions
+from csrf import csrf_protect, inject_csrf_token
 from proxy import proxy_bp
-import secrets
-from quart import make_response, redirect, request, send_from_directory, url_for, abort, g
+from quart import abort, g, make_response, redirect, request, send_from_directory, url_for
+from rate_limit import RATE_LIMITS, add_rate_limit_headers, rate_limit
 from shared import (
     Network,
     app,
     appconf,
     close_global_client,
-    detect_theme,
     render_template_with_theme,
 )
-from csrf import csrf_protect, inject_csrf_token, get_csrf_token
-from rate_limit import rate_limit, add_rate_limit_headers, RATE_LIMITS
 
 
 async def monitor_fd():
@@ -77,9 +77,9 @@ def inject_csp_nonce():
 
 @app.after_request
 async def set_hist_id(response):
-    if not request.cookies.get("hist_id"):
+    hist_id = request.cookies.get("hist_id")
+    if not hist_id or not re.match(r'^[a-f0-9]{16}$', hist_id):
         hist_id = os.urandom(8).hex()
-        # 30 days max-age, rotated on each response if older than 15 days
         is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
         response.set_cookie("hist_id", hist_id, max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure)
     return response
@@ -96,21 +96,21 @@ async def add_security_headers(response):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if request.is_secure:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
-    
+
     # Skip CSP for AJAX/fragment requests (they have different nonces)
     # These are requests made via fetch/XHR that return HTML fragments
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest" or \
               request.headers.get("Sec-Fetch-Mode") == "fetch" or \
               request.headers.get("HX-Request") == "true" or \
               request.path.startswith("/api/component/")
-    
+
     # Add CSP header with nonce (skip for AJAX fragment requests)
     if not is_ajax:
         csp_nonce = getattr(g, 'csp_nonce', '')
         if csp_nonce:
             csp = (
                 "default-src 'self'; "
-                "script-src 'self' 'nonce-{}'; "
+                f"script-src 'self' 'nonce-{csp_nonce}'; "
                 "style-src 'self' 'unsafe-inline'; "
                 "img-src 'self' data:; "
                 "media-src 'self' blob:; "
@@ -119,7 +119,7 @@ async def add_security_headers(response):
                 "worker-src 'self' blob:; "
                 "base-uri 'self'; "
                 "form-action 'self';"
-            ).format(csp_nonce)
+            )
             response.headers["Content-Security-Policy"] = csp
     return response
 
@@ -165,7 +165,7 @@ async def b32tv_redirect(b32tvid):
     import re
     if not re.match(r'^[A-Za-z0-9]{6,12}$', b32tvid):
         abort(400, description="Invalid short link format")
-    
+
     client = await Network.get_async_client()
     req = None
     try:
@@ -224,7 +224,7 @@ async def dl_redirect():
     bvid = form.get("id")
     cvid = form.get("cvid")
     qual = form.get("qual")
-    
+
     # Validate input to prevent open redirect
     import re
     if not bvid or not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', bvid):
@@ -233,7 +233,7 @@ async def dl_redirect():
         abort(400, description="Invalid page index")
     if not qual or not qual.isdigit():
         abort(400, description="Invalid quality")
-    
+
     return redirect(f"/proxy/video/{bvid}_{cvid}_{qual}?dl=1", code=302)
 
 
@@ -311,7 +311,7 @@ async def general_exception_view(e):
     print(f"[ERROR] {error_msg}")
     # Never expose internal error details to users
     return await render_template_with_theme(
-        "error.html", 
-        status="服务器错误", 
+        "error.html",
+        status="服务器错误",
         desc="服务器内部错误，请稍后重试或联系管理员。"
     ), 500
