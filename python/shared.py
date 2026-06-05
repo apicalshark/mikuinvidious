@@ -22,8 +22,6 @@ def safe_json_loads(data: str | bytes, default=None):
     if not data:
         return default
     try:
-        if isinstance(data, bytes):
-            data = data.decode()
         # Validate it's a dict or list (not a string/number)
         parsed = orjson.loads(data)
         if not isinstance(parsed, (dict, list)):
