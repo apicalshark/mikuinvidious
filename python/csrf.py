@@ -52,10 +52,8 @@ def csrf_protect():
         async def wrapped(*args, **kwargs):
             if request.method in ("POST", "PUT", "PATCH", "DELETE"):
                 # Check header first (for AJAX), then form
-                token = request.headers.get("X-CSRF-Token") or (
-                    (await request.form).get("csrf_token") if request.content_type == "application/x-www-form-urlencoded" else None
-                )
-                if not token and request.content_type and "multipart/form-data" in request.content_type:
+                token = request.headers.get("X-CSRF-Token")
+                if not token and request.mimetype in ("application/x-www-form-urlencoded", "multipart/form-data"):
                     form = await request.form
                     token = form.get("csrf_token")
                 
