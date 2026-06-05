@@ -41,10 +41,6 @@ class RateLimiter:
         pipe.zremrangebyscore(redis_key, 0, window_start)
         # Count current requests
         pipe.zcard(redis_key)
-        # Add current request
-        pipe.zadd(redis_key, {f"{now}:{time.time_ns()}": now})
-        # Set expiry
-        pipe.expire(redis_key, window + 1)
         results = await pipe.execute()
         
         current_count = results[1]
@@ -59,6 +55,12 @@ class RateLimiter:
                 "limit": limit,
                 "retry_after": reset_time - now
             }
+        
+        # Add current request only if allowed
+        pipe = self.redis.pipeline()
+        pipe.zadd(redis_key, {f"{now}:{time.time_ns()}": now})
+        pipe.expire(redis_key, window + 1)
+        await pipe.execute()
         
         return True, {
             "remaining": limit - current_count - 1,
