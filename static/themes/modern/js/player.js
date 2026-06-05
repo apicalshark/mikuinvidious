@@ -450,9 +450,10 @@ class VodBufferController {
     const bufferAhead = this.getBufferAhead();
 
     // 1. Show loading spinner if buffer is low
-    if (bufferAhead < this.minBuffer) {
-      this.video.dispatchEvent(new Event("waiting"));
-    }
+    // Removed: dispatching "waiting" event was causing danmaku to pause while video continues
+    // if (bufferAhead < this.minBuffer) {
+    //   this.video.dispatchEvent(new Event("waiting"));
+    // }
 
     // 2. Detect if playhead is stuck (not advancing)
     if (Math.abs(currentTime - this.lastTime) < 0.01) {
