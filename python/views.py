@@ -640,7 +640,7 @@ async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
 async def api_component_player(vid, idx):
     # Use passed CSP nonce from main page to avoid CSP mismatch
     passed_nonce = request.headers.get("X-CSP-Nonce")
-    if passed_nonce:
+    if passed_nonce and re.match(r'^[A-Za-z0-9_-]{16,40}$', passed_nonce):
         g.csp_nonce = passed_nonce
     v = video.Video(bvid=vid, credential=appcred)
     ep_id = request.args.get("ep_id")
