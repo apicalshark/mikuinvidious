@@ -42,15 +42,18 @@ async def is_safe_proxy_url(url: str) -> bool:
             return False
 
         # Resolve and check IP
+        # Resolve and check IP (both IPv4 and IPv6)
         import socket
         try:
-            ip = await asyncio.to_thread(socket.gethostbyname, hostname)
-            ip_obj = ipaddress.ip_address(ip)
-
-            # Block private, loopback, link-local, multicast, reserved
-            if (ip_obj.is_private or ip_obj.is_loopback or
-                ip_obj.is_link_local or ip_obj.is_multicast or ip_obj.is_reserved):
-                return False
+            addr_infos = await asyncio.to_thread(
+                socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
+            )
+            for family, _, _, _, sockaddr in addr_infos:
+                ip = sockaddr[0]
+                ip_obj = ipaddress.ip_address(ip)
+                if (ip_obj.is_private or ip_obj.is_loopback or
+                    ip_obj.is_link_local or ip_obj.is_multicast or ip_obj.is_reserved):
+                    return False
         except socket.gaierror:
             return False
 
