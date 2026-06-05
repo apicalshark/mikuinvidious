@@ -1055,9 +1055,8 @@ async def audio_list_view(amid, idx=0):
 
 @app.route("/history")
 async def history_view():
-    hist_id = request.cookies.get("hist_id")
-    # Validate hist_id format (16-char hex)
-    if not hist_id or not re.match(r'^[a-f0-9]{16}$', hist_id):
+    hist_id = getattr(g, "hist_id", None)
+    if not hist_id or getattr(g, "set_hist_cookie", False):
         return await render_template_with_theme("home.html", videos=[], title="浏览历史", message="您还没有浏览历史。")
 
     bvids = await appredis.lrange(f"miku_hist_{hist_id}", 0, -1)
