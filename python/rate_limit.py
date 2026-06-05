@@ -15,7 +15,7 @@
 
 import time
 from functools import wraps
-from quart import request, current_app, abort
+from quart import request, abort
 from shared import appredis
 
 
