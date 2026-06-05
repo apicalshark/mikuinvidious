@@ -14,6 +14,7 @@ services:
       - PYTHONUNBUFFERED=1
       - SITE_MODIFIED_SOURCE_CODE_URL=https://github.com/apicalshark/mikuinvidious
       - USE_CRED=false
+      # QUART_SECRET_KEY is auto-generated in python/shared.py at startup
       # Nyaa Search functionality
       - NYAA_BANGUMI=true
       # Bilibili Credentials (Optional)
@@ -22,6 +23,8 @@ services:
       - BUVID3=
       - BUVID4=
       - DEDEUSERID=
+    depends_on:
+      - redis
 
   caddy:
     image: caddy:alpine

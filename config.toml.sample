@@ -24,7 +24,6 @@ nyaa_bangumi = true
 # Available options:
 #    - 'strict': Indexing is disallowed (robots_strict.txt).
 #    - 'relaxed': Search engines can index articles and the search page (robots_relaxed.txt).
-#    - 'PLEASE_INDEX_EVERYTHING': A VERY DANGEROUS option, removes all restrictions.
 # Default to 'strict'.
 robots_policy = 'strict'
 
@@ -38,10 +37,9 @@ host = '::'
 # Port to listen on.
 port = 8888
 
-# A long, random string used to secure user sessions. 
-# If not set, a random 24-character hex string is generated at startup.
-# It is highly recommended to set a persistent key to avoid logging users out on restart.
-# secret_key = ''
+# A random secret key is generated at each startup for security.
+# Sessions are invalidated on restart (acceptable for this use case).
+# Do not set a static secret_key - it will be ignored.
 
 # Support auto-reload and detailed error messages.
 # Also controlled by the QUART_DEBUG environment variable.
@@ -57,6 +55,11 @@ use_cred = false
 
 # Sensitive information, don't tell anybody. 
 # For gathering these, see https://nemo2011.github.io/bilibili-api/#/get-credential.
+# 
+# SECURITY: Credentials can be stored encrypted using libsodium (XChaCha20-Poly1305).
+# To encrypt: python tools/encrypt_secrets.py --encrypt SESSDATA "your_value"
+# Set SECRETS_MASTER_KEY environment variable (generate with --generate-key)
+# Encrypted values are base64 strings that will be auto-decrypted at runtime.
 sessdata = ''
 bili_jct = ''
 buvid3 = ''
@@ -80,6 +83,15 @@ use_pandoc = false
 
 # A list of formats that Pandoc is allowed to convert from.
 article_allowed_formats = ['markdown', 'plain', 'html']
+
+[bili]
+# Bilibili API request headers (can be customized if needed)
+user_agent = 'Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2'
+referer = 'https://www.bilibili.com'
+env = 'prod'
+app_key = 'android64'
+ip_region = 'CN'
+legal_region = 'CN'
 
 [display]
 # The default theme for new visitors. Currently only 'modern' is officially supported.

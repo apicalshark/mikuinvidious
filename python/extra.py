@@ -19,10 +19,50 @@ import asyncio
 import orjson
 import re
 
+import bleach
 from bilibili_api.exceptions import ArgsException
 from bilibili_api.utils.network import Api
 from bs4 import BeautifulSoup
 from shared import Network
+
+
+# Allowed HTML tags and attributes for article content
+ALLOWED_TAGS = [
+    'p', 'br', 'strong', 'em', 'u', 's', 'code', 'pre', 'blockquote',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'ul', 'ol', 'li', 'a', 'img', 'figure', 'figcaption',
+    'div', 'span', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'sup', 'sub', 'mark', 'del', 'ins',
+]
+
+ALLOWED_ATTRIBUTES = {
+    'a': ['href', 'title'],
+    'img': ['src', 'alt', 'title', 'class', 'width', 'height'],
+    'code': ['class'],
+    'pre': ['class'],
+    'span': ['style', 'class'],
+    'div': ['style', 'class'],
+    'p': ['style', 'class'],
+    'figure': ['style', 'class'],
+    'blockquote': ['style', 'class'],
+    '*': ['style', 'class'],
+}
+
+ALLOWED_STYLES = [
+    'color', 'background-color', 'font-weight', 'font-style',
+    'text-decoration', 'text-align', 'margin', 'padding',
+    'border', 'width', 'height', 'display', 'vertical-align',
+]
+
+def sanitize_html(html: str) -> str:
+    """Sanitize HTML to prevent XSS."""
+    return bleach.clean(
+        html,
+        tags=ALLOWED_TAGS,
+        attributes=ALLOWED_ATTRIBUTES,
+        styles=ALLOWED_STYLES,
+        strip=True,
+    )
 
 
 def get_article_info(article_text, cid):
@@ -196,7 +236,8 @@ def article_to_html(article_text):
                                 content_html += f'<pre><code class="language-{lang}">{content}</code></pre>'
 
                 if content_html:
-                    return f'<div id="main-article">{content_html}</div>'
+                    # Sanitize the generated HTML
+                    return sanitize_html(f'<div id="main-article">{content_html}</div>')
             except Exception as e:
                 print(f"Error parsing opus INITIAL_STATE: {e}")
                 pass
@@ -267,13 +308,29 @@ def article_to_html(article_text):
 
         child.attrs = new_attrs
 
-    return str(article_body)
+    # Sanitize the final HTML to prevent XSS
+    return sanitize_html(str(article_body))
 
 
 """Convert the article to any file."""
 
 
+# Allowed output formats for pandoc (prevents command injection)
+ALLOWED_PANDOC_FORMATS = {
+    'markdown', 'markdown_github', 'markdown_mmd', 'markdown_phpextra',
+    'markdown_strict', 'commonmark', 'gfm', 'plain', 'html', 'html5',
+    'docx', 'odt', 'epub', 'epub3', 'latex', 'beamer', 'pdf',
+    'rtf', 'texinfo', 'man', 'asciidoc', 'asciidoctor', 'org',
+    'jira', 'mediawiki', 'dokuwiki', 'textile', 'opml', 'tei',
+    'fb2', 'haddock', 'ipynb', 'json', 'typst',
+}
+
+
 async def article_to_any(article_text, dest_fmt):
+    # Validate dest_fmt against allowlist to prevent command injection
+    if dest_fmt not in ALLOWED_PANDOC_FORMATS:
+        raise ValueError(f"Unsupported output format: {dest_fmt}")
+    
     cmd = ["pandoc", "-f", "html", "-t", dest_fmt, "-"]
     p = None
     try:

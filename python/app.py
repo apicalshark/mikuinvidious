@@ -15,6 +15,8 @@
 
 import asyncio
 import os
+import re
+import secrets
 import sys
 from datetime import datetime
 from urllib.parse import urlparse
@@ -23,14 +25,15 @@ import filters  # noqa: F401
 import res  # noqa: F401
 import views  # noqa: F401
 from bilibili_api import exceptions
+from csrf import csrf_protect, inject_csrf_token
 from proxy import proxy_bp
-from quart import make_response, redirect, request, send_from_directory, url_for
+from quart import abort, g, make_response, redirect, request, send_from_directory, url_for
+from rate_limit import RATE_LIMITS, add_rate_limit_headers, rate_limit
 from shared import (
     Network,
     app,
     appconf,
     close_global_client,
-    detect_theme,
     render_template_with_theme,
 )
 
@@ -60,11 +63,70 @@ async def shutdown_cleanup():
     await close_global_client()
 
 
+@app.before_request
+async def setup_request():
+    """Generate CSP nonce and initialize history ID."""
+    g.csp_nonce = secrets.token_urlsafe(16)
+    
+    hist_id = request.cookies.get("hist_id")
+    if not hist_id or not re.match(r'^[a-f0-9]{16}$', hist_id):
+        g.hist_id = os.urandom(8).hex()
+        g.set_hist_cookie = True
+    else:
+        g.hist_id = hist_id
+        g.set_hist_cookie = False
+
+
+@app.context_processor
+def inject_csp_nonce():
+    """Make CSP nonce available to all templates."""
+    return {"csp_nonce": getattr(g, 'csp_nonce', '')}
+
+
 @app.after_request
 async def set_hist_id(response):
-    if not request.cookies.get("hist_id"):
-        hist_id = os.urandom(8).hex()
-        response.set_cookie("hist_id", hist_id, max_age=3600 * 24 * 365, httponly=True, samesite="Lax")
+    if getattr(g, 'set_hist_cookie', False):
+        is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+        response.set_cookie("hist_id", g.hist_id, max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure)
+    return response
+
+
+@app.after_request
+async def add_security_headers(response):
+    # Add rate limit headers
+    response = await add_rate_limit_headers(response)
+    # Add security headers
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if request.is_secure:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+
+    # Skip CSP for AJAX/fragment requests (they have different nonces)
+    # These are requests made via fetch/XHR that return HTML fragments
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest" or \
+              request.headers.get("Sec-Fetch-Mode") == "fetch" or \
+              request.headers.get("HX-Request") == "true" or \
+              request.path.startswith("/api/component/")
+
+    # Add CSP header with nonce (skip for AJAX fragment requests)
+    if not is_ajax:
+        csp_nonce = getattr(g, 'csp_nonce', '')
+        if csp_nonce:
+            csp = (
+                "default-src 'self'; "
+                f"script-src 'self' 'nonce-{csp_nonce}'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data:; "
+                "media-src 'self' blob:; "
+                "font-src 'self' data:; "
+                "connect-src 'self' wss: https:; "
+                "worker-src 'self' blob:; "
+                "base-uri 'self'; "
+                "form-action 'self';"
+            )
+            response.headers["Content-Security-Policy"] = csp
     return response
 
 
@@ -74,12 +136,16 @@ from views_bangumi import bangumi_bp
 
 app.register_blueprint(bangumi_bp)
 
+app.context_processor(inject_csrf_token)
+
 ##########################################
 # APIs
 ##########################################
 
 
-@app.route("/toggle_theme")
+@app.route("/toggle_theme", methods=["POST"])
+@csrf_protect()
+@rate_limit(**RATE_LIMITS["normal"])
 async def toggle_theme_api():
     old_val = request.cookies.get("dark-theme")
     if old_val == "1":
@@ -89,7 +155,7 @@ async def toggle_theme_api():
 
     print(f"[Theme] Toggling from {old_val} to {new_val}")
     resp = await make_response("OK")
-    resp.set_cookie("dark-theme", new_val, path="/", max_age=3600 * 24 * 365, httponly=True, samesite="Lax")
+    resp.set_cookie("dark-theme", new_val, path="/", max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=request.is_secure)
     return resp
 
 
@@ -99,7 +165,13 @@ async def toggle_theme_api():
 
 
 @app.route("/<b32tvid>")
+@rate_limit(**RATE_LIMITS["normal"])
 async def b32tv_redirect(b32tvid):
+    # Validate b32tvid format (base32, typically 6-12 chars)
+    import re
+    if not re.match(r'^[A-Za-z0-9]{6,12}$', b32tvid):
+        abort(400, description="Invalid short link format")
+
     client = await Network.get_async_client()
     req = None
     try:
@@ -139,9 +211,11 @@ async def b32tv_redirect(b32tvid):
         elif "/audio/am" in url.path:
             return redirect(url_for("audio_list_view", amid="am" + url.path.split("/audio/am")[-1].split("?")[0]))
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"[Redirect] Error redirecting b23.tv/{b32tvid}: {e}")
         return await render_template_with_theme(
-            "error.html", status="网络错误", desc=str(e), suggest="请检查您的网络连接或代理设置。"
+            "error.html", status="网络错误", desc="无法解析短链接，请检查网络连接或代理设置。", suggest="请检查您的网络连接或代理设置。"
         ), 500
     finally:
         if req:
@@ -149,11 +223,23 @@ async def b32tv_redirect(b32tvid):
 
 
 @app.route("/download", methods=["POST"])
+@csrf_protect()
+@rate_limit(**RATE_LIMITS["strict"])
 async def dl_redirect():
     form = await request.form
     bvid = form.get("id")
     cvid = form.get("cvid")
     qual = form.get("qual")
+
+    # Validate input to prevent open redirect
+    import re
+    if not bvid or not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', bvid):
+        abort(400, description="Invalid video ID")
+    if not cvid or not cvid.isdigit():
+        abort(400, description="Invalid page index")
+    if not qual or not qual.isdigit():
+        abort(400, description="Invalid quality")
+
     return redirect(f"/proxy/video/{bvid}_{cvid}_{qual}?dl=1", code=302)
 
 
@@ -172,20 +258,13 @@ async def pref_view():
     return await render_template_with_theme("pref.html")
 
 
-@app.route("/test")
-async def test_view():
-    theme = detect_theme()
-    resp = await make_response(theme)
-    resp.set_cookie("theme", "default", httponly=True, samesite="Lax")
-    return resp
-
-
 @app.route("/robots.txt")
 async def robots_txt():
     policy = appconf["site"].get("robots_policy") or "strict"
 
-    if policy == "PLEASE_INDEX_EVERYTHING":
-        return "", 404
+    # Only allow 'strict' or 'relaxed' policies
+    if policy not in ("strict", "relaxed"):
+        policy = "strict"
 
     return await send_from_directory(os.path.join(app.root_path, "../static/rules"), f"robots_{policy}.txt")
 
@@ -204,7 +283,8 @@ async def not_found_error(e):
 
 @app.errorhandler(exceptions.ArgsException)
 async def args_exception_view(e):
-    return await render_template_with_theme("error.html", status="请求错误", desc=e), 400
+    # Sanitize argument error - don't expose internal details
+    return await render_template_with_theme("error.html", status="请求错误", desc="请求参数无效，请检查后重试。"), 400
 
 
 @app.errorhandler(exceptions.ResponseCodeException)
@@ -213,16 +293,31 @@ async def resp_exception_view(e):
     if e.code == -404:
         suggest = "这很可能说明您访问的视频/文章不存在，请检查您的请求。如果您认为这是站点的问题，请联系网站管理员。"
 
+    # Sanitize error message - never expose raw backend response
+    if appconf["site"]["site_show_unsafe_error_response"]:
+        # Only show sanitized message even in debug mode
+        desc = f"后端错误: {e.msg}"
+    else:
+        desc = "后端服务器发送了无效的回复。"
+
     return await render_template_with_theme(
         "error.html",
         status=e.msg,
-        desc=(e.raw if appconf["site"]["site_show_unsafe_error_response"] else "后端服务器发送了无效的回复。"),
+        desc=desc,
         suggest=suggest,
     ), -e.code
 
 
 @app.errorhandler(Exception)
 async def general_exception_view(e):
+    # Log full error internally but show generic message to user
+    import traceback
     error_msg = f"{type(e).__name__}: {e}"
-    print(error_msg)
-    return await render_template_with_theme("error.html", status="服务器错误", desc=error_msg), 500
+    traceback.print_exc()
+    print(f"[ERROR] {error_msg}")
+    # Never expose internal error details to users
+    return await render_template_with_theme(
+        "error.html",
+        status="服务器错误",
+        desc="服务器内部错误，请稍后重试或联系管理员。"
+    ), 500

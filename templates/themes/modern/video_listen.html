@@ -27,7 +27,7 @@
     <title>{{ vinfo['title'] }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
     <link rel="stylesheet" href="/static/themes/modern/css/player.css" />
-    <script>
+    <script nonce="{{ csp_nonce }}">
         window.current_vid = '{{ vid }}';
         window.idx = {{ idx }};
         window.total_pages = {{ vset | length }};

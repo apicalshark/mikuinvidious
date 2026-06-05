@@ -32,11 +32,13 @@ from extra import (
     video_get_dash_for_qn,
     video_get_src_for_qn,
 )
-from quart import Response, redirect, request, url_for
-from shared import Network, app, appconf, appcred, appredis, render_template_with_theme
+from quart import Response, redirect, request, url_for, g
+from shared import Network, app, appconf, appcred, appredis, render_template_with_theme, safe_json_loads
+from rate_limit import rate_limit, RATE_LIMITS
 
 
 @app.route("/live/chat/<int:room_id>")
+@rate_limit(**RATE_LIMITS["strict"])
 async def live_chat_sse(room_id):
     from bilibili_api import Credential
     from bilibili_api import live as b_live
@@ -157,6 +159,7 @@ async def zone_id_view(zid):
 
 
 @app.route("/search")
+@rate_limit(**RATE_LIMITS["search"])
 async def search_view():
     q = request.args.get("q")
     i = request.args.get("i") or 1
@@ -329,9 +332,11 @@ async def read_view(cid):
                     sg="这很可能说明您访问的文章不存在，请检查您的请求。",
                 ), 404
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"[Read] Error fetching article {url}: {e}")
         return await render_template_with_theme(
-            "error.html", status="网络错误", desc=str(e), suggest="请检查您的网络连接或代理设置。"
+            "error.html", status="网络错误", desc="无法获取文章内容，请检查网络连接或代理设置。", suggest="请检查您的网络连接或代理设置。"
         ), 500
     finally:
         if req:
@@ -350,7 +355,10 @@ async def live_list_view():
                 rooms.append(card)
         return await render_template_with_theme("home.html", videos=rooms, title="直播")
     except Exception as e:
-        return await render_template_with_theme("error.html", status="Live Error", desc=str(e)), 500
+        import traceback
+        traceback.print_exc()
+        print(f"[ERROR] Live list error: {e}")
+        return await render_template_with_theme("error.html", status="直播列表加载失败", desc="无法获取直播列表，请稍后重试。"), 500
 
 
 @app.route("/live/<room_id>")
@@ -463,7 +471,10 @@ async def live_room_view(room_id):
             is_live=True,
         )
     except Exception as e:
-        return await render_template_with_theme("error.html", status="直播错误", desc=str(e)), 500
+        import traceback
+        traceback.print_exc()
+        print(f"[ERROR] Live room error: {e}")
+        return await render_template_with_theme("error.html", status="直播加载失败", desc="无法加载直播间，请检查网络或稍后重试。"), 500
 
 
 async def populate_dash_redis(vid, idx, dash_data):
@@ -488,6 +499,11 @@ async def populate_dash_redis(vid, idx, dash_data):
 @app.route("/video_listen/<vid>/")
 @app.route("/video_listen/<vid>:<idx>/")
 async def video_listen_view(vid, idx=0):
+    # Validate video ID format
+    import re
+    if not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', vid):
+        abort(400, description="Invalid video ID format")
+    
     ato, idx = request.args.get("ato") == "1", int(idx)
     vid = av2bv(vid[2:]) if vid.startswith("av") else vid
     v = video.Video(bvid=vid, credential=appcred)
@@ -547,12 +563,15 @@ async def video_listen_view(vid, idx=0):
 
 
 @app.route("/video/dash/<vid>/<int:idx>/manifest.mpd")
+@rate_limit(**RATE_LIMITS["proxy"])
 async def video_dash_manifest_view(vid, idx):
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
     if dash_cache:
-        dash_data = orjson.loads(dash_cache)
-    else:
+        dash_data = safe_json_loads(dash_cache)
+        if dash_data is None:
+            dash_cache = None
+    if not dash_cache:
         try:
             dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
             await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(dash_data))
@@ -567,12 +586,15 @@ async def video_dash_manifest_view(vid, idx):
 
 
 @app.route("/video/m3u8/<vid>/<int:idx>/master.m3u8")
+@rate_limit(**RATE_LIMITS["proxy"])
 async def video_master_m3u8_view(vid, idx):
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
     if dash_cache:
-        dash_data = orjson.loads(dash_cache)
-    else:
+        dash_data = safe_json_loads(dash_cache)
+        if dash_data is None:
+            dash_cache = None
+    if not dash_cache:
         try:
             dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
             await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(dash_data))
@@ -587,12 +609,15 @@ async def video_master_m3u8_view(vid, idx):
 
 
 @app.route("/video/m3u8/<vid>/<int:idx>/<media_type>_<int:qn>_<int:cid>.m3u8")
+@rate_limit(**RATE_LIMITS["proxy"])
 async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
     if dash_cache:
-        dash_data = orjson.loads(dash_cache)
-    else:
+        dash_data = safe_json_loads(dash_cache)
+        if dash_data is None:
+            dash_cache = None
+    if not dash_cache:
         try:
             dash_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=10.0)
             await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(dash_data))
@@ -611,7 +636,12 @@ async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
 
 
 @app.route("/api/component/player/<vid>/<int:idx>")
+@rate_limit(**RATE_LIMITS["normal"])
 async def api_component_player(vid, idx):
+    # Use passed CSP nonce from main page to avoid CSP mismatch
+    passed_nonce = request.headers.get("X-CSP-Nonce")
+    if passed_nonce and re.match(r'^[A-Za-z0-9_-]{16,40}$', passed_nonce):
+        g.csp_nonce = passed_nonce
     v = video.Video(bvid=vid, credential=appcred)
     ep_id = request.args.get("ep_id")
     if ep_id and ep_id.isdigit():
@@ -626,16 +656,14 @@ async def api_component_player(vid, idx):
         # 0. Check Cache First
         cached_dash = await appredis.get(f"miku_dash_{vid}_{idx}")
         if cached_dash:
-            try:
-                dash_data = orjson.loads(cached_dash)
+            dash_data = safe_json_loads(cached_dash)
+            if dash_data:
                 has_dash = True
                 v_supported_src = [
                     {"quality": f["quality"], "new_description": f["new_description"]}
                     for f in dash_data.get("support_formats", [])
                 ]
                 return has_dash, v_supported_src
-            except Exception:
-                pass
 
         async def fetch_dash_task():
             try:
@@ -765,7 +793,12 @@ async def api_component_player(vid, idx):
 
 
 @app.route("/api/component/meta/<vid>/<int:idx>")
+@rate_limit(**RATE_LIMITS["normal"])
 async def api_component_meta(vid, idx):
+    # Use passed CSP nonce from main page to avoid CSP mismatch
+    passed_nonce = request.headers.get("X-CSP-Nonce")
+    if passed_nonce and re.match(r'^[A-Za-z0-9_-]{16,40}$', passed_nonce):
+        g.csp_nonce = passed_nonce
     async def safe_api(coro, timeout=4.0):
         try:
             return await asyncio.wait_for(coro, timeout=timeout)
@@ -787,8 +820,15 @@ async def api_component_meta(vid, idx):
 @app.route("/video/<vid>/")
 @app.route("/video/<vid>:<idx>")
 @app.route("/video/<vid>:<idx>/")
+@rate_limit(**RATE_LIMITS["normal"])
 async def video_view(vid, idx=0):
     start_time = time.time()
+    
+    # Validate video ID format
+    import re
+    if not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', vid):
+        abort(400, description="Invalid video ID format")
+    
     idx, ato = int(idx), request.args.get("ato") == "1"
     if request.args.get("listen") == "1":
         return await video_listen_view(vid, idx)
@@ -797,12 +837,13 @@ async def video_view(vid, idx=0):
 
     # Pre-caching history
     try:
-        hist_id = request.cookies.get("hist_id") or os.urandom(8).hex()
-        hist_key = f"miku_hist_{hist_id}"
-        await appredis.lrem(hist_key, 0, vid)
-        await appredis.lpush(hist_key, vid)
-        await appredis.ltrim(hist_key, 0, 49)
-        await appredis.expire(hist_key, 3600 * 24 * 30)
+        hist_id = getattr(g, "hist_id", None)
+        if hist_id:
+            hist_key = f"miku_hist_{hist_id}"
+            await appredis.lrem(hist_key, 0, vid)
+            await appredis.lpush(hist_key, vid)
+            await appredis.ltrim(hist_key, 0, 49)
+            await appredis.expire(hist_key, 3600 * 24 * 30)
     except Exception:
         pass
 
@@ -1014,8 +1055,8 @@ async def audio_list_view(amid, idx=0):
 
 @app.route("/history")
 async def history_view():
-    hist_id = request.cookies.get("hist_id")
-    if not hist_id:
+    hist_id = getattr(g, "hist_id", None)
+    if not hist_id or getattr(g, "set_hist_cookie", False):
         return await render_template_with_theme("home.html", videos=[], title="浏览历史", message="您还没有浏览历史。")
 
     bvids = await appredis.lrange(f"miku_hist_{hist_id}", 0, -1)

@@ -1,5 +1,5 @@
 {% extends 'themes/modern/base.html' %}
-{% from 'macros.html' import video_player %}
+{% from 'macros.html' import video_player with context %}
 
 {% block head %}
     <meta name="description" content="{{ vinfo['desc'] }}" />
@@ -35,7 +35,7 @@
 
     <link rel="stylesheet" href="/static/themes/modern/css/player.css" />
 
-    <script>
+    <script nonce="{{ csp_nonce }}">
         window.current_vid = '{{ vid }}';
         window.idx = {{ idx }};
         window.total_pages = {{ vset | length }};
@@ -137,6 +137,7 @@
                                       method="post"
                                       rel="noopener"
                                       target="_blank">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                                     <input type="hidden" name="id" value="{{ vinfo['bvid'] }}" />
                                     <input type="hidden" name="cvid" value="{{ idx }}" />
                                     <select id="download-quality"
@@ -230,7 +231,7 @@
                         <p class="text-on-surface-variant/50 text-center py-4 italic">{{ '正在连接到聊天室...' }}</p>
                     </div>
                 </div>
-                <script>
+                <script nonce="{{ csp_nonce }}">
                     const chatContainer = document.getElementById('live-chat-container');
                     let eventSource;
 
@@ -375,7 +376,7 @@
 
     <script src="/static/themes/modern/js/player.js"></script>
 
-    <script>
+    <script nonce="{{ csp_nonce }}">
         function updateDownloadDropdown() {
             const select = document.getElementById('download-quality');
             const btn = document.getElementById('download-btn');
@@ -394,8 +395,11 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             if (!window.is_live) {
+                const cspNonce = document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') || '';
+                const headers = cspNonce ? { 'X-CSP-Nonce': cspNonce } : {};
+                
                 // Load Player Component
-                fetch(`/api/component/player/${window.current_vid}/${window.idx}?ep_id=${window.ep_id}`)
+                fetch(`/api/component/player/${window.current_vid}/${window.idx}?ep_id=${window.ep_id}`, { headers })
                     .then(r => r.text())
                     .then(html => {
                         const container = document.getElementById('player-placeholder-wrapper');
@@ -410,7 +414,7 @@
                     });
 
                 // Load Meta/Comments Component
-                fetch(`/api/component/meta/${window.current_vid}/${window.idx}`)
+                fetch(`/api/component/meta/${window.current_vid}/${window.idx}`, { headers })
                     .then(r => r.text())
                     .then(html => {
                         const container = document.getElementById('comments-loader-container');

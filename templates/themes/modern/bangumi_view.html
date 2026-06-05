@@ -83,7 +83,7 @@
     </div>
 
     {% if nyaa_enabled %}
-    <script>
+    <script nonce="{{ csp_nonce }}">
         document.addEventListener('DOMContentLoaded', function() {
             const sidebarContainer = document.getElementById('nyaa-sidebar-container');
             

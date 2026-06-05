@@ -1,6 +1,6 @@
-{% from 'macros.html' import video_player %}
+{% from 'macros.html' import video_player with context %}
 {{ video_player(vid, vinfo, idx, supported_src, is_live, has_dash) }}
-<script>
+<script nonce="{{ csp_nonce }}">
     window.has_dash = {{ 'true' if has_dash else 'false' }};
     // Re-trigger player init since this is loaded via AJAX
     if (window.initMikuPlayer) window.initMikuPlayer();

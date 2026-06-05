@@ -15,11 +15,12 @@ class LegacyTicketManager:
     """
 
     @classmethod
-    async def fetch_new_ticket_custom(cls, appconf, Network, COMMON_HEADERS):
+    async def fetch_new_ticket_custom(cls, appconf, Network):
         """
         Original custom implementation using Android key (ec01).
         DEPRECATED: No longer used.
         """
+        from shared import get_common_headers
         warnings.warn(
             "LegacyTicketManager.fetch_new_ticket_custom is deprecated and not for production use.",
             DeprecationWarning,
@@ -47,7 +48,7 @@ class LegacyTicketManager:
 
         client = await Network.get_async_client()
         try:
-            headers = COMMON_HEADERS.copy()
+            headers = get_common_headers(appconf["bili"]).copy()
             if appconf["credential"].get("buvid3"):
                 headers["buvid"] = appconf["credential"]["buvid3"]
             

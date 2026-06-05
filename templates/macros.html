@@ -86,6 +86,6 @@
             <media-fullscreen-button></media-fullscreen-button>
         </media-control-bar>
         </media-controller>
-        <script>window.supported_src = {{ supported_src | tojson if supported_src else '[]' }};</script>
+        <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }};</script>
     </div>
 {% endmacro %}
