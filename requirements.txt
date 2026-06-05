@@ -13,3 +13,5 @@ aiohttp-socks>=0.11.0
 httpx[socks]>=0.28.1
 granian>=1.7.0
 uvloop>=0.22.1
+pynacl>=1.5.0
+bleach>=6.1.0

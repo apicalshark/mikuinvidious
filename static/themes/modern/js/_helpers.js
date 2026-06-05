@@ -248,14 +248,15 @@ window.helpers = window.helpers || {
       set: function (key, value) {
         const cookie_data = encodeURIComponent(JSON.stringify(value));
 
-        // Set expiration in 2 year
+        // Set expiration in 30 days
         const date = new Date();
-        date.setFullYear(date.getFullYear() + 2);
+        date.setDate(date.getDate() + 30);
+        const secureFlag = location.protocol === "https:" ? "; Secure" : "";
 
-        document.cookie = key + "=" + cookie_data + "; expires=" + date.toGMTString();
+        document.cookie = key + "=" + cookie_data + "; expires=" + date.toGMTString() + "; SameSite=Lax" + secureFlag;
       },
       remove: function (key) {
-        document.cookie = key + "=; Max-Age=0";
+        document.cookie = key + "=; Max-Age=0; SameSite=Lax";
       },
     };
   })(),

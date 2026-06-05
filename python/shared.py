@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import os
+import orjson
 
 import httpx
 import redis.asyncio as redis
@@ -12,18 +13,41 @@ from quart_session import Session
 from flask_orjson import OrjsonProvider
 import time
 
+from secrets_encryption import decrypt_secret, NACL_AVAILABLE
+import nacl.secret
+
+
+def safe_json_loads(data: str | bytes, default=None):
+    """Safely parse JSON with validation."""
+    if not data:
+        return default
+    try:
+        if isinstance(data, bytes):
+            data = data.decode()
+        # Validate it's a dict or list (not a string/number)
+        parsed = orjson.loads(data)
+        if not isinstance(parsed, (dict, list)):
+            return default
+        return parsed
+    except (orjson.JSONDecodeError, UnicodeDecodeError, ValueError):
+        return default
+
 
 from bilibili_api.utils.network import get_bili_ticket
 
-COMMON_HEADERS = {
-    # "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
-    "User-Agent": "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2",
-    "Referer": "https://www.bilibili.com",
-    "env": "prod",
-    "app-key": "android64",
-    "x-bili-metadata-ip-region": "CN",
-    "x-bili-metadata-legal-region": "CN",
-}
+def get_common_headers(appconf):
+    """Get common headers for Bilibili API requests from config."""
+    return {
+        "User-Agent": appconf.get("bili_user_agent", "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2"),
+        "Referer": appconf.get("bili_referer", "https://www.bilibili.com"),
+        "env": appconf.get("bili_env", "prod"),
+        "app-key": appconf.get("bili_app_key", "android64"),
+        "x-bili-metadata-ip-region": appconf.get("bili_ip_region", "CN"),
+        "x-bili-metadata-legal-region": appconf.get("bili_legal_region", "CN"),
+    }
+
+
+COMMON_HEADERS = get_common_headers({})
 
 
 class TicketManager:
@@ -36,12 +60,12 @@ class TicketManager:
     @classmethod
     def _generate_trace_id(cls):
         """Generates a random x-bili-trace-id (Base64)."""
-        return os.urandom(16).hex()  # Simple hex representation for now
+        return os.urandom(32).hex()  # 256 bits for trace ID
 
     @classmethod
     def _generate_session_id(cls):
-        """Generates a random session_id (8-char hex)."""
-        return os.urandom(4).hex()
+        """Generates a random session_id (32-char hex)."""
+        return os.urandom(16).hex()  # 128 bits for session ID
 
     @classmethod
     async def get_ticket(cls, force_refresh=False):
@@ -109,7 +133,7 @@ class Network:
                         http2=False,
                         timeout=httpx.Timeout(None, connect=15.0, pool=60.0, read=60.0),
                         limits=httpx.Limits(max_connections=200, max_keepalive_connections=50),
-                        follow_redirects=True,
+                        follow_redirects=False,
                     )
         return cls._async_client
 
@@ -122,6 +146,7 @@ class Network:
                 http2=False,
                 timeout=10.0,
                 limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
+                follow_redirects=False,
             )
         return cls._sync_client
 
@@ -180,6 +205,14 @@ appconf = {
         "use_pandoc": os.environ.get("USE_PANDOC", "false").lower() == "true",
         "article_allowed_formats": os.environ.get("ARTICLE_ALLOWED_FORMATS", "markdown,plain,html").split(","),
     },
+    "bili": {
+        "user_agent": os.environ.get("BILI_USER_AGENT", "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2"),
+        "referer": os.environ.get("BILI_REFERER", "https://www.bilibili.com"),
+        "env": os.environ.get("BILI_ENV", "prod"),
+        "app_key": os.environ.get("BILI_APP_KEY", "android64"),
+        "ip_region": os.environ.get("BILI_IP_REGION", "CN"),
+        "legal_region": os.environ.get("BILI_LEGAL_REGION", "CN"),
+    },
     "redis": {
         "host": os.environ.get("REDIS_HOST", "localhost"),
         "port": int(os.environ.get("REDIS_PORT", 6379)),
@@ -195,14 +228,15 @@ elif os.path.exists("../config.toml"):
     deep_update(appconf, toml.load("../config.toml"))
 
 # Connect to our nice redis database.
-if appconf["redis"]["redis_url"]:
-    appredis = redis.from_url(appconf["redis"]["redis_url"], decode_responses=True)
+redis_url = appconf["redis"]["redis_url"] or os.environ.get("REDIS_URL")
+if redis_url:
+    appredis = redis.from_url(redis_url, decode_responses=True)
 else:
     appredis = redis.Redis(
         host=appconf["redis"]["host"],
         port=appconf["redis"]["port"],
         username=appconf["redis"]["username"],
-        password=appconf["redis"]["password"],
+        password=appconf["redis"]["password"] or os.environ.get("REDIS_PASSWORD"),
         decode_responses=True,
     )
 
@@ -213,7 +247,9 @@ app.json_provider_class = OrjsonProvider
 app.config.from_mapping(appconf["quart"])
 app.config["RESPONSE_TIMEOUT"] = 10800
 app.config["BODY_TIMEOUT"] = 10800
-app.secret_key = appconf["server"]["secret_key"] or os.urandom(24).hex()
+# Always generate a random secret key at startup for security
+# This invalidates sessions on restart, which is acceptable for this use case
+app.secret_key = os.urandom(32).hex()
 
 # Configure sessions
 app.config["SESSION_TYPE"] = "redis"
@@ -265,13 +301,29 @@ appcache = SimpleCache()
 appcred = None
 if appconf["credential"]["use_cred"]:
     credstore = appconf["credential"]
+    
+    def decrypt_if_encrypted(value: str) -> str:
+        """Decrypt value if it appears to be encrypted (base64 encoded)."""
+        if not value:
+            return value
+        # Check if it looks like our encrypted format (base64 with nonce prefix)
+        try:
+            if NACL_AVAILABLE:
+                import base64
+                data = base64.b64decode(value)
+                if len(data) > nacl.secret.SecretBox.NONCE_SIZE:
+                    return decrypt_secret(value)
+        except Exception:
+            pass
+        return value
+    
     appcred = Credential(
-        sessdata=credstore["sessdata"],
-        bili_jct=credstore["bili_jct"],
-        buvid3=credstore["buvid3"],
-        buvid4=credstore.get("buvid4"),
-        dedeuserid=credstore["dedeuserid"],
-        ac_time_value=credstore["ac_time_value"],
+        sessdata=decrypt_if_encrypted(credstore["sessdata"]),
+        bili_jct=decrypt_if_encrypted(credstore["bili_jct"]),
+        buvid3=decrypt_if_encrypted(credstore["buvid3"]),
+        buvid4=decrypt_if_encrypted(credstore.get("buvid4", "")),
+        dedeuserid=decrypt_if_encrypted(credstore["dedeuserid"]),
+        ac_time_value=decrypt_if_encrypted(credstore["ac_time_value"]),
     )
 
 ##########################################

@@ -1,39 +1,94 @@
 import asyncio
+import ipaddress
 import re
 import uuid
 from urllib.parse import urlparse
 
 import httpx
 from live_manager import live_manager
-from quart import Blueprint, Response, request
+from quart import Blueprint, Response, request, abort
 from shared import (
-    COMMON_HEADERS,
     Network,
     TicketManager,
     appconf,
     appredis,
     image_limiter,
+    get_common_headers,
 )
+from rate_limit import rate_limit, RATE_LIMITS
 
 proxy_bp = Blueprint("proxy", __name__)
+
+
+def is_safe_proxy_url(url: str) -> bool:
+    """Validate that a URL is safe to proxy (not pointing to internal/private IPs)."""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        
+        # Allow only specific Bilibili CDN domains
+        allowed_domains = [
+            ".hdslb.com",
+            ".biliimg.com",
+            ".bilivideo.com",
+            ".bilivideo.cn",
+            ".bilibili.com",
+            ".acgvideo.com",
+        ]
+        
+        if not any(hostname == d.lstrip(".") or hostname.endswith(d) for d in allowed_domains):
+            return False
+        
+        # Resolve and check IP
+        import socket
+        try:
+            ip = socket.gethostbyname(hostname)
+            ip_obj = ipaddress.ip_address(ip)
+            
+            # Block private, loopback, link-local, multicast, reserved
+            if (ip_obj.is_private or ip_obj.is_loopback or 
+                ip_obj.is_link_local or ip_obj.is_multicast or ip_obj.is_reserved):
+                return False
+        except socket.gaierror:
+            return False
+        
+        return True
+    except Exception:
+        return False
 
 
 async def render_proxy_pic(req_path):
     async with image_limiter:
         req_path = req_path[11:]
-        domain = req_path.split("/")[0]
-
-        if not (domain.endswith(".hdslb.com") or domain.endswith(".biliimg.com")):
+        
+        # Prevent path traversal
+        if ".." in req_path or req_path.startswith("/"):
+            return Response("Forbidden", status=403)
+        
+        url = f"https://{req_path}"
+        
+        if not is_safe_proxy_url(url):
             return Response("Forbidden", status=403)
 
-        headers = COMMON_HEADERS.copy()
-        url = f"https://{req_path}"
+        headers = get_common_headers(appconf["bili"]).copy()
 
         client = await Network.get_async_client()
         resp = None
         try:
             req = client.build_request("GET", url, headers=headers)
             resp = await client.send(req, stream=True, follow_redirects=True)
+
+            # Validate Content-Type for images
+            content_type = resp.headers.get("content-type", "").lower()
+            allowed_image_types = [
+                "image/jpeg", "image/jpg", "image/png", "image/gif",
+                "image/webp", "image/bmp", "image/svg+xml", "image/avif"
+            ]
+            if not any(content_type.startswith(t) for t in allowed_image_types):
+                print(f"[Proxy] Invalid Content-Type for image: {content_type}")
+                return Response("Forbidden: Invalid content type", status=403)
 
             proxy_resp = ProxyResponse(
                 resp, status=resp.status_code, url=url, headers=headers, client=client
@@ -322,6 +377,7 @@ class ProxyResponse(Response):
 
 
 @proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
+@rate_limit(**RATE_LIMITS["proxy"])
 async def proxy_dash(vid, idx, media_type, qn, cid):
     url = await appredis.get(f"miku_dash_url_{vid}_{idx}_{media_type}_{qn}_{cid}")
     if not url:
@@ -333,11 +389,14 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
     if not appconf["proxy"]["use_proxy"]:
         return Response("Forbidden: Proxying is disabled.", status=403)
+    
+    if not is_safe_proxy_url(url):
+        return Response("Forbidden: Invalid proxy target", status=403)
 
     creds = appconf["credential"]
     cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
 
-    headers = COMMON_HEADERS.copy()
+    headers = get_common_headers(appconf["bili"]).copy()
 
     # Add Bili-Ticket and dynamic session/trace IDs
     ticket = await TicketManager.get_ticket()
@@ -426,6 +485,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
 
 @proxy_bp.route("/proxy/<path:subpath>")
+@rate_limit(**RATE_LIMITS["proxy"])
 async def proxy_main(subpath):
     req_path = f"/proxy/{subpath}"
 
@@ -460,11 +520,14 @@ async def proxy_main(subpath):
 
         if not appconf["proxy"]["use_proxy"]:
             return Response("Forbidden: Proxying is disabled.", status=403)
+        
+        if not is_safe_proxy_url(url):
+            return Response("Forbidden: Invalid proxy target", status=403)
 
         creds = appconf["credential"]
         cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
 
-        headers = COMMON_HEADERS.copy()
+        headers = get_common_headers(appconf["bili"]).copy()
 
         # Add Bili-Ticket and dynamic session/trace IDs
         ticket = await TicketManager.get_ticket()
@@ -618,9 +681,16 @@ async def proxy_main(subpath):
         return Response("I'm a teapot", status=418)
 
 
-@proxy_bp.route("/proxy/live/disconnect", methods=["POST", "GET"])
+@proxy_bp.route("/proxy/live/disconnect", methods=["POST"])
+@rate_limit(**RATE_LIMITS["strict"])
 async def proxy_live_disconnect():
     """Manual disconnect ping for live streams to clean up resources immediately."""
+    from csrf import validate_csrf_token
+    
+    token = request.headers.get("X-CSRF-Token") or request.args.get("csrf_token")
+    if not await validate_csrf_token(token):
+        abort(403, description="CSRF token validation failed")
+    
     room_id = request.args.get("room_id")
     vqn = request.args.get("vqn", "default")
     client_id = request.args.get("cid")

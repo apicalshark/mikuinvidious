@@ -35,7 +35,7 @@
 
     <link rel="stylesheet" href="/static/themes/modern/css/player.css" />
 
-    <script>
+    <script nonce="{{ csp_nonce }}">
         window.current_vid = '{{ vid }}';
         window.idx = {{ idx }};
         window.total_pages = {{ vset | length }};
@@ -137,6 +137,7 @@
                                       method="post"
                                       rel="noopener"
                                       target="_blank">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                                     <input type="hidden" name="id" value="{{ vinfo['bvid'] }}" />
                                     <input type="hidden" name="cvid" value="{{ idx }}" />
                                     <select id="download-quality"
@@ -230,7 +231,7 @@
                         <p class="text-on-surface-variant/50 text-center py-4 italic">{{ '正在连接到聊天室...' }}</p>
                     </div>
                 </div>
-                <script>
+                <script nonce="{{ csp_nonce }}">
                     const chatContainer = document.getElementById('live-chat-container');
                     let eventSource;
 
@@ -375,7 +376,7 @@
 
     <script src="/static/themes/modern/js/player.js"></script>
 
-    <script>
+    <script nonce="{{ csp_nonce }}">
         function updateDownloadDropdown() {
             const select = document.getElementById('download-quality');
             const btn = document.getElementById('download-btn');

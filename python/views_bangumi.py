@@ -9,6 +9,7 @@ import os
 from datetime import datetime
 from extra import av2bv
 import zhconv
+from rate_limit import rate_limit, RATE_LIMITS
 
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
 
@@ -135,6 +136,7 @@ async def bangumi_view(ssid):
 
 
 @bangumi_bp.route("/play/ep<int:ep_id>")
+@rate_limit(**RATE_LIMITS["normal"])
 async def bangumi_play(ep_id):
     from bilibili_api.utils.network import Api
 
@@ -232,9 +234,11 @@ async def bangumi_play(ep_id):
             )
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         print(f"[Bangumi] Play Error: {e}")
         return await shared.render_template_with_theme(
-            "error.html", status="番剧加载失败", desc=str(e), suggest="请检查网络或稍后重试。"
+            "error.html", status="番剧加载失败", desc="无法加载番剧信息，请检查网络或稍后重试。", suggest="请检查网络或稍后重试。"
         )
 
     return await shared.render_template_with_theme(

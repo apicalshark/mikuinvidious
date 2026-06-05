@@ -20,7 +20,13 @@ function handleThemeToggle() {
   const newTheme = isDarkTheme ? THEME_LIGHT : THEME_DARK;
   setTheme(newTheme);
   helpers.storage.set(STORAGE_KEY_THEME, newTheme);
-  helpers.xhr("GET", "/toggle_theme?redirect=false", {}, {});
+  
+  // Get CSRF token from meta tag or form
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
+                    document.querySelector('input[name="csrf_token"]')?.value;
+  if (csrfToken) {
+    helpers.xhr("POST", "/toggle_theme", { payload: `csrf_token=${encodeURIComponent(csrfToken)}` }, {});
+  }
 }
 
 if (toggle_theme) toggle_theme.addEventListener("click", handleThemeToggle);
@@ -46,8 +52,9 @@ if (toggle_opencc) {
     const oldVal = helpers.storage.get("opencc") || getCookie("opencc");
     const newVal = oldVal === "1" ? "0" : "1";
     helpers.storage.set("opencc", newVal);
+    const secureFlag = location.protocol === "https:" ? "; Secure" : "";
     document.cookie =
-      "opencc=" + newVal + "; path=/; max-age=" + 3600 * 24 * 365 + "; SameSite=Lax";
+      "opencc=" + newVal + "; path=/; max-age=" + 3600 * 24 * 30 + "; SameSite=Lax" + secureFlag;
     location.reload();
   });
 }
@@ -58,8 +65,9 @@ if (toggle_search_opencc) {
     const oldVal = helpers.storage.get("search_opencc") || getCookie("search_opencc");
     const newVal = oldVal === "1" ? "0" : "1";
     helpers.storage.set("search_opencc", newVal);
+    const secureFlag = location.protocol === "https:" ? "; Secure" : "";
     document.cookie =
-      "search_opencc=" + newVal + "; path=/; max-age=" + 3600 * 24 * 365 + "; SameSite=Lax";
+      "search_opencc=" + newVal + "; path=/; max-age=" + 3600 * 24 * 30 + "; SameSite=Lax" + secureFlag;
     location.reload();
   });
 }
