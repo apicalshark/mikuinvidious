@@ -80,7 +80,8 @@ async def set_hist_id(response):
     if not request.cookies.get("hist_id"):
         hist_id = os.urandom(8).hex()
         # 30 days max-age, rotated on each response if older than 15 days
-        response.set_cookie("hist_id", hist_id, max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=request.is_secure)
+        is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+        response.set_cookie("hist_id", hist_id, max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure)
     return response
 
 
