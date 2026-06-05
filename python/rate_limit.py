@@ -34,11 +34,12 @@ class RateLimiter:
         now = int(time.time())
         window_start = now - window
         redis_key = f"{self.prefix}{key}"
+        member = f"{now}:{time.time_ns()}"
         
         # Use Redis sorted set for sliding window - atomic pipeline
         pipe = self.redis.pipeline()
         # Add current request first
-        pipe.zadd(redis_key, {f"{now}:{time.time_ns()}": now})
+        pipe.zadd(redis_key, {member: now})
         # Remove old entries
         pipe.zremrangebyscore(redis_key, 0, window_start)
         # Count current requests
@@ -50,6 +51,8 @@ class RateLimiter:
         current_count = results[2]
         
         if current_count > limit:
+            # Remove the blocked request to prevent permanent lockout
+            await self.redis.zrem(redis_key, member)
             # Get oldest entry to calculate reset time
             oldest = await self.redis.zrange(redis_key, 0, 0, withscores=True)
             reset_time = int(oldest[0][1]) + window if oldest else now + window
