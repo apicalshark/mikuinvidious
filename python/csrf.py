@@ -46,7 +46,7 @@ async def validate_csrf_token(token: str) -> bool:
     return hmac.compare_digest(session_token, token)
 
 
-async def csrf_protect():
+def csrf_protect():
     """Decorator to protect endpoints with CSRF validation."""
     def decorator(f):
         async def wrapped(*args, **kwargs):

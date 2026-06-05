@@ -69,6 +69,12 @@ async def generate_csp_nonce():
     g.csp_nonce = secrets.token_urlsafe(16)
 
 
+@app.context_processor
+def inject_csp_nonce():
+    """Make CSP nonce available to all templates."""
+    return {"csp_nonce": getattr(g, 'csp_nonce', '')}
+
+
 @app.after_request
 async def set_hist_id(response):
     if not request.cookies.get("hist_id"):
@@ -89,6 +95,31 @@ async def add_security_headers(response):
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if request.is_secure:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+    
+    # Skip CSP for AJAX/fragment requests (they have different nonces)
+    # These are requests made via fetch/XHR that return HTML fragments
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest" or \
+              request.headers.get("Sec-Fetch-Mode") == "fetch" or \
+              request.headers.get("HX-Request") == "true" or \
+              request.path.startswith("/api/component/")
+    
+    # Add CSP header with nonce (skip for AJAX fragment requests)
+    if not is_ajax:
+        csp_nonce = getattr(g, 'csp_nonce', '')
+        if csp_nonce:
+            csp = (
+                "default-src 'self'; "
+                "script-src 'self' 'nonce-{}'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data:; "
+                "media-src 'self' blob:; "
+                "font-src 'self' data:; "
+                "connect-src 'self' wss: https:; "
+                "worker-src 'self' blob:; "
+                "base-uri 'self'; "
+                "form-action 'self';"
+            ).format(csp_nonce)
+            response.headers["Content-Security-Policy"] = csp
     return response
 
 

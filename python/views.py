@@ -32,7 +32,7 @@ from extra import (
     video_get_dash_for_qn,
     video_get_src_for_qn,
 )
-from quart import Response, redirect, request, url_for
+from quart import Response, redirect, request, url_for, g
 from shared import Network, app, appconf, appcred, appredis, render_template_with_theme, safe_json_loads
 from rate_limit import rate_limit, RATE_LIMITS
 
@@ -638,6 +638,10 @@ async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
 @app.route("/api/component/player/<vid>/<int:idx>")
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_player(vid, idx):
+    # Use passed CSP nonce from main page to avoid CSP mismatch
+    passed_nonce = request.args.get("csp_nonce")
+    if passed_nonce:
+        g.csp_nonce = passed_nonce
     v = video.Video(bvid=vid, credential=appcred)
     ep_id = request.args.get("ep_id")
     if ep_id and ep_id.isdigit():
@@ -791,6 +795,10 @@ async def api_component_player(vid, idx):
 @app.route("/api/component/meta/<vid>/<int:idx>")
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_meta(vid, idx):
+    # Use passed CSP nonce from main page to avoid CSP mismatch
+    passed_nonce = request.args.get("csp_nonce")
+    if passed_nonce:
+        g.csp_nonce = passed_nonce
     async def safe_api(coro, timeout=4.0):
         try:
             return await asyncio.wait_for(coro, timeout=timeout)

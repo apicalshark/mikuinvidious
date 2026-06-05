@@ -11,8 +11,9 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Copy application code
 COPY . .
 
-# Create non-root user
-RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser
+# Create non-root user and fix ownership
+RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser \
+    && chown -R appuser:appgroup /app
 USER appuser
 
 # Run the app from the python directory
