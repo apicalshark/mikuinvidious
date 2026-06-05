@@ -310,7 +310,10 @@ if appconf["credential"]["use_cred"]:
                 import base64
                 data = base64.b64decode(value)
                 if len(data) > nacl.secret.SecretBox.NONCE_SIZE:
-                    return decrypt_secret(value)
+                    try:
+                        return decrypt_secret(value)
+                    except Exception as e:
+                        print(f"[Security] Failed to decrypt credential: {e}. Using raw value.")
         except Exception:
             pass
         return value
