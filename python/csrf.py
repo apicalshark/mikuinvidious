@@ -49,6 +49,7 @@ async def validate_csrf_token(token: str) -> bool:
 def csrf_protect():
     """Decorator to protect endpoints with CSRF validation."""
     def decorator(f):
+        @wraps(f)
         async def wrapped(*args, **kwargs):
             if request.method in ("POST", "PUT", "PATCH", "DELETE"):
                 # Check header first (for AJAX), then form
@@ -61,7 +62,6 @@ def csrf_protect():
                     from quart import abort
                     abort(403, description="CSRF token validation failed")
             return await f(*args, **kwargs)
-        wrapped.__name__ = f.__name__
         return wrapped
     return decorator
 
