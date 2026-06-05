@@ -51,10 +51,8 @@ class SecretEncryption:
         """Encrypt a string and return base64-encoded ciphertext."""
         if not plaintext:
             return ""
-        nonce = nacl.utils.random(nacl.secret.SecretBox.NONCE_SIZE)
-        ciphertext = self._box.encrypt(plaintext.encode(), nonce)
-        # Prepend nonce to ciphertext for storage
-        return base64.b64encode(nonce + ciphertext).decode()
+        encrypted = self._box.encrypt(plaintext.encode())
+        return base64.b64encode(encrypted).decode()
     
     def decrypt(self, ciphertext_b64: str) -> str:
         """Decrypt a base64-encoded ciphertext and return plaintext."""
@@ -62,9 +60,7 @@ class SecretEncryption:
             return ""
         try:
             data = base64.b64decode(ciphertext_b64)
-            nonce = data[:nacl.secret.SecretBox.NONCE_SIZE]
-            ciphertext = data[nacl.secret.SecretBox.NONCE_SIZE:]
-            plaintext = self._box.decrypt(ciphertext, nonce)
+            plaintext = self._box.decrypt(data)
             return plaintext.decode()
         except (nacl.exceptions.CryptoError, ValueError) as e:
             raise ValueError(f"Decryption failed: {e}")
