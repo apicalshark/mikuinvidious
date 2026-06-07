@@ -218,6 +218,9 @@ appconf = {
         "password": os.environ.get("REDIS_PASSWORD"),
         "redis_url": os.environ.get("REDIS_URL"),
     },
+    "rate_limit": {
+        "enabled": os.environ.get("RATE_LIMIT_ENABLED", "false").lower() == "true",
+    },
 }
 
 if os.path.exists("config.toml"):

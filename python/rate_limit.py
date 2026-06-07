@@ -16,7 +16,7 @@
 import time
 from functools import wraps
 from quart import request, abort
-from shared import appredis
+from shared import appredis, appconf
 
 
 class RateLimiter:
@@ -102,6 +102,9 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
     def decorator(f):
         @wraps(f)
         async def wrapped(*args, **kwargs):
+            if not appconf["rate_limit"]["enabled"]:
+                return await f(*args, **kwargs)
+            
             # Check exemption
             if exempt_when and await exempt_when(request):
                 return await f(*args, **kwargs)
@@ -133,6 +136,8 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
 
 async def add_rate_limit_headers(response):
     """Add rate limit headers to response."""
+    if not appconf["rate_limit"]["enabled"]:
+        return response
     from quart import g
     if hasattr(g, 'rate_limit_info'):
         info = g.rate_limit_info
