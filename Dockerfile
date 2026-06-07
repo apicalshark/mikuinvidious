@@ -3,6 +3,8 @@ FROM astral/uv:python3.14-alpine
 WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1
+ENV PYTHONMALLOC=malloc
+ENV PYTHONTRACEMALLOC=0
 
 # Install dependencies using the lockfile
 COPY pyproject.toml uv.lock ./
