@@ -184,6 +184,7 @@ appconf = {
         "port": int(os.environ.get("SERVER_PORT", 8888)),
         "secret_key": os.environ.get("QUART_SECRET_KEY"),
         "debug": os.environ.get("QUART_DEBUG", "false").lower() == "true",
+        "monitor_fd": os.environ.get("MONITOR_FD", "false").lower() == "true",
     },
     "display": {"default_theme": "modern"},
     "credential": {

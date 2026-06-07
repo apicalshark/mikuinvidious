@@ -55,7 +55,8 @@ async def monitor_fd():
 
 @app.before_serving
 async def start_background_tasks():
-    app.add_background_task(monitor_fd)
+    if appconf["server"]["monitor_fd"]:
+        app.add_background_task(monitor_fd)
 
 
 @app.after_serving
