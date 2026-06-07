@@ -129,8 +129,8 @@ class Network:
                         proxy=cls.get_proxy(),
                         trust_env=False,
                         http2=False,
-                        timeout=httpx.Timeout(None, connect=15.0, pool=60.0, read=60.0),
-                        limits=httpx.Limits(max_connections=200, max_keepalive_connections=50),
+                        timeout=httpx.Timeout(None, connect=15.0, pool=30.0, read=30.0),
+                        limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
                         follow_redirects=False,
                     )
         return cls._async_client

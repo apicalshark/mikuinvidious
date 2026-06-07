@@ -1,10 +1,8 @@
 import asyncio
 import ipaddress
-import re
 import uuid
 from urllib.parse import urlparse
 
-import httpx
 from live_manager import live_manager
 from quart import Blueprint, Response, abort, request
 from rate_limit import RATE_LIMITS, rate_limit
@@ -16,6 +14,7 @@ from shared import (
     get_common_headers,
     image_limiter,
 )
+from stream import CdnConnection
 
 proxy_bp = Blueprint("proxy", __name__)
 
@@ -36,6 +35,7 @@ async def is_safe_proxy_url(url: str) -> bool:
             ".bilivideo.cn",
             ".bilibili.com",
             ".acgvideo.com",
+            ".akamaized.net",
         ]
 
         if not any(hostname == d.lstrip(".") or hostname.endswith(d) for d in allowed_domains):
@@ -66,7 +66,6 @@ async def render_proxy_pic(req_path):
     async with image_limiter:
         req_path = req_path[11:]
 
-        # Prevent path traversal
         if ".." in req_path or req_path.startswith("/"):
             return Response("Forbidden", status=403)
 
@@ -78,12 +77,10 @@ async def render_proxy_pic(req_path):
         headers = get_common_headers(appconf["bili"]).copy()
 
         client = await Network.get_async_client()
-        resp = None
         try:
             req = client.build_request("GET", url, headers=headers)
-            resp = await client.send(req, stream=True, follow_redirects=True)
+            resp = await client.send(req, follow_redirects=True)
 
-            # Validate Content-Type for images
             content_type = resp.headers.get("content-type", "").lower()
             allowed_image_types = [
                 "image/jpeg", "image/jpg", "image/png", "image/gif",
@@ -93,398 +90,19 @@ async def render_proxy_pic(req_path):
                 print(f"[Proxy] Invalid Content-Type for image: {content_type}")
                 return Response("Forbidden: Invalid content type", status=403)
 
-            proxy_resp = ProxyResponse(
-                resp, status=resp.status_code, url=url, headers=headers, client=client
+            proxy_resp = Response(
+                resp.content,
+                status=resp.status_code,
+                content_type=content_type,
             )
-            # Add basic headers
-            for k, v in resp.headers.items():
-                if k.lower() in ["content-type", "content-length", "etag", "last-modified"]:
-                    proxy_resp.headers[k] = v
-
-            # Transfer ownership: clear resp so finally block doesn't close it
-            response_to_return = proxy_resp
-            resp = None
-            return response_to_return
+            proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
+            return proxy_resp
         except Exception as e:
             print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
-            return Response(str(e), status=502)
-        finally:
-            if resp:
-                await resp.aclose()
+            return Response("Upstream error", status=502)
 
 
-def _parse_client_range_header(client_range):
-    """
-    Parse the browser Range request.
-    Returns (start, end_inclusive_or_none, mode) with mode in full|open|bounded|none.
-    """
-    if not client_range:
-        return 0, None, "none"
 
-    match = re.match(r"bytes\s*=\s*(\d+)\s*-\s*(\d*)", client_range.strip(), re.IGNORECASE)
-    if not match:
-        return 0, None, "none"
-
-    start = int(match.group(1))
-    end_part = match.group(2)
-    if end_part == "":
-        return (0, None, "full") if start == 0 else (start, None, "open")
-    return start, int(end_part), "bounded"
-
-
-def _parse_stream_range(upstream_resp, headers_template):
-    """Derive byte range for CDN stitching and the Content-Range header sent to the browser."""
-    content_range = upstream_resp.headers.get("content-range")
-    client_range = (headers_template or {}).get("range", "").strip()
-    c_start, c_end, c_mode = _parse_client_range_header(client_range)
-
-    start_byte = c_start
-    end_byte = None
-    total_size = None
-
-    if content_range:
-        match = re.match(r"bytes\s+(\d+)-(\d+)(?:/(\d+))?", content_range, re.IGNORECASE)
-        if match:
-            up_start = int(match.group(1))
-            segment_end = int(match.group(2))
-            if match.group(3):
-                total_size = int(match.group(3))
-
-            if c_mode == "bounded":
-                start_byte = c_start
-                end_byte = c_end
-            elif c_mode == "open" and total_size:
-                start_byte = c_start
-                end_byte = total_size - 1
-            elif c_mode in ("full", "none") and total_size:
-                start_byte = 0 if c_mode == "full" else up_start
-                end_byte = total_size - 1
-            else:
-                start_byte = up_start
-                end_byte = segment_end
-    elif upstream_resp.status_code == 200:
-        content_length = upstream_resp.headers.get("content-length")
-        if content_length:
-            try:
-                end_byte = int(content_length) - 1
-                if c_mode == "bounded":
-                    start_byte = c_start
-                    end_byte = min(c_end, end_byte)
-                elif c_mode == "open":
-                    start_byte = c_start
-            except ValueError:
-                pass
-
-    if c_mode == "bounded" and c_end is not None:
-        start_byte = c_start
-        end_byte = c_end
-
-    return start_byte, end_byte, total_size
-
-
-class ProxyResponse(Response):
-    """
-    A specialized Response class that manages the lifetime of an upstream httpx response.
-    Ensures that aclose() is called when the response is finished or closed.
-    Supports transparent retries for unstable upstream connections.
-    """
-
-    def __init__(
-        self,
-        upstream_resp,
-        status=None,
-        url=None,
-        headers=None,
-        cookies=None,
-        client=None,
-        *args,
-        **kwargs,
-    ):
-        self.upstream_resp = upstream_resp
-        self.url = url
-        self.headers_template = headers
-        self.cookies = cookies
-        self.client = client
-        self.stitch_start_byte, self.stitch_end_byte, self.stitch_total_size = _parse_stream_range(
-            upstream_resp, headers
-        )
-
-        # Create a generator that yields from the upstream response
-        # and ensures it's closed when the generator is finished.
-        async def response_generator():
-            curr_resp = self.upstream_resp
-            bytes_yielded = 0
-            start_byte = self.stitch_start_byte
-            end_byte = self.stitch_end_byte
-
-            max_retries = 12
-            retry_count = 0
-            total_reconnects = 0
-            skip_leading = 0
-            # Only reset retry_count after CDN serves a meaningful chunk; tiny drops keep backoff climbing.
-            meaningful_chunk_bytes = 1024 * 1024
-            bytes_since_retry_reset = 0
-
-            try:
-                while True:
-                    try:
-                        bytes_since_retry_reset = 0
-                        async for chunk in curr_resp.aiter_bytes(chunk_size=1024 * 64):
-                            if skip_leading:
-                                if skip_leading >= len(chunk):
-                                    skip_leading -= len(chunk)
-                                    continue
-                                chunk = chunk[skip_leading:]
-                                skip_leading = 0
-                            yield chunk
-                            bytes_yielded += len(chunk)
-                            bytes_since_retry_reset += len(chunk)
-                            if bytes_since_retry_reset >= meaningful_chunk_bytes:
-                                retry_count = 0
-                                bytes_since_retry_reset = 0
-
-                        # If we reached here, the generator finished normally.
-                        # Check if we got all expected bytes (if end_byte is known).
-                        if end_byte is not None:
-                            expected_bytes = end_byte - start_byte + 1
-                            if bytes_yielded < expected_bytes:
-                                # Stream terminated early without exception, treat as protocol error/premature close
-                                raise httpx.RemoteProtocolError(
-                                    f"Connection closed early. Yielded {bytes_yielded} of {expected_bytes} bytes."
-                                )
-                        break
-                    except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout, httpx.ProtocolError) as e:
-                        if not self.client or not self.url:
-                            print(f"[Proxy] Stream error (no retry client/url) after {bytes_yielded} bytes: {repr(e)}")
-                            break
-
-                        expected_bytes = (end_byte - start_byte + 1) if end_byte is not None else None
-                        if expected_bytes is not None and bytes_yielded >= expected_bytes:
-                            break
-
-                        retry_count += 1
-                        total_reconnects += 1
-                        if retry_count > max_retries:
-                            print(f"[Proxy] Max retries reached ({max_retries}) after {bytes_yielded} bytes for {self.url[:60]}...")
-                            break
-
-                        # Only log on consecutive failures (retry_count > 1), not routine CDN drops
-                        if retry_count > 1:
-                            print(f"[Proxy] Consecutive retry ({retry_count}/{max_retries}) after {bytes_yielded} bytes for {self.url[:60]}...")
-
-                        # Calculate new range
-                        next_start = start_byte + bytes_yielded
-                        range_header = f"bytes={next_start}-"
-                        if end_byte is not None:
-                            range_header += str(end_byte)
-
-                        try:
-                            await curr_resp.aclose()
-                        except:
-                            pass
-
-                        # Prepare retry request
-                        retry_headers = (self.headers_template or {}).copy()
-                        retry_headers["range"] = range_header
-
-                        try:
-                            req = self.client.build_request("GET", self.url, headers=retry_headers, cookies=self.cookies)
-                            curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
-
-                            if curr_resp.status_code in [403, 412, 514]:
-                                print(f"[Proxy] Retry failed with status {curr_resp.status_code}. Refreshing ticket and retrying...")
-                                await curr_resp.aclose()
-                                ticket = await TicketManager.get_ticket(force_refresh=True)
-                                if ticket:
-                                    retry_headers["x-bili-ticket"] = ticket
-                                else:
-                                    retry_headers.pop("x-bili-ticket", None)
-                                retry_headers["session_id"] = TicketManager._generate_session_id()
-                                retry_headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-                                req = self.client.build_request("GET", self.url, headers=retry_headers, cookies=self.cookies)
-                                curr_resp = await self.client.send(req, stream=True, follow_redirects=True)
-
-                            if curr_resp.status_code != 206:
-                                print(f"[Proxy] Retry failed: upstream returned status {curr_resp.status_code} instead of 206")
-                                await curr_resp.aclose()
-                                break
-
-                            # Verify that the returned content-range matches next_start
-                            retry_content_range = curr_resp.headers.get("content-range")
-                            retry_skip = 0
-                            if retry_content_range:
-                                r_match = re.match(
-                                    r"bytes\s+(\d+)-(\d+)", retry_content_range, re.IGNORECASE
-                                )
-                                if r_match:
-                                    actual_start = int(r_match.group(1))
-                                    if actual_start > next_start:
-                                        print(
-                                            f"[Proxy] Retry range gap: expected {next_start}, got {actual_start}"
-                                        )
-                                        await curr_resp.aclose()
-                                        break
-                                    if actual_start < next_start:
-                                        retry_skip = next_start - actual_start
-
-                            skip_leading = retry_skip
-                            self.upstream_resp = curr_resp
-                        except Exception as retry_err:
-                            print(f"[Proxy] Retry connection attempt failed: {retry_err}")
-                            break
-                    except (asyncio.CancelledError, GeneratorExit):
-                        raise
-                    except Exception as e:
-                        print(f"[Proxy] Stream unexpected error after {bytes_yielded} bytes: {type(e).__name__}: {e}")
-                        break
-            finally:
-                try:
-                    await curr_resp.aclose()
-                except:
-                    pass
-                if total_reconnects > 0:
-                    print(f"[Proxy] Stream finished: {bytes_yielded} bytes delivered, {total_reconnects} CDN reconnect(s).")
-
-        super().__init__(response_generator(), status=status, *args, **kwargs)
-        self.apply_stitch_range_headers()
-        self.headers["X-Content-Type-Options"] = "nosniff"
-        self.headers["Access-Control-Allow-Origin"] = "*"
-        self.headers["Access-Control-Expose-Headers"] = (
-            "Content-Length, Content-Range, X-Miku-Proxy"
-        )
-        self.headers["X-Accel-Buffering"] = "no"
-
-        # Avoid caching partial content or errors too aggressively
-        if self.status_code == 200:
-            self.headers["Cache-Control"] = "public, max-age=3600"
-        elif self.status_code == 206:
-            self.headers["Cache-Control"] = "no-cache"
-        else:
-            self.headers["Cache-Control"] = "no-store, must-revalidate"
-
-    def apply_stitch_range_headers(self):
-        """Align 206 Content-Range with the full stitched body the generator will deliver."""
-        self.headers.pop("Content-Length", None)
-        if self.stitch_end_byte is None or self.status_code != 206:
-            return
-        total = self.stitch_total_size or (self.stitch_end_byte + 1)
-        self.headers["Content-Range"] = (
-            f"bytes {self.stitch_start_byte}-{self.stitch_end_byte}/{total}"
-        )
-
-    async def aclose(self):
-        """Called by Quart when the response is finished or the client disconnects."""
-        await super().aclose()
-        if self.upstream_resp:
-            await self.upstream_resp.aclose()
-
-
-@proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
-@rate_limit(**RATE_LIMITS["proxy"])
-async def proxy_dash(vid, idx, media_type, qn, cid):
-    url = await appredis.get(f"miku_dash_url_{vid}_{idx}_{media_type}_{qn}_{cid}")
-    if not url:
-        return Response("Not Found", status=404)
-
-    if isinstance(url, bytes):
-        url = url.decode()
-    urlp = urlparse(url)
-
-    if not appconf["proxy"]["use_proxy"]:
-        return Response("Forbidden: Proxying is disabled.", status=403)
-
-    if not await is_safe_proxy_url(url):
-        return Response("Forbidden: Invalid proxy target", status=403)
-
-    creds = appconf["credential"]
-    cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
-
-    headers = get_common_headers(appconf["bili"]).copy()
-
-    # Add Bili-Ticket and dynamic session/trace IDs
-    ticket = await TicketManager.get_ticket()
-    if ticket:
-        headers["x-bili-ticket"] = ticket
-
-    headers["session_id"] = TicketManager._generate_session_id()
-    headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-
-    if appconf["credential"].get("buvid3"):
-        headers["buvid"] = appconf["credential"]["buvid3"]
-    if appconf["credential"].get("buvid4"):
-        headers["buvid4"] = appconf["credential"]["buvid4"]
-
-    # Forward headers from client (crucial for Range requests)
-    for k, v in request.headers.items():
-        if k.lower() in ["range", "if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
-            headers[k.lower()] = v
-
-    client = await Network.get_async_client()
-    resp = None
-    try:
-        proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-        resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-
-        if resp.status_code in [403, 412, 514]:
-            print(f"[Proxy] proxy_dash upstream returned status {resp.status_code}. Refreshing ticket and retrying...")
-            await resp.aclose()
-            ticket = await TicketManager.get_ticket(force_refresh=True)
-            if ticket:
-                headers["x-bili-ticket"] = ticket
-            else:
-                headers.pop("x-bili-ticket", None)
-            headers["session_id"] = TicketManager._generate_session_id()
-            headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-            proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-            resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-
-        proxy_resp = ProxyResponse(
-            resp,
-            status=resp.status_code,
-            url=url,
-            headers=headers,
-            cookies=cookie_jar,
-            client=client,
-        )
-
-        # Ensure cleanup if response is not started
-        try:
-            proxy_resp.call_on_close(resp.aclose)
-        except AttributeError:
-            pass
-
-        for k, v in resp.headers.items():
-            k_lower = k.lower()
-            if k_lower in [
-                "content-type",
-                "content-length",
-                "content-range",
-                "accept-ranges",
-                "etag",
-                "last-modified",
-                "cache-control",
-            ]:
-                if k_lower in ("content-length", "content-range"):
-                    continue
-                proxy_resp.headers[k] = v
-
-        proxy_resp.apply_stitch_range_headers()
-
-        # Only override Content-Type if it's generic or missing, and only for successful media responses
-        if resp.status_code in [200, 206]:
-            current_ct = proxy_resp.headers.get("Content-Type", "").lower()
-            if not current_ct or "application/octet-stream" in current_ct:
-                if media_type == "video":
-                    proxy_resp.headers["Content-Type"] = "video/mp4"
-                else:
-                    proxy_resp.headers["Content-Type"] = "audio/mp4"
-
-        return proxy_resp
-    except Exception as e:
-        print(f"[Proxy] Error in proxy_dash: {e}")
-        if resp:
-            await resp.aclose()
-        return Response(str(e), status=502)
 
 
 @proxy_bp.route("/proxy/<path:subpath>")
@@ -590,19 +208,32 @@ async def proxy_main(subpath):
             proxy_resp.headers["X-Accel-Buffering"] = "no"
             return proxy_resp
 
-        # DIRECT PROXY FOR VOD AND HLS LIVE
-        client = await Network.get_async_client()
-        resp = None
+        # DIRECT PROXY FOR VOD AND HLS LIVE (via raw socket CdnConnection)
+        if cookie_jar:
+            cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_jar.items())
+            existing = headers.get("cookie", "")
+            headers["cookie"] = f"{existing}; {cookie_str}".lstrip("; ") if existing else cookie_str
+
+        proxy_url = Network.get_proxy()
+        conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
 
         try:
-            # Send the request and get the response stream
-            proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-            resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-            print(f"[Proxy] Started direct stream: {url[:50]}... Status: {resp.status_code}")
+            await conn.connect()
+            await conn.send_request()
+            resp_headers = await conn.read_response_headers()
+            print(f"[Proxy] Connected: {url[:50]}... Status: {resp_headers.status_code}")
 
-            if resp.status_code in [403, 412, 514]:
-                print(f"[Proxy] Direct stream failed with status {resp.status_code}. Refreshing ticket and retrying...")
-                await resp.aclose()
+            if resp_headers.status_code in [403, 412, 514]:
+                # Read response body for debugging
+                try:
+                    debug_body = await asyncio.wait_for(
+                        conn._reader.read(2048), timeout=5.0
+                    )
+                    print(f"[Proxy] CDN {resp_headers.status_code} body: {debug_body[:500]}")
+                except Exception:
+                    pass
+                print(f"[Proxy] CDN returned {resp_headers.status_code}. Refreshing ticket and retrying...")
+                await conn.close()
                 ticket = await TicketManager.get_ticket(force_refresh=True)
                 if ticket:
                     headers["x-bili-ticket"] = ticket
@@ -610,41 +241,103 @@ async def proxy_main(subpath):
                     headers.pop("x-bili-ticket", None)
                 headers["session_id"] = TicketManager._generate_session_id()
                 headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-                proxy_request = client.build_request("GET", url, headers=headers, cookies=cookie_jar)
-                resp = await client.send(proxy_request, stream=True, follow_redirects=True)
-                print(f"[Proxy] Retried direct stream after ticket refresh: {url[:50]}... Status: {resp.status_code}")
+                conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
+                await conn.connect()
+                await conn.send_request()
+                resp_headers = await conn.read_response_headers()
+                print(f"[Proxy] Retry status: {resp_headers.status_code}")
 
-            proxy_resp = ProxyResponse(
-                resp,
-                status=resp.status_code,
-                url=url,
-                headers=headers,
-                cookies=cookie_jar,
-                client=client,
+            # If still 403 after retry, try backup URL, then lower qualities, then expire cache
+            if resp_headers.status_code in [403, 412, 514] and not is_live:
+                await conn.close()
+
+                async def try_url(try_url: str, label: str) -> tuple:
+                    c = CdnConnection(try_url, headers=headers, proxy_url=proxy_url)
+                    try:
+                        await c.connect()
+                        await c.send_request()
+                        rh = await c.read_response_headers()
+                        if rh.status_code not in [403, 412, 514]:
+                            print(f"[Proxy] {label} succeeded ({rh.status_code})")
+                            return c, rh
+                        await c.close()
+                    except Exception as e:
+                        print(f"[Proxy] {label} failed: {e}")
+                        await c.close()
+                    return None, None
+
+                # CDN URL is stale — delete it so the backend re-fetches
+                await appredis.delete(f"mikuinv_{vid}_{vidx}_{vqn}")
+                print(f"[Proxy] Deleted stale CDN URL for qn={vqn}")
+
+                # 1) Try backup URL for current quality
+                bak_key = f"mikuinv_{vid}_{vidx}_{vqn}_bak"
+                bak_url = await appredis.get(bak_key)
+                if bak_url:
+                    bak_url = bak_url.decode() if isinstance(bak_url, bytes) else bak_url
+                    bak_conn, bak_rh = await try_url(bak_url, f"backup qn={vqn}")
+                    if bak_conn:
+                        conn, resp_headers = bak_conn, bak_rh
+                    else:
+                        await appredis.delete(bak_key)
+
+                # 2) If backup also failed, try lower quality URLs from Redis
+                if resp_headers.status_code in [403, 412, 514]:
+                    print(f"[Proxy] Backup also failed, trying lower qualities...")
+                    QUALITY_ORDER = [64, 32, 16]
+                    current_qn = int(vqn)
+                    fallback_url = None
+                    for fq in QUALITY_ORDER:
+                        if fq >= current_qn:
+                            continue
+                        fu = await appredis.get(f"mikuinv_{vid}_{vidx}_{fq}")
+                        if not fu:
+                            continue
+                        fu = fu.decode() if isinstance(fu, bytes) else fu
+                        fq_conn, fq_rh = await try_url(fu, f"qn={fq} primary")
+                        if fq_conn:
+                            conn, resp_headers = fq_conn, fq_rh
+                            fallback_url = fu
+                            break
+                        # Try backup URL for this quality
+                        fq_bak = await appredis.get(f"mikuinv_{vid}_{vidx}_{fq}_bak")
+                        if fq_bak:
+                            fq_bak = fq_bak.decode() if isinstance(fq_bak, bytes) else fq_bak
+                            fq_conn2, fq_rh2 = await try_url(fq_bak, f"qn={fq} backup")
+                            if fq_conn2:
+                                conn, resp_headers = fq_conn2, fq_rh2
+                                fallback_url = fq_bak
+                                break
+                    if not fallback_url:
+                        print(f"[Proxy] All quality fallbacks failed for {vid}_{vidx}")
+                        return Response("Upstream returned 403 and no fallback available", status=502)
+
+            async def generate():
+                try:
+                    async for chunk in conn.iter_chunks():
+                        yield chunk
+                finally:
+                    await conn.close()
+
+            proxy_resp = Response(
+                generate(),
+                status=resp_headers.status_code,
             )
-
-            # Ensure cleanup if response is not started
-            try:
-                proxy_resp.call_on_close(resp.aclose)
-            except AttributeError:
-                pass
+            proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+            proxy_resp.headers["X-Accel-Buffering"] = "no"
 
             if request.args.get("dl") == "1" and not is_live:
-                # Ensure filename is safe (alphanumeric + underscores)
                 safe_vid = "".join(c for c in vid if c.isalnum() or c == "_")
                 proxy_resp.headers["Content-Disposition"] = f'attachment; filename="miku_{safe_vid}_p{vidx}_{vqn}.mp4"'
 
-            # Set appropriate content type headers for live streams
             if is_live:
-                proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
                 if ".m3u8" in url:
                     proxy_resp.headers["Content-Type"] = "application/x-mpegURL"
                 else:
                     proxy_resp.headers["Content-Type"] = "video/x-flv"
 
-            for k, v in resp.headers.items():
-                k_lower = k.lower()
-                if k_lower in [
+            for k, v in resp_headers.headers.items():
+                if k in [
                     "content-type",
                     "content-length",
                     "content-range",
@@ -653,19 +346,13 @@ async def proxy_main(subpath):
                     "last-modified",
                     "cache-control",
                 ]:
-                    if is_live and k_lower in ["content-type", "connection"]:
-                        continue
-                    if k_lower in ("content-length", "content-range"):
+                    if is_live and k in ["content-type", "connection"]:
                         continue
                     proxy_resp.headers[k] = v
 
-            proxy_resp.apply_stitch_range_headers()
-
-            # Only override Content-Type if it's generic or missing
-            if resp.status_code in [200, 206] and not is_live:
+            if resp_headers.status_code in [200, 206] and not is_live:
                 current_ct = proxy_resp.headers.get("Content-Type", "").lower()
                 if not current_ct or "application/octet-stream" in current_ct:
-                    # Guess based on extension or default to video/mp4 for VOD
                     if ".mp4" in url.lower():
                         proxy_resp.headers["Content-Type"] = "video/mp4"
                     elif ".flv" in url.lower():
@@ -674,9 +361,8 @@ async def proxy_main(subpath):
             return proxy_resp
         except Exception as e:
             print(f"[Proxy] Error proxying {url}: {e}")
-            if resp:
-                await resp.aclose()
-            return Response(str(e), status=502)
+            await conn.close()
+            return Response("Upstream error", status=502)
 
     elif req_path.startswith("/proxy/pic/"):
         return await render_proxy_pic(req_path)
