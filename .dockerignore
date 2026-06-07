@@ -1,7 +1,54 @@
+# Python/Build artifacts
 .venv
 __pycache__
-.git
+*.pyc
+*.pyo
+*.pyd
 .ruff_cache
-config.toml
-*.rdb
-node_modules
+.pytest_cache
+.mypy_cache
+*.egg-info
+dist
+build
+
+# Sensitive config files (secrets, local overrides)
+Caddyfile
+Caddyfile*
+caddy.*
+compose.yml
+compose.override.yml
+
+# IDE/Editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Logs
+*.log
+logs/
+
+# Testing
+.coverage
+coverage/
+htmlcov/
+.tox
+
+# Project-specific (not needed at runtime)
+.understand-anything
+GEMINI.md
+README.md
+LICENSE
+COPYING
+doc/
+tools/
+tests/
