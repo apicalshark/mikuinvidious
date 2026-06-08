@@ -64,6 +64,8 @@ async def _socks5_handshake(writer, reader, target_host, target_port, timeout):
         await asyncio.wait_for(reader.readexactly(dlen + 2), timeout=timeout)
     elif atype == 4:
         await asyncio.wait_for(reader.readexactly(18), timeout=timeout)
+    else:
+        raise CdnConnectError(f"SOCKS5: unknown address type {atype}")
 
 
 async def _http_connect_tunnel(writer, reader, target_host, target_port, timeout):
@@ -84,7 +86,9 @@ async def _http_connect_tunnel(writer, reader, target_host, target_port, timeout
         raise CdnConnectError(f"HTTP CONNECT failed: {line.decode(errors='replace').strip()}")
     while True:
         hline = await asyncio.wait_for(_read_line(reader), timeout=timeout)
-        if hline in (b"\r\n", b"\n", b""):
+        if hline == b"":
+            raise CdnProtocolError("HTTP CONNECT connection closed prematurely")
+        if hline in (b"\r\n", b"\n"):
             break
 
 
@@ -164,7 +168,7 @@ class CdnConnection:
         headers = {k.lower(): v for k, v in self._headers.items()}
         headers.setdefault("host", self._host)
         headers.setdefault("accept", "*/*")
-        headers.setdefault("accept-encoding", "gzip, deflate, br")
+        headers.setdefault("accept-encoding", "identity")
         headers.setdefault("connection", "keep-alive")
 
         req_line = f"GET {self._path} HTTP/1.1\r\n".encode()
@@ -209,7 +213,10 @@ class CdnConnection:
         content_length = self._response.headers.get("content-length")
 
         if content_length:
-            remaining = int(content_length)
+            try:
+                remaining = int(content_length)
+            except ValueError:
+                raise CdnProtocolError(f"Invalid Content-Length: {content_length!r}")
             while remaining > 0:
                 try:
                     chunk = await asyncio.wait_for(
@@ -230,7 +237,7 @@ class CdnConnection:
                 line = await asyncio.wait_for(_read_line(self._reader), timeout=self._read_timeout)
                 if line == b"":
                     raise CdnProtocolError("Connection closed prematurely before receiving final chunk")
-                hex_len = line.strip()
+                hex_len = line.strip().split(b";")[0]
                 if not hex_len:
                     continue
                 try:

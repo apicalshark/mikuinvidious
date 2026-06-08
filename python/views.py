@@ -562,7 +562,7 @@ async def api_component_player(vid, idx):
 
         try:
             data = await asyncio.wait_for(video_get_src_for_qn(v, idx, ep_id=ep_id), timeout=4.0)
-            if data and "durl" in data:
+            if data and "durl" in data and data["durl"]:
                 url = data["durl"][0]["url"]
                 qn = data.get("quality", 16)
                 ext = (".flv" if ".flv" in url.lower() else ".mp4")
@@ -582,7 +582,7 @@ async def api_component_player(vid, idx):
                             res_high = await asyncio.wait_for(
                                 video_get_src_for_qn(v, idx, first_qn, ep_id=ep_id), timeout=4.0
                             )
-                            if "durl" in res_high:
+                            if "durl" in res_high and res_high["durl"]:
                                 await appredis.setex(
                                     f"mikuinv_{vid}_{idx}_{first_qn}", 1800, res_high["durl"][0]["url"]
                                 )
@@ -604,7 +604,7 @@ async def api_component_player(vid, idx):
                             res_qn = await asyncio.wait_for(
                                 video_get_src_for_qn(v, idx, sf_qn, ep_id=ep_id), timeout=4.0
                             )
-                            if "durl" in res_qn:
+                            if "durl" in res_qn and res_qn["durl"]:
                                 await appredis.setex(
                                     f"mikuinv_{vid}_{idx}_{sf_qn}", 1800, res_qn["durl"][0]["url"]
                                 )
