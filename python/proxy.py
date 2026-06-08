@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 
 from live_manager import live_manager
 from quart import Blueprint, Response, abort, request
+from stream import CdnProtocolError, CdnTimeoutError
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import (
     Network,
@@ -318,6 +319,8 @@ async def proxy_main(subpath):
                 try:
                     async for chunk in conn.iter_chunks():
                         yield chunk
+                except (CdnProtocolError, CdnTimeoutError):
+                    pass
                 finally:
                     await conn.close()
 
