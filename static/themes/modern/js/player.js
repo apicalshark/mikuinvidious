@@ -460,7 +460,7 @@ class VodBufferController {
       this.stuckDuration += this.CHECK_INTERVAL_MS;
 
       // If stuck for a long time, trigger recovery (skip while another recovery is active).
-      if (this.stuckDuration >= 30000) {
+      if (this.stuckDuration >= 15000) {
         if (window.isNativeRecovering || this.video.error) {
           return;
         }
@@ -471,7 +471,7 @@ class VodBufferController {
 
         if (window.vodManager) {
           window.vodManager.reconnect();
-        } else if (!window.dashPlayer && !window.hls) {
+        } else if (!window.hls) {
           triggerNativeRecovery(this.video);
         }
       }
@@ -525,31 +525,6 @@ async function initMikuPlayer() {
   const playerStartTime = performance.now();
   if (window.is_live) {
     setupLivePlayer(video, qualityList, label);
-  } else if (window.has_dash) {
-    const mpdUrl = `/video/dash/${window.current_vid}/${window.idx}/manifest.mpd`;
-    console.log("[Player] Initializing VOD with dash.js:", mpdUrl);
-
-    const player = dashjs.MediaPlayer().create();
-    player.initialize(video, mpdUrl, true);
-    window.dashPlayer = player;
-
-    // Handle autoplay block
-    video.play().catch((error) => {
-      if (error.name === "NotAllowedError") {
-        showAutoplayOverlay(video);
-      }
-    });
-
-    player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
-      console.log(`[Player] DASH ready in ${(performance.now() - playerStartTime).toFixed(2)}ms`);
-      updateVodDashQualityMenu(player, qualityList, label);
-    });
-
-    player.on(dashjs.MediaPlayer.events.ERROR, (e) => {
-      console.error("[Player] DASH Error:", e);
-    });
-
-    setupAutoNext(video);
   } else {
     setupVodQuality(video, qualityList, label);
     setupAutoNext(video);
@@ -572,7 +547,7 @@ async function initMikuPlayer() {
   // 2.5. Buffer Controller for VOD (DASH, FLV, and progressive MP4)
   if (!window.is_live) {
     const src = video.src || "";
-    const isNativeMp4 = !window.has_dash && !src.includes(".flv");
+    const isNativeMp4 = !src.includes(".flv");
     const minBuffer = isNativeMp4 ? 4.0 : 1.5;
     window.vodBufferController = new VodBufferController(video, minBuffer);
     window.vodBufferController.start();
@@ -588,7 +563,7 @@ async function initMikuPlayer() {
   }
 
   // 4. Global Error Recovery for Native Player (MP4/Progressive)
-  if (!window.vodManager && !window.dashPlayer && !window.hls) {
+  if (!window.vodManager && !window.hls) {
     video.onerror = () => {
       const err = video.error;
       if (!err || window.isNativeRecovering) return;
@@ -838,67 +813,6 @@ function setupLivePlayer(video, list, label) {
   window.isSettingUp = false;
 }
 
-function updateVodDashQualityMenu(player, list, label) {
-  if (!list) return;
-  list.innerHTML = "";
-
-  const bitrates = player.getBitrateInfoListFor("video");
-  if (!bitrates) return;
-
-  // Auto option
-  const autoBtn = createOption(
-    "自动",
-    -1,
-    () => {
-      player.updateSettings({
-        streaming: {
-          abr: {
-            autoSwitchBitrate: {
-              video: true,
-            },
-          },
-        },
-      });
-      if (label) label.innerText = "自动";
-    },
-    list
-  );
-  if (player.getSettings().streaming.abr.autoSwitchBitrate.video) {
-    autoBtn.classList.add("active");
-  }
-  list.appendChild(autoBtn);
-
-  // Specific bitrates
-  bitrates.forEach((info) => {
-    // Info.id looks like "video_80_7"
-    const parts = info.id ? info.id.split("_") : [];
-    const qn = parts.length > 1 ? parseInt(parts[1]) : -1;
-
-    // Try to find matching description from window.supported_src
-    const matched = window.supported_src.find((s) => s.quality === qn);
-    const name = matched ? matched.new_description : `${info.height}p`;
-
-    const btn = createOption(
-      name,
-      info.bitrateIndex,
-      () => {
-        player.updateSettings({
-          streaming: {
-            abr: {
-              autoSwitchBitrate: {
-                video: false,
-              },
-            },
-          },
-        });
-        player.setQualityFor("video", info.bitrateIndex);
-        if (label) label.innerText = name;
-      },
-      list
-    );
-    list.appendChild(btn);
-  });
-}
 
 function updateVodHlsQualityMenu(hls, list, label) {
   if (!list) return;
