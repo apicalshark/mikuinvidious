@@ -76,7 +76,10 @@ async def _http_connect_tunnel(writer, reader, target_host, target_port, timeout
     writer.write(req)
     await asyncio.wait_for(writer.drain(), timeout=timeout)
     line = await asyncio.wait_for(_read_line(reader), timeout=timeout)
-    status = int(line.split(b" ")[1])
+    try:
+        status = int(line.split(b" ")[1])
+    except (ValueError, IndexError):
+        raise CdnProtocolError(f"Bad HTTP CONNECT status line: {line!r}")
     if status != 200:
         raise CdnConnectError(f"HTTP CONNECT failed: {line.decode(errors='replace').strip()}")
     while True:
@@ -86,13 +89,7 @@ async def _http_connect_tunnel(writer, reader, target_host, target_port, timeout
 
 
 async def _read_line(reader):
-    buf = b""
-    while True:
-        ch = await reader.readexactly(1)
-        buf += ch
-        if ch == b"\n":
-            break
-    return buf
+    return await reader.readline()
 
 
 class CdnResponse:
@@ -187,7 +184,10 @@ class CdnConnection:
         if len(parts) < 2:
             raise CdnProtocolError(f"Bad status line: {status_line!r}")
         resp.http_version = parts[0].decode()
-        resp.status_code = int(parts[1])
+        try:
+            resp.status_code = int(parts[1])
+        except ValueError:
+            raise CdnProtocolError(f"Bad status code: {parts[1]!r}")
         resp.reason = parts[2].decode(errors="replace") if len(parts) > 2 else ""
 
         while True:
@@ -217,7 +217,7 @@ class CdnConnection:
                 except asyncio.TimeoutError:
                     raise CdnTimeoutError(f"Read timeout after {remaining} bytes remaining")
                 if not chunk:
-                    break
+                    raise CdnProtocolError("Upstream connection closed prematurely")
                 remaining -= len(chunk)
                 yield chunk
             return
@@ -232,7 +232,7 @@ class CdnConnection:
                 try:
                     chunk_size = int(hex_len, 16)
                 except ValueError:
-                    break
+                    raise CdnProtocolError(f"Bad chunk size: {hex_len!r}")
                 if chunk_size == 0:
                     await asyncio.wait_for(_read_line(self._reader), timeout=self._read_timeout)
                     break

@@ -285,7 +285,11 @@ async def proxy_main(subpath):
                 if resp_headers.status_code in [403, 412, 514]:
                     print(f"[Proxy] Backup also failed, trying lower qualities...")
                     QUALITY_ORDER = [64, 32, 16]
-                    current_qn = int(vqn)
+                    try:
+                        current_qn = int(vqn)
+                    except (ValueError, TypeError):
+                        print(f"[Proxy] Bad vqn: {vqn!r}")
+                        return web.Response(status=502, body=b"Bad quality parameter")
                     fallback_url = None
                     for fq in QUALITY_ORDER:
                         if fq >= current_qn:
