@@ -142,16 +142,10 @@ class CdnConnection:
 
             if self._use_tls:
                 ctx = ssl.create_default_context()
-                transport, protocol = await asyncio.wait_for(
-                    asyncio.start_tls(
-                        transport=self._writer.transport,
-                        protocol=self._writer.transport.get_protocol(),
-                        sslcontext=ctx,
-                        server_hostname=self._host,
-                    ),
+                await asyncio.wait_for(
+                    self._writer.start_tls(ctx, server_hostname=self._host),
                     timeout=self._connect_timeout,
                 )
-                self._writer = asyncio.StreamWriter(transport, protocol, self._reader, asyncio.get_running_loop())
         else:
             ctx = ssl.create_default_context() if self._use_tls else None
             self._reader, self._writer = await asyncio.wait_for(
