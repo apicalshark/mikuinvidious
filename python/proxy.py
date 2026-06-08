@@ -226,9 +226,7 @@ async def proxy_main(subpath):
             if resp_headers.status_code in [403, 412, 514]:
                 # Read response body for debugging
                 try:
-                    debug_body = await asyncio.wait_for(
-                        conn._reader.read(2048), timeout=5.0
-                    )
+                    debug_body = await conn.read_debug_body()
                     print(f"[Proxy] CDN {resp_headers.status_code} body: {debug_body[:500]}")
                 except Exception:
                     pass

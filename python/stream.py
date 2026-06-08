@@ -272,6 +272,12 @@ class CdnConnection:
                 break
             yield chunk
 
+    async def read_debug_body(self, max_bytes: int = 2048, timeout: float = 5.0) -> bytes:
+        try:
+            return await asyncio.wait_for(self._reader.read(max_bytes), timeout=timeout)
+        except asyncio.TimeoutError:
+            return b""
+
     async def close(self):
         if self._writer:
             try:
