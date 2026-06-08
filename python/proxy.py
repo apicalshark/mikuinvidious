@@ -289,7 +289,7 @@ async def proxy_main(subpath):
                         current_qn = int(vqn)
                     except (ValueError, TypeError):
                         print(f"[Proxy] Bad vqn: {vqn!r}")
-                        return web.Response(status=502, body=b"Bad quality parameter")
+                        return Response("Bad quality parameter", status=502)
                     fallback_url = None
                     for fq in QUALITY_ORDER:
                         if fq >= current_qn:

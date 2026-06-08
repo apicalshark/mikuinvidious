@@ -17,6 +17,8 @@ import asyncio
 import os
 import re
 
+_background_tasks = set()
+
 import orjson
 import transformers
 from bilibili_api import article, audio, comment, homepage, live, live_area, opus, search, user, video, video_zone
@@ -775,7 +777,9 @@ async def video_view(vid, idx=0):
             except Exception as e:
                 print(f"[Video] Pre-cache durl failed for {vid}: {e}")
 
-        asyncio.create_task(precache_durl())
+        task = asyncio.create_task(precache_durl())
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
 
     vcomments = {"page": {"count": 0}, "replies": []}
     supported_src = []

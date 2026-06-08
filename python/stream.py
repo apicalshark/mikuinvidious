@@ -32,7 +32,7 @@ def _parse_cdn_url(url):
     use_tls = parsed.scheme.lower() == "https"
     if not port:
         port = 443 if use_tls else 80
-    path = parsed.path
+    path = parsed.path or "/"
     if parsed.query:
         path += "?" + parsed.query
     return host, port, path, use_tls
@@ -141,7 +141,7 @@ class CdnConnection:
                 transport, protocol = await asyncio.wait_for(
                     asyncio.start_tls(
                         transport=self._writer.transport,
-                        protocol=self._writer.protocol,
+                        protocol=self._writer.transport.get_protocol(),
                         sslcontext=ctx,
                         server_hostname=self._host,
                     ),
@@ -192,7 +192,9 @@ class CdnConnection:
 
         while True:
             hline = await asyncio.wait_for(_read_line(self._reader), timeout=self._read_timeout)
-            if hline in (b"\r\n", b"\n", b""):
+            if hline == b"":
+                raise CdnProtocolError("Connection closed while reading headers")
+            if hline in (b"\r\n", b"\n"):
                 break
             colon = hline.find(b":")
             if colon > 0:
@@ -226,9 +228,11 @@ class CdnConnection:
         if transfer_encoding == "chunked":
             while True:
                 line = await asyncio.wait_for(_read_line(self._reader), timeout=self._read_timeout)
+                if line == b"":
+                    raise CdnProtocolError("Connection closed prematurely before receiving final chunk")
                 hex_len = line.strip()
                 if not hex_len:
-                    break
+                    continue
                 try:
                     chunk_size = int(hex_len, 16)
                 except ValueError:
