@@ -294,7 +294,7 @@ class VodStreamManager {
       const onLoaded = () => {
         console.log("[VodManager] Recovery successful, seeking to:", currentTime.toFixed(2));
         this.video.currentTime = currentTime;
-        this.video.play().catch(() => {});
+        this.video.play().catch(() => { });
         this.video.removeEventListener("loadedmetadata", onLoaded);
       };
       this.video.addEventListener("loadedmetadata", onLoaded);
@@ -383,7 +383,7 @@ async function triggerNativeRecovery(video) {
 
   const onLoaded = () => {
     const onSeeked = () => {
-      video.play().catch(() => {});
+      video.play().catch(() => { });
       finish("[Player] Native recovery successful.");
     };
     video.addEventListener("seeked", onSeeked, { once: true });
@@ -391,7 +391,7 @@ async function triggerNativeRecovery(video) {
     setTimeout(() => {
       if (!window.isNativeRecovering) return;
       video.removeEventListener("seeked", onSeeked);
-      video.play().catch(() => {});
+      video.play().catch(() => { });
       finish("[Player] Native recovery successful (seek timeout).");
     }, 2000);
   };
@@ -529,13 +529,23 @@ async function initMikuPlayer() {
     setupVodQuality(video, qualityList, label);
     setupAutoNext(video);
 
-    // Handle FLV VODs with dedicated manager
     const currentSrc = video.src;
+    const flvSrc = window.supported_src?.find(s => s.ext === ".flv");
+
     if (currentSrc.includes(".flv") && mpegts.isSupported()) {
+      // Already on FLV
       window.vodManager = new VodStreamManager(video, currentSrc);
       window.vodManager.init();
+    } else if (flvSrc && mpegts.isSupported() && !video._flvFallbackTried) {
+      // MP4 is the current src but FLV is available — prefer it to avoid
+      // Firefox's H.264 ConvertSampleToAVCC decode errors on Bilibili streams
+      video._flvFallbackTried = true;
+      const flvUrl = `/proxy/video/${window.current_vid}_${window.idx}_${flvSrc.quality}.flv`;
+      console.log("[Player] Preferring FLV over MP4 to avoid H264 decode issues:", flvUrl);
+      video.src = flvUrl;
+      window.vodManager = new VodStreamManager(video, flvUrl);
+      window.vodManager.init();
     } else {
-      // Native HTML5 video play check
       video.play().catch((error) => {
         if (error.name === "NotAllowedError") {
           showAutoplayOverlay(video);
@@ -576,7 +586,7 @@ async function initMikuPlayer() {
         if (!video._decodeSeekTried && video.currentTime > 1) {
           video._decodeSeekTried = true;
           video.currentTime = Math.max(0, video.currentTime - 2);
-          video.play().catch(() => {});
+          video.play().catch(() => { });
         }
         return;
       }
@@ -673,10 +683,10 @@ function initDanmaku(video, container, controller) {
     });
 
     window.dm_status = true;
-    
+
     // Explicitly start danmaku if media is not paused
     if (!video.paused) {
-        window.dm.show();
+      window.dm.show();
     }
 
     const updateSize = () => {
@@ -771,7 +781,7 @@ function setupLivePlayer(video, list, label) {
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         updateLiveQualityMenu(video, hls, null, list, label, true);
-        video.play().catch(() => {});
+        video.play().catch(() => { });
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
@@ -802,7 +812,7 @@ function setupLivePlayer(video, list, label) {
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = liveUrl;
       video.addEventListener("loadedmetadata", () => {
-        video.play().catch(() => {});
+        video.play().catch(() => { });
       });
     }
   } else if (mpegts.isSupported()) {
@@ -900,11 +910,11 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
             // HLS handled above, but for consistency:
             video.src = newUrl;
             video.load();
-            video.play().catch(() => {});
+            video.play().catch(() => { });
           } else {
             video.src = newUrl;
             video.load();
-            video.play().catch(() => {});
+            video.play().catch(() => { });
           }
         },
         list
@@ -955,7 +965,7 @@ function setupVodQuality(video, list, label) {
 
         const onLoaded = () => {
           video.currentTime = time;
-          if (!paused) video.play().catch(() => {});
+          if (!paused) video.play().catch(() => { });
           video.removeEventListener("loadedmetadata", onLoaded);
         };
         video.addEventListener("loadedmetadata", onLoaded);
