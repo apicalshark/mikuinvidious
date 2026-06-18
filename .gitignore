@@ -9,6 +9,7 @@ node_modules/
 .ruff_cache
 *.old
 logs/caddy/access.log
+logs/
 Caddyfile
 
 ssl/
