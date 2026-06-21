@@ -254,7 +254,14 @@ async def space_view(mid):
 @app.route("/space/<mid>/json")
 async def space_json_feed(mid):
     u = user.User(mid, credential=appcred)
-    uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=1, ps=30))
+    try:
+        uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=1, ps=30))
+    except Exception as e:
+        return Response(
+            orjson.dumps({"error": str(e)}),
+            status=502,
+            content_type="application/json",
+        )
 
     site_url = appconf["site"]["site_url"]
     feed_url = f"{site_url}/space/{mid}/json"
