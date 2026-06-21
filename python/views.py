@@ -262,6 +262,12 @@ async def space_json_feed(mid):
             status=502,
             content_type="application/json",
         )
+    if not isinstance(uinfo, dict) or not isinstance(uvids, dict):
+        return Response(
+            orjson.dumps({"error": "Unexpected response format from Bilibili API"}),
+            status=502,
+            content_type="application/json",
+        )
 
     site_url = appconf["site"]["site_url"]
     feed_url = f"{site_url}/space/{mid}/json"
