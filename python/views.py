@@ -285,7 +285,7 @@ async def space_json_feed(mid):
         "items": items,
     }
 
-    return Response(orjson.dumps(feed).decode("utf-8"), status=200, content_type="application/feed+json")
+    return Response(orjson.dumps(feed), status=200, content_type="application/feed+json")
 
 
 @app.route("/author/<mid>")
