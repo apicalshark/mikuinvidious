@@ -1,7 +1,7 @@
 quart>=0.20.0
 quart-session>=3.0.0
 werkzeug>=3.1.4
-bilibili-api-python>=17.4.1
+bilibili-api-python>=17.4.2
 beautifulsoup4>=4.14.3
 httpx>=0.28.1
 aiohttp>=3.13.2
