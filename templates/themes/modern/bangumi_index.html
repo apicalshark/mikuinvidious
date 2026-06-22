@@ -46,8 +46,8 @@
             {% for f in filter_meta %}
                 <div class="flex flex-col gap-1.5 relative">
                     <label class="px-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/40">{{ f['title'] }}</label>
-                    <select onchange="updateFilter('{{ f['key'] }}', this.value)"
-                            class="w-full bg-surface-variant/30 dark:bg-black/40 hover:bg-surface-variant/50 rounded-xl text-xs font-bold text-on-surface dark:text-white py-2.5 px-3 transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-primary/40 appearance-none">
+                    <select data-key="{{ f['key'] }}"
+                            class="bangumi-filter w-full bg-surface-variant/30 dark:bg-black/40 hover:bg-surface-variant/50 rounded-xl text-xs font-bold text-on-surface dark:text-white py-2.5 px-3 transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-primary/40 appearance-none">
                         {% for opt in f['list'] %}
                             <option value="{{ opt['value'] }}" {{ 'selected' if current_filters[f['key']]|string == opt['value']|string }} class="bg-surface dark:bg-[#1d1d1d] text-on-surface dark:text-white">
                                 {{ opt['name'] }}
@@ -63,8 +63,8 @@
             <!-- Sort Filter -->
             <div class="flex flex-col gap-1.5 relative">
                 <label class="px-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/40">{{ '排序' }}</label>
-                <select onchange="updateFilter('order', this.value)"
-                        class="w-full bg-surface-variant/30 dark:bg-black/40 hover:bg-surface-variant/50 rounded-xl text-xs font-bold text-on-surface dark:text-white py-2.5 px-3 transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-primary/40 appearance-none">
+                <select data-key="order"
+                        class="bangumi-filter w-full bg-surface-variant/30 dark:bg-black/40 hover:bg-surface-variant/50 rounded-xl text-xs font-bold text-on-surface dark:text-white py-2.5 px-3 transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-primary/40 appearance-none">
                     {% for o in order_meta %}
                         <option value="{{ o['key'] }}" {{ 'selected' if current_order == o['key'] }} class="bg-surface dark:bg-[#1d1d1d] text-on-surface dark:text-white">
                             {{ o['title'] }}
@@ -112,23 +112,32 @@
     <!-- Pagination -->
     <div class="mt-10 flex items-center justify-center gap-4">
         {% if page > 1 %}
-            <button onclick="updateFilter('page', {{ page - 1 }})" class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
+            <button data-key="page" data-value="{{ page - 1 }}" class="bangumi-page px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
                 <i class="icon ion-ios-arrow-back"></i> {{ '上一页' }}
             </button>
         {% endif %}
         {% if has_next %}
-            <button onclick="updateFilter('page', {{ page + 1 }})" class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
+            <button data-key="page" data-value="{{ page + 1 }}" class="bangumi-page px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
                 {{ '下一页' }} <i class="icon ion-ios-arrow-forward"></i>
             </button>
         {% endif %}
     </div>
 
     <script nonce="{{ csp_nonce }}">
-        function updateFilter(key, value) {
-            const url = new URL(window.location.href);
-            url.searchParams.set(key, value);
-            if (key === 'type' || key.includes('_id')) url.searchParams.delete('page');
-            window.location.href = url.toString();
-        }
+        document.querySelectorAll('.bangumi-filter').forEach(function(el) {
+            el.addEventListener('change', function() {
+                var url = new URL(window.location.href);
+                url.searchParams.set(el.dataset.key, el.value);
+                if (url.searchParams.has('page')) url.searchParams.delete('page');
+                window.location.href = url.toString();
+            });
+        });
+        document.querySelectorAll('.bangumi-page').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var url = new URL(window.location.href);
+                url.searchParams.set(el.dataset.key, el.dataset.value);
+                window.location.href = url.toString();
+            });
+        });
     </script>
 {% endblock %}

@@ -9,13 +9,13 @@
         <div class="flex flex-wrap gap-2">
             <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">{{ '搜索类别：' }}</span>
             <a href="/search?q={{ q }}&t=video"
-               class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'video' or not request.args.get('t') else 'md3-button-tonal' }} !h-9 !px-4">{{ '视频' }}</a>
+                class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'video' or not request.args.get('t') else 'md3-button-tonal' }}">{{ '视频' }}</a>
             <a href="/search?q={{ q }}&t=live"
-               class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'live' else 'md3-button-tonal' }} !h-9 !px-4">{{ '直播' }}</a>
+                class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'live' else 'md3-button-tonal' }}">{{ '直播' }}</a>
             <a href="/search?q={{ q }}&t=article"
-               class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'article' else 'md3-button-tonal' }} !h-9 !px-4">{{ '专栏' }}</a>
+                class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'article' else 'md3-button-tonal' }}">{{ '专栏' }}</a>
             <a href="/search?q={{ q }}&t=user"
-               class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'user' else 'md3-button-tonal' }} !h-9 !px-4">{{ 'UP主' }}</a>
+                class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'user' else 'md3-button-tonal' }}">{{ 'UP主' }}</a>
         </div>
         <!-- Sort Tabs -->
         <div class="flex flex-wrap gap-2">
@@ -23,7 +23,7 @@
             {% set sort_opts = [('rank', '综合排序'), ('click', '最多点击'), ('pubdate', '最新发布'), ('dm', '最多弹幕'), ('stow', '最多收藏'), ('scores', '最多评论')] %}
             {% for key, label in sort_opts %}
                 <a href="/search?q={{ q }}&sort={{ key }}&t={{ request.args.get("t") or 'video' }}"
-                   class="md3-button {{ 'md3-button-filled !bg-secondary !text-on-secondary' if sort == key or (not sort and key == 'rank') else 'md3-button-tonal' }} !h-9 !px-3 !text-xs">
+                   class="md3-button {{ 'md3-button-filled !bg-secondary !text-on-secondary' if sort == key or (not sort and key == 'rank') else 'md3-button-tonal' }}">
                     {{ label }}
                 </a>
             {% endfor %}

@@ -243,19 +243,57 @@
                 cursor: default;
             }
 
-            /* MD3 Tonal Button (Surface Variant style) */
+            /* MD3 Tonal Button (materialsecondary-container with state overlay) */
             .md3-button-tonal {
                 background-color: var(--md-sys-color-secondary-container);
                 color: var(--md-sys-color-on-secondary-container);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+                position: relative;
+                overflow: hidden;
             }
 
             .md3-button-tonal:hover {
-                background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), black 5%);
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), var(--md-sys-color-on-secondary-container) 8%);
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+            }
+
+            .md3-button-tonal:focus-visible {
+                background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), var(--md-sys-color-on-secondary-container) 12%);
+                box-shadow: 0 0 0 2px var(--md-sys-color-primary);
             }
 
             .md3-button-tonal:active {
+                background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), var(--md-sys-color-on-secondary-container) 12%);
                 transform: scale(0.96);
+            }
+
+            /* MD3 Tonal Button - On state (filled primary) */
+            .md3-button-tonal.is-on {
+                background-color: var(--md-sys-color-primary);
+                color: var(--md-sys-color-on-primary);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            }
+
+            .md3-button-tonal.is-on:hover {
+                background-color: color-mix(in srgb, var(--md-sys-color-primary), white 10%);
+                box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.2);
+            }
+
+            .md3-button-tonal.is-on:focus-visible {
+                background-color: color-mix(in srgb, var(--md-sys-color-primary), white 10%);
+                box-shadow: 0 0 0 2px var(--md-sys-color-primary);
+            }
+
+            .md3-button-tonal.is-on:active {
+                background-color: color-mix(in srgb, var(--md-sys-color-primary), black 10%);
+                transform: scale(0.96);
+            }
+
+            .md3-button-tonal:disabled {
+                background-color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 88%);
+                color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 62%);
+                box-shadow: none;
+                cursor: default;
             }
 
             /* MD3 Outlined Button */
