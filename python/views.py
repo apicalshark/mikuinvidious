@@ -14,6 +14,7 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import datetime
 import os
 import re
 
@@ -248,6 +249,56 @@ async def space_view(mid):
     u = user.User(mid, credential=appcred)
     uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=request.args.get("i") or 1, ps=28))
     return await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids)
+
+
+@app.route("/space/<mid>/json")
+async def space_json_feed(mid):
+    u = user.User(mid, credential=appcred)
+    try:
+        uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=1, ps=30))
+    except Exception as e:
+        return Response(
+            orjson.dumps({"error": str(e)}),
+            status=502,
+            content_type="application/json",
+        )
+    if not isinstance(uinfo, dict) or not isinstance(uvids, dict):
+        return Response(
+            orjson.dumps({"error": "Unexpected response format from Bilibili API"}),
+            status=502,
+            content_type="application/json",
+        )
+
+    site_url = appconf["site"]["site_url"]
+    feed_url = f"{site_url}/space/{mid}/json"
+    home_url = f"{site_url}/space/{mid}"
+    face_url = uinfo.get("face", "")
+
+    items = []
+    for v in uvids.get("list", {}).get("vlist", []):
+        bvid = v.get("bvid", "")
+        title = v.get("title", "")
+        items.append({
+            "id": bvid,
+            "url": f"{site_url}/video/{bvid}",
+            "external_url": f"https://www.bilibili.com/video/{bvid}",
+            "title": title,
+            "content_text": title,
+            "date_published": datetime.datetime.fromtimestamp(v.get("created", 0), tz=datetime.timezone.utc).isoformat(),
+            "image": v.get("pic", ""),
+        })
+
+    feed = {
+        "version": "https://jsonfeed.org/version/1.1",
+        "title": f"{uinfo.get('name', 'Unknown')}",
+        "home_page_url": home_url,
+        "feed_url": feed_url,
+        "favicon": face_url,
+        "description": uinfo.get("sign", ""),
+        "items": items,
+    }
+
+    return Response(orjson.dumps(feed), status=200, content_type="application/feed+json")
 
 
 @app.route("/author/<mid>")
