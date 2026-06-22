@@ -1,0 +1,12 @@
+bots:
+  - name: allow-json
+    action: ALLOW
+    expression: '"Accept" in headers && headers["Accept"].contains("application/json") || path.endsWith("/json")'
+
+  - name: force-challenge-all
+    user_agent_regex: ".?"
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 4
+      report_as: 4
