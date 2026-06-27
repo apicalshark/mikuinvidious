@@ -264,7 +264,9 @@ class LiveStreamManager {
       `;
       const container = this.video.parentElement;
       if (container) {
-        container.style.position = "relative";
+        if (window.getComputedStyle(container).position === "static") {
+          container.style.position = "relative";
+        }
         container.appendChild(overlay);
       }
     }
