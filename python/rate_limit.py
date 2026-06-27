@@ -15,17 +15,18 @@
 
 import time
 from functools import wraps
+
 from quart import Response, request
-from shared import appredis, appconf
+from shared import appconf, appredis
 
 
 class RateLimiter:
     """Redis-based sliding window rate limiter."""
-    
+
     def __init__(self, redis_client, prefix="ratelimit:"):
         self.redis = redis_client
         self.prefix = prefix
-    
+
     async def is_allowed(self, key: str, limit: int, window: int) -> tuple[bool, dict]:
         """
         Check if request is allowed under rate limit.
@@ -35,7 +36,7 @@ class RateLimiter:
         window_start = now - window
         redis_key = f"{self.prefix}{key}"
         member = f"{now}:{time.time_ns()}"
-        
+
         # Use Redis sorted set for sliding window - atomic pipeline
         pipe = self.redis.pipeline()
         # Add current request first
@@ -47,9 +48,9 @@ class RateLimiter:
         # Set expiry
         pipe.expire(redis_key, window + 1)
         results = await pipe.execute()
-        
+
         current_count = results[2]
-        
+
         if current_count > limit:
             # Remove the blocked request to prevent permanent lockout
             await self.redis.zrem(redis_key, member)
@@ -62,13 +63,13 @@ class RateLimiter:
                 "limit": limit,
                 "retry_after": reset_time - now
             }
-        
+
         return True, {
             "remaining": limit - current_count,
             "reset": now + window,
             "limit": limit
         }
-    
+
     async def get_current_usage(self, key: str, window: int) -> int:
         """Get current request count for a key."""
         now = int(time.time())
@@ -104,11 +105,11 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
         async def wrapped(*args, **kwargs):
             if not appconf["rate_limit"]["enabled"]:
                 return await f(*args, **kwargs)
-            
+
             # Check exemption
             if exempt_when and await exempt_when(request):
                 return await f(*args, **kwargs)
-            
+
             # Generate rate limit key
             if key_func:
                 key = await key_func(request)
@@ -118,17 +119,17 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
                       request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or
                       request.remote_addr or "127.0.0.1")
                 key = f"{ip}:{request.path}"
-            
+
             limiter = get_rate_limiter()
             allowed, info = await limiter.is_allowed(key, limit, window)
-            
+
             # Add rate limit headers
             from quart import g
             g.rate_limit_info = info
-            
+
             if not allowed:
                 return Response(f"Rate limit exceeded. Try again in {info['retry_after']} seconds.", status=429)
-            
+
             return await f(*args, **kwargs)
         return wrapped
     return decorator

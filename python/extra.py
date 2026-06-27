@@ -16,15 +16,14 @@
 """Bilibili extra apis"""
 
 import asyncio
-import orjson
 import re
 
 import bleach
+import orjson
 from bilibili_api.exceptions import ArgsException
 from bilibili_api.utils.network import Api
 from bs4 import BeautifulSoup
 from shared import Network
-
 
 # Allowed HTML tags and attributes for article content
 ALLOWED_TAGS = [
@@ -330,7 +329,7 @@ async def article_to_any(article_text, dest_fmt):
     # Validate dest_fmt against allowlist to prevent command injection
     if dest_fmt not in ALLOWED_PANDOC_FORMATS:
         raise ValueError(f"Unsupported output format: {dest_fmt}")
-    
+
     cmd = ["pandoc", "-f", "html", "-t", dest_fmt, "-"]
     p = None
     try:

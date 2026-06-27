@@ -142,6 +142,7 @@ class LiveStream:
     async def _stream_loop(self):
         retry_count = 0
         max_retries = 5
+        stream_ended_naturally = False
 
         while self.is_running:
             try:
@@ -188,6 +189,7 @@ class LiveStream:
                             chunk = await asyncio.wait_for(anext(resp_iter), timeout=5.0)
                         except StopAsyncIteration:
                             print(f"[LiveManager] Upstream reached EOF: {self.url[:50]}")
+                            stream_ended_naturally = True
                             self.is_running = False
                             break  # Break into shutdown section
                         except asyncio.TimeoutError:
@@ -244,8 +246,8 @@ class LiveStream:
         self.is_running = False
         self.header_ready.set()
 
-        # Send stream ended signal to all clients before terminating
-        if self.clients:
+        # Send stream ended signal to all clients only if stream ended naturally
+        if stream_ended_naturally and self.clients:
             stream_ended_tag = self._create_stream_ended_tag()
             for q in list(self.clients.values()):
                 try:

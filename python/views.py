@@ -15,7 +15,6 @@
 
 import asyncio
 import datetime
-import os
 import re
 
 _background_tasks = set()
@@ -30,9 +29,9 @@ from extra import (
     get_article_info,
     video_get_src_for_qn,
 )
-from quart import Response, redirect, request, url_for, g
+from quart import Response, g, redirect, request, url_for
+from rate_limit import RATE_LIMITS, rate_limit
 from shared import Network, app, appconf, appcred, appredis, render_template_with_theme, safe_json_loads
-from rate_limit import rate_limit, RATE_LIMITS
 
 
 @app.route("/live/chat/<int:room_id>")
@@ -534,7 +533,7 @@ async def video_listen_view(vid, idx=0):
     import re
     if not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', vid):
         return Response("Invalid video ID format", status=400)
-    
+
     ato, idx = request.args.get("ato") == "1", int(idx)
     vid = av2bv(vid[2:]) if vid.startswith("av") else vid
     v = video.Video(bvid=vid, credential=appcred)
@@ -760,7 +759,7 @@ async def video_view(vid, idx=0):
     import re
     if not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', vid):
         return Response("Invalid video ID format", status=400)
-    
+
     idx, ato = int(idx), request.args.get("ato") == "1"
     if request.args.get("listen") == "1":
         return await video_listen_view(vid, idx)
