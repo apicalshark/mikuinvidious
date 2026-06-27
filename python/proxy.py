@@ -4,7 +4,7 @@ import uuid
 from urllib.parse import urlparse
 
 from live_manager import live_manager
-from quart import Blueprint, Response, abort, request
+from quart import Blueprint, Response, request
 from stream import CdnProtocolError, CdnTimeoutError
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import (
@@ -383,7 +383,7 @@ async def proxy_live_disconnect():
 
     token = request.headers.get("X-CSRF-Token") or request.args.get("csrf_token")
     if not await validate_csrf_token(token):
-        abort(403, description="CSRF token validation failed")
+        return Response("CSRF token validation failed", status=403)
 
     room_id = request.args.get("room_id")
     vqn = request.args.get("vqn", "default")

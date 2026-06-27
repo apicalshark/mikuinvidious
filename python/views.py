@@ -533,7 +533,7 @@ async def video_listen_view(vid, idx=0):
     # Validate video ID format
     import re
     if not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', vid):
-        abort(400, description="Invalid video ID format")
+        return Response("Invalid video ID format", status=400)
     
     ato, idx = request.args.get("ato") == "1", int(idx)
     vid = av2bv(vid[2:]) if vid.startswith("av") else vid
@@ -759,7 +759,7 @@ async def video_view(vid, idx=0):
     # Validate video ID format
     import re
     if not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', vid):
-        abort(400, description="Invalid video ID format")
+        return Response("Invalid video ID format", status=400)
     
     idx, ato = int(idx), request.args.get("ato") == "1"
     if request.args.get("listen") == "1":

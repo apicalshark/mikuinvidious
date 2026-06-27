@@ -27,7 +27,7 @@ import views  # noqa: F401
 from bilibili_api import exceptions
 from csrf import csrf_protect, inject_csrf_token
 from proxy import proxy_bp
-from quart import abort, g, make_response, redirect, request, send_from_directory, url_for
+from quart import Response, g, make_response, redirect, request, send_from_directory, url_for
 from rate_limit import RATE_LIMITS, add_rate_limit_headers, rate_limit
 from shared import (
     Network,
@@ -176,7 +176,7 @@ async def b32tv_redirect(b32tvid):
     # Validate b32tvid format (base32, typically 6-12 chars)
     import re
     if not re.match(r'^[A-Za-z0-9]{6,12}$', b32tvid):
-        abort(400, description="Invalid short link format")
+        return Response("Invalid short link format", status=400)
 
     client = await Network.get_async_client()
     req = None
@@ -240,11 +240,11 @@ async def dl_redirect():
     # Validate input to prevent open redirect
     import re
     if not bvid or not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', bvid):
-        abort(400, description="Invalid video ID")
+        return Response("Invalid video ID", status=400)
     if not cvid or not cvid.isdigit():
-        abort(400, description="Invalid page index")
+        return Response("Invalid page index", status=400)
     if not qual or not qual.isdigit():
-        abort(400, description="Invalid quality")
+        return Response("Invalid quality", status=400)
 
     return redirect(f"/proxy/video/{bvid}_{cvid}_{qual}?dl=1", code=302)
 

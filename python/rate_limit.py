@@ -15,7 +15,7 @@
 
 import time
 from functools import wraps
-from quart import request, abort
+from quart import Response, request
 from shared import appredis, appconf
 
 
@@ -127,7 +127,7 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
             g.rate_limit_info = info
             
             if not allowed:
-                abort(429, description=f"Rate limit exceeded. Try again in {info['retry_after']} seconds.")
+                return Response(f"Rate limit exceeded. Try again in {info['retry_after']} seconds.", status=429)
             
             return await f(*args, **kwargs)
         return wrapped

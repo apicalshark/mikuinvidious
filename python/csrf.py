@@ -59,8 +59,8 @@ def csrf_protect():
                     token = form.get("csrf_token")
                 
                 if not await validate_csrf_token(token):
-                    from quart import abort
-                    abort(403, description="CSRF token validation failed")
+                    from quart import Response
+                    return Response("CSRF token validation failed", status=403)
             return await f(*args, **kwargs)
         return wrapped
     return decorator
