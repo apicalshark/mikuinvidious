@@ -188,7 +188,8 @@ class LiveStream:
                             chunk = await asyncio.wait_for(anext(resp_iter), timeout=5.0)
                         except StopAsyncIteration:
                             print(f"[LiveManager] Upstream reached EOF: {self.url[:50]}")
-                            return  # Exit entirely on EOF
+                            self.is_running = False
+                            break  # Break into shutdown section
                         except asyncio.TimeoutError:
                             # Silence from upstream. Check grace period.
                             if not self.clients and (time.time() - last_signal_time > 5.0):
@@ -249,8 +250,17 @@ class LiveStream:
             for q in list(self.clients.values()):
                 try:
                     q.put_nowait(stream_ended_tag)
-                except Exception:
-                    pass
+                except asyncio.QueueFull:
+                    # Clear space and retry to ensure end signal is delivered
+                    while not q.empty():
+                        try:
+                            q.get_nowait()
+                        except Exception:
+                            break
+                    try:
+                        q.put_nowait(stream_ended_tag)
+                    except Exception:
+                        pass
             # Give frontend time to process the signal before closing
             await asyncio.sleep(0.1)
 

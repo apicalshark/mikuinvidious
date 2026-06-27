@@ -169,6 +169,7 @@ class LiveStreamManager {
       if (metadata && metadata.__stream_ended__) {
         console.log("[LiveManager] Stream ended signal received");
         this.streamEnded = true;
+        this._showOverlayWhenBufferDrained();
       }
     });
 
