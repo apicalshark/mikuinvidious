@@ -1,8 +1,6 @@
-import hmac
 import hashlib
+import hmac
 import time
-import asyncio
-import os
 import warnings
 
 # This file contains the legacy custom implementation of Bilibili ticket fetching.
@@ -26,7 +24,7 @@ class LegacyTicketManager:
             DeprecationWarning,
             stacklevel=2
         )
-        
+
         key_id = "ec01"
         key = b"Ezlc3tgtl"
         ts = int(time.time())
@@ -51,7 +49,7 @@ class LegacyTicketManager:
             headers = get_common_headers(appconf["bili"]).copy()
             if appconf["credential"].get("buvid3"):
                 headers["buvid"] = appconf["credential"]["buvid3"]
-            
+
             resp = await client.post(url, params=params, cookies=cookies, headers=headers, timeout=10.0)
             data = resp.json()
             if data.get("code") == 0:

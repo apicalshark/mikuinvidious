@@ -15,9 +15,8 @@
 
 from datetime import datetime, timedelta
 
-from markupsafe import Markup
-
 import transformers
+from markupsafe import Markup
 from shared import app
 
 

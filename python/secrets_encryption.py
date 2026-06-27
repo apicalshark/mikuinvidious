@@ -13,14 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import base64
-from typing import Optional
+import os
 
 try:
+    import nacl.exceptions
     import nacl.secret
     import nacl.utils
-    import nacl.exceptions
     NACL_AVAILABLE = True
 except ImportError:
     NACL_AVAILABLE = False
@@ -28,11 +27,11 @@ except ImportError:
 
 class SecretEncryption:
     """Encrypt/decrypt sensitive credentials using libsodium (XChaCha20-Poly1305)."""
-    
-    def __init__(self, master_key: Optional[bytes] = None):
+
+    def __init__(self, master_key: bytes | None = None):
         if not NACL_AVAILABLE:
             raise RuntimeError("PyNaCl not installed. Install with: pip install pynacl")
-        
+
         if master_key is None:
             # Generate or load master key from environment
             key_b64 = os.environ.get("SECRETS_MASTER_KEY")
@@ -41,19 +40,19 @@ class SecretEncryption:
             else:
                 # Generate a new key (will be lost on restart - for ephemeral use only)
                 master_key = nacl.utils.random(nacl.secret.SecretBox.KEY_SIZE)
-        
+
         if len(master_key) != nacl.secret.SecretBox.KEY_SIZE:
             raise ValueError(f"Master key must be {nacl.secret.SecretBox.KEY_SIZE} bytes")
-        
+
         self._box = nacl.secret.SecretBox(master_key)
-    
+
     def encrypt(self, plaintext: str) -> str:
         """Encrypt a string and return base64-encoded ciphertext."""
         if not plaintext:
             return ""
         encrypted = self._box.encrypt(plaintext.encode())
         return base64.b64encode(encrypted).decode()
-    
+
     def decrypt(self, ciphertext_b64: str) -> str:
         """Decrypt a base64-encoded ciphertext and return plaintext."""
         if not ciphertext_b64:
@@ -64,7 +63,7 @@ class SecretEncryption:
             return plaintext.decode()
         except (nacl.exceptions.CryptoError, ValueError) as e:
             raise ValueError(f"Decryption failed: {e}")
-    
+
     @staticmethod
     def generate_master_key() -> str:
         """Generate a new master key and return as base64 string."""
@@ -75,7 +74,7 @@ class SecretEncryption:
 
 
 # Global instance (initialized on first use)
-_encryption_instance: Optional[SecretEncryption] = None
+_encryption_instance: SecretEncryption | None = None
 
 
 def get_encryption() -> SecretEncryption:

@@ -1,20 +1,19 @@
 import asyncio
 import functools
 import os
-import orjson
+import time
 
 import httpx
+import nacl.secret
+import orjson
 import redis.asyncio as redis
 import toml
 from bilibili_api import Credential
 from bilibili_api.utils.network import request_settings
+from flask_orjson import OrjsonProvider
 from quart import Quart, render_template, request
 from quart_session import Session
-from flask_orjson import OrjsonProvider
-import time
-
-from secrets_encryption import decrypt_secret, NACL_AVAILABLE
-import nacl.secret
+from secrets_encryption import NACL_AVAILABLE, decrypt_secret
 
 
 def safe_json_loads(data: str | bytes, default=None):
@@ -32,6 +31,7 @@ def safe_json_loads(data: str | bytes, default=None):
 
 
 from bilibili_api.utils.network import get_bili_ticket
+
 
 def get_common_headers(bili_conf):
     """Get common headers for Bilibili API requests from config."""
@@ -303,7 +303,7 @@ appcache = SimpleCache()
 appcred = None
 if appconf["credential"]["use_cred"]:
     credstore = appconf["credential"]
-    
+
     def decrypt_if_encrypted(value: str) -> str:
         """Decrypt value if it appears to be encrypted (base64 encoded)."""
         if not value:
@@ -321,7 +321,7 @@ if appconf["credential"]["use_cred"]:
         except Exception:
             pass
         return value
-    
+
     appcred = Credential(
         sessdata=decrypt_if_encrypted(credstore["sessdata"]),
         bili_jct=decrypt_if_encrypted(credstore["bili_jct"]),

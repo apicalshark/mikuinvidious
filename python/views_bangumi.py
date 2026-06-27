@@ -1,22 +1,23 @@
-from quart import Blueprint, request, jsonify
-import shared
-from bilibili_api import bangumi
-from nyaa import search_nyaa
 import asyncio
-import re
 import json
 import os
+import re
 from datetime import datetime
-from extra import av2bv
+
+import shared
 import zhconv
-from rate_limit import rate_limit, RATE_LIMITS
+from bilibili_api import bangumi
+from extra import av2bv
+from nyaa import search_nyaa
+from quart import Blueprint, jsonify, request
+from rate_limit import RATE_LIMITS, rate_limit
 
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
 
 # 加載篩選器配置
 params_path = os.path.join(os.path.dirname(bangumi.__file__), "data", "bangumi_index_params.json")
 try:
-    with open(params_path, "r", encoding="utf-8") as f:
+    with open(params_path, encoding="utf-8") as f:
         INDEX_PARAMS = json.load(f)
 except:
     INDEX_PARAMS = {}

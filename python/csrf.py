@@ -13,11 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import hmac
-import hashlib
-import time
+import os
 from functools import wraps
+
 from quart import request, session
 
 CSRF_TOKEN_KEY = "csrf_token"
@@ -57,7 +56,7 @@ def csrf_protect():
                 if not token and request.mimetype in ("application/x-www-form-urlencoded", "multipart/form-data"):
                     form = await request.form
                     token = form.get("csrf_token")
-                
+
                 if not await validate_csrf_token(token):
                     from quart import Response
                     return Response("CSRF token validation failed", status=403)

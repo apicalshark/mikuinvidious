@@ -1,8 +1,8 @@
 import asyncio
-from typing import List
+from urllib.parse import urljoin
+
 from pyquery import PyQuery as pq
 from shared import Network
-from urllib.parse import urljoin
 
 
 class NyaaResult:
@@ -26,7 +26,7 @@ class NyaaResult:
         return vars(self)
 
 
-async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 7) -> List[NyaaResult]:
+async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 7) -> list[NyaaResult]:
     """
     Search nyaa.si with automatic page detection and parallel fetching.
     """

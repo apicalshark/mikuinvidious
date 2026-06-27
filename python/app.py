@@ -68,7 +68,7 @@ async def shutdown_cleanup():
 async def setup_request():
     """Generate CSP nonce and initialize history ID."""
     g.csp_nonce = secrets.token_urlsafe(16)
-    
+
     hist_id = request.cookies.get("hist_id")
     if not hist_id or not re.match(r'^[a-f0-9]{16}$', hist_id):
         g.hist_id = os.urandom(8).hex()

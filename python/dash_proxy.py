@@ -191,9 +191,7 @@ def generate_vod_mpd(vid, idx, dash_data):
 
     mpd = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        '<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static" mediaPresentationDuration="PT{}S" minBufferTime="PT{}S">'.format(
-            duration, min_buffer_time
-        ),
+        f'<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static" mediaPresentationDuration="PT{duration}S" minBufferTime="PT{min_buffer_time}S">',
         '  <Period id="1" start="PT0S">',
     ]
 
@@ -216,17 +214,13 @@ def generate_vod_mpd(vid, idx, dash_data):
         timescale = (track_duration // duration) if duration and track_duration else 90000
 
         mpd.append(
-            '      <Representation id="video_{}_{}" codecs="{}" bandwidth="{}" width="{}" height="{}" frameRate="{}">'.format(
-                qn, cid, codecs, bandwidth, width, height, frame_rate
-            )
+            f'      <Representation id="video_{qn}_{cid}" codecs="{codecs}" bandwidth="{bandwidth}" width="{width}" height="{height}" frameRate="{frame_rate}">'
         )
-        mpd.append("        <BaseURL>/proxy/dash/{}/{}/video/{}/{}</BaseURL>".format(vid, idx, qn, cid))
+        mpd.append(f"        <BaseURL>/proxy/dash/{vid}/{idx}/video/{qn}/{cid}</BaseURL>")
         mpd.append(
-            '        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(
-                index_range, pto, timescale
-            )
+            f'        <SegmentBase indexRange="{index_range}" presentationTimeOffset="{pto}" timescale="{timescale}">'
         )
-        mpd.append('          <Initialization range="{}"/>'.format(init_range))
+        mpd.append(f'          <Initialization range="{init_range}"/>')
         mpd.append("        </SegmentBase>")
         mpd.append("      </Representation>")
     mpd.append("    </AdaptationSet>")
@@ -251,15 +245,13 @@ def generate_vod_mpd(vid, idx, dash_data):
         timescale = (track_duration // duration) if duration and track_duration else 44100
 
         mpd.append(
-            '      <Representation id="audio_{}_{}" codecs="{}" bandwidth="{}">'.format(qn, cid, codecs, bandwidth)
+            f'      <Representation id="audio_{qn}_{cid}" codecs="{codecs}" bandwidth="{bandwidth}">'
         )
-        mpd.append("        <BaseURL>/proxy/dash/{}/{}/audio/{}/{}</BaseURL>".format(vid, idx, qn, cid))
+        mpd.append(f"        <BaseURL>/proxy/dash/{vid}/{idx}/audio/{qn}/{cid}</BaseURL>")
         mpd.append(
-            '        <SegmentBase indexRange="{}" presentationTimeOffset="{}" timescale="{}">'.format(
-                index_range, pto, timescale
-            )
+            f'        <SegmentBase indexRange="{index_range}" presentationTimeOffset="{pto}" timescale="{timescale}">'
         )
-        mpd.append('          <Initialization range="{}"/>'.format(init_range))
+        mpd.append(f'          <Initialization range="{init_range}"/>')
         mpd.append("        </SegmentBase>")
         mpd.append("      </Representation>")
     mpd.append("    </AdaptationSet>")

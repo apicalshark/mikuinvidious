@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 
 from live_manager import live_manager
 from quart import Blueprint, Response, request
-from stream import CdnProtocolError, CdnTimeoutError
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import (
     Network,
@@ -15,7 +14,7 @@ from shared import (
     get_common_headers,
     image_limiter,
 )
-from stream import CdnConnection
+from stream import CdnConnection, CdnProtocolError, CdnTimeoutError
 
 proxy_bp = Blueprint("proxy", __name__)
 
@@ -282,7 +281,7 @@ async def proxy_main(subpath):
 
                 # 2) If backup also failed, try lower quality URLs from Redis
                 if resp_headers.status_code in [403, 412, 514]:
-                    print(f"[Proxy] Backup also failed, trying lower qualities...")
+                    print("[Proxy] Backup also failed, trying lower qualities...")
                     QUALITY_ORDER = [64, 32, 16]
                     try:
                         current_qn = int(vqn)

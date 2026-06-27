@@ -15,8 +15,8 @@ def format_duration(seconds):
         return "00:00"
 
 
-import re
 import html
+import re
 
 
 def format_description(raw_desc):
