@@ -17,6 +17,7 @@ class LiveStreamManager {
     this.pauseTime = null;
     this.RECONNECT_THRESHOLD = 5; // Seconds
     this.destroyed = false;
+    this.streamEnded = false;
 
     // CONFIGURATION CONSTANTS
     this.MAX_LATENCY_THRESHOLD = 8.0;
@@ -53,6 +54,7 @@ class LiveStreamManager {
     if (!mpegts.isSupported() || this.destroyed) return;
 
     console.log("[LiveManager] Initializing stream:", this.url);
+    this.streamEnded = false;
     this.initTime = Date.now();
     this.player = mpegts.createPlayer(
       {
@@ -153,14 +155,29 @@ class LiveStreamManager {
   handleEvents() {
     this.player.on(mpegts.Events.ERROR, (errorType, errorDetail) => {
       console.error("[LiveManager] Stream Error:", errorType, errorDetail);
+      if (this.streamEnded) {
+        console.log("[LiveManager] Stream has ended, not reconnecting");
+        this.showStreamEndedMessage();
+        return;
+      }
       // STRATEGY 3: Exponential Backoff Reconnection
       this.reconnect();
+    });
+
+    // Detect stream ended signal from backend
+    this.player.on(mpegts.Events.METADATA_RECEIVED, (metadata) => {
+      if (metadata && metadata.__stream_ended__) {
+        console.log("[LiveManager] Stream ended signal received");
+        this.streamEnded = true;
+      }
     });
 
     // STRATEGY 4: Buffer Stalled Detection
     this.player.on(mpegts.Events.STATISTICS_INFO, (info) => {
       // Give the stream at least 10 seconds to stabilize before checking for stalls
       if (Date.now() - this.initTime < 10000) return;
+
+      if (this.streamEnded) return;
 
       if (info.speed === 0) {
         this.speedZeroCount++;
@@ -177,7 +194,7 @@ class LiveStreamManager {
   }
 
   reconnect() {
-    if (this.isReconnecting) return;
+    if (this.isReconnecting || this.streamEnded) return;
     this.isReconnecting = true;
 
     console.log("[LiveManager] Attempting to reconnect...");
@@ -189,6 +206,27 @@ class LiveStreamManager {
       this.init();
       this.isReconnecting = false;
     }, 3000);
+  }
+
+  showStreamEndedMessage() {
+    let overlay = document.getElementById("stream-ended-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "stream-ended-overlay";
+      overlay.className = "absolute inset-0 flex items-center justify-center bg-black/80 z-10";
+      overlay.innerHTML = `
+        <div class="text-center text-white">
+          <div class="text-xl font-semibold mb-2">直播已结束</div>
+          <div class="text-sm text-white/70">Live stream has ended</div>
+        </div>
+      `;
+      const container = this.video.parentElement;
+      if (container) {
+        container.style.position = "relative";
+        container.appendChild(overlay);
+      }
+    }
+    overlay.style.display = "flex";
   }
 
   destroy() {
@@ -205,6 +243,13 @@ class LiveStreamManager {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+
+    // Remove stream ended overlay if present
+    const overlay = document.getElementById("stream-ended-overlay");
+    if (overlay) {
+      overlay.remove();
+    }
+
     this.video.onpause = null;
     this.video.onplay = null;
     if (this.player) {

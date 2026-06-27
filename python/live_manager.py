@@ -1,4 +1,5 @@
 import asyncio
+import struct
 import time
 from collections import deque
 
@@ -104,6 +105,40 @@ class LiveStream:
         except Exception:
             pass
 
+    def _create_stream_ended_tag(self):
+        """Create an FLV Script Data tag indicating stream has ended."""
+        amf_data = bytearray()
+
+        # Name: "onMetaData" (AMF0 string)
+        amf_data.extend(b'\x02')  # AMF0 String marker
+        amf_data.extend(struct.pack('>H', 10))  # String length
+        amf_data.extend(b'onMetaData')  # String value
+
+        # Value: ECMA array with __stream_ended__=true
+        amf_data.extend(b'\x08')  # AMF0 ECMA array marker
+        amf_data.extend(struct.pack('>I', 1))  # Number of properties
+
+        # Property: "__stream_ended__" = true
+        prop_name = b'__stream_ended__'
+        amf_data.extend(struct.pack('>H', len(prop_name)))  # Property name length
+        amf_data.extend(prop_name)  # Property name
+        amf_data.extend(b'\x01')  # AMF0 Boolean marker
+        amf_data.extend(b'\x01')  # Boolean value (true)
+
+        # End of object marker
+        amf_data.extend(b'\x00\x00\x09')
+
+        # FLV Tag header
+        tag_type = b'\x12'  # Script Data (18)
+        data_size = len(amf_data).to_bytes(3, 'big')
+        timestamp = b'\x00\x00\x00\x00'  # 0
+        stream_id = b'\x00\x00\x00'  # 0
+
+        # Previous tag size
+        prev_tag_size = (11 + len(amf_data)).to_bytes(4, 'big')
+
+        return bytes(tag_type + data_size + timestamp + stream_id + bytes(amf_data) + prev_tag_size)
+
     async def _stream_loop(self):
         retry_count = 0
         max_retries = 5
@@ -207,6 +242,18 @@ class LiveStream:
         print(f"[LiveManager] Stream task terminating: {self.url[:50]}")
         self.is_running = False
         self.header_ready.set()
+
+        # Send stream ended signal to all clients before terminating
+        if self.clients:
+            stream_ended_tag = self._create_stream_ended_tag()
+            for q in list(self.clients.values()):
+                try:
+                    q.put_nowait(stream_ended_tag)
+                except Exception:
+                    pass
+            # Give frontend time to process the signal before closing
+            await asyncio.sleep(0.1)
+
         for q in list(self.clients.values()):
             try:
                 q.put_nowait(None)
