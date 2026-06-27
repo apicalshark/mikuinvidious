@@ -165,7 +165,7 @@ class LiveStreamManager {
     });
 
     // Detect stream ended signal from backend
-    this.player.on(mpegts.Events.METADATA_RECEIVED, (type, metadata) => {
+    this.player.on(mpegts.Events.METADATA_RECEIVED, (metadata) => {
       if (metadata && metadata.__stream_ended__) {
         console.log("[LiveManager] Stream ended signal received");
         this.streamEnded = true;
