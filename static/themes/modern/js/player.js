@@ -209,19 +209,44 @@ class LiveStreamManager {
   }
 
   _showOverlayWhenBufferDrained() {
-    const check = () => {
-      if (this.destroyed) return;
-      const buffered = this.video.buffered;
-      if (buffered && buffered.length > 0) {
-        const remaining = buffered.end(buffered.length - 1) - this.video.currentTime;
-        if (remaining > 0.5 && !this.video.paused) {
-          setTimeout(check, 200);
-          return;
-        }
+    if (this._timeUpdateHandler) {
+      this.video.removeEventListener("timeupdate", this._timeUpdateHandler);
+    }
+
+    const buffered = this.video.buffered;
+    if (buffered && buffered.length > 0) {
+      const remaining = buffered.end(buffered.length - 1) - this.video.currentTime;
+      if (remaining <= 0.5) {
+        this.showStreamEndedMessage();
+        return;
       }
+    } else {
       this.showStreamEndedMessage();
+      return;
+    }
+
+    this._timeUpdateHandler = () => {
+      if (this.destroyed) {
+        this.video.removeEventListener("timeupdate", this._timeUpdateHandler);
+        this._timeUpdateHandler = null;
+        return;
+      }
+      const buf = this.video.buffered;
+      if (buf && buf.length > 0) {
+        const rem = buf.end(buf.length - 1) - this.video.currentTime;
+        if (rem <= 0.5) {
+          this.video.removeEventListener("timeupdate", this._timeUpdateHandler);
+          this._timeUpdateHandler = null;
+          this.showStreamEndedMessage();
+        }
+      } else {
+        this.video.removeEventListener("timeupdate", this._timeUpdateHandler);
+        this._timeUpdateHandler = null;
+        this.showStreamEndedMessage();
+      }
     };
-    check();
+
+    this.video.addEventListener("timeupdate", this._timeUpdateHandler);
   }
 
   showStreamEndedMessage() {
@@ -260,7 +285,11 @@ class LiveStreamManager {
       this.reconnectTimer = null;
     }
 
-    // Remove stream ended overlay if present
+    // Remove stream ended overlay and timeupdate listener if present
+    if (this._timeUpdateHandler) {
+      this.video.removeEventListener("timeupdate", this._timeUpdateHandler);
+      this._timeUpdateHandler = null;
+    }
     const overlay = document.getElementById("stream-ended-overlay");
     if (overlay) {
       overlay.remove();
