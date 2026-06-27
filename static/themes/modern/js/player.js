@@ -157,7 +157,7 @@ class LiveStreamManager {
       console.error("[LiveManager] Stream Error:", errorType, errorDetail);
       if (this.streamEnded) {
         console.log("[LiveManager] Stream has ended, not reconnecting");
-        this.showStreamEndedMessage();
+        this._showOverlayWhenBufferDrained();
         return;
       }
       // STRATEGY 3: Exponential Backoff Reconnection
@@ -206,6 +206,22 @@ class LiveStreamManager {
       this.init();
       this.isReconnecting = false;
     }, 3000);
+  }
+
+  _showOverlayWhenBufferDrained() {
+    const check = () => {
+      if (this.destroyed) return;
+      const buffered = this.video.buffered;
+      if (buffered && buffered.length > 0) {
+        const remaining = buffered.end(buffered.length - 1) - this.video.currentTime;
+        if (remaining > 0.5 && !this.video.paused) {
+          setTimeout(check, 200);
+          return;
+        }
+      }
+      this.showStreamEndedMessage();
+    };
+    check();
   }
 
   showStreamEndedMessage() {
