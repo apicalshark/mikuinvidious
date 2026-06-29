@@ -1,5 +1,3 @@
 {% from 'macros.html' import video_player with context %}
 {{ video_player(vid, vinfo, idx, supported_src, is_live) }}
-<script nonce="{{ csp_nonce }}">
-    if (window.initMikuPlayer) window.initMikuPlayer();
-</script>
+<script nonce="{{ csp_nonce }}">if (window.initMikuPlayer) window.initMikuPlayer();</script>

@@ -6,22 +6,50 @@
         .bangumi-grid {
             display: grid;
             gap: 1rem;
-            grid-template-columns: repeat(2, minmax(0, 1fr)); /* 行動端 2 欄 */
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            /* 行動端 2 欄 */
         }
-        @media (min-width: 640px) { .bangumi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-        @media (min-width: 768px) { .bangumi-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
-        @media (min-width: 1024px) { .bangumi-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
-        @media (min-width: 1280px) { .bangumi-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
 
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
+        @media (min-width: 640px) {
+            .bangumi-grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (min-width: 768px) {
+            .bangumi-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .bangumi-grid {
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+            }
+        }
+
+        @media (min-width: 1280px) {
+            .bangumi-grid {
+                grid-template-columns: repeat(7, minmax(0, 1fr));
+            }
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
         .compact-card {
             background: var(--md-sys-color-surface-variant);
             opacity: 0.8;
             border-radius: 1.25rem;
             transition: all 0.3s ease;
         }
+
         .compact-card:hover {
             opacity: 1;
             transform: translateY(-4px);
@@ -35,7 +63,7 @@
         <div class="flex flex-wrap gap-2 items-center">
             {% for t_key, t_val in [('anime', '番剧'), ('guochuang', '国创'), ('movie', '电影'), ('tv', '电视剧'), ('variety', '综艺'), ('documentary', '纪录片')] %}
                 <a href="/bangumi?type={{ t_key }}"
-                   class="px-5 py-2 rounded-2xl text-sm font-bold transition-all {{ 'bg-primary text-on-primary shadow-lg shadow-primary/20' if current_type == t_key else 'bg-surface-variant/20 text-on-surface-variant hover:bg-surface-variant/40' }}">
+                   class="px-5 py-2 rounded-3xl text-sm font-bold transition-all {{ 'bg-primary text-on-primary shadow-lg shadow-primary/20' if current_type == t_key else 'bg-surface-variant/20 text-on-surface-variant hover:bg-surface-variant/40' }}">
                     {{ t_val }}
                 </a>
             {% endfor %}
@@ -47,9 +75,11 @@
                 <div class="flex flex-col gap-1.5 relative">
                     <label class="px-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/40">{{ f['title'] }}</label>
                     <select data-key="{{ f['key'] }}"
-                            class="bangumi-filter w-full bg-surface-variant/30 dark:bg-black/40 hover:bg-surface-variant/50 rounded-xl text-xs font-bold text-on-surface dark:text-white py-2.5 px-3 transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-primary/40 appearance-none">
+                            class="bangumi-filter w-full bg-surface-variant/30 dark:bg-black/40 hover:bg-surface-variant/50 rounded-2xl text-xs font-bold text-on-surface dark:text-white py-2.5 px-3 transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-primary/40 appearance-none">
                         {% for opt in f['list'] %}
-                            <option value="{{ opt['value'] }}" {{ 'selected' if current_filters[f['key']]|string == opt['value']|string }} class="bg-surface dark:bg-[#1d1d1d] text-on-surface dark:text-white">
+                            <option value="{{ opt['value'] }}"
+                                    {{ 'selected' if current_filters[f['key']]|string == opt['value']|string }}
+                                    class="bg-surface dark:bg-[#1d1d1d] text-on-surface dark:text-white">
                                 {{ opt['name'] }}
                             </option>
                         {% endfor %}
@@ -59,14 +89,16 @@
                     </div>
                 </div>
             {% endfor %}
-            
+
             <!-- Sort Filter -->
             <div class="flex flex-col gap-1.5 relative">
                 <label class="px-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/40">{{ '排序' }}</label>
                 <select data-key="order"
-                        class="bangumi-filter w-full bg-surface-variant/30 dark:bg-black/40 hover:bg-surface-variant/50 rounded-xl text-xs font-bold text-on-surface dark:text-white py-2.5 px-3 transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-primary/40 appearance-none">
+                        class="bangumi-filter w-full bg-surface-variant/30 dark:bg-black/40 hover:bg-surface-variant/50 rounded-2xl text-xs font-bold text-on-surface dark:text-white py-2.5 px-3 transition-colors cursor-pointer outline-none focus:ring-2 focus:ring-primary/40 appearance-none">
                     {% for o in order_meta %}
-                        <option value="{{ o['key'] }}" {{ 'selected' if current_order == o['key'] }} class="bg-surface dark:bg-[#1d1d1d] text-on-surface dark:text-white">
+                        <option value="{{ o['key'] }}"
+                                {{ 'selected' if current_order == o['key'] }}
+                                class="bg-surface dark:bg-[#1d1d1d] text-on-surface dark:text-white">
                             {{ o['title'] }}
                         </option>
                     {% endfor %}
@@ -83,9 +115,14 @@
         {% for b in bangumi_list %}
             <div class="compact-card flex flex-col overflow-hidden">
                 <!-- Thumbnail -->
-                <a href="/bangumi/view/{{ b['season_id'] }}" class="relative block aspect-[3/4.2] overflow-hidden">
-                    <img loading="lazy" class="w-full h-full object-cover" src="{{ b['cover']|pic }}" alt="{{ b['title'] }}" />
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity"></div>
+                <a href="/bangumi/view/{{ b['season_id'] }}"
+                   class="relative block aspect-[3/4.2] overflow-hidden">
+                    <img loading="lazy"
+                         class="w-full h-full object-cover"
+                         src="{{ b['cover']|pic }}"
+                         alt="{{ b['title'] }}" />
+                    <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 hover:opacity-100 transition-opacity">
+                    </div>
                     <p class="absolute bottom-1.5 right-1.5 bg-black/60 backdrop-blur-md text-white text-[10px] px-1.5 py-0.5 rounded font-black">
                         {{ b['order'] }}
                     </p>
@@ -93,7 +130,8 @@
                 <!-- Info -->
                 <div class="p-3 flex flex-col flex-grow">
                     <a href="/bangumi/view/{{ b['season_id'] }}" class="block mb-1.5">
-                        <p dir="auto" class="font-bold text-xs text-on-surface line-clamp-2 leading-tight hover:text-primary transition-colors">
+                        <p dir="auto"
+                           class="font-bold text-xs text-on-surface line-clamp-2 leading-tight hover:text-primary transition-colors">
                             {{ b['title'] }}
                         </p>
                     </a>
@@ -112,12 +150,16 @@
     <!-- Pagination -->
     <div class="mt-10 flex items-center justify-center gap-4">
         {% if page > 1 %}
-            <button data-key="page" data-value="{{ page - 1 }}" class="bangumi-page px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
+            <button data-key="page"
+                    data-value="{{ page - 1 }}"
+                    class="bangumi-page px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
                 <i class="icon ion-ios-arrow-back"></i> {{ '上一页' }}
             </button>
         {% endif %}
         {% if has_next %}
-            <button data-key="page" data-value="{{ page + 1 }}" class="bangumi-page px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
+            <button data-key="page"
+                    data-value="{{ page + 1 }}"
+                    class="bangumi-page px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
                 {{ '下一页' }} <i class="icon ion-ios-arrow-forward"></i>
             </button>
         {% endif %}

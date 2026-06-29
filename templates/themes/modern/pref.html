@@ -3,41 +3,34 @@
 {% block content %}
     <div class="min-h-[60vh] flex items-center justify-center px-4">
         <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-10 md:p-16 shadow-lg  max-w-lg w-full text-center space-y-8">
-            <div class="w-20 h-20 mx-auto rounded-full bg-secondary/10 flex items-center justify-center">
+            <div class="w-20 h-20 mx-auto rounded-3xl bg-secondary/10 flex items-center justify-center">
                 <i class="icon ion-ios-cog text-4xl text-secondary"></i>
             </div>
-            <h1 class="text-1xl md:text-2xl font-bold text-on-surface">{{ '个性化设置' }}</h1>
+            <h1 class="text-2xl md:text-3xl font-bold text-on-surface">{{ '个性化设置' }}</h1>
             <div class="space-y-4">
-                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
+                <div class="flex items-center justify-between p-4 rounded-3xl bg-surface-variant/20">
                     <div class="text-left">
                         <div class="font-bold text-on-surface">{{ '繁体中文转换' }}</div>
                         <div class="text-sm text-on-surface-variant">{{ '使用 OpenCC 将内容转换为繁体中文' }}</div>
                     </div>
-                    <button id="toggle_opencc"
-                            class="md3-button md3-button-tonal">
-                        {{ '加载中...' }}
-                    </button>
-                    </div>
+                    <button id="toggle_opencc" class="md3-button md3-button-tonal">{{ '加载中...' }}</button>
+                </div>
 
-                    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
+                <div class="flex items-center justify-between p-4 rounded-3xl bg-surface-variant/20">
                     <div class="text-left">
                         <div class="font-bold text-on-surface">{{ '搜寻自动转简体' }}</div>
                         <div class="text-sm text-on-surface-variant">{{ '搜尋時自動將關鍵字轉換為簡體中文' }}</div>
                     </div>
-                    <button id="toggle_search_opencc"
-                            class="md3-button md3-button-tonal">
-                        {{ '加载中...' }}
-                    </button>
+                    <button id="toggle_search_opencc" class="md3-button md3-button-tonal">{{ '加载中...' }}</button>
 
 
-                    </div>
-                    <div class="pt-4">
-                    <a href="/"
-class="md3-button md3-button-filled">
-                    <i class="icon ion-ios-home"></i>
+                </div>
+                <div class="pt-4">
+                    <a href="/" class="md3-button md3-button-filled">
+                        <i class="icon ion-ios-home"></i>
                         {{ '返回首页' }}
                     </a>
-                    </div>
+                </div>
             </div>
         </div>
     {% endblock %}

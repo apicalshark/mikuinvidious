@@ -4,17 +4,13 @@
         {{ '合集資源' }}
     </h2>
     {% if is_fallback %}
-        <span class="px-2 py-1 bg-amber-500/10 text-amber-500 text-[10px] font-bold rounded-lg">
-            {{ 'Nyaa' }}
-        </span>
+        <span class="px-2 py-1 bg-amber-500/10 text-amber-500 text-[10px] font-bold rounded-lg">{{ 'Nyaa' }}</span>
     {% else %}
-        <span class="px-2 py-1 bg-green-500/10 text-green-500 text-[10px] font-bold rounded-lg">
-            {{ '已過濾信任' }}
-        </span>
+        <span class="px-2 py-1 bg-green-500/10 text-green-500 text-[10px] font-bold rounded-lg">{{ '已過濾信任' }}</span>
     {% endif %}
 </div>
 
-<div class="mb-4 px-3 py-2 bg-surface-variant/20 rounded-xl text-[11px] text-on-surface-variant flex items-center gap-2">
+<div class="mb-4 px-3 py-2 bg-surface-variant/20 rounded-2xl text-[11px] text-on-surface-variant flex items-center gap-2">
     <i class="icon ion-ios-search opacity-50"></i>
     <span class="opacity-70">{{ '關鍵詞：' }}</span>
     <span class="font-mono font-medium">{{ search_query }}</span>
@@ -23,8 +19,9 @@
 <div class="space-y-4">
     {% if collection_torrents %}
         {% for t in collection_torrents %}
-            <div class="p-4 bg-surface dark:bg-surface-variant/10 rounded-2xl hover:bg-surface-variant/20 transition-colors">
-                <p class="text-xs font-bold text-on-surface line-clamp-2 mb-2" title="{{ t.title }}">{{ t.title }}</p>
+            <div class="p-4 bg-surface dark:bg-surface-variant/10 rounded-3xl hover:bg-surface-variant/20 transition-colors">
+                <p class="text-xs font-bold text-on-surface line-clamp-2 mb-2"
+                   title="{{ t.title }}">{{ t.title }}</p>
                 <div class="flex items-center justify-between text-[10px] text-on-surface-variant mb-3">
                     <div class="flex gap-2">
                         <span class="flex items-center gap-1"><i class="icon ion-md-arrow-up text-green-500"></i>{{ t.seeders }}</span>
@@ -33,7 +30,8 @@
                     <span>{{ t.size }}</span>
                 </div>
                 <div class="flex gap-2">
-                    <a href="{{ t.magnet_url }}" class="flex-grow py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg text-[11px] font-bold text-center transition-all">
+                    <a href="{{ t.magnet_url }}"
+                       class="flex-grow py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg text-[11px] font-bold text-center transition-all">
                         <i class="icon ion-md-magnet mr-1"></i> {{ 'Magnet' }}
                     </a>
                 </div>

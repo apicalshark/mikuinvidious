@@ -1,79 +1,80 @@
 <!-- Nyaa Resources Component -->
 {% if collection_torrents or ep_torrents %}
-<div class="mt-8">
-    <div class="flex items-center gap-2 mb-4">
-        <i class="icon ion-md-download text-2xl text-primary"></i>
-        <h2 class="text-xl font-bold">Nyaa 資源 (Nyaa)</h2>
-        {% if is_fallback %}
-        <span class="px-2 py-0.5 text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded">已擴展搜尋範圍</span>
-        {% endif %}
-    </div>
-
-    <div class="space-y-4">
-        <!-- 合集資源 -->
-        {% if collection_torrents %}
-        <div class="bg-surface-variant/30 rounded-xl p-4">
-            <h3 class="text-sm font-medium opacity-60 mb-3 flex items-center gap-2">
-                <i class="icon ion-md-albums"></i> 合集資源 (Collections)
-            </h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {% for t in collection_torrents %}
-                <a href="{{ t.magnet }}" class="group flex items-center justify-between p-3 bg-surface hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20">
-                    <div class="flex flex-col min-w-0 pr-4">
-                        <span class="text-sm font-medium truncate group-hover:text-primary transition-colors" title="{{ t.title }}">
-                            {{ t.title }}
-                        </span>
-                        <div class="flex items-center gap-3 mt-1 text-xs opacity-50">
-                            <span><i class="icon ion-md-save mr-1"></i>{{ t.size }}</span>
-                            <span class="text-green-600 dark:text-green-400"><i class="icon ion-md-arrow-round-up mr-1"></i>{{ t.seeders }}</span>
-                        </div>
-                    </div>
-                    <i class="icon ion-md-magnet text-xl opacity-20 group-hover:opacity-100 group-hover:text-primary transition-all"></i>
-                </a>
-                {% endfor %}
-            </div>
+    <div class="mt-8">
+        <div class="flex items-center gap-2 mb-4">
+            <i class="icon ion-md-download text-2xl text-primary"></i>
+            <h2 class="text-xl font-bold">Nyaa 資源 (Nyaa)</h2>
+            {% if is_fallback %}
+                <span class="px-2 py-0.5 text-xs bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 rounded">已擴展搜尋範圍</span>
+            {% endif %}
         </div>
-        {% endif %}
 
-        <!-- 按集數分類 -->
-        {% if ep_torrents %}
-        <div class="grid grid-cols-1 gap-4">
-            {% for ep_num, torrents in ep_torrents.items() | sort %}
-            <div class="bg-surface-variant/30 rounded-xl overflow-hidden group">
-                <div class="p-3 px-4 flex items-center justify-between cursor-default">
-                    <div class="flex items-center gap-3">
-                        <span class="w-10 h-10 flex items-center justify-center bg-primary/10 text-primary font-bold rounded-lg">
-                            {{ ep_num }}
-                        </span>
-                        <span class="font-medium">第 {{ ep_num }} 集相關資源</span>
-                    </div>
-                    <span class="text-xs opacity-50">{{ torrents|length }} 個資源</span>
-                </div>
-                
-                <div class="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300 ease-in-out">
-                    <div class="overflow-hidden">
-                        <div class="p-3 pt-0 grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {% for t in torrents %}
-                            <a href="{{ t.magnet }}" class="flex items-center justify-between p-2 px-3 bg-surface hover:bg-primary/5 rounded-lg border border-transparent hover:border-primary/10 transition-all text-xs">
-                                <span class="truncate pr-4 opacity-80" title="{{ t.title }}">{{ t.title }}</span>
-                                <div class="flex items-center gap-2 shrink-0">
-                                    <span class="opacity-40">{{ t.size }}</span>
-                                    <i class="icon ion-md-magnet text-primary/60"></i>
+        <div class="space-y-4">
+            <!-- 合集資源 -->
+            {% if collection_torrents %}
+                <div class="bg-surface-variant/30 rounded-2xl p-4">
+                    <h3 class="text-sm font-medium opacity-60 mb-3 flex items-center gap-2">
+                        <i class="icon ion-md-albums"></i> 合集資源 (Collections)
+                    </h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {% for t in collection_torrents %}
+                            <a href="{{ t.magnet }}"
+                               class="group flex items-center justify-between p-3 bg-surface hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20">
+                                <div class="flex flex-col min-w-0 pr-4">
+                                    <span class="text-sm font-medium truncate group-hover:text-primary transition-colors"
+                                          title="{{ t.title }}">{{ t.title }}</span>
+                                    <div class="flex items-center gap-3 mt-1 text-xs opacity-50">
+                                        <span><i class="icon ion-md-save mr-1"></i>{{ t.size }}</span>
+                                        <span class="text-green-600 dark:text-green-400"><i class="icon ion-md-arrow-round-up mr-1"></i>{{ t.seeders }}</span>
+                                    </div>
                                 </div>
+                                <i class="icon ion-md-magnet text-xl opacity-20 group-hover:opacity-100 group-hover:text-primary transition-all"></i>
                             </a>
-                            {% endfor %}
-                        </div>
+                        {% endfor %}
                     </div>
                 </div>
-            </div>
-            {% endfor %}
+            {% endif %}
+
+            <!-- 按集數分類 -->
+            {% if ep_torrents %}
+                <div class="grid grid-cols-1 gap-4">
+                    {% for ep_num, torrents in ep_torrents.items() | sort %}
+                        <div class="bg-surface-variant/30 rounded-2xl overflow-hidden group">
+                            <div class="p-3 px-4 flex items-center justify-between cursor-default">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-10 h-10 flex items-center justify-center bg-primary/10 text-primary font-bold rounded-lg">
+                                        {{ ep_num }}
+                                    </span>
+                                    <span class="font-medium">第 {{ ep_num }} 集相關資源</span>
+                                </div>
+                                <span class="text-xs opacity-50">{{ torrents|length }} 個資源</span>
+                            </div>
+
+                            <div class="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300 ease-in-out">
+                                <div class="overflow-hidden">
+                                    <div class="p-3 pt-0 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        {% for t in torrents %}
+                                            <a href="{{ t.magnet }}"
+                                               class="flex items-center justify-between p-2 px-3 bg-surface hover:bg-primary/5 rounded-lg border border-transparent hover:border-primary/10 transition-all text-xs">
+                                                <span class="truncate pr-4 opacity-80" title="{{ t.title }}">{{ t.title }}</span>
+                                                <div class="flex items-center gap-2 shrink-0">
+                                                    <span class="opacity-40">{{ t.size }}</span>
+                                                    <i class="icon ion-md-magnet text-primary/60"></i>
+                                                </div>
+                                            </a>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
-</div>
 {% else %}
-<div class="mt-8 p-12 text-center opacity-40 italic">
-    <i class="icon ion-md-search text-4xl mb-2 block"></i>
-    未在 Nyaa 找到相關資源
-</div>
+    <div class="mt-8 p-12 text-center opacity-40 italic">
+        <i class="icon ion-md-search text-4xl mb-2 block"></i>
+        未在 Nyaa 找到相關資源
+    </div>
 {% endif %}

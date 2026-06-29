@@ -5,7 +5,7 @@
     {% set ratio = w / h %}
     <div id="player-wrapper"
          class="relative w-full bg-black md:rounded-xl rounded-none overflow-hidden shadow-2xl aspect-video"
-         style="max-height: 85vh;">
+         style="max-height: 85vh">
         {% if not supported_src and not is_live %}
             <div class="absolute inset-0 flex flex-col items-center justify-center gap-4 z-50 bg-black">
                 <div class="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
@@ -61,29 +61,29 @@
         </div>
         <!-- Control Bar -->
         <media-control-bar class="w-full z-30">
-            <media-play-button></media-play-button>
-            <button id="volume-btn" title="{{ '音量' }}" class="miku-control-btn">
-                <i class="icon ion-md-volume-high"></i>
-            </button>
-            {% if is_live %}
-                <!-- Live Indicator -->
-                <div class="miku-control-btn gap-2 pointer-events-none flex-grow">
-                    <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-[#FFB1DA]">{{ '直播' }}</span>
-                </div>
-            {% else %}
-                <media-time-range></media-time-range>
-                <media-time-display showduration class="text-xs"></media-time-display>
-            {% endif %}
-            <!-- Custom buttons -->
-            <button id="danmaku-toggle" title="{{ '切换弹幕' }}" class="miku-control-btn">
-                <i class="icon ion-md-easel"></i>
-            </button>
-            <button id="quality-btn" title="{{ '切换解析度' }}" class="miku-control-btn px-2">
-                <i class="icon ion-md-settings"></i>
-            </button>
-            {% if not is_live %}<media-playback-rate-button></media-playback-rate-button>{% endif %}
-            <media-fullscreen-button></media-fullscreen-button>
+        <media-play-button></media-play-button>
+        <button id="volume-btn" title="{{ '音量' }}" class="miku-control-btn">
+            <i class="icon ion-md-volume-high"></i>
+        </button>
+        {% if is_live %}
+            <!-- Live Indicator -->
+            <div class="miku-control-btn gap-2 pointer-events-none flex-grow">
+                <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-[#FFB1DA]">{{ '直播' }}</span>
+            </div>
+        {% else %}
+            <media-time-range></media-time-range>
+            <media-time-display showduration class="text-xs"></media-time-display>
+        {% endif %}
+        <!-- Custom buttons -->
+        <button id="danmaku-toggle" title="{{ '切换弹幕' }}" class="miku-control-btn">
+            <i class="icon ion-md-easel"></i>
+        </button>
+        <button id="quality-btn" title="{{ '切换解析度' }}" class="miku-control-btn px-2">
+            <i class="icon ion-md-settings"></i>
+        </button>
+        {% if not is_live %}<media-playback-rate-button></media-playback-rate-button>{% endif %}
+        <media-fullscreen-button></media-fullscreen-button>
         </media-control-bar>
         </media-controller>
         <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }};</script>
