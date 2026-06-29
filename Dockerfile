@@ -1,3 +1,5 @@
+LABEL org.opencontainers.image.source=https://github.com/apicalshark/mikuinvidious
+
 FROM astral/uv:python3.14-alpine
 
 WORKDIR /app
