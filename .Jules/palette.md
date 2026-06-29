@@ -1,3 +1,0 @@
-## 2026-06-28 - [Redesign & Accessibility]
-**Learning:** Users prefer a content-first experience with minimal UI chrome. Using 24px (rounded-3xl) corners creates a modern, high-quality feel that distinguishes the app from generic frontends. Glassmorphism in the header helps maintain context without adding visual weight.
-**Action:** Consistently use rounded-3xl for major containers and rounded-2xl for smaller elements like avatars or buttons for a cohesive MD3 look. Always add aria-labels to icon-buttons to ensure accessibility is not sacrificed for aesthetics.
