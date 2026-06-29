@@ -102,14 +102,14 @@
         <!-- Pagination -->
         <div class="mt-10 flex items-center justify-center gap-4">
             {% if sinfo['page'] > 1 %}
-                <a href="/search?q={{ q }}&i={{ sinfo['page']-1 }}&sort={{ sort }}&t={{ request.args.get('t') }}"
+                <a href="/search?q={{ q }}&i={{ sinfo['page']-1 }}&sort={{ sort or 'rank' }}&t={{ request.args.get('t') or 'video' }}"
                    class="md3-button md3-button-tonal"
                    aria-label="{{ '上一页' }}">
                     <i class="icon ion-ios-arrow-back"></i> {{ '上一页' }}
                 </a>
             {% endif %}
             {% if sinfo['numPages'] > sinfo['page'] %}
-                <a href="/search?q={{ q }}&i={{ sinfo['page']+1 }}&sort={{ sort }}&t={{ request.args.get('t') }}"
+                <a href="/search?q={{ q }}&i={{ sinfo['page']+1 }}&sort={{ sort or 'rank' }}&t={{ request.args.get('t') or 'video' }}"
                    class="md3-button md3-button-filled"
                    aria-label="{{ '下一页' }}">
                     {{ '下一页' }} <i class="icon ion-ios-arrow-forward"></i>

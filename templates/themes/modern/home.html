@@ -67,16 +67,18 @@
                                 <div class="flex gap-1">
                                     <a title="{{ '在哔哩哔哩上观看' }}"
                                        aria-label="{{ '在哔哩哔哩上观看' }}"
-                                       href="https://{% if v['duration'] == 'LIVE' %}live{% else %}www{% endif %}.bilibili.com/{% if v['duration'] == 'LIVE' %}{% else %}video/{% endif %}{{ v['bvid'] }}"
+                                       href="https://{% if v['duration'] == 'LIVE' %}live{% else %}www{% endif %}.bilibili.com/{% if v['duration'] == 'LIVE' %}{{ v['room_id'] }}{% else %}video/{{ v['bvid'] }}{% endif %}"
                                        class="md3-icon-button-small">
                                         <i class="icon ion-logo-youtube"></i>
                                     </a>
-                                    <a title="{{ '音频模式' }}"
-                                       aria-label="{{ '音频模式' }}"
-                                       href="/video/{{ v['bvid'] }}?listen=1"
-                                       class="md3-icon-button-small">
-                                        <i class="icon ion-md-headset"></i>
-                                    </a>
+                                    {% if v['duration'] != 'LIVE' %}
+                                        <a title="{{ '音频模式' }}"
+                                           aria-label="{{ '音频模式' }}"
+                                           href="/video/{{ v['bvid'] }}?listen=1"
+                                           class="md3-icon-button-small">
+                                            <i class="icon ion-md-headset"></i>
+                                        </a>
+                                    {% endif %}
                                 </div>
                             </div>
                             <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">

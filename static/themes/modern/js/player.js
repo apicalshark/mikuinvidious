@@ -476,16 +476,22 @@ async function triggerNativeRecovery(video) {
 
   const onLoaded = () => {
     const onSeeked = () => {
-      video.play().catch(() => {});
-      finish("[Player] Native recovery successful.");
+      video.play().then(() => {
+        finish("[Player] Native recovery successful.");
+      }).catch(() => {
+        console.warn("[Player] Native recovery play failed, keeping recovery state active.");
+      });
     };
     video.addEventListener("seeked", onSeeked, { once: true });
     video.currentTime = currentTime;
     setTimeout(() => {
       if (!window.isNativeRecovering) return;
       video.removeEventListener("seeked", onSeeked);
-      video.play().catch(() => {});
-      finish("[Player] Native recovery successful (seek timeout).");
+      video.play().then(() => {
+        finish("[Player] Native recovery successful (seek timeout).");
+      }).catch(() => {
+        console.warn("[Player] Native recovery play failed (timeout path), keeping recovery state active.");
+      });
     }, 2000);
   };
   video.addEventListener("loadedmetadata", onLoaded, { once: true });
@@ -640,7 +646,7 @@ async function initMikuPlayer() {
       window.vodManager.init();
     } else {
       video.play().catch((error) => {
-        if (error.name === "NotAllowedError") {
+        if (error.name === "NotAllowedError" || error.name === "NotSupportedError") {
           showAutoplayOverlay(video);
         }
       });
@@ -881,7 +887,11 @@ function setupLivePlayer(video, list, label) {
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         updateLiveQualityMenu(video, hls, null, list, label, true);
-        video.play().catch(() => {});
+        video.play().catch((error) => {
+          if (error.name === "NotAllowedError") {
+            showAutoplayOverlay(video);
+          }
+        });
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
@@ -912,7 +922,11 @@ function setupLivePlayer(video, list, label) {
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = liveUrl;
       video.addEventListener("loadedmetadata", () => {
-        video.play().catch(() => {});
+        video.play().catch((error) => {
+          if (error.name === "NotAllowedError") {
+            showAutoplayOverlay(video);
+          }
+        });
       });
     }
   } else if (mpegts.isSupported()) {
@@ -1009,11 +1023,19 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
             // HLS handled above, but for consistency:
             video.src = newUrl;
             video.load();
-            video.play().catch(() => {});
+            video.play().catch((error) => {
+              if (error.name === "NotAllowedError") {
+                showAutoplayOverlay(video);
+              }
+            });
           } else {
             video.src = newUrl;
             video.load();
-            video.play().catch(() => {});
+            video.play().catch((error) => {
+              if (error.name === "NotAllowedError") {
+                showAutoplayOverlay(video);
+              }
+            });
           }
         },
         list
@@ -1064,7 +1086,11 @@ function setupVodQuality(video, list, label) {
 
         const onLoaded = () => {
           video.currentTime = time;
-          if (!paused) video.play().catch(() => {});
+          if (!paused) video.play().catch((error) => {
+            if (error.name === "NotAllowedError") {
+              showAutoplayOverlay(video);
+            }
+          });
           video.removeEventListener("loadedmetadata", onLoaded);
         };
         video.addEventListener("loadedmetadata", onLoaded);

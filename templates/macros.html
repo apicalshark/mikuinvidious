@@ -62,7 +62,7 @@
         <!-- Control Bar -->
         <media-control-bar class="w-full z-30">
         <media-play-button></media-play-button>
-        <button id="volume-btn" title="{{ '音量' }}" class="miku-control-btn">
+        <button id="volume-btn" title="{{ '音量' }}" aria-label="{{ '音量' }}" class="miku-control-btn">
             <i class="icon ion-md-volume-high"></i>
         </button>
         {% if is_live %}
@@ -76,10 +76,10 @@
             <media-time-display showduration class="text-xs"></media-time-display>
         {% endif %}
         <!-- Custom buttons -->
-        <button id="danmaku-toggle" title="{{ '切换弹幕' }}" class="miku-control-btn">
+        <button id="danmaku-toggle" title="{{ '切换弹幕' }}" aria-label="{{ '切换弹幕' }}" class="miku-control-btn">
             <i class="icon ion-md-easel"></i>
         </button>
-        <button id="quality-btn" title="{{ '切换解析度' }}" class="miku-control-btn px-2">
+        <button id="quality-btn" title="{{ '切换解析度' }}" aria-label="{{ '切换解析度' }}" class="miku-control-btn px-2">
             <i class="icon ion-md-settings"></i>
         </button>
         {% if not is_live %}<media-playback-rate-button></media-playback-rate-button>{% endif %}
