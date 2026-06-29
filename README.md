@@ -2,10 +2,9 @@
 
 A free as in freedom frontend for Bilibili.
 
-This is a fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxina/mikuinvidious) with my personal preference plus ai slop.
+This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxina/mikuinvidious) plus AI slop.
 
 <img width="465" height="411" alt="screenshot1" src="https://github.com/user-attachments/assets/219957ad-871f-4a95-85f5-27eeaf6c3f1c" />
-
 
 ## Application Features
 
@@ -18,16 +17,19 @@ This is a fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxin
 ## Quick Start (Docker)
 
 1. **Clone the repository:**
+
    ```bash
    git clone https://github.com/apicalshark/mikuinvidious
    cd mikuinvidious
    ```
 
 2. **Run with Docker Compose:**
+
    ```bash
    cp Caddyfile.example Caddyfile
    docker compose up -d
    ```
+
 The application will be available at `http://localhost:8000`.
 
 ### Local Installation (Without Docker)
@@ -44,16 +46,22 @@ For users who want to run the application manually, see the [local installation 
 ## Configuration
 
 Settings can be customized in `compose.yml` or `config.toml`. Key variables:
+
 - `SITE_NAME`: Instance name.
 - `SITE_URL`: Public URL.
 - `REDIS_URL`: Redis connection string.
 - `HTTP_PROXY` / `HTTPS_PROXY`: SOCKS5 proxy (uses included `warp` service by default).
+
+## Contributing
+
+Contributions of any kind are welcome — especially from AI. Feel free to open an issue, submit a pull request, or start a discussion.
 
 ## License
 
 MikuInvidious is licensed under the **GNU General Public License v3.0**.
 
 ### JavaScript Libraries
+
 | Library | License | Source |
 | :--- | :--- | :--- |
 | **hls.js** | Apache-2.0 | [github.com/video-dev/hls.js](https://github.com/video-dev/hls.js) |
