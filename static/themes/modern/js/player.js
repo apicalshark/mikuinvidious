@@ -387,7 +387,7 @@ class VodStreamManager {
       const onLoaded = () => {
         console.log("[VodManager] Recovery successful, seeking to:", currentTime.toFixed(2));
         this.video.currentTime = currentTime;
-        this.video.play().catch(() => { });
+        this.video.play().catch(() => {});
         this.video.removeEventListener("loadedmetadata", onLoaded);
       };
       this.video.addEventListener("loadedmetadata", onLoaded);
@@ -476,7 +476,7 @@ async function triggerNativeRecovery(video) {
 
   const onLoaded = () => {
     const onSeeked = () => {
-      video.play().catch(() => { });
+      video.play().catch(() => {});
       finish("[Player] Native recovery successful.");
     };
     video.addEventListener("seeked", onSeeked, { once: true });
@@ -484,7 +484,7 @@ async function triggerNativeRecovery(video) {
     setTimeout(() => {
       if (!window.isNativeRecovering) return;
       video.removeEventListener("seeked", onSeeked);
-      video.play().catch(() => { });
+      video.play().catch(() => {});
       finish("[Player] Native recovery successful (seek timeout).");
     }, 2000);
   };
@@ -623,7 +623,7 @@ async function initMikuPlayer() {
     setupAutoNext(video);
 
     const currentSrc = video.src;
-    const flvSrc = window.supported_src?.find(s => s.ext === ".flv");
+    const flvSrc = window.supported_src?.find((s) => s.ext === ".flv");
 
     if (currentSrc.includes(".flv") && mpegts.isSupported()) {
       // Already on FLV
@@ -881,7 +881,7 @@ function setupLivePlayer(video, list, label) {
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         updateLiveQualityMenu(video, hls, null, list, label, true);
-        video.play().catch(() => { });
+        video.play().catch(() => {});
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
@@ -912,7 +912,7 @@ function setupLivePlayer(video, list, label) {
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = liveUrl;
       video.addEventListener("loadedmetadata", () => {
-        video.play().catch(() => { });
+        video.play().catch(() => {});
       });
     }
   } else if (mpegts.isSupported()) {
@@ -922,7 +922,6 @@ function setupLivePlayer(video, list, label) {
   }
   window.isSettingUp = false;
 }
-
 
 function updateVodHlsQualityMenu(hls, list, label) {
   if (!list) return;
@@ -1010,11 +1009,11 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
             // HLS handled above, but for consistency:
             video.src = newUrl;
             video.load();
-            video.play().catch(() => { });
+            video.play().catch(() => {});
           } else {
             video.src = newUrl;
             video.load();
-            video.play().catch(() => { });
+            video.play().catch(() => {});
           }
         },
         list
@@ -1065,7 +1064,7 @@ function setupVodQuality(video, list, label) {
 
         const onLoaded = () => {
           video.currentTime = time;
-          if (!paused) video.play().catch(() => { });
+          if (!paused) video.play().catch(() => {});
           video.removeEventListener("loadedmetadata", onLoaded);
         };
         video.addEventListener("loadedmetadata", onLoaded);

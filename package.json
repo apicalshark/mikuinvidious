@@ -8,8 +8,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint:python": "ruff check python",
     "format:python": "ruff format python",
-    "lint:frontend": "prettier --check \"static/themes/modern/js/*.js\" \"static/themes/modern/css/*.css\" \"tailwind.config.js\" && djlint templates --check",
-    "format:frontend": "prettier --write \"static/themes/modern/js/*.js\" \"static/themes/modern/css/*.css\" \"tailwind.config.js\" && djlint templates --reformat",
+    "lint:frontend": "prettier --check \"static/themes/modern/js/*.js\" \"static/themes/modern/css/tailwind-input.css\" \"tailwind.config.js\" && djlint templates --check",
+    "format:frontend": "prettier --write \"static/themes/modern/js/*.js\" \"static/themes/modern/css/tailwind-input.css\" \"tailwind.config.js\" && djlint templates --reformat",
     "lint": "npm run lint:python && npm run lint:frontend",
     "format": "npm run format:python && npm run format:frontend"
   },

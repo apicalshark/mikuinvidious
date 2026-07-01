@@ -1,6 +1,6 @@
 <!-- Comments -->
 {% if not is_live %}
-    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm mb-6">
+    <div class="bg-surface dark:bg-surface-variant/10 rounded-3xl p-4 md:p-6 shadow-sm mb-6">
         <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
             <i class="icon ion-ios-chatbubbles"></i>
             {{ '评论' }} ({{ vcomments['page']['count'] }})
@@ -11,9 +11,9 @@
                     <div class="flex gap-4 group">
                         <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
                             <img loading="lazy"
-                                 class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
+                                 class="w-10 h-10 rounded-2xl object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
                                  src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
-                                 alt="" />
+                                 alt="{{ rep['member']['uname'] }}" />
                         </a>
                         <div class="flex-grow space-y-1">
                             <div class="flex items-baseline justify-between">

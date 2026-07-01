@@ -6,11 +6,13 @@
     <div class="flex flex-col md:flex-row gap-8 mb-12">
         <!-- Cover -->
         <div class="w-full md:w-64 flex-shrink-0">
-            <div class="aspect-[3/4] rounded-2xl overflow-hidden shadow-xl">
-                <img src="{{ meta['cover']|pic }}" class="w-full h-full object-cover" alt="{{ meta['title'] }}" />
+            <div class="aspect-[3/4] rounded-3xl overflow-hidden shadow-xl">
+                <img src="{{ meta['cover']|pic }}"
+                     class="w-full h-full object-cover"
+                     alt="{{ meta['title'] }}" />
             </div>
         </div>
-        
+
         <!-- Info -->
         <div class="flex-grow">
             <h1 class="text-4xl font-bold text-on-surface mb-2">{{ meta['title'] }}</h1>
@@ -24,7 +26,7 @@
                     <span class="px-3 py-1 bg-surface-variant/30 text-on-surface-variant/50 rounded-full text-xs font-bold">{{ '暂无评分' }}</span>
                 {% endif %}
             </div>
-            
+
             <div class="prose dark:prose-invert max-w-none mb-8">
                 <p class="text-on-surface-variant leading-relaxed">{{ meta['evaluate'] or '暂无简介' }}</p>
             </div>
@@ -40,10 +42,11 @@
             </h2>
             <div class="space-y-2">
                 {% for ep in episodes %}
-                    <div class="group bg-surface-variant/10 hover:bg-surface-variant/20 rounded-xl transition-colors duration-300">
+                    <div class="group bg-surface-variant/10 hover:bg-surface-variant/20 rounded-2xl transition-colors duration-300">
                         <!-- Header (Always Visible) -->
                         <div class="p-3 flex items-center gap-4 cursor-pointer">
-                            <a href="/bangumi/play/ep{{ ep['ep_id'] }}" class="md3-button md3-button-filled !h-9 !px-4 !min-w-[3.5rem] !rounded-lg !text-sm">
+                            <a href="/bangumi/play/ep{{ ep['ep_id'] }}"
+                               class="md3-button md3-button-filled !h-9 !px-4 !min-w-[3.5rem] !rounded-lg !text-sm">
                                 {{ ep['title'] }}
                             </a>
                             <div class="min-w-0 flex-grow">
@@ -51,13 +54,15 @@
                                 <p class="text-[9px] text-on-surface-variant opacity-50 uppercase tracking-tighter">BVID: {{ ep['bvid'] }}</p>
                             </div>
                             <!-- Nyaa Placeholder for this episode -->
-                            <div id="ep-nyaa-{{ ep['title'] }}" class="hidden ep-nyaa-container flex-shrink-0">
+                            <div id="ep-nyaa-{{ ep['title'] }}"
+                                 class="hidden ep-nyaa-container flex-shrink-0">
                                 <i class="icon ion-md-magnet text-primary animate-pulse"></i>
                             </div>
                         </div>
-                        
+
                         <!-- Expandable Content (Torrents - Loaded via JS) -->
-                        <div id="ep-torrents-{{ ep['title'] }}" class="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-300 ease-in-out">
+                        <div id="ep-torrents-{{ ep['title'] }}"
+                             class="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-300 ease-in-out">
                             <div class="overflow-hidden">
                                 <div class="px-3 pb-3 ep-torrents-content">
                                     <!-- Dynamic content goes here -->
@@ -72,18 +77,18 @@
         <!-- Torrents (Right/Sidebar) - Asynchronously Loaded -->
         <div class="lg:col-span-1">
             {% if nyaa_enabled %}
-            <div id="nyaa-sidebar-container">
-                <div class="flex flex-col items-center justify-center py-12 opacity-40">
-                    <div class="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
-                    <p class="text-sm">正在從 Nyaa 搜尋資源...</p>
+                <div id="nyaa-sidebar-container">
+                    <div class="flex flex-col items-center justify-center py-12 opacity-40">
+                        <div class="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+                        <p class="text-sm">正在從 Nyaa 搜尋資源...</p>
+                    </div>
                 </div>
-            </div>
             {% endif %}
         </div>
     </div>
 
     {% if nyaa_enabled %}
-    <script nonce="{{ csp_nonce }}">
+        <script nonce="{{ csp_nonce }}">
         document.addEventListener('DOMContentLoaded', function() {
             const sidebarContainer = document.getElementById('nyaa-sidebar-container');
             
@@ -100,20 +105,18 @@
                     for (const epNum in epTorrents) {
                         const iconPlaceholder = document.getElementById(`ep-nyaa-${epNum}`);
                         const contentPlaceholder = document.querySelector(`#ep-torrents-${epNum} .ep-torrents-content`);
-                        
+
                         if (iconPlaceholder && contentPlaceholder && epTorrents[epNum].length > 0) {
                             iconPlaceholder.classList.remove('hidden');
                             iconPlaceholder.innerHTML = `<span class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">${epTorrents[epNum].length}</span>`;
-                            
+
                             let torrentsHtml = `<div class="pt-3">
                                 <p class="text-[9px] font-bold text-primary/60 uppercase tracking-widest mb-2 px-1">Nyaa Magnet Resources</p>
                                 <div class="grid grid-cols-1 gap-1.5">`;
-                            
+
                             epTorrents[epNum].forEach(t => {
                                 torrentsHtml += `
-                                    <a href="${t.magnet}" 
-                                       class="w-full p-2 bg-black/5 dark:bg-white/5 hover:bg-primary/10 text-on-surface rounded-lg text-[11px] transition-all flex items-center justify-between group/torrent text-left"
-                                       title="${t.title}">
+                                    <a href="${t.magnet}" class="w-full p-2 bg-black/5 dark:bg-white/5 hover:bg-primary/10 text-on-surface rounded-lg text-[11px] transition-all flex items-center justify-between group/torrent text-left" title="${t.title}">
                                         <span class="truncate pr-4 flex-grow opacity-80 group-hover/torrent:opacity-100"><i class="icon ion-md-magnet text-primary mr-1 opacity-70"></i>${t.title}</span>
                                         <div class="flex-shrink-0 flex items-center gap-3">
                                             <div class="flex gap-2 text-[9px] font-mono">
@@ -124,7 +127,7 @@
                                         </div>
                                     </a>`;
                             });
-                            
+
                             torrentsHtml += `</div></div>`;
                             contentPlaceholder.innerHTML = torrentsHtml;
                         }
@@ -137,6 +140,6 @@
                     }
                 });
         });
-    </script>
+        </script>
     {% endif %}
 {% endblock %}

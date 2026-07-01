@@ -10,58 +10,92 @@
         <style>
             :root {
                 /* === [Theme Master Controls - Light Mode] === */
-                --theme-primary: #a85383;    /* Main brand color used for key interactive elements */
-                --theme-contrast: -10%;        /* Base contrast offset for surfaces */
+                --theme-primary: #a85383;
+                /* Main brand color used for key interactive elements */
+                --theme-contrast: -10%;
+                /* Base contrast offset for surfaces */
 
                 /* Material You Sakura Light - Base Mapping */
-                --md-sys-color-primary: var(--theme-primary);                      /* High-emphasis fills and text */
-                --md-sys-color-on-primary: white;                                  /* Text/icons on top of primary */
-                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), white 65%);  /* Less prominent containers (e.g. active tab) */
-                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), black 80%); /* Text/icons on primary-container */
-                
-                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), #605D62 30%);       /* Less prominent accents */
-                --md-sys-color-on-secondary: white;                                                    /* Text/icons on top of secondary */
-                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), white 75%); /* Secondary element backgrounds */
-                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), black 80%); /* Text/icons on secondary-container */
+                --md-sys-color-primary: var(--theme-primary);
+                /* High-emphasis fills and text */
+                --md-sys-color-on-primary: white;
+                /* Text/icons on top of primary */
+                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), white 65%);
+                /* Less prominent containers (e.g. active tab) */
+                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), black 80%);
+                /* Text/icons on primary-container */
+
+                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), #605D62 30%);
+                /* Less prominent accents */
+                --md-sys-color-on-secondary: white;
+                /* Text/icons on top of secondary */
+                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), white 75%);
+                /* Secondary element backgrounds */
+                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), black 80%);
+                /* Text/icons on secondary-container */
 
                 /* Background and Surface colors */
-                --md-sys-color-background: color-mix(in srgb, var(--theme-primary), white 90%);    /* Global page background */
-                --md-sys-color-on-background: #201A1D;                                             /* Global body text */
-                --md-sys-color-surface: color-mix(in srgb, var(--theme-primary), white 92%);       /* Neutral surfaces like headers and cards */
-                --md-sys-color-on-surface: #201A1D;                                                /* Text/icons on neutral surfaces */
+                --md-sys-color-background: color-mix(in srgb, var(--theme-primary), white 90%);
+                /* Global page background */
+                --md-sys-color-on-background: #201A1D;
+                /* Global body text */
+                --md-sys-color-surface: color-mix(in srgb, var(--theme-primary), white 92%);
+                /* Neutral surfaces like headers and cards */
+                --md-sys-color-on-surface: #201A1D;
+                /* Text/icons on neutral surfaces */
 
                 /* Dynamic contrast calculation */
-                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 20%); /* Distinct containers like cards and search bars */
-                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), black 60%);                   /* Lower-emphasis text/icons on surface-variant */
-                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 40%);        /* Decorative elements, borders, and dividers */
+                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 20%);
+                /* Distinct containers like cards and search bars */
+                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), black 60%);
+                /* Lower-emphasis text/icons on surface-variant */
+                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 40%);
+                /* Decorative elements, borders, and dividers */
             }
 
             .dark {
                 /* === [Theme Master Controls - Dark Mode] === */
-                --theme-primary: #ff97b5;    /* Primary accent color for dark theme prominence */
-                --theme-contrast: 10%;       /* Increased contrast for OLED/Dark surfaces */
+                --theme-primary: #ff97b5;
+                /* Primary accent color for dark theme prominence */
+                --theme-contrast: 10%;
+                /* Increased contrast for OLED/Dark surfaces */
 
                 /* Material You Sakura Dark - Base Mapping */
-                --md-sys-color-primary: var(--theme-primary);                      /* Glowing accents and active states */
-                --md-sys-color-on-primary: color-mix(in srgb, var(--theme-primary), black 75%);   /* Text/icons on top of primary */
-                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), black 35%); /* Subtle accent containers */
-                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), white 65%); /* Text/icons on primary-container */
+                --md-sys-color-primary: var(--theme-primary);
+                /* Glowing accents and active states */
+                --md-sys-color-on-primary: color-mix(in srgb, var(--theme-primary), black 75%);
+                /* Text/icons on top of primary */
+                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), black 35%);
+                /* Subtle accent containers */
+                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), white 65%);
+                /* Text/icons on primary-container */
 
-                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), white 40%);        /* Tonal secondary accents */
-                --md-sys-color-on-secondary: color-mix(in srgb, var(--theme-primary), black 80%);     /* Text/icons on top of secondary */
-                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), black 55%); /* Muted secondary backgrounds */
-                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), white 80%); /* Text/icons on secondary-container */
+                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), white 40%);
+                /* Tonal secondary accents */
+                --md-sys-color-on-secondary: color-mix(in srgb, var(--theme-primary), black 80%);
+                /* Text/icons on top of secondary */
+                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), black 55%);
+                /* Muted secondary backgrounds */
+                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), white 80%);
+                /* Text/icons on secondary-container */
 
                 /* Background and Surface colors */
-                --md-sys-color-background: black;                                                  /* Deep black for OLED power saving */
-                --md-sys-color-on-background: #ECE0E3;                                             /* Primary dark mode text */
-                --md-sys-color-surface: black;                                                     /* Surface foundations */
-                --md-sys-color-on-surface: #ECE0E3;                                                /* Text/icons on surfaces */
+                --md-sys-color-background: black;
+                /* Deep black for OLED power saving */
+                --md-sys-color-on-background: #ECE0E3;
+                /* Primary dark mode text */
+                --md-sys-color-surface: black;
+                /* Surface foundations */
+                --md-sys-color-on-surface: #ECE0E3;
+                /* Text/icons on surfaces */
 
                 /* Dynamic contrast calculation */
-                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 20%); /* Glowing card backgrounds and inputs */
-                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), white 80%);                      /* High-readability secondary text */
-                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 50%);        /* Dividers and structural borders */
+                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 20%);
+                /* Glowing card backgrounds and inputs */
+                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), white 80%);
+                /* High-readability secondary text */
+                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 50%);
+                /* Dividers and structural borders */
             }
 
             body {
@@ -122,8 +156,9 @@
             }
 
             /* Remove outlines/borders globally as requested, use focus rings */
-            *:focus {
-                outline: none !important;
+            *:focus-visible {
+                outline: 2px solid var(--md-sys-color-primary) !important;
+                outline-offset: 2px !important;
             }
 
             /* Material Design 3 (Material You) Icon Button */
@@ -135,10 +170,10 @@
                 align-items: center;
                 justify-content: center;
                 color: var(--md-sys-color-on-surface-variant);
-                transition: background-color 250ms cubic-bezier(0.2, 0, 0, 1), 
-                            color 250ms, 
-                            transform 150ms, 
-                            box-shadow 250ms;
+                transition: background-color 250ms cubic-bezier(0.2, 0, 0, 1),
+                    color 250ms,
+                    transform 150ms,
+                    box-shadow 250ms;
                 flex-shrink: 0;
                 cursor: pointer;
                 user-select: none;
@@ -149,8 +184,8 @@
             .md3-icon-button:hover {
                 background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 90%);
                 color: var(--md-sys-color-primary);
-                box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.1), 
-                            0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.1),
+                    0 2px 4px -1px rgba(0, 0, 0, 0.06);
             }
 
             .md3-icon-button:focus-visible {
@@ -177,9 +212,9 @@
                 align-items: center;
                 justify-content: center;
                 color: var(--md-sys-color-on-surface-variant);
-                transition: background-color 200ms cubic-bezier(0.2, 0, 0, 1), 
-                            color 200ms, 
-                            transform 100ms;
+                transition: background-color 200ms cubic-bezier(0.2, 0, 0, 1),
+                    color 200ms,
+                    transform 100ms;
                 flex-shrink: 0;
                 cursor: pointer;
                 user-select: none;
@@ -335,31 +370,44 @@
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
         <span style="display:none" id="dark_mode_pref">{{ 'dark' if dark_mode else 'light' }}</span>
         <!-- Sticky Header with Glassmorphism (No Border) -->
-        <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/80 transition-colors duration-200">
-            <div class="container mx-auto px-4 py-3 md:px-8 max-w-8xl flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">
+        <header class="sticky top-0 z-50 w-full backdrop-blur-2xl bg-background/90 shadow-sm transition-colors duration-200">
+            <div class="container mx-auto px-4 py-3 md:px-8 max-w-[1440px] flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">
                 <!-- Brand & Mobile Icons Row -->
                 <div class="w-full md:w-auto flex justify-between items-center">
-                    <a href="/" class="text-2xl font-bold text-primary hover:text-primary/80 transition-colors index-link tracking-tight shrink-0">MikuInvidious</a>
-                    
+                    <a href="/"
+                       class="text-2xl font-bold text-primary hover:text-primary/80 transition-colors index-link tracking-tight shrink-0">MikuInvidious</a>
+
                     <!-- Mobile Action Buttons (Visible only on mobile) -->
                     <div class="flex items-center gap-0.5 md:hidden">
-                        <button id="mobile_search_btn" class="md3-icon-button">
+                        <button id="mobile_search_btn"
+                                class="md3-icon-button"
+                                aria-label="{{ '搜索' }}">
                             <i class="icon ion-ios-search"></i>
                         </button>
-                        <a title="{{ '番剧' }}" href="/bangumi" class="md3-icon-button">
+                        <a title="{{ '番剧' }}"
+                           href="/bangumi"
+                           class="md3-icon-button"
+                           aria-label="{{ '番剧' }}">
                             <i class="icon ion-ios-film"></i>
                         </a>
-                        <a id="toggle_theme_mobile" href="javascript:void(0)" class="md3-icon-button">
+                        <a id="toggle_theme_mobile"
+                           href="javascript:void(0)"
+                           class="md3-icon-button"
+                           aria-label="{{ '切换主题' }}">
                             <i class="icon ion-ios-moon"></i>
                         </a>
-                        <a title="{{ '偏好设置' }}" href="/preferences" class="md3-icon-button">
+                        <a title="{{ '偏好设置' }}"
+                           href="/preferences"
+                           class="md3-icon-button"
+                           aria-label="{{ '偏好设置' }}">
                             <i class="icon ion-ios-cog"></i>
                         </a>
                     </div>
                 </div>
 
                 <!-- Search Container (Hidden on mobile by default, flex on desktop) -->
-                <div id="search_container" class="hidden md:flex w-full md:flex-1 max-w-2xl searchbar">
+                <div id="search_container"
+                     class="hidden md:flex w-full md:flex-1 max-w-2xl searchbar">
                     <form class="w-full" action="/search" method="get">
                         <div class="relative group">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
@@ -373,7 +421,7 @@
                                    spellcheck="false"
                                    name="q"
                                    placeholder="{{ '想要搜索点什么？' }}"
-                                   class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
+                                   class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface-variant/80 text-on-surface backdrop-blur-md focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
                                    {% if q %}value="{{ q }}"{% endif %} />
                         </div>
                     </form>
@@ -381,13 +429,22 @@
 
                 <!-- Desktop Action Buttons (Hidden on mobile) -->
                 <div class="hidden md:flex items-center gap-1 md:gap-2 user-field">
-                    <a title="{{ '番剧' }}" href="/bangumi" class="md3-icon-button">
+                    <a title="{{ '番剧' }}"
+                       href="/bangumi"
+                       class="md3-icon-button"
+                       aria-label="{{ '番剧' }}">
                         <i class="icon ion-ios-film"></i>
                     </a>
-                    <a id="toggle_theme" href="javascript:void(0)" class="md3-icon-button">
+                    <a id="toggle_theme"
+                       href="javascript:void(0)"
+                       class="md3-icon-button"
+                       aria-label="{{ '切换主题' }}">
                         <i class="icon ion-ios-moon"></i>
                     </a>
-                    <a title="{{ '偏好設置' }}" href="/preferences" class="md3-icon-button">
+                    <a title="{{ '偏好設置' }}"
+                       href="/preferences"
+                       class="md3-icon-button"
+                       aria-label="{{ '偏好设置' }}">
                         <i class="icon ion-ios-cog"></i>
                     </a>
                 </div>

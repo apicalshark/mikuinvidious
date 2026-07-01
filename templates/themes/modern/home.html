@@ -4,7 +4,7 @@
     <meta name="referrer" content="never" />
 {% endblock %}
 {% block content %}
-    <div class="mb-10 p-8 bg-surface-variant/30 dark:bg-surface-variant/10 rounded-2xl shadow-sm backdrop-blur-sm">
+    <div class="mb-10 p-8 bg-surface-variant/60 dark:bg-surface-variant/20 rounded-3xl shadow-sm backdrop-blur-sm">
         <h1 class="text-3xl font-bold mb-4 text-on-surface tracking-tight">
             {{ '嘿，这里是 MikuInvidious！' }}<small class="text-lg font-normal text-on-surface-variant block sm:inline ml-0 sm:ml-3 opacity-80">{{ 'MikuInvidious 是自由的哔哩哔哩前端。' }}</small>
         </h1>
@@ -17,7 +17,7 @@
                 <p>
                     {{ '个人空间需要把' }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">space.bilibili.com</code> {{ '后的数字粘贴到实例域名 +' }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">/space/</code> {{ '后面。' }}
                 </p>
-                <p class="flex items-start sm:items-center gap-3 mt-6 text-sm bg-primary-container/10 p-4 rounded-xl text-on-surface-variant">
+                <p class="flex items-start sm:items-center gap-3 mt-6 text-sm bg-primary-container/10 p-4 rounded-2xl text-on-surface-variant">
                     <i class="icon ion-ios-information-circle-outline text-2xl text-primary flex-shrink-0"></i>
                     <span>
                         {% if not proxy_status.use_proxy %}
@@ -32,14 +32,14 @@
         <hr class="my-10 border-none h-px bg-gradient-to-r from-transparent via-surface-variant/30 to-transparent" />
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {% for v in videos %}
-                <div class="group bg-surface dark:bg-surface-variant/20 rounded-2xl overflow-hidden hover:bg-surface-variant/30 flex flex-col transition-all duration-300 hover:shadow-[0_0_20px_rgba(156,65,116,0.15)] dark:hover:shadow-[0_0_20px_rgba(255,177,218,0.1)] hover:-translate-y-1">
+                <div class="group bg-surface dark:bg-surface-variant/20 rounded-3xl overflow-hidden hover:bg-surface-variant/40 hover:scale-[1.02] flex flex-col transition-all duration-300 hover:shadow-xl dark:hover:shadow-primary/10 hover:-translate-y-1">
                     <!-- Thumbnail -->
                     <a href="{% if v['duration'] == 'LIVE' %}/live/{{ v['room_id'] }}{% else %}/video/{{ v['bvid'] }}{% endif %}"
                        class="relative block aspect-video overflow-hidden">
                         <img loading="lazy"
                              class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                              src="{{ (v['pic'] + "@320w_180h.webp" if v['duration'] == 'LIVE' else v['pic'] + "@320w")|pic }}"
-                             alt="" />
+                             alt="{{ v['title'] }}" />
                         <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                         </div>
                         <p class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg font-medium shadow-sm">
@@ -66,11 +66,13 @@
                                 </a>
                                 <div class="flex gap-1">
                                     <a title="{{ '在哔哩哔哩上观看' }}"
+                                       aria-label="{{ '在哔哩哔哩上观看' }}"
                                        href="https://{% if v['duration'] == 'LIVE' %}live{% else %}www{% endif %}.bilibili.com/{% if v['duration'] == 'LIVE' %}{% else %}video/{% endif %}{{ v['bvid'] }}"
                                        class="md3-icon-button-small">
                                         <i class="icon ion-logo-youtube"></i>
                                     </a>
                                     <a title="{{ '音频模式' }}"
+                                       aria-label="{{ '音频模式' }}"
                                        href="/video/{{ v['bvid'] }}?listen=1"
                                        class="md3-icon-button-small">
                                         <i class="icon ion-md-headset"></i>

@@ -28,7 +28,7 @@
         </div>
     </div>
     {% if sinfo['numResults'] == 0 %}
-        <div class="flex flex-col items-center justify-center py-20 bg-surface-variant/10 rounded-2xl border-2 border-dashed border-surface-variant/30">
+        <div class="flex flex-col items-center justify-center py-20 bg-surface-variant/10 rounded-3xl border-2 border-dashed border-surface-variant/30">
             <i class="icon ion-ios-people text-6xl text-on-surface-variant/50 mb-4"></i>
             <h3 class="text-xl font-bold text-on-surface-variant">没有搜索到相关用户</h3>
             <p class="text-on-surface-variant/70 mt-2">换个关键词试试？</p>
@@ -37,7 +37,7 @@
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
             {% for u in rs %}
                 <a href="/space/{{ u['mid'] }}"
-                   class="group bg-surface dark:bg-surface-variant/20 rounded-2xl p-6 flex flex-col items-center hover:bg-surface-variant/30 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ring-1 ring-surface-variant/10">
+                   class="group bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 flex flex-col items-center hover:bg-surface-variant/30 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ring-1 ring-surface-variant/10">
                     <div class="relative w-20 h-20 mb-4">
                         <img src="{{ u['upic']|pic }}"
                              alt="{{ u['uname'] }}"
