@@ -182,7 +182,7 @@
                                                 <img loading="lazy"
                                                      class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
                                                      src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
-                                                     alt="{{ rep['member']['uname'] }}" />
+                                                     alt="{{ v['title'] }}" />
                                             </a>
                                             <div class="flex-grow space-y-1">
                                                 <div class="flex items-baseline justify-between">
@@ -347,7 +347,7 @@
                                     <img loading="lazy"
                                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                          src="{{ "{}@320w".format(rv['pic']) |pic }}"
-                                         alt="{{ rv['title'] }}" />
+                                         alt="{{ v['title'] }}" />
                                     <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded shadow-sm">{{ rv['duration']|secdur }}</span>
                                 </div>
                                 <div class="flex-grow min-w-0 py-0.5">

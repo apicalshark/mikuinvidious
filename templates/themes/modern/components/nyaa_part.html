@@ -39,12 +39,8 @@
             {% if ep_torrents %}
                 <div class="grid grid-cols-1 gap-4">
                     {% for ep_num, torrents in ep_torrents.items() | sort %}
-                        <div class="bg-surface-variant/30 rounded-2xl overflow-hidden">
-                            <button class="w-full p-3 px-4 flex items-center justify-between hover:bg-surface-variant/50 transition-colors"
-                                    onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true'); document.getElementById('nyaa-ep-{{ ep_num }}').classList.toggle('grid-rows-[1fr]'); document.getElementById('nyaa-ep-{{ ep_num }}').classList.toggle('grid-rows-[0fr]')"
-                                    aria-expanded="false"
-                                    aria-controls="nyaa-ep-{{ ep_num }}"
-                                    aria-label="显示第 {{ ep_num }} 集种子资源">
+                        <div class="bg-surface-variant/30 rounded-2xl overflow-hidden group">
+                            <div class="p-3 px-4 flex items-center justify-between cursor-default">
                                 <div class="flex items-center gap-3">
                                     <span class="w-10 h-10 flex items-center justify-center bg-primary/10 text-primary font-bold rounded-lg">
                                         {{ ep_num }}
@@ -52,11 +48,9 @@
                                     <span class="font-medium">第 {{ ep_num }} 集相關資源</span>
                                 </div>
                                 <span class="text-xs opacity-50">{{ torrents|length }} 個資源</span>
-                            </button>
+                            </div>
 
-                            <div id="nyaa-ep-{{ ep_num }}"
-                                 class="grid grid-rows-[0fr] transition-all duration-300 ease-in-out"
-                                 aria-hidden="true">
+                            <div class="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300 ease-in-out">
                                 <div class="overflow-hidden">
                                     <div class="p-3 pt-0 grid grid-cols-1 md:grid-cols-2 gap-2">
                                         {% for t in torrents %}

@@ -44,7 +44,7 @@
                 {% for ep in episodes %}
                     <div class="group bg-surface-variant/10 hover:bg-surface-variant/20 rounded-2xl transition-colors duration-300">
                         <!-- Header (Always Visible) -->
-                        <div class="p-3 flex items-center gap-4">
+                        <div class="p-3 flex items-center gap-4 cursor-pointer">
                             <a href="/bangumi/play/ep{{ ep['ep_id'] }}"
                                class="md3-button md3-button-filled !h-9 !px-4 !min-w-[3.5rem] !rounded-lg !text-sm">
                                 {{ ep['title'] }}
@@ -54,19 +54,15 @@
                                 <p class="text-[9px] text-on-surface-variant opacity-50 uppercase tracking-tighter">BVID: {{ ep['bvid'] }}</p>
                             </div>
                             <!-- Nyaa Placeholder for this episode -->
-                            <button id="ep-nyaa-{{ ep['title'] }}"
-                                    class="hidden ep-nyaa-container flex-shrink-0 p-1 hover:bg-primary/10 rounded transition-colors"
-                                    aria-expanded="false"
-                                    aria-controls="ep-torrents-{{ ep['title'] }}"
-                                    aria-label="显示种子资源">
+                            <div id="ep-nyaa-{{ ep['title'] }}"
+                                 class="hidden ep-nyaa-container flex-shrink-0">
                                 <i class="icon ion-md-magnet text-primary animate-pulse"></i>
-                            </button>
+                            </div>
                         </div>
 
                         <!-- Expandable Content (Torrents - Loaded via JS) -->
                         <div id="ep-torrents-{{ ep['title'] }}"
-                             class="grid grid-rows-[0fr] transition-[grid-template-rows] duration-300 ease-in-out"
-                             aria-hidden="true">
+                             class="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-[grid-template-rows] duration-300 ease-in-out">
                             <div class="overflow-hidden">
                                 <div class="px-3 pb-3 ep-torrents-content">
                                     <!-- Dynamic content goes here -->
@@ -109,25 +105,10 @@
                     for (const epNum in epTorrents) {
                         const iconPlaceholder = document.getElementById(`ep-nyaa-${epNum}`);
                         const contentPlaceholder = document.querySelector(`#ep-torrents-${epNum} .ep-torrents-content`);
-                        const contentContainer = document.getElementById(`ep-torrents-${epNum}`);
 
                         if (iconPlaceholder && contentPlaceholder && epTorrents[epNum].length > 0) {
                             iconPlaceholder.classList.remove('hidden');
-                            iconPlaceholder.innerHTML = `<i class="icon ion-md-magnet text-primary"></i><span class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono ml-1">${epTorrents[epNum].length}</span>`;
-
-                            // Wire up toggle behavior
-                            iconPlaceholder.addEventListener('click', function() {
-                                const isExpanded = this.getAttribute('aria-expanded') === 'true';
-                                this.setAttribute('aria-expanded', !isExpanded);
-                                contentContainer.setAttribute('aria-hidden', isExpanded);
-                                if (isExpanded) {
-                                    contentContainer.classList.remove('grid-rows-[1fr]');
-                                    contentContainer.classList.add('grid-rows-[0fr]');
-                                } else {
-                                    contentContainer.classList.remove('grid-rows-[0fr]');
-                                    contentContainer.classList.add('grid-rows-[1fr]');
-                                }
-                            });
+                            iconPlaceholder.innerHTML = `<span class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">${epTorrents[epNum].length}</span>`;
 
                             let torrentsHtml = `<div class="pt-3">
                                 <p class="text-[9px] font-bold text-primary/60 uppercase tracking-widest mb-2 px-1">Nyaa Magnet Resources</p>

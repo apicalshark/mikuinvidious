@@ -4,7 +4,7 @@
     <meta name="referrer" content="never" />
 {% endblock %}
 {% block content %}
-    <div class="mb-10 p-8 bg-surface-variant/30 dark:bg-surface-variant/10 rounded-3xl shadow-sm backdrop-blur-sm">
+    <div class="mb-10 p-8 bg-surface-variant/60 dark:bg-surface-variant/20 rounded-3xl shadow-sm backdrop-blur-sm">
         <h1 class="text-3xl font-bold mb-4 text-on-surface tracking-tight">
             {{ '嘿，这里是 MikuInvidious！' }}<small class="text-lg font-normal text-on-surface-variant block sm:inline ml-0 sm:ml-3 opacity-80">{{ 'MikuInvidious 是自由的哔哩哔哩前端。' }}</small>
         </h1>
@@ -67,18 +67,16 @@
                                 <div class="flex gap-1">
                                     <a title="{{ '在哔哩哔哩上观看' }}"
                                        aria-label="{{ '在哔哩哔哩上观看' }}"
-                                       href="https://{% if v['duration'] == 'LIVE' %}live{% else %}www{% endif %}.bilibili.com/{% if v['duration'] == 'LIVE' %}{{ v['room_id'] }}{% else %}video/{{ v['bvid'] }}{% endif %}"
+                                       href="https://{% if v['duration'] == 'LIVE' %}live{% else %}www{% endif %}.bilibili.com/{% if v['duration'] == 'LIVE' %}{% else %}video/{% endif %}{{ v['bvid'] }}"
                                        class="md3-icon-button-small">
                                         <i class="icon ion-logo-youtube"></i>
                                     </a>
-                                    {% if v['duration'] != 'LIVE' %}
-                                        <a title="{{ '音频模式' }}"
-                                           aria-label="{{ '音频模式' }}"
-                                           href="/video/{{ v['bvid'] }}?listen=1"
-                                           class="md3-icon-button-small">
-                                            <i class="icon ion-md-headset"></i>
-                                        </a>
-                                    {% endif %}
+                                    <a title="{{ '音频模式' }}"
+                                       aria-label="{{ '音频模式' }}"
+                                       href="/video/{{ v['bvid'] }}?listen=1"
+                                       class="md3-icon-button-small">
+                                        <i class="icon ion-md-headset"></i>
+                                    </a>
                                 </div>
                             </div>
                             <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
