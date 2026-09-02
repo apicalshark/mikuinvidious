@@ -58,9 +58,9 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
         "method": "GET",
         "verify": False,
     }
-    raw = await Api(**api, credential=credential, wbi=True).update_params(**params).request(raw=True)
+    data = await Api(**api, credential=credential, wbi=True).update_params(**params).request()
     # Transform new response format to old format expected by templates
-    data = raw.get("data") or {}
+    data = data or {}
     cursor = data.get("cursor") or {}
     return {
         "page": {

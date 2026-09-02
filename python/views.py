@@ -727,14 +727,28 @@ async def api_component_player(vid, idx):
     dash_data = await get_dash_data()
     is_dash = bool(dash_data)
     dash_url = f"/video/dash/{vid}/{idx}/manifest.mpd" if is_dash else ""
-    supported_src = [
-        {
-            "quality": f.get("quality"),
-            "new_description": f.get("new_description") or f.get("display_desc") or "",
-        }
-        for f in (dash_data or {}).get("support_formats", [])
-        if isinstance(f, dict) and f.get("quality") is not None
-    ] if is_dash else []
+    dash_video_tracks = ((dash_data or {}).get("dash") or {}).get("video") or []
+    dash_tracks_by_quality = {}
+    for track in dash_video_tracks:
+        if not isinstance(track, dict):
+            continue
+        quality = track.get("id")
+        segment_base = track.get("SegmentBase") or {}
+        if quality is not None and segment_base.get("indexRange"):
+            dash_tracks_by_quality.setdefault(str(quality), track)
+    supported_src = (
+        [
+            {
+                "quality": f.get("quality"),
+                "new_description": f.get("new_description") or f.get("display_desc") or "",
+                "bandwidth": (dash_tracks_by_quality.get(str(f.get("quality"))) or {}).get("bandwidth"),
+            }
+            for f in (dash_data or {}).get("support_formats") or []
+            if isinstance(f, dict) and f.get("quality") is not None
+        ]
+        if is_dash
+        else []
+    )
 
     return await render_template_with_theme(
         "components/player_part.html",

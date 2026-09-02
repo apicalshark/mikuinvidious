@@ -498,10 +498,23 @@ class DashPlayerManager {
     }, 2000);
   }
 
-  setQuality(index) {
+  setQuality(source) {
     if (!this.player) return;
     try {
-      this.player.setQualityFor("video", index, true);
+      const bitrates = this.player.getBitrateInfoListFor("video") || [];
+      const target =
+        source?.bandwidth == null
+          ? null
+          : bitrates.find((bitrate) => Number(bitrate.bitrate) === Number(source.bandwidth));
+      if (!target) {
+        console.warn("[DashManager] DASH quality is not present in the manifest:", source?.quality);
+        return;
+      }
+      this.player.updateSettings({
+        streaming: { abr: { autoSwitchBitrate: { video: false } } },
+      });
+      const qualityIndex = target.qualityIndex ?? bitrates.indexOf(target);
+      this.player.setQualityFor("video", qualityIndex, true);
     } catch (e) {
       console.warn("[DashManager] Could not set DASH quality:", e);
     }
@@ -1144,14 +1157,14 @@ function setupVodQuality(video, list, label) {
   list.innerHTML = "";
   const sorted = [...window.supported_src].sort((a, b) => b.quality - a.quality);
 
-  if (window.is_dash && window.dashManager) {
-    // DASH quality switching via dash.js Representation index (sorted desc -> index = position)
+  if (window.is_dash) {
+    // DASH quality switching resolves the API quality against MPD representations.
     sorted.forEach((src, i) => {
       const btn = createOption(
         src.new_description,
-        i,
+        src.quality,
         () => {
-          window.dashManager.setQuality(i);
+          window.dashManager.setQuality(src);
           if (label) label.innerText = src.new_description;
         },
         list

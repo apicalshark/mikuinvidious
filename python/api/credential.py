@@ -29,6 +29,8 @@ from .exceptions import ArgsException
 
 __all__ = ["Credential", "sync", "ArgsException"]
 
+_EXTRA_COOKIE_NAMES = frozenset({"_uuid", "b_lsid", "b_nut", "bili_ticket", "bili_ticket_expires", "buvid_fp"})
+
 
 class Credential:
     """
@@ -80,10 +82,10 @@ class Credential:
         }
         if self.dedeuserid:
             cookies["DedeUserID"] = self.dedeuserid
-        for key, value in self.__dict__.items():
-            if key not in cookies and value is not None:
+        for key in _EXTRA_COOKIE_NAMES:
+            value = getattr(self, key, None)
+            if value is not None:
                 cookies[key] = value
-        cookies.pop("proxy", None)
         return cookies
 
     def has_sessdata(self) -> bool:

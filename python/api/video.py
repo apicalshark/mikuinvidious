@@ -136,6 +136,7 @@ class Video:
             "url": "https://api.bilibili.com/x/web-interface/wbi/view",
             "method": "GET",
             "verify": False,
+            "wbi": True,
         }
         params = {"bvid": self._bvid}
         resp = await Api(**api, credential=self.credential).update_params(**params).result
@@ -217,11 +218,11 @@ class Video:
             params["platform"] = "html5"
             params["high_quality"] = "1"
         api = {
-            "url": "https://api.bilibili.com/x/player/wbi/playurl",
+            "url": "https://api.bilibili.com/x/player/playurl",
             "method": "GET",
             "verify": False,
         }
-        return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+        return await Api(**api, credential=self.credential).update_params(**params).result
 
     async def get_dash_playurl(self, page_index=None, cid=None, qn=120) -> dict:
         """Fetch DASH play URL info (returns the ``data`` node).

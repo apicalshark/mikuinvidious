@@ -110,16 +110,20 @@ request_settings = RequestSettings()
 
 # Process-wide single httpx client
 __client = None
+__client_configured_proxy = None
 __client_lock = asyncio.Lock()
 
 
 async def get_bili_client() -> httpx.AsyncClient:
     """Return the shared async httpx client (recreated when proxy changes)."""
-    global __client
+    global __client, __client_configured_proxy
     proxy = request_settings.get_proxy() or None
-    if __client is None or __client.is_closed:
+    if __client is None or __client.is_closed or __client_configured_proxy != proxy:
         async with __client_lock:
-            if __client is None or __client.is_closed:
+            proxy = request_settings.get_proxy() or None
+            if __client is None or __client.is_closed or __client_configured_proxy != proxy:
+                if __client is not None and not __client.is_closed:
+                    await __client.aclose()
                 __client = httpx.AsyncClient(
                     proxy=proxy,
                     trust_env=False,
@@ -128,19 +132,7 @@ async def get_bili_client() -> httpx.AsyncClient:
                     limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
                     follow_redirects=False,
                 )
-    elif __client._transport._pool._proxy is not None and proxy is None:
-        # Proxy was turned off; rebuild
-        async with __client_lock:
-            if not __client.is_closed:
-                await __client.aclose()
-            __client = httpx.AsyncClient(
-                proxy=None,
-                trust_env=False,
-                http2=False,
-                timeout=httpx.Timeout(None, connect=15.0, pool=30.0, read=30.0),
-                limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
-                follow_redirects=False,
-            )
+                __client_configured_proxy = proxy
     return __client
 
 
