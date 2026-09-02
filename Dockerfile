@@ -6,6 +6,9 @@ WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1
 
+# Install ffmpeg (used to mux DASH video+audio into a single downloadable MP4)
+RUN apk add --no-cache ffmpeg
+
 # Install dependencies using the lockfile
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project

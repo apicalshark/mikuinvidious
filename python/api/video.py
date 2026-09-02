@@ -116,6 +116,10 @@ class Video:
         self._aid = bv2av(bvid)
 
     def set_aid(self, aid: int) -> None:
+        try:
+            aid = int(aid)
+        except (TypeError, ValueError):
+            pass
         if aid <= 0:
             raise ArgsException("aid 不能小于或等于 0。")
         self._aid = aid

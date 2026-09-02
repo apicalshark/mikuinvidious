@@ -20,6 +20,7 @@ import re
 
 import bleach
 import orjson
+from bleach.css_sanitizer import CSSSanitizer
 from api.client import Api
 from api.exceptions import ArgsException
 from bs4 import BeautifulSoup
@@ -53,15 +54,30 @@ ALLOWED_STYLES = [
     'border', 'width', 'height', 'display', 'vertical-align',
 ]
 
+# Bleach >= 6.1 removed the `styles` kwarg from `clean()`; inline CSS is now
+# sanitized via a `css_sanitizer` (requires the `tinycss2` dependency).
+_css_sanitizer = CSSSanitizer(allowed_css_properties=ALLOWED_STYLES)
+
 def sanitize_html(html: str) -> str:
     """Sanitize HTML to prevent XSS."""
     return bleach.clean(
         html,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
-        styles=ALLOWED_STYLES,
+        css_sanitizer=_css_sanitizer,
         strip=True,
     )
+
+
+def _to_int(value, default=0):
+    """Coerce a value to int without raising (Bilibili sometimes sends numeric
+    fields as strings, e.g. ``pub_ts`` on opus pages)."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def get_article_info(article_text, cid):
@@ -119,6 +135,14 @@ def get_article_info(article_text, cid):
 
         if not arinfo["stats"]["view"] and "basic" in detail:
             arinfo["stats"]["view"] = detail["basic"].get("view_count", 0)
+
+        # Coerce numeric fields to int (Bilibili sometimes sends them as strings,
+        # e.g. ``pub_ts`` on the opus format) so template filters like |date
+        # (datetime.fromtimestamp) don't crash.
+        arinfo["publish_time"] = _to_int(arinfo["publish_time"])
+        arinfo["author"]["mid"] = _to_int(arinfo["author"]["mid"])
+        for _k in arinfo["stats"]:
+            arinfo["stats"][_k] = _to_int(arinfo["stats"][_k])
 
     return arinfo
 

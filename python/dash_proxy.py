@@ -33,7 +33,11 @@ was replaced with a raw-socket ``CdnConnection`` proxy.
 """
 
 import asyncio
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 from urllib.parse import urlparse
 
 import orjson
@@ -337,6 +341,203 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     return "\n".join(mpd)
 
 
+# ---------------------------------------------------------------------------
+# Muxed MP4 download (DASH video + audio -> single playable MP4 via ffmpeg)
+# ---------------------------------------------------------------------------
+
+# Anonymous scraping caps out at 1080p (quality 80). Anything higher (1080p+,
+# 1080p60, 4K...) requires login / season-vip. Keep downloads capped at 1080p.
+_FREE_DOWNLOAD_MAX_QN = 80
+
+
+async def _build_dash_cdn_headers() -> dict:
+    """CDN header set for DASH track requests (proxy + download).
+
+    Bilibili's .bilivideo.com DASH CDN returns 403 when the request carries the
+    Android app User-Agent (used for the API layer) — the CDN only serves DASH
+    tracks to a web-browser UA. So build CDN-specific headers here (web UA +
+    Referer/Origin), NOT the android get_common_headers() set.
+    """
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Referer": appconf["bili"].get("referer", "https://www.bilibili.com"),
+        "Origin": "https://www.bilibili.com",
+        "Accept": "*/*",
+    }
+    ticket = await TicketManager.get_ticket()
+    if ticket:
+        headers["x-bili-ticket"] = ticket
+    headers["session_id"] = TicketManager._generate_session_id()
+    headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+    creds = appconf["credential"]
+    if creds.get("buvid3"):
+        headers["buvid"] = creds["buvid3"]
+    if creds.get("buvid4"):
+        headers["buvid4"] = creds["buvid4"]
+    cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds.get("use_cred") else {}
+    if cookie_jar:
+        headers["cookie"] = "; ".join(f"{k}={v}" for k, v in cookie_jar.items())
+    return headers
+
+
+def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
+    """Pick the best (video, audio) track pair for a muxed download.
+
+    Video: highest ``id`` (quality) <= ``max_video_qn``. Audio: highest ``id``
+    from the standard ``dash.audio`` array (avoids Dolby/FLAC lossless tracks).
+    """
+    if not dash_data or not isinstance(dash_data, dict):
+        return None, None
+    dash = dash_data.get("dash") or {}
+
+    video = None
+    for t in _normalize_track_urls(dash.get("video")):
+        try:
+            qn = int(t.get("id", 0))
+        except (TypeError, ValueError):
+            qn = 0
+        if qn <= max_video_qn and (video is None or qn > int(video.get("id") or 0)):
+            video = t
+
+    audio = None
+    for t in _normalize_track_urls(dash.get("audio")):
+        try:
+            qn = int(t.get("id", 0))
+        except (TypeError, ValueError):
+            qn = 0
+        if audio is None or qn > int(audio.get("id") or 0):
+            audio = t
+    return video, audio
+
+
+async def _download_track_to_file(url: str, headers: dict, proxy_url: str, dest: str) -> int:
+    """Download a full DASH track body to ``dest`` via CdnConnection. Returns byte count."""
+    conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
+    try:
+        await conn.connect()
+        await conn.send_request()
+        resp_headers = await conn.read_response_headers()
+        if resp_headers.status_code in (403, 412, 514):
+            await conn.close()
+            ticket = await TicketManager.get_ticket(force_refresh=True)
+            if ticket:
+                headers["x-bili-ticket"] = ticket
+            else:
+                headers.pop("x-bili-ticket", None)
+            conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
+            await conn.connect()
+            await conn.send_request()
+            resp_headers = await conn.read_response_headers()
+        if resp_headers.status_code not in (200, 206):
+            await conn.close()
+            return -1
+        total = 0
+        with open(dest, "wb") as f:
+            async for chunk in conn.iter_chunks():
+                f.write(chunk)
+                total += len(chunk)
+        await conn.close()
+        return total
+    except Exception:
+        await conn.close()
+        return -1
+
+
+async def _mux_tracks(video_path: str, audio_path: str, out_path: str) -> None:
+    """Remux video + audio tracks into a single faststart MP4 with ffmpeg (-c copy)."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg not available on this server")
+    cmd = [
+        ffmpeg, "-y",
+        "-i", video_path,
+        "-i", audio_path,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c", "copy",
+        "-movflags", "+faststart",
+        out_path,
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError("ffmpeg mux failed: " + (stderr or b"").decode(errors="replace")[-600:])
+
+
+@dash_proxy_bp.route("/proxy/download/<vid>/<int:idx>/<int:qual>")
+@rate_limit(**RATE_LIMITS["proxy"])
+async def proxy_download(vid, idx, qual):
+    """Mux the best DASH video (<=1080p anonymous cap) + audio into one MP4.
+
+    Downloads both tracks through the WARP tunnel, remuxes with ffmpeg into a
+    single faststart MP4, and streams it back as an attachment.
+    """
+    if not appconf["proxy"]["use_proxy"]:
+        return Response("Forbidden: Proxying is disabled.", status=403)
+
+    max_qn = min(qual, _FREE_DOWNLOAD_MAX_QN) if qual > 0 else _FREE_DOWNLOAD_MAX_QN
+    dash_data = await _load_dash_data(vid, idx)
+    if not dash_data or not dash_data.get("dash"):
+        return Response("Not Found", status=404)
+
+    video, audio = _pick_download_tracks(dash_data, max_qn)
+    if not video or not audio:
+        return Response("Not Found: no suitable DASH tracks", status=404)
+    vurl = video.get("base_url") or video.get("baseUrl")
+    aurl = audio.get("base_url") or audio.get("baseUrl")
+    if not vurl or not aurl:
+        return Response("Not Found: track has no URL", status=404)
+    if not _is_safe_dash_url(vurl) or not _is_safe_dash_url(aurl):
+        return Response("Forbidden: Invalid proxy target", status=403)
+
+    proxy_url = Network.get_proxy()
+    headers = await _build_dash_cdn_headers()
+
+    tmpdir = tempfile.mkdtemp(prefix="miku_dl_")
+    vpath = os.path.join(tmpdir, "video.m4s")
+    apath = os.path.join(tmpdir, "audio.m4s")
+    outpath = os.path.join(tmpdir, "out.mp4")
+    try:
+        if await _download_track_to_file(vurl, headers, proxy_url, vpath) < 0:
+            return Response("Upstream error (video track)", status=502)
+        if await _download_track_to_file(aurl, headers, proxy_url, apath) < 0:
+            return Response("Upstream error (audio track)", status=502)
+        try:
+            await _mux_tracks(vpath, apath, outpath)
+        except RuntimeError as exc:
+            print(f"[DashProxy] download mux failed for {vid}:{idx}: {exc}")
+            return Response("Mux failed", status=502)
+        actual_qn = int(video.get("id") or max_qn)
+
+        async def generate():
+            try:
+                with open(outpath, "rb") as f:
+                    while True:
+                        chunk = f.read(512 * 1024)
+                        if not chunk:
+                            break
+                        yield chunk
+            finally:
+                shutil.rmtree(tmpdir, ignore_errors=True)
+
+        resp = Response(generate())
+        resp.headers["Content-Type"] = "video/mp4"
+        resp.headers["Content-Disposition"] = f'attachment; filename="{vid}_{idx}_p{actual_qn}.mp4"'
+        resp.headers["X-Accel-Buffering"] = "no"
+        return resp
+    except Exception as exc:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        print(f"[DashProxy] proxy_download error: {exc}")
+        return Response("Upstream error", status=502)
+
+
 @dash_proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
 @rate_limit(**RATE_LIMITS["proxy"])
 async def proxy_dash(vid, idx, media_type, qn, cid):
@@ -369,28 +570,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     creds = appconf["credential"]
     cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds.get("use_cred") else {}
 
-    # DASH CDN header set. Bilibili's .bilivideo.com DASH CDN returns 403 when the
-    # request carries the Android app User-Agent (used for the API layer) — the CDN
-    # only serves DASH tracks to a web-browser UA. So build CDN-specific headers
-    # here (web UA + Referer/Origin), NOT the android get_common_headers() set.
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        ),
-        "Referer": appconf["bili"].get("referer", "https://www.bilibili.com"),
-        "Origin": "https://www.bilibili.com",
-        "Accept": "*/*",
-    }
-    ticket = await TicketManager.get_ticket()
-    if ticket:
-        headers["x-bili-ticket"] = ticket
-    headers["session_id"] = TicketManager._generate_session_id()
-    headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-    if appconf["credential"].get("buvid3"):
-        headers["buvid"] = appconf["credential"]["buvid3"]
-    if appconf["credential"].get("buvid4"):
-        headers["buvid4"] = appconf["credential"]["buvid4"]
+    headers = await _build_dash_cdn_headers()
 
     # Forward runtime Range/conditional headers from the browser player
     for k, v in request.headers.items():

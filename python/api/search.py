@@ -70,7 +70,10 @@ async def search_by_type(
     order_type=None,
     time_range=-1,
     order_sort=None,
+    retries: int = 3,
 ) -> dict:
+    import asyncio as _asyncio
+
     params = {"keyword": keyword, "page": page, "page_size": page_size}
     if search_type is None:
         raise ArgsException("缺少 search_type")
@@ -87,7 +90,18 @@ async def search_by_type(
         "method": "GET",
         "verify": False,
     }
-    return await Api(**api, wbi=True).update_params(**params).result
+    last_result = {}
+    for attempt in range(max(retries, 1)):
+        last_result = await Api(**api, wbi=True).update_params(**params).result
+        if not isinstance(last_result, dict):
+            last_result = {}
+        num = last_result.get("numResults", 0)
+        result = last_result.get("result", [])
+        if num > 0 or (isinstance(result, list) and len(result) > 0) or (isinstance(result, dict) and result):
+            return last_result
+        if attempt < retries - 1:
+            await _asyncio.sleep(0.5 * (attempt + 1))
+    return last_result
 
 
 def _to_time_code(time_range):

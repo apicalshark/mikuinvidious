@@ -247,10 +247,26 @@ The `python/api/` module only needs to implement these specific endpoints and ut
 - [ ] `get_danmaku_xml(page_index)` -> GET danmaku XML
 
 #### 5. User Module (`python/api/user.py`)
-- [ ] `User(mid=, credential=)` class
-- [ ] `get_user_info()` -> GET `/x/space/wbi/acc/info` (wbi required)
-- [ ] `get_videos(pn, ps)` -> GET `/x/space/wbi/arc/search` (wbi required)
+- [x] `User(mid=, credential=)` class (coerces uid to int; rejects `<= 0`)
+- [x] `get_user_info()` -> GET `/x/space/wbi/acc/info` (wbi), falls back to non-wbi `/x/web-interface/card`
+- [x] `get_videos(pn, ps)` -> GET `/x/space/wbi/arc/search` (wbi), falls back to `/x/series/recArchivesByKeywords`
 - [ ] `get_articles(pn, ps)` -> GET `/x/space/wbi/article` (wbi required)
+
+### Space browsing risk-control fallback (verified Sep 2 2026)
+
+`/x/space/wbi/arc/search` and `/x/space/wbi/acc/info` are IP/risk-controlled from datacenter
+hosts (HTTP 412 / -352 `v_voucher`) without the WARP proxy. Modeled on PipePipe
+(PipePipeExtractor `BilibiliChannelExtractor`, `DeviceForger`, `utils.getDmImgParams`):
+
+- `User.get_videos` falls back to `/x/series/recArchivesByKeywords` (`mid,keywords="",order=pubdate,pn,ps`
+  + wbi + `dm_img_*` fingerprint), retrying with a fresh fingerprint on block, and normalizes
+  `data.archives[]` -> `data.list.vlist` (pic http->https, `created=pubdate`, `play=stat.view`).
+- `User.get_user_info` falls back to non-wbi `/x/web-interface/card?photo=true&mid=`, normalizing
+  `data.card` (has `name`/`face`/`sign`/`mid`).
+- This `\`3F`instant-verified from this host: `get_user_info` 4/4 complete, `get_videos` 28 items
+  via the fallback even as `arc/search` returns 412/-352. Both fallbacks return the same
+  data-node shape as the primary endpoints (`list.vlist` / top-level profile fields) so
+  `space.html` / `space_json_feed` render without UndefinedError.
 
 #### 6. Search Module (`python/api/search.py`)
 - [ ] `search_by_type(keyword, page, search_type, order_type)` -> GET `/x/web-interface/wbi/search/type` (wbi required)
@@ -400,12 +416,33 @@ POST https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket  
 ## DASH Migration Plan (durl → DASH)
 
 **Status: BACKEND + CORE FRONTEND IMPLEMENTED (Sep 2 2026)**
-- **Done:** `api/video.py:get_dash_playurl()` (wbi playurl, fnval=4048); `dash_proxy.py` rewritten as canonical DASH stack (UGC+PGC fetch, `miku_dash_<vid>_<idx>` cache, isoff-on-demand MPD gen, `/proxy/dash/...` Range-capable `CdnConnection` proxy with 206/Content-Range passthrough); `app.py` re-registers `dash_proxy_bp`; `views.py:api_component_player` switched to DASH and passes `is_dash`/`dash_url` to `player_part.html`; `extra.py:video_get_src_for_qn` marked deprecated; `video_view` precaches DASH instead of durl; dash.js vendored (`static/vjs/dash.min.js` v4.7.4) and loaded in `video.html`; `player.js` gained `DashPlayerManager` + DASH quality switching + buffer-controller skip.
-- **Remaining:** PGC premium end-to-end verification against a paid ep; `video_listen`/audio (durl-based) migration; download route tied to best DASH track; HLS/m3u8 deprecated-function cleanup (phase F); full live end-to-end test.
+- **Done:** `api/video.py:get_dash_playurl()` (wbi playurl, fnval=4048); `dash_proxy.py` rewritten as canonical DASH stack (UGC+PGC fetch, `miku_dash_<vid>_<idx>` cache, isoff-on-demand MPD gen, `/proxy/dash/...` Range-capable `CdnConnection` proxy with 206/Content-Range passthrough); `app.py` re-registers `dash_proxy_bp`; `views.py:api_component_player` switched to DASH and passes `is_dash`/`dash_url` to `player_part.html`; `extra.py:video_get_src_for_qn` marked deprecated; `video_view` precaches DASH instead of durl; dash.js vendored (`static/vjs/dash.min.js` v4.7.4) and loaded in `video.html`; `player.js` gained `DashPlayerManager` + DASH quality switching + buffer-controller skip; **muxed MP4 download** via `/proxy/download/<vid>/<idx>/<qual>` (see below).
+- **Remaining:** PGC premium end-to-end verification against a paid ep; `video_listen`/audio (durl-based) migration; HLS/m3u8 deprecated-function cleanup (phase F); full live end-to-end test.
+
+### Muxed DASH download (verified Sep 2 2026)
+
+Bilibili removed `durl`, so downloads are muxed from DASH tracks instead (the same approach
+as PipePipe, which downloads the DASH video + audio tracks separately then muxes into one MP4):
+
+- `/download` (POST) now redirects to `/proxy/download/<vid>/<idx>/<qual>` which:
+  resolves the cached `miku_dash_*` JSON, picks the best **video** track (highest `id <= 80`
+  = **1080P 高清**, the anonymous cap; 4K/1080P60/Dolby are login-gated) + best standard
+  **audio** track (highest in `dash.audio[]`, avoids Dolby/FLAC), downloads both full tracks
+  through the WARP tunnel via `CdnConnection` (web-UA CDN headers from `_build_dash_cdn_headers`),
+  remuxes with `ffmpeg -c copy -movflags +faststart`, and streams the single playable
+  H.264+AAC MP4 back as an attachment.
+- `_pick_download_tracks(dash_data, max_video_qn)` caps the video track at `_FREE_DOWNLOAD_MAX_QN = 80`.
+- **Dockerfile** added `apk add ffmpeg` to the app image (required for the mux step).
+- Verified from this host: selected 1080P (quality 80) video + 30280 audio, downloaded
+  53MB+5.8MB through CdnConnection, muxed to a valid 1920x1080 H.264+AAC MP4 (~59MB, 286s).
 
 ### DASH CDN header requirement (verified Sep 2 2026)
 
 Bilibili's `.bilivideo.com` DASH CDN returns **403 Forbidden** when the track request carries the **Android app User-Agent** (`BiliDroid/...`, the one `get_common_headers()` uses for the API layer). It only serves DASH track ranges to a **web-browser User-Agent**. Tested from this host: web Chrome UA + `Referer` + `Origin: https://www.bilibili.com` + Range → `206` with a valid fragmented-MP4 init segment; android UA with the same URL/logic → `403`. The other headers (`x-bili-ticket`, `session_id`, `x-bili-trace-id`, buvid, cookies, `app-key`, `x-bili-metadata-*`) do NOT trigger the 403 — only the UA does. `proxy_dash` therefore builds a CDN-specific header dict (web UA + Referer/Origin) instead of reusing `get_common_headers()`.
+
+### bili_ticket cookie must NOT be sent to web API (verified Sep 2 2026)
+
+Sending the **`bili_ticket` cookie** on Bilibili's wbi web-API requests triggers the anti-bot **`v_voucher`** precheck, returning an empty result (`data: {"v_voucher": ...}`, `numResults=None`) — e.g. breaking `/search`. Upstream `bilibili-api-python` matched this by defaulting `enable_bili_ticket=False`, so it never sent a `bili_ticket` cookie. Our `api/client.py` migration was unconditionally injecting it via `_get_anonymous_cookies()` — fixed by no longer adding `bili_ticket`/`bili_ticket_expires` to the anonymous cookie jar (the `x-bili-ticket` **header** used for CDN/DASH proxying via `shared.TicketManager` is unaffected). The buvid/b_nut/b_lsid/_uuid/buvid_fp fingerprint cookies are harmless; only the `bili_ticket` cookie triggers the gate.
 **Goal:** Bilibili has finally removed the `durl` (progressive MP4/FLV) response from `playurl`. We must mark the durl stack as deprecated and build a DASH stack that proxies Bilibili's fragmented-MP4 DASH streams through the app, played in the browser with **dash.js**.
 
 ### Why durl is dead

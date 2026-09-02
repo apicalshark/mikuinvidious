@@ -245,7 +245,9 @@ async def dl_redirect():
     if not qual or not qual.isdigit():
         return Response("Invalid quality", status=400)
 
-    return redirect(f"/proxy/video/{bvid}_{cvid}_{qual}?dl=1", code=302)
+    # Muxed DASH download: resolves the best video (<=1080p anonymous cap) + audio
+    # tracks and remuxes them into a single playable MP4 via ffmpeg.
+    return redirect(f"/proxy/download/{bvid}/{cvid}/{qual}", code=302)
 
 
 ##########################################

@@ -314,7 +314,13 @@ async def _get_anonymous_cookies() -> dict[str, str]:
     cookies["_uuid"] = _generate_uuid()
     cookies["buvid_fp"] = "".join(random.choice("0123456789abcdef") for _ in range(32))
 
-    # Step 3: Generate bili_ticket via HMAC-SHA256 -> GenWebTicket
+    # Step 3: Generate bili_ticket via HMAC-SHA256 -> GenWebTicket.
+    # NOTE: we do NOT send the bili_ticket as a cookie to Bilibili's web API.
+    # Sending it triggers Bilibili's anti-bot "v_voucher" precheck, which returns
+    # an empty result (e.g. numResults=None) for wbi endpoints like search. This
+    # matches upstream bilibili-api-python's default (enable_bili_ticket=False),
+    # which never sent a bili_ticket cookie. The x-bili-ticket HEADER (for CDN /
+    # DASH proxy) is managed separately by shared.TicketManager.
     try:
         ts = int(now)
         hex_sign = _hmac_sha256("XgwSnGZ1p", f"ts{ts}")
@@ -330,12 +336,8 @@ async def _get_anonymous_cookies() -> dict[str, str]:
                 headers=HEADERS,
             )
             ticket_data = resp.json().get("data") or {}
-        cookies["bili_ticket"] = ticket_data.get("ticket", "")
-        cookies["bili_ticket_expires"] = str(ts + ticket_data.get("created_at", 259200))
         _anonymous_cookies_expires = ts + ticket_data.get("created_at", 259200)
     except Exception:
-        cookies["bili_ticket"] = ""
-        cookies["bili_ticket_expires"] = "0"
         _anonymous_cookies_expires = now + 60  # retry in 60s
 
     _anonymous_cookies = cookies
