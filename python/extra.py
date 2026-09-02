@@ -20,8 +20,8 @@ import re
 
 import bleach
 import orjson
-from bilibili_api.exceptions import ArgsException
-from bilibili_api.utils.network import Api
+from api.client import Api
+from api.exceptions import ArgsException
 from bs4 import BeautifulSoup
 from shared import Network
 

@@ -21,7 +21,7 @@ _background_tasks = set()
 
 import orjson
 import transformers
-from bilibili_api import article, audio, comment, homepage, live, live_area, opus, search, user, video, video_zone
+from api import article, audio, comment, homepage, live, live_area, opus, search, user, video, video_zone
 from extra import (
     article_to_any,
     article_to_html,
@@ -37,8 +37,8 @@ from shared import Network, app, appconf, appcred, appredis, render_template_wit
 @app.route("/live/chat/<int:room_id>")
 @rate_limit(**RATE_LIMITS["strict"])
 async def live_chat_sse(room_id):
-    from bilibili_api import Credential
-    from bilibili_api import live as b_live
+    from api import Credential
+    from api import live as b_live
 
     async def event_stream():
         queue = asyncio.Queue()
@@ -679,7 +679,7 @@ async def api_component_player(vid, idx):
 
     try:
         if ep_id:
-            from bilibili_api.utils.network import Api
+            from api.client import Api
 
             api = Api(
                 "https://api.bilibili.com/pgc/view/web/season",

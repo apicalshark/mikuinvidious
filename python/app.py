@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 import filters  # noqa: F401
 import res  # noqa: F401
 import views  # noqa: F401
-from bilibili_api import exceptions
+from api import exceptions
 from csrf import csrf_protect, inject_csrf_token
 from proxy import proxy_bp
 from quart import Response, g, make_response, redirect, request, send_from_directory, url_for

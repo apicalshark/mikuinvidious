@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 import httpx
 import orjson
-from bilibili_api.utils.network import Api
+from api.client import Api
 from quart import Blueprint, Response, request
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import Network, app, appconf, appcred, appredis, get_common_headers, safe_json_loads
@@ -430,7 +430,7 @@ async def video_dash_manifest_view(vid, idx):
         DeprecationWarning,
         stacklevel=2,
     )
-    from bilibili_api import video
+    from api import video
 
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
@@ -460,7 +460,7 @@ async def video_master_m3u8_view(vid, idx):
         DeprecationWarning,
         stacklevel=2,
     )
-    from bilibili_api import video
+    from api import video
 
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")
@@ -490,7 +490,7 @@ async def video_media_m3u8_view(vid, idx, media_type, qn, cid):
         DeprecationWarning,
         stacklevel=2,
     )
-    from bilibili_api import video
+    from api import video
 
     v = video.Video(bvid=vid, credential=appcred)
     dash_cache = await appredis.get(f"miku_dash_{vid}_{idx}")

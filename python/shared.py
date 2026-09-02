@@ -8,8 +8,8 @@ import nacl.secret
 import orjson
 import redis.asyncio as redis
 import toml
-from bilibili_api import Credential
-from bilibili_api.utils.network import request_settings
+from api import Credential
+from api.client import get_bili_ticket, request_settings
 from flask_orjson import OrjsonProvider
 from quart import Quart, render_template, request
 from quart_session import Session
@@ -30,7 +30,7 @@ def safe_json_loads(data: str | bytes, default=None):
         return default
 
 
-from bilibili_api.utils.network import get_bili_ticket
+from api.client import get_bili_ticket
 
 
 def get_common_headers(bili_conf):
@@ -83,7 +83,7 @@ class TicketManager:
                     return cls._ticket
 
             if force_refresh:
-                from bilibili_api.utils.network import refresh_bili_ticket
+                from api.client import refresh_bili_ticket
                 refresh_bili_ticket()
                 cls._ticket = None
                 cls._expiry = 0
