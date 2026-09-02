@@ -728,8 +728,12 @@ async def api_component_player(vid, idx):
     is_dash = bool(dash_data)
     dash_url = f"/video/dash/{vid}/{idx}/manifest.mpd" if is_dash else ""
     supported_src = [
-        {"quality": f["quality"], "new_description": f["new_description"]}
+        {
+            "quality": f.get("quality"),
+            "new_description": f.get("new_description") or f.get("display_desc") or "",
+        }
         for f in (dash_data or {}).get("support_formats", [])
+        if isinstance(f, dict) and f.get("quality") is not None
     ] if is_dash else []
 
     return await render_template_with_theme(
