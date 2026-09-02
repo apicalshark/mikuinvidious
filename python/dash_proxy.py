@@ -368,6 +368,12 @@ def _download_size_status(headers: dict) -> int:
         return _DOWNLOAD_TOO_LARGE
     return 0
 
+# Maximum permitted size per individual DASH track download (500 MB).
+_MAX_DOWNLOAD_TRACK_BYTES = 500 * 1024 * 1024
+
+# Bounded semaphore to cap concurrent download & mux disk usage.
+_download_limiter = asyncio.Semaphore(5)
+
 
 async def _build_dash_cdn_headers() -> dict:
     """CDN header set for DASH track requests (proxy + download).
@@ -432,8 +438,14 @@ def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
     return video, audio
 
 
-async def _download_track_to_file(url: str, headers: dict, proxy_url: str, dest: str) -> int:
-    """Download a full DASH track body to ``dest`` via CdnConnection. Returns byte count."""
+async def _download_track_to_file(
+    url: str,
+    headers: dict,
+    proxy_url: str,
+    dest: str,
+    max_bytes: int = _MAX_DOWNLOAD_TRACK_BYTES,
+) -> int:
+    """Download a full DASH track body to ``dest`` via CdnConnection. Returns byte count, or -1 on error/oversize."""
     conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
     try:
         await conn.connect()
@@ -454,23 +466,35 @@ async def _download_track_to_file(url: str, headers: dict, proxy_url: str, dest:
             await conn.close()
             return -1
 
-        size_status = _download_size_status(resp_headers.headers)
-        if size_status != 0:
-            await conn.close()
-            return size_status
+        # Check Content-Length header to reject oversized tracks before downloading
+        cl_header = resp_headers.headers.get("content-length")
+        if cl_header:
+            try:
+                cl_val = int(cl_header)
+                if cl_val > max_bytes:
+                    print(f"[DashProxy] track Content-Length {cl_val} exceeds limit {max_bytes}")
+                    await conn.close()
+                    return -1
+            except ValueError:
+                pass
 
         total = 0
-        async with aiofiles.open(dest, "wb") as f:
+        file_obj = await asyncio.to_thread(open, dest, "wb")
+        try:
             async for chunk in conn.iter_chunks():
-                next_total = total + len(chunk)
-                if next_total > _MAX_DOWNLOAD_TRACK_BYTES:
+                total += len(chunk)
+                if total > max_bytes:
+                    print(f"[DashProxy] downloaded bytes {total} exceeded limit {max_bytes}")
                     await conn.close()
-                    return _DOWNLOAD_TOO_LARGE
-                await f.write(chunk)
-                total = next_total
+                    return -1
+                await asyncio.to_thread(file_obj.write, chunk)
+        finally:
+            await asyncio.to_thread(file_obj.close)
+
         await conn.close()
         return total
-    except Exception:
+    except Exception as exc:
+        print(f"[DashProxy] track download error: {exc}")
         await conn.close()
         return -1
 
@@ -529,43 +553,37 @@ async def proxy_download(vid, idx, qual):
     proxy_url = Network.get_proxy()
     headers = await _build_dash_cdn_headers()
 
-    await _download_limiter.acquire()
-    tmpdir = None
-    response_owns_cleanup = False
-    try:
-        tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="miku_dl_")
-        vpath = os.path.join(tmpdir, "video.m4s")
-        apath = os.path.join(tmpdir, "audio.m4s")
-        outpath = os.path.join(tmpdir, "out.mp4")
+    tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="miku_dl_")
+    vpath = os.path.join(tmpdir, "video.m4s")
+    apath = os.path.join(tmpdir, "audio.m4s")
+    outpath = os.path.join(tmpdir, "out.mp4")
 
-        video_size = await _download_track_to_file(vurl, headers, proxy_url, vpath)
-        if video_size == _DOWNLOAD_TOO_LARGE:
-            return Response("Payload Too Large (video track)", status=413)
-        if video_size < 0:
-            return Response("Upstream error (video track)", status=502)
-        audio_size = await _download_track_to_file(aurl, headers, proxy_url, apath)
-        if audio_size == _DOWNLOAD_TOO_LARGE:
-            return Response("Payload Too Large (audio track)", status=413)
-        if audio_size < 0:
-            return Response("Upstream error (audio track)", status=502)
-        try:
-            await _mux_tracks(vpath, apath, outpath)
-        except RuntimeError as exc:
-            print(f"[DashProxy] download mux failed for {vid}:{idx}: {exc}")
-            return Response("Mux failed", status=502)
+    try:
+        async with _download_limiter:
+            if await _download_track_to_file(vurl, headers, proxy_url, vpath) < 0:
+                return Response("Upstream error (video track)", status=502)
+            if await _download_track_to_file(aurl, headers, proxy_url, apath) < 0:
+                return Response("Upstream error (audio track)", status=502)
+            try:
+                await _mux_tracks(vpath, apath, outpath)
+            except RuntimeError as exc:
+                print(f"[DashProxy] download mux failed for {vid}:{idx}: {exc}")
+                return Response("Mux failed", status=502)
         actual_qn = int(video.get("id") or max_qn)
 
         async def generate():
             try:
-                async with aiofiles.open(outpath, "rb") as f:
+                f = await asyncio.to_thread(open, outpath, "rb")
+                try:
                     while True:
-                        chunk = await f.read(512 * 1024)
+                        chunk = await asyncio.to_thread(f.read, 512 * 1024)
                         if not chunk:
                             break
                         yield chunk
+                finally:
+                    await asyncio.to_thread(f.close)
             finally:
                 await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
-                _download_limiter.release()
 
         resp = Response(generate())
         resp.headers["Content-Type"] = "video/mp4"
@@ -574,6 +592,7 @@ async def proxy_download(vid, idx, qual):
         response_owns_cleanup = True
         return resp
     except Exception as exc:
+        await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
         print(f"[DashProxy] proxy_download error: {exc}")
         return Response("Upstream error", status=502)
     finally:
