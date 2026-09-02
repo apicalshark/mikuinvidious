@@ -12,26 +12,25 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
+"""
+Bilibili homepage module.
 
-from xml.dom import minidom
+Minimal drop-in for ``bilibili_api.homepage`` covering get_videos as used
+by MikuInvidious.
+"""
 
-from api import video
-from danmaku import danmaku_xml_conv
-from quart import jsonify
-from shared import app, appcred
+from .client import Api
+from .credential import Credential
+
+__all__ = ["get_videos"]
 
 
-@app.route("/res/danmaku/<vid>")
-@app.route("/res/danmaku/<vid>:<idx>")
-async def danmaku_res(vid, idx=0):
-    # Check if this is a live room ID (all digits)
-    if vid.isdigit():
-        return jsonify([])
-
-    try:
-        v = video.Video(bvid=vid, credential=appcred)
-        xml = await v.get_danmaku_xml(int(idx))
-        return jsonify(danmaku_xml_conv(minidom.parseString(xml)))
-    except Exception as e:
-        print(f"Danmaku error for {vid}:{idx}: {e}")
-        return jsonify([])
+async def get_videos(credential=None) -> dict:
+    credential = credential if credential is not None else Credential()
+    api = {
+        "url": "https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd",
+        "method": "GET",
+        "verify": False,
+        "wbi": True,
+    }
+    return await Api(**api, credential=credential).result

@@ -14,7 +14,7 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import toml
-from bilibili_api import Credential, sync
+from api import Credential, sync
 
 
 def discard_generated_data(fn):

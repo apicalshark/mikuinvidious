@@ -21,7 +21,8 @@ _background_tasks = set()
 
 import orjson
 import transformers
-from bilibili_api import article, audio, comment, homepage, live, live_area, opus, search, user, video, video_zone
+from api import article, audio, comment, homepage, live, live_area, opus, user, video, video_zone
+from bilibili_api import search
 from extra import (
     article_to_any,
     article_to_html,
@@ -37,8 +38,8 @@ from shared import Network, app, appconf, appcred, appredis, render_template_wit
 @app.route("/live/chat/<int:room_id>")
 @rate_limit(**RATE_LIMITS["strict"])
 async def live_chat_sse(room_id):
-    from bilibili_api import Credential
-    from bilibili_api import live as b_live
+    from api import Credential
+    from api import live as b_live
 
     async def event_stream():
         queue = asyncio.Queue()
@@ -246,7 +247,57 @@ async def search_view():
 @app.route("/space/<mid>/")
 async def space_view(mid):
     u = user.User(mid, credential=appcred)
-    uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=request.args.get("i") or 1, ps=28))
+    uinfo = None
+    uvids = {}
+    try:
+        try:
+            pn = int(request.args.get("i") or 1)
+        except (TypeError, ValueError):
+            pn = 1
+        pn = max(pn, 1)
+        uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=28))
+    except Exception:
+        # The user API is often risk-controlled / IP-blocked (412/-352) without the
+        # WARP proxy; re-run the core profile fetch alone in case only a sibling
+        # gather task failed. The video list is optional and falls back to empty.
+        uvids = {}
+        if not isinstance(uinfo, dict) or not uinfo:
+            try:
+                uinfo = await u.get_user_info()
+            except Exception:
+                uinfo = None
+    if not isinstance(uinfo, dict) or not uinfo:
+        return await render_template_with_theme(
+            "error.html",
+            status="空间加载失败",
+            desc="无法获取该用户的信息，请稍后重试。",
+            suggest="请检查网络连接或代理设置。",
+        ), 500
+    if not isinstance(uvids, dict):
+        uvids = {}
+    uvids.setdefault("list", {}).setdefault("vlist", [])
+    uvids.setdefault("page", {"count": 0, "pn": 1, "ps": 28})
+    # Coerce numeric page fields to int so the template's arithmetic/comparisons
+    # (e.g. `pn > 1`) never hit str-vs-int errors.
+    page = uvids.get("page") or {}
+    try:
+        page["pn"] = int(page.get("pn", 1))
+    except (TypeError, ValueError):
+        page["pn"] = 1
+    try:
+        page["ps"] = int(page.get("ps", 28))
+    except (TypeError, ValueError):
+        page["ps"] = 28
+    try:
+        page["count"] = int(page.get("count", 0))
+    except (TypeError, ValueError):
+        page["count"] = 0
+    # The fallback recArchivesByKeywords endpoint has no author/owner name; since
+    # this is the user's own space, stamp it from the profile.
+    uname = uinfo.get("name", "")
+    for v in uvids.get("list", {}).get("vlist", []):
+        if not v.get("author") and uname:
+            v["author"] = uname
     return await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids)
 
 
@@ -322,72 +373,90 @@ async def read_view(cid):
         else f"https://www.bilibili.com/read/{cid}"
     )
     client = await Network.get_async_client()
-    req = None
-    try:
-        ua = "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com) 8.76.0 os/android model/WTF mobi_app/android build/8760000 channel/not_found innerVer/8760010 osVer/15 network/2"
-        _req = client.build_request("GET", url, headers={"User-Agent": ua})
-        req = await client.send(_req, follow_redirects=True)
-        if req.status_code != 200:
-            return await render_template_with_theme(
-                "error.html",
-                status="没有找到文章" if req.status_code == 404 else "服务器错误",
-                desc="后端服务器发送了无效的回复",
-                suggest="这很可能说明您访问的文章不存在，请检查您的请求。" if req.status_code == 404 else None,
-            ), req.status_code
+    cvid = cid.replace("cv", "").replace("opus", "")
+    ua = "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com) 8.76.0 os/android model/WTF mobi_app/android build/8760000 channel/not_found innerVer/8760010 osVer/15 network/2"
 
+    # Optional pandoc export (any supported format).
+    want_format = (
+        request.args.get("format")
         if (
             appconf["render"]["use_pandoc"]
             and request.args.get("format") in appconf["render"]["article_allowed_formats"]
-        ):
-            return await article_to_any(req.text, request.args.get("format"))
-        else:
-            cvid = cid.replace("cv", "").replace("opus", "")
-            try:
-                arinfo = get_article_info(req.text, cid)
-                try:
-                    if is_opus:
-                        o = opus.Opus(int(cvid), credential=appcred)
-                        api_info = await o.get_info()
-                        for module in api_info.get("item", {}).get("modules", []):
-                            if module.get("module_stat"):
-                                stat = module["module_stat"]
-                                arinfo["stats"]["like"] = stat.get("like", {}).get("count", arinfo["stats"]["like"])
-                                arinfo["stats"]["coin"] = stat.get("coin", {}).get("count", arinfo["stats"]["coin"])
-                                arinfo["stats"]["favorite"] = stat.get("favorite", {}).get(
-                                    "count", arinfo["stats"]["favorite"]
-                                )
-                                arinfo["stats"]["share"] = stat.get("forward", {}).get(
-                                    "count", arinfo["stats"]["share"]
-                                )
-                    else:
-                        ar = article.Article(int(cvid))
-                        api_info = await ar.get_info()
-                        if api_info.get("stats"):
-                            arinfo["stats"].update(api_info["stats"])
-                        if api_info.get("title") and not arinfo["title"]:
-                            arinfo["title"] = api_info["title"]
-                except Exception:
-                    pass
-                return await render_template_with_theme(
-                    "read.html", cid=cid, arinfo=arinfo, article_content=article_to_html(req.text), is_opus=is_opus
-                )
-            except Exception:
-                return await render_template_with_theme(
-                    "error.html",
-                    status="没有找到文章",
-                    desc="文章不存在或解析错误",
-                    sg="这很可能说明您访问的文章不存在，请检查您的请求。",
-                ), 404
-    except Exception as e:
+        )
+        else None
+    )
+
+    # The public read/opus page is intermittently served with the content module
+    # stripped (anti-bot) from datacenter IPs, even though HTTP 200 with title.
+    # Retry the scrape until the article body actually parses (or give up).
+    text = None
+    content = None
+    last_status = 0
+    for attempt in range(3):
+        req = await client.send(
+            client.build_request("GET", url, headers={"User-Agent": ua}),
+            follow_redirects=True,
+        )
+        status, body = req.status_code, req.text
+        await req.aclose()
+        last_status = status
+        if status != 200:
+            await asyncio.sleep(0.4 * (attempt + 1))
+            continue
+        try:
+            parsed = article_to_html(body)
+        except Exception:
+            parsed = "<p>无法解析文章内容。</p>"
+        if want_format is not None or "无法解析文章内容" not in parsed:
+            text, content = body, parsed
+            break
+        await asyncio.sleep(0.4 * (attempt + 1))
+
+    if text is None:
+        return await render_template_with_theme(
+            "error.html",
+            status="没有找到文章" if last_status == 404 else "服务器错误",
+            desc="后端服务器发送了无效的回复",
+            suggest="这很可能说明您访问的文章不存在，请检查您的请求。" if last_status == 404 else None,
+        ), (404 if last_status == 404 else 502)
+
+    if want_format is not None:
+        return await article_to_any(text, want_format)
+
+    try:
+        arinfo = get_article_info(text, cid)
+        try:
+            if is_opus:
+                o = opus.Opus(int(cvid), credential=appcred)
+                api_info = await o.get_info()
+                for module in api_info.get("item", {}).get("modules", []):
+                    if module.get("module_stat"):
+                        stat = module["module_stat"]
+                        arinfo["stats"]["like"] = stat.get("like", {}).get("count", arinfo["stats"]["like"])
+                        arinfo["stats"]["coin"] = stat.get("coin", {}).get("count", arinfo["stats"]["coin"])
+                        arinfo["stats"]["favorite"] = stat.get("favorite", {}).get("count", arinfo["stats"]["favorite"])
+                        arinfo["stats"]["share"] = stat.get("forward", {}).get("count", arinfo["stats"]["share"])
+            else:
+                ar = article.Article(int(cvid))
+                api_info = await ar.get_info()
+                if api_info.get("stats"):
+                    arinfo["stats"].update(api_info["stats"])
+                if api_info.get("title") and not arinfo["title"]:
+                    arinfo["title"] = api_info["title"]
+        except Exception:
+            pass
+        return await render_template_with_theme(
+            "read.html", cid=cid, arinfo=arinfo, article_content=content, is_opus=is_opus
+        )
+    except Exception:
         import traceback
         traceback.print_exc()
-        print(f"[Read] Error fetching article {url}: {e}")
         return await render_template_with_theme(
-            "error.html", status="网络错误", desc="无法获取文章内容，请检查网络连接或代理设置。", suggest="请检查您的网络连接或代理设置。"
-        ), 500
-    finally:
-        if req:
-            await req.aclose()
+            "error.html",
+            status="没有找到文章",
+            desc="文章不存在或解析错误",
+            sg="这很可能说明您访问的文章不存在，请检查您的请求。",
+        ), 404
 
 
 @app.route("/live")
@@ -601,85 +670,27 @@ async def api_component_player(vid, idx):
     else:
         ep_id = None
 
-    async def get_durl_playurls():
-        v_supported_src = []
-
-        cached = await appredis.get(f"mikuinv_{vid}_{idx}")
+    async def get_dash_data():
+        """Fetch canonical DASH play info (cached under miku_dash_*) and return it."""
+        cached = await appredis.get(f"miku_dash_{vid}_{idx}")
         if cached:
-            cached_src = safe_json_loads(cached)
-            if isinstance(cached_src, list):
-                return cached_src
-
+            cached_data = safe_json_loads(cached)
+            if isinstance(cached_data, dict) and cached_data.get("dash"):
+                return cached_data
         try:
-            data = await asyncio.wait_for(video_get_src_for_qn(v, idx, ep_id=ep_id), timeout=4.0)
-            if data and "durl" in data and data["durl"]:
-                url = data["durl"][0]["url"]
-                qn = data.get("quality", 16)
-                ext = (".flv" if ".flv" in url.lower() else ".mp4")
-                await appredis.setex(f"mikuinv_{vid}_{idx}_{qn}", 1800, url)
-                # Cache first backup URL if available (Akamai typically, works globally)
-                backup_list = data["durl"][0].get("backup_url", [])
-                if backup_list and backup_list[0] != url:
-                    await appredis.setex(f"mikuinv_{vid}_{idx}_{qn}_bak", 1800, backup_list[0])
+            from dash_proxy import video_get_dash_for_qn
 
-                support_formats = data.get("support_formats", [])
-                if support_formats:
-                    # Cache highest quality
-                    first_qn = support_formats[0]["quality"]
-                    cached_qns = {qn, first_qn}
-                    if first_qn != qn:
-                        try:
-                            res_high = await asyncio.wait_for(
-                                video_get_src_for_qn(v, idx, first_qn, ep_id=ep_id), timeout=4.0
-                            )
-                            if "durl" in res_high and res_high["durl"]:
-                                await appredis.setex(
-                                    f"mikuinv_{vid}_{idx}_{first_qn}", 1800, res_high["durl"][0]["url"]
-                                )
-                                hb = res_high["durl"][0].get("backup_url", [])
-                                if hb and hb[0] != res_high["durl"][0]["url"]:
-                                    await appredis.setex(
-                                        f"mikuinv_{vid}_{idx}_{first_qn}_bak", 1800, hb[0]
-                                    )
-                        except Exception:
-                            pass
-                    # Cache up to 2 additional fallback qualities (720p, 480p etc.)
-                    for sf in support_formats[1:]:
-                        sf_qn = sf["quality"]
-                        if sf_qn in cached_qns:
-                            continue
-                        if len(cached_qns) >= 4:
-                            break
-                        try:
-                            res_qn = await asyncio.wait_for(
-                                video_get_src_for_qn(v, idx, sf_qn, ep_id=ep_id), timeout=4.0
-                            )
-                            if "durl" in res_qn and res_qn["durl"]:
-                                await appredis.setex(
-                                    f"mikuinv_{vid}_{idx}_{sf_qn}", 1800, res_qn["durl"][0]["url"]
-                                )
-                                qb = res_qn["durl"][0].get("backup_url", [])
-                                if qb and qb[0] != res_qn["durl"][0]["url"]:
-                                    await appredis.setex(
-                                        f"mikuinv_{vid}_{idx}_{sf_qn}_bak", 1800, qb[0]
-                                    )
-                                cached_qns.add(sf_qn)
-                        except Exception:
-                            pass
-
-                v_supported_src = [
-                    {"quality": f["quality"], "new_description": f["new_description"], "ext": ext}
-                    for f in support_formats
-                ]
-                await appredis.setex(f"mikuinv_{vid}_{idx}", 1800, orjson.dumps(v_supported_src))
-        except Exception:
-            pass
-
-        return v_supported_src
+            data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=5.0)
+            if data and isinstance(data, dict) and data.get("dash"):
+                await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
+                return data
+        except Exception as e:
+            print(f"[Player] DASH fetch failed for {vid}:{idx}: {e}")
+        return None
 
     try:
         if ep_id:
-            from bilibili_api.utils.network import Api
+            from api.client import Api
 
             api = Api(
                 "https://api.bilibili.com/pgc/view/web/season",
@@ -713,7 +724,31 @@ async def api_component_player(vid, idx):
     except Exception:
         vinfo = {"pic": ""}
 
-    supported_src = await get_durl_playurls()
+    dash_data = await get_dash_data()
+    is_dash = bool(dash_data)
+    dash_url = f"/video/dash/{vid}/{idx}/manifest.mpd" if is_dash else ""
+    dash_video_tracks = ((dash_data or {}).get("dash") or {}).get("video") or []
+    dash_tracks_by_quality = {}
+    for track in dash_video_tracks:
+        if not isinstance(track, dict):
+            continue
+        quality = track.get("id")
+        segment_base = track.get("SegmentBase") or {}
+        if quality is not None and segment_base.get("indexRange"):
+            dash_tracks_by_quality.setdefault(str(quality), track)
+    supported_src = (
+        [
+            {
+                "quality": f.get("quality"),
+                "new_description": f.get("new_description") or f.get("display_desc") or "",
+                "bandwidth": (dash_tracks_by_quality.get(str(f.get("quality"))) or {}).get("bandwidth"),
+            }
+            for f in (dash_data or {}).get("support_formats") or []
+            if isinstance(f, dict) and f.get("quality") is not None
+        ]
+        if is_dash
+        else []
+    )
 
     return await render_template_with_theme(
         "components/player_part.html",
@@ -722,6 +757,8 @@ async def api_component_player(vid, idx):
         idx=idx,
         supported_src=supported_src,
         is_live=False,
+        is_dash=is_dash,
+        dash_url=dash_url,
     )
 
 
@@ -818,16 +855,20 @@ async def video_view(vid, idx=0):
     vrelated = results[2] if is_valid(results[2]) else []
     vset = results[3] if is_valid(results[3]) else [{"page": 1, "part": vid}]
 
-    # Pre-cache durl URLs if proxy is enabled
+    # Pre-cache DASH play info if proxy is enabled
     if appconf["proxy"]["use_proxy"]:
 
-        async def precache_durl():
+        async def precache_dash():
             try:
-                await asyncio.wait_for(video_get_src_for_qn(v, idx), timeout=4.0)
-            except Exception as e:
-                print(f"[Video] Pre-cache durl failed for {vid}: {e}")
+                from dash_proxy import video_get_dash_for_qn
 
-        task = asyncio.create_task(precache_durl())
+                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=4.0)
+                if data and data.get("dash"):
+                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
+            except Exception as e:
+                print(f"[Video] Pre-cache DASH failed for {vid}: {e}")
+
+        task = asyncio.create_task(precache_dash())
         _background_tasks.add(task)
         task.add_done_callback(_background_tasks.discard)
 

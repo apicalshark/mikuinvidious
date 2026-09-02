@@ -6,7 +6,7 @@ from datetime import datetime
 
 import shared
 import zhconv
-from bilibili_api import bangumi
+from api import bangumi
 from extra import av2bv
 from nyaa import search_nyaa
 from quart import Blueprint, jsonify, request
@@ -42,7 +42,7 @@ async def bangumi_home():
     order = request.args.get("order", "3")
     pn = int(request.args.get("page", 1))
 
-    from bilibili_api.utils.network import Api
+    from api.client import Api
 
     api_info = bangumi.API["info"]["index"]
 
@@ -139,7 +139,7 @@ async def bangumi_view(ssid):
 @bangumi_bp.route("/play/ep<int:ep_id>")
 @rate_limit(**RATE_LIMITS["normal"])
 async def bangumi_play(ep_id):
-    from bilibili_api.utils.network import Api
+    from api.client import Api
 
     # 1. Fetch Season Info using ep_id
     cred = shared.appcred

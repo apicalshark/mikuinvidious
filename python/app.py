@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 import filters  # noqa: F401
 import res  # noqa: F401
 import views  # noqa: F401
-from bilibili_api import exceptions
+from api import exceptions
 from csrf import csrf_protect, inject_csrf_token
 from proxy import proxy_bp
 from quart import Response, g, make_response, redirect, request, send_from_directory, url_for
@@ -133,10 +133,9 @@ async def add_security_headers(response):
 
 app.register_blueprint(proxy_bp)
 
-# from dash_proxy import dash_proxy_bp
-#
-# app.register_blueprint(dash_proxy_bp)
-# FIXME: DASH proxy is deprecated. Uncomment to re-enable the deprecated DASH endpoints.
+from dash_proxy import dash_proxy_bp
+
+app.register_blueprint(dash_proxy_bp)
 
 from views_bangumi import bangumi_bp
 
@@ -246,7 +245,9 @@ async def dl_redirect():
     if not qual or not qual.isdigit():
         return Response("Invalid quality", status=400)
 
-    return redirect(f"/proxy/video/{bvid}_{cvid}_{qual}?dl=1", code=302)
+    # Muxed DASH download: resolves the best video (<=1080p anonymous cap) + audio
+    # tracks and remuxes them into a single playable MP4 via ffmpeg.
+    return redirect(f"/proxy/download/{bvid}/{cvid}/{qual}", code=302)
 
 
 ##########################################

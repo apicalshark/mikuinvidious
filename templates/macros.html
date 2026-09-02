@@ -1,4 +1,4 @@
-{% macro video_player(vid, vinfo, idx, supported_src, is_live=False) %}
+{% macro video_player(vid, vinfo, idx, supported_src, is_live=False, is_dash=False, dash_url='') %}
     {% set dim = vinfo.get('dimension') %}
     {% set w = dim.get('width', 16) if dim else 16 %}
     {% set h = dim.get('height', 9) if dim else 9 %}
@@ -19,6 +19,15 @@
                    poster="{{ vinfo['pic']|pic }}"
                    playsinline
                    crossorigin>
+            </video>
+        {% elif is_dash %}
+            <video slot="media"
+                   id="player"
+                   data-dash-url="{{ dash_url }}"
+                   poster="{{ vinfo['pic']|pic }}"
+                   playsinline
+                   crossorigin
+                   preload="none">
             </video>
         {% else %}
             <video slot="media"
@@ -86,6 +95,6 @@
             <media-fullscreen-button></media-fullscreen-button>
         </media-control-bar>
         </media-controller>
-        <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }};</script>
+        <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }}; window.is_dash = {{ 'true' if is_dash else 'false' }}; window.dash_url = {{ dash_url | tojson }};</script>
     </div>
 {% endmacro %}

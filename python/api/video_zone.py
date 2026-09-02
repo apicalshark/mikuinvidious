@@ -12,26 +12,23 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
+"""
+Bilibili video zone module.
 
-from xml.dom import minidom
+Minimal drop-in for ``bilibili_api.video_zone`` covering
+get_zone_new_videos as used by MikuInvidious.
+"""
 
-from api import video
-from danmaku import danmaku_xml_conv
-from quart import jsonify
-from shared import app, appcred
+from .client import Api
+
+__all__ = ["get_zone_new_videos"]
 
 
-@app.route("/res/danmaku/<vid>")
-@app.route("/res/danmaku/<vid>:<idx>")
-async def danmaku_res(vid, idx=0):
-    # Check if this is a live room ID (all digits)
-    if vid.isdigit():
-        return jsonify([])
-
-    try:
-        v = video.Video(bvid=vid, credential=appcred)
-        xml = await v.get_danmaku_xml(int(idx))
-        return jsonify(danmaku_xml_conv(minidom.parseString(xml)))
-    except Exception as e:
-        print(f"Danmaku error for {vid}:{idx}: {e}")
-        return jsonify([])
+async def get_zone_new_videos(tid, page_num=1, page_size=10) -> dict:
+    params = {"rid": tid, "pn": page_num, "ps": page_size}
+    api = {
+        "url": "https://api.bilibili.com/x/web-interface/dynamic/region",
+        "method": "GET",
+        "verify": False,
+    }
+    return await Api(**api).update_params(**params).result
