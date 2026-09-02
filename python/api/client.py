@@ -35,7 +35,6 @@ from .exceptions import ArgsException, NetworkException, ResponseCodeException
 
 __all__ = [
     "Api",
-    "BiliClient",
     "get_bili_client",
     "request_settings",
     "get_bili_ticket",
