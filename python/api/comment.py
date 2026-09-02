@@ -51,11 +51,22 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
         raise ArgsException("page_index 必须大于或等于 1")
     type_value = type_.value if isinstance(type_, Enum) else type_
     order_value = order.value if isinstance(order, Enum) else order
-    params = {"pn": page_index, "type": type_value, "oid": oid, "sort": order_value}
+    params = {"oid": oid, "type": type_value, "mode": 3, "next": page_index}
     credential = credential if credential is not None else Credential()
     api = {
-        "url": "https://api.bilibili.com/x/v2/reply",
+        "url": "https://api.bilibili.com/x/v2/reply/wbi/main",
         "method": "GET",
         "verify": False,
     }
-    return await Api(**api, credential=credential).update_params(**params).result
+    raw = await Api(**api, credential=credential, wbi=True).update_params(**params).request(raw=True)
+    # Transform new response format to old format expected by templates
+    data = raw.get("data") or {}
+    cursor = data.get("cursor") or {}
+    return {
+        "page": {
+            "count": cursor.get("all_count", 0),
+            "num": page_index,
+            "size": 20,
+        },
+        "replies": data.get("replies") or [],
+    }

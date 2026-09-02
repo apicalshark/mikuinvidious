@@ -21,6 +21,9 @@ get_aid, get_danmaku_xml and playurl resolution helpers.
 """
 
 import re
+import base64
+import json as _json
+import random
 
 from .client import Api, get_bili_client, HEADERS
 from .credential import Credential
@@ -53,6 +56,44 @@ def av2bv(x: int) -> str:
     for i in range(6):
         r[_s[i]] = _table[x // 58 ** i % 58]
     return "".join(r)
+
+
+# WebGL fingerprint data for dm_img parameters (anti-bot requirement)
+_WEBGL_VERSION = "WebGL 1.0 (OpenGL ES 2.0 Chromium)"
+_WEBGL_RENDERER_TEMPLATES = [
+    ("Intel", "Intel(R) UHD Graphics 630"),
+    ("Intel", "Intel(R) UHD Graphics 770"),
+    ("Intel", "Intel(R) Iris(R) Xe Graphics"),
+    ("NVIDIA", "NVIDIA GeForce RTX 3060"),
+    ("NVIDIA", "NVIDIA GeForce RTX 4070"),
+    ("NVIDIA", "NVIDIA GeForce GTX 1660 Ti"),
+    ("AMD", "AMD Radeon RX 6700 XT"),
+    ("AMD", "AMD Radeon RX 7600"),
+    ("AMD", "AMD Radeon RX 580"),
+]
+
+
+def _get_dm_img_params() -> dict[str, str]:
+    """Generate dm_img fingerprint parameters required for playurl requests."""
+    width = random.randint(1860, 1920)
+    height = random.randint(930, 990)
+    rnd = random.randint(0, 113)
+
+    vendor, model = random.choice(_WEBGL_RENDERER_TEMPLATES)
+    renderer = f"ANGLE ({vendor}, {model} Direct3D11 vs_5_0 ps_5_0, D3D11)Google Inc. ({vendor})"
+
+    webgl_version_b64 = base64.b64encode(_WEBGL_VERSION.encode()).decode()
+    renderer_b64 = base64.b64encode(renderer.encode()).decode()
+
+    wh = [2 * width + 2 * height + 3 * rnd, 4 * width - height + rnd, rnd]
+    of = [0, 0, 0]
+
+    return {
+        "dm_img_list": "[]",
+        "dm_img_str": webgl_version_b64,
+        "dm_cover_img_str": renderer_b64,
+        "dm_img_inter": _json.dumps({"ds": [], "wh": wh, "of": of}),
+    }
 
 
 class Video:
@@ -88,11 +129,11 @@ class Video:
 
     async def get_info(self) -> dict:
         api = {
-            "url": "https://api.bilibili.com/x/web-interface/view",
+            "url": "https://api.bilibili.com/x/web-interface/wbi/view",
             "method": "GET",
             "verify": False,
         }
-        params = {"bvid": self._bvid, "aid": self._aid}
+        params = {"bvid": self._bvid}
         resp = await Api(**api, credential=self.credential).update_params(**params).result
         self._info = resp
         return resp
@@ -166,6 +207,8 @@ class Video:
             "from_client": "BROWSER",
             "web_location": 1315873,
         }
+        # Add dm_img fingerprint parameters (required by Bilibili anti-bot)
+        params.update(_get_dm_img_params())
         if html5:
             params["platform"] = "html5"
             params["high_quality"] = "1"
@@ -177,14 +220,23 @@ class Video:
         return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
 
     async def get_danmaku_xml(self, page_index=None, cid=None) -> str:
-        """Fetch raw danmaku XML (bytes decoded to str)."""
+        """Fetch raw danmaku XML (deflate-compressed, decoded to str)."""
         if cid is None:
             if page_index is None:
                 raise ArgsException("page_index 和 cid 至少提供一个。")
             cid = await self._get_cid_by_index(page_index)
         client = await get_bili_client()
         resp = await client.get(
-            f"https://comment.bilibili.com/{cid}.xml",
+            f"https://api.bilibili.com/x/v1/dm/list.so?oid={cid}",
             headers=HEADERS,
         )
-        return resp.content.decode("utf-8")
+        import zlib
+        raw = resp.content
+        try:
+            decompressed = zlib.decompress(raw, -zlib.MAX_WBITS)
+        except Exception:
+            try:
+                decompressed = zlib.decompress(raw)
+            except Exception:
+                decompressed = raw
+        return decompressed.decode("utf-8", errors="replace")

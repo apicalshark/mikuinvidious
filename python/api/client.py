@@ -21,8 +21,10 @@ subset this project uses.
 """
 
 import asyncio
+import base64
 import hashlib
 import hmac
+import random
 import time
 import urllib.parse
 
@@ -43,10 +45,21 @@ __all__ = [
     "HEADERS",
 ]
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0",
+_CHROME_VERSIONS = list(range(130, 138))  # Chrome 130-137
+
+
+def _random_chrome_ua() -> str:
+    v = random.choice(_CHROME_VERSIONS)
+    return (
+        f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        f"(KHTML, like Gecko) Chrome/{v}.0.0.0 Safari/537.36"
+    )
+
+
+HEADERS: dict[str, str] = {
+    "User-Agent": _random_chrome_ua(),
     "Referer": "https://www.bilibili.com",
+    "Accept-Language": "zh-CN,zh;q=0.9",
 }
 
 # OE permutation table used to derive the wbi mixin key.
@@ -241,6 +254,95 @@ async def _get_buvid():
 
 
 # ---------------------------------------------------------------------------
+# Full anonymous cookie set (buvid3, buvid4, bili_ticket, b_nut, b_lsid, _uuid, buvid_fp)
+# ---------------------------------------------------------------------------
+
+_anonymous_cookies: dict[str, str] = {}
+_anonymous_cookies_expires: float = 0
+
+
+def _generate_uuid() -> str:
+    """Generate a fake UUID in Bilibili's format (XXXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX00000infoc)."""
+    hex_chars = "0123456789ABCDEF"
+    parts: list[str] = []
+    for i in range(32):
+        if i in (9, 13, 17, 21):
+            parts.append("-")
+        parts.append(random.choice(hex_chars))
+    t = int(time.time() * 1000) % 100000
+    return "".join(parts) + f"{t:05d}infoc"
+
+
+def _generate_b_lsid() -> str:
+    """Generate a random b_lsid cookie value."""
+    hex_chars = "0123456789ABCDEF"
+    rand_part = "".join(random.choice(hex_chars) for _ in range(32))
+    ts_part = f"{int(time.time() * 1000):X}"
+    return f"{rand_part}_{ts_part}"
+
+
+async def _get_anonymous_cookies() -> dict[str, str]:
+    """Get or generate the full anonymous cookie set required by Bilibili.
+
+    Returns a dict with keys: buvid3, buvid4, b_nut, b_lsid, _uuid,
+    buvid_fp, bili_ticket, bili_ticket_expires.
+    Caches until bili_ticket expires.
+    """
+    global _anonymous_cookies, _anonymous_cookies_expires
+
+    now = time.time()
+    if _anonymous_cookies and _anonymous_cookies_expires > now:
+        return _anonymous_cookies
+
+    proxy = request_settings.get_proxy() or None
+    cookies: dict[str, str] = {}
+
+    # Step 1: Fetch buvid3/buvid4 from /x/frontend/finger/spi
+    try:
+        async with httpx.AsyncClient(proxy=proxy, timeout=10.0) as c:
+            resp = await c.get(_SPI_URL, headers=HEADERS)
+            spi = resp.json().get("data") or {}
+        cookies["buvid3"] = spi.get("b_3", "")
+        cookies["buvid4"] = spi.get("b_4", "")
+    except Exception:
+        cookies["buvid3"] = ""
+        cookies["buvid4"] = ""
+
+    # Step 2: Generate local cookies
+    cookies["b_nut"] = str(int(now))
+    cookies["b_lsid"] = _generate_b_lsid()
+    cookies["_uuid"] = _generate_uuid()
+    cookies["buvid_fp"] = "".join(random.choice("0123456789abcdef") for _ in range(32))
+
+    # Step 3: Generate bili_ticket via HMAC-SHA256 -> GenWebTicket
+    try:
+        ts = int(now)
+        hex_sign = _hmac_sha256("XgwSnGZ1p", f"ts{ts}")
+        async with httpx.AsyncClient(proxy=proxy, timeout=10.0) as c:
+            resp = await c.post(
+                _TICKET_URL,
+                params={
+                    "key_id": "ec02",
+                    "hexsign": hex_sign,
+                    "context[ts]": str(ts),
+                    "csrf": "",
+                },
+                headers=HEADERS,
+            )
+            ticket_data = resp.json().get("data") or {}
+        cookies["bili_ticket"] = ticket_data.get("ticket", "")
+        cookies["bili_ticket_expires"] = str(ts + ticket_data.get("created_at", 259200))
+        _anonymous_cookies_expires = ts + ticket_data.get("created_at", 259200)
+    except Exception:
+        cookies["bili_ticket"] = ""
+        cookies["bili_ticket_expires"] = "0"
+        _anonymous_cookies_expires = now + 60  # retry in 60s
+
+    _anonymous_cookies = cookies
+    return cookies
+
+
+# ---------------------------------------------------------------------------
 # Api class
 # ---------------------------------------------------------------------------
 
@@ -343,16 +445,12 @@ class Api:
                 request_data["csrf"] = self.credential.bili_jct
                 request_data["csrf_token"] = self.credential.bili_jct
 
-            cookies = self.credential.get_cookies()
-            if cookies.get("buvid3") == "" or cookies.get("buvid4") == "":
-                try:
-                    b3, b4 = await _get_buvid()
-                    if cookies.get("buvid3") == "":
-                        cookies["buvid3"] = b3
-                    if cookies.get("buvid4") == "":
-                        cookies["buvid4"] = b4
-                except Exception:
-                    pass
+            cookies = await _get_anonymous_cookies()
+            # Override with credential cookies (only non-empty values)
+            cred_cookies = self.credential.get_cookies()
+            for k, v in cred_cookies.items():
+                if v:
+                    cookies[k] = v
             cookies["opus-goback"] = "1"
 
             headers = dict(HEADERS) if not self.headers else dict(self.headers)
