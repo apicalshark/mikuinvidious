@@ -27,8 +27,9 @@ import struct
 from enum import Enum
 
 import brotli
+from aiohttp import WSMsgType
 
-from .client import Api, HEADERS
+from .client import HEADERS, Api
 from .credential import Credential
 
 __all__ = [
@@ -190,6 +191,9 @@ class LiveDanmaku:
         self._handlers = {}
         self._tasks = []
         self._ws = None
+        self._session = None
+        self._connector = None
+        self._heartbeat_task = None
         self._status = 0
         self._real_id = None
         self.err_reason = ""
@@ -238,41 +242,50 @@ class LiveDanmaku:
             separators=(",", ":"),
         ).encode()
 
-        conn = aiohttp.TCPConnector(limit=10)
-        self._connector = conn
         ok = False
-        for host in hosts:
-            uri = f"wss://{host['host']}:{host['wss_port']}/sub"
-            try:
-                session = aiohttp.ClientSession(connector=conn, headers=head)
-                self._session = session
-                self._ws = await session.ws_connect(uri)
-                await self._ws.send_bytes(
-                    self._pack(verify, self.PROTOCOL_VERSION_HEARTBEAT, self.DATAPACK_TYPE_VERIFY)
-                )
-                self._status = 2
-                self._heartbeat_task = asyncio.create_task(self._heartbeat())
-                await self._recv_loop()
-                ok = True
-                break
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                self.err_reason = str(e)
-                self.logger.warning(f"live danmaku connect failed: {uri}: {e}")
-                continue
+        try:
+            for host in hosts:
+                uri = f"wss://{host['host']}:{host['wss_port']}/sub"
+                try:
+                    self._connector = aiohttp.TCPConnector(limit=10)
+                    self._session = aiohttp.ClientSession(
+                        connector=self._connector,
+                        headers=head,
+                    )
+                    self._ws = await self._session.ws_connect(uri)
+                    await self._ws.send_bytes(
+                        self._pack(verify, self.PROTOCOL_VERSION_HEARTBEAT, self.DATAPACK_TYPE_VERIFY)
+                    )
+                    self._status = 2
+                    self._heartbeat_task = asyncio.create_task(self._heartbeat())
+                    await self._recv_loop()
+                    ok = True
+                    break
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    self.err_reason = str(e)
+                    self.logger.warning(f"live danmaku connect failed: {uri}: {e}")
+                    await self._cleanup()
+        finally:
+            # recv_loop exits when the connection closes; setup failures and
+            # cancellation must stop the heartbeat and release all resources.
+            await self._cleanup()
 
-        # recv_loop exits when connection is closed
-        await self._cleanup()
         if not ok and self._ws is None:
             self.err_reason = self.err_reason or "无法连接直播弹幕服务器"
 
     async def _recv_loop(self) -> None:
         while True:
             msg = await self._ws.receive()
-            if msg.type in (msg.CLOSE, msg.CLOSE, msg.CLOSED):
+            if msg.type in (
+                WSMsgType.CLOSE,
+                WSMsgType.CLOSING,
+                WSMsgType.CLOSED,
+                WSMsgType.ERROR,
+            ):
                 break
-            if msg.type == msg.BINARY:
+            if msg.type == WSMsgType.BINARY:
                 data = msg.data
                 if isinstance(data, (bytes, bytearray)):
                     await self._handle_data(bytes(data))
@@ -312,6 +325,17 @@ class LiveDanmaku:
         body = struct.pack(">I", len(body) + 4) + body
         return bytes(body)
 
+    @staticmethod
+    def _iter_packets(content: bytes):
+        offset = 0
+        while offset + 16 <= len(content):
+            inner = struct.unpack(">IHHII", content[offset : offset + 16])
+            length = inner[0]
+            if length <= 16 or offset + length > len(content):
+                return
+            yield inner, content[offset + 16 : offset + length]
+            offset += length
+
     def _unpack(self, data: bytes) -> list:
         ret = []
         if len(data) < 16:
@@ -328,20 +352,16 @@ class LiveDanmaku:
             header[2] == self.PROTOCOL_VERSION_HEARTBEAT
             and header[3] == self.DATAPACK_TYPE_HEARTBEAT_RESPONSE
         ):
-            view = 0
-            if len(data) >= 20:
-                view = struct.unpack(">I", data[16:20])[0]
+            view = struct.unpack(">I", data[16:20])[0] if len(data) >= 20 else 0
             ret.append({"protocol_version": header[2], "datapack_type": header[3], "data": {"view": view}})
             return ret
 
-        offset = 0
-        while offset + 16 <= len(content):
-            inner = struct.unpack(">IHHII", content[offset : offset + 16])
-            length = inner[0]
+        for inner, chunk in self._iter_packets(content):
             datapack_type = inner[3]
-            chunk = content[offset + 16 : offset + length]
             recv = {"protocol_version": inner[2], "datapack_type": datapack_type, "data": None}
             if datapack_type == self.DATAPACK_TYPE_HEARTBEAT_RESPONSE:
+                if len(chunk) < 4:
+                    break
                 recv["data"] = {"view": struct.unpack(">I", chunk[:4])[0]}
             elif datapack_type == self.DATAPACK_TYPE_VERIFY_SUCCESS_RESPONSE:
                 recv["data"] = json.loads(chunk.decode("utf-8", errors="ignore"))
@@ -351,11 +371,10 @@ class LiveDanmaku:
                 except Exception:
                     recv["data"] = None
             ret.append(recv)
-            offset += length
         return ret
 
     async def disconnect(self) -> None:
-        if self._heartbeat_task:
+        if self._heartbeat_task is not None:
             self._heartbeat_task.cancel()
         if self._ws:
             try:
@@ -365,15 +384,25 @@ class LiveDanmaku:
         await self._cleanup()
 
     async def _cleanup(self) -> None:
-        session = getattr(self, "_session", None)
+        heartbeat_task = self._heartbeat_task
+        self._heartbeat_task = None
+        if heartbeat_task is not None:
+            heartbeat_task.cancel()
+            await asyncio.gather(heartbeat_task, return_exceptions=True)
+
+        session = self._session
+        self._session = None
         if session:
             try:
                 await session.close()
             except Exception:
                 pass
-        connector = getattr(self, "_connector", None)
+        connector = self._connector
+        self._connector = None
         if connector:
             try:
                 await connector.close()
             except Exception:
                 pass
+        self._ws = None
+        self._status = 0

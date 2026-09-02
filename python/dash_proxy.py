@@ -40,6 +40,7 @@ import subprocess
 import tempfile
 from urllib.parse import urlparse
 
+import aiofiles
 import orjson
 from quart import Blueprint, Response, request
 from rate_limit import RATE_LIMITS, rate_limit
@@ -348,6 +349,24 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
 # Anonymous scraping caps out at 1080p (quality 80). Anything higher (1080p+,
 # 1080p60, 4K...) requires login / season-vip. Keep downloads capped at 1080p.
 _FREE_DOWNLOAD_MAX_QN = 80
+_MAX_DOWNLOAD_TRACK_BYTES = 1024 * 1024 * 1024
+_DOWNLOAD_TOO_LARGE = -2
+_download_limiter = asyncio.Semaphore(2)
+
+
+def _download_size_status(headers: dict) -> int:
+    content_length = headers.get("content-length")
+    if content_length is None:
+        return 0
+    try:
+        parsed_content_length = int(content_length)
+    except ValueError:
+        return -1
+    if parsed_content_length < 0:
+        return -1
+    if parsed_content_length > _MAX_DOWNLOAD_TRACK_BYTES:
+        return _DOWNLOAD_TOO_LARGE
+    return 0
 
 
 async def _build_dash_cdn_headers() -> dict:
@@ -434,11 +453,21 @@ async def _download_track_to_file(url: str, headers: dict, proxy_url: str, dest:
         if resp_headers.status_code not in (200, 206):
             await conn.close()
             return -1
+
+        size_status = _download_size_status(resp_headers.headers)
+        if size_status != 0:
+            await conn.close()
+            return size_status
+
         total = 0
-        with open(dest, "wb") as f:
+        async with aiofiles.open(dest, "wb") as f:
             async for chunk in conn.iter_chunks():
-                f.write(chunk)
-                total += len(chunk)
+                next_total = total + len(chunk)
+                if next_total > _MAX_DOWNLOAD_TRACK_BYTES:
+                    await conn.close()
+                    return _DOWNLOAD_TOO_LARGE
+                await f.write(chunk)
+                total = next_total
         await conn.close()
         return total
     except Exception:
@@ -448,7 +477,7 @@ async def _download_track_to_file(url: str, headers: dict, proxy_url: str, dest:
 
 async def _mux_tracks(video_path: str, audio_path: str, out_path: str) -> None:
     """Remux video + audio tracks into a single faststart MP4 with ffmpeg (-c copy)."""
-    ffmpeg = shutil.which("ffmpeg")
+    ffmpeg = await asyncio.to_thread(shutil.which, "ffmpeg")
     if not ffmpeg:
         raise RuntimeError("ffmpeg not available on this server")
     cmd = [
@@ -500,14 +529,24 @@ async def proxy_download(vid, idx, qual):
     proxy_url = Network.get_proxy()
     headers = await _build_dash_cdn_headers()
 
-    tmpdir = tempfile.mkdtemp(prefix="miku_dl_")
-    vpath = os.path.join(tmpdir, "video.m4s")
-    apath = os.path.join(tmpdir, "audio.m4s")
-    outpath = os.path.join(tmpdir, "out.mp4")
+    await _download_limiter.acquire()
+    tmpdir = None
+    response_owns_cleanup = False
     try:
-        if await _download_track_to_file(vurl, headers, proxy_url, vpath) < 0:
+        tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="miku_dl_")
+        vpath = os.path.join(tmpdir, "video.m4s")
+        apath = os.path.join(tmpdir, "audio.m4s")
+        outpath = os.path.join(tmpdir, "out.mp4")
+
+        video_size = await _download_track_to_file(vurl, headers, proxy_url, vpath)
+        if video_size == _DOWNLOAD_TOO_LARGE:
+            return Response("Payload Too Large (video track)", status=413)
+        if video_size < 0:
             return Response("Upstream error (video track)", status=502)
-        if await _download_track_to_file(aurl, headers, proxy_url, apath) < 0:
+        audio_size = await _download_track_to_file(aurl, headers, proxy_url, apath)
+        if audio_size == _DOWNLOAD_TOO_LARGE:
+            return Response("Payload Too Large (audio track)", status=413)
+        if audio_size < 0:
             return Response("Upstream error (audio track)", status=502)
         try:
             await _mux_tracks(vpath, apath, outpath)
@@ -518,24 +557,30 @@ async def proxy_download(vid, idx, qual):
 
         async def generate():
             try:
-                with open(outpath, "rb") as f:
+                async with aiofiles.open(outpath, "rb") as f:
                     while True:
-                        chunk = f.read(512 * 1024)
+                        chunk = await f.read(512 * 1024)
                         if not chunk:
                             break
                         yield chunk
             finally:
-                shutil.rmtree(tmpdir, ignore_errors=True)
+                await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
+                _download_limiter.release()
 
         resp = Response(generate())
         resp.headers["Content-Type"] = "video/mp4"
         resp.headers["Content-Disposition"] = f'attachment; filename="{vid}_{idx}_p{actual_qn}.mp4"'
         resp.headers["X-Accel-Buffering"] = "no"
+        response_owns_cleanup = True
         return resp
     except Exception as exc:
-        shutil.rmtree(tmpdir, ignore_errors=True)
         print(f"[DashProxy] proxy_download error: {exc}")
         return Response("Upstream error", status=502)
+    finally:
+        if not response_owns_cleanup:
+            if tmpdir is not None:
+                await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
+            _download_limiter.release()
 
 
 @dash_proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
