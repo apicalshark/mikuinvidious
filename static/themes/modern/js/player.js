@@ -430,6 +430,103 @@ class VodStreamManager {
   }
 }
 
+class DashPlayerManager {
+  constructor(videoElement, mpdUrl) {
+    this.video = videoElement;
+    this.mpdUrl = mpdUrl;
+    this.player = null;
+    this.isReconnecting = false;
+    this.reconnectTimer = null;
+    this.destroyed = false;
+    this._errorHandler = null;
+  }
+
+  init() {
+    if (this.destroyed || typeof dashjs === "undefined") {
+      if (typeof dashjs === "undefined") {
+        console.error("[DashManager] dash.js not loaded");
+        this.fallbackToNative();
+      }
+      return;
+    }
+
+    console.log("[DashManager] Initializing DASH:", this.mpdUrl);
+    const absoluteUrl = new URL(this.mpdUrl, window.location.href).href;
+    this.player = dashjs.MediaPlayer().create();
+    this.player.initialize(this.video, absoluteUrl, false);
+    this.player.updateSettings({
+      streaming: {
+        buffer: { fastSwitchEnabled: true },
+        abr: { autoSwitchBitrate: { video: true, audio: false } },
+      },
+    });
+
+    this._errorHandler = (event) => {
+      const err = event && event.error;
+      if (!err) return;
+      console.warn("[DashManager] DASH error:", err.code, err.message);
+      this.reconnect();
+    };
+    this.player.on(dashjs.MediaPlayer.events.ERROR, this._errorHandler);
+
+    this.video.play().catch((error) => {
+      if (error.name === "NotAllowedError") {
+        showAutoplayOverlay(this.video);
+      }
+    });
+  }
+
+  reconnect() {
+    if (this.isReconnecting || this.destroyed) return;
+    this.isReconnecting = true;
+    const currentTime = this.video.currentTime;
+    console.log("[DashManager] Connection lost, recovering at:", currentTime.toFixed(2));
+
+    this.destroy(false);
+
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.destroyed = false;
+      this.init();
+      const onLoaded = () => {
+        this.video.currentTime = currentTime;
+        this.video.play().catch(() => { });
+        this.video.removeEventListener("loadedmetadata", onLoaded);
+      };
+      this.video.addEventListener("loadedmetadata", onLoaded);
+      this.isReconnecting = false;
+    }, 2000);
+  }
+
+  setQuality(index) {
+    if (!this.player) return;
+    try {
+      this.player.setQualityFor("video", index, true);
+    } catch (e) {
+      console.warn("[DashManager] Could not set DASH quality:", e);
+    }
+  }
+
+  destroy(isFinal = true) {
+    if (isFinal) this.destroyed = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.player) {
+      try {
+        if (this._errorHandler) this.player.off(dashjs.MediaPlayer.events.ERROR, this._errorHandler);
+        this.player.reset();
+      } catch (e) {
+        console.error("[DashManager] Error during destroy:", e);
+      }
+      this.player = null;
+    }
+  }
+
+  fallbackToNative() {
+    // dash.js unavailable — no progressive src for on-demand DASH; show overlay
+    console.error("[DashManager] DASH playback unavailable in this browser.");
+  }
+}
+
 function abortVideoLoad(video) {
   return new Promise((resolve) => {
     if (!video.src && !video.currentSrc) {
@@ -625,7 +722,12 @@ async function initMikuPlayer() {
     const currentSrc = video.src;
     const flvSrc = window.supported_src?.find(s => s.ext === ".flv");
 
-    if (currentSrc.includes(".flv") && mpegts.isSupported()) {
+    if (window.is_dash && window.dash_url) {
+      // DASH (on-demand fragmented MP4) playback via dash.js
+      window.dashManager = new DashPlayerManager(video, window.dash_url);
+      window.dashManager.init();
+      window.vodManager = null;
+    } else if (currentSrc.includes(".flv") && mpegts.isSupported()) {
       // Already on FLV
       window.vodManager = new VodStreamManager(video, currentSrc);
       window.vodManager.init();
@@ -647,8 +749,8 @@ async function initMikuPlayer() {
     }
   }
 
-  // 2.5. Buffer Controller for VOD (DASH, FLV, and progressive MP4)
-  if (!window.is_live) {
+  // 2.5. Buffer Controller for VOD (FLV, and progressive MP4). DASH manages its own buffer via dash.js.
+  if (!window.is_live && !window.is_dash) {
     const src = video.src || "";
     const isNativeMp4 = !src.includes(".flv");
     const minBuffer = isNativeMp4 ? 4.0 : 1.5;
@@ -666,7 +768,7 @@ async function initMikuPlayer() {
   }
 
   // 4. Global Error Recovery for Native Player (MP4/Progressive)
-  if (!window.vodManager && !window.hls) {
+  if (!window.vodManager && !window.hls && !window.dashManager) {
     video.onerror = () => {
       const err = video.error;
       if (!err || window.isNativeRecovering) return;
@@ -1041,6 +1143,25 @@ function setupVodQuality(video, list, label) {
   if (!list || !window.supported_src) return;
   list.innerHTML = "";
   const sorted = [...window.supported_src].sort((a, b) => b.quality - a.quality);
+
+  if (window.is_dash && window.dashManager) {
+    // DASH quality switching via dash.js Representation index (sorted desc -> index = position)
+    sorted.forEach((src, i) => {
+      const btn = createOption(
+        src.new_description,
+        i,
+        () => {
+          window.dashManager.setQuality(i);
+          if (label) label.innerText = src.new_description;
+        },
+        list
+      );
+      if (i === 0) btn.classList.add("active");
+      list.appendChild(btn);
+    });
+    return;
+  }
+
   sorted.forEach((src) => {
     const btn = createOption(
       src.new_description,

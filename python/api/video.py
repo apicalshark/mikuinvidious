@@ -219,6 +219,43 @@ class Video:
         }
         return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
 
+    async def get_dash_playurl(self, page_index=None, cid=None, qn=120) -> dict:
+        """Fetch DASH play URL info (returns the ``data`` node).
+
+        Uses ``fnval=4048`` (DASH + 4K/8K + HDR + Dolby + AV1) against the
+        wbi-signed playurl endpoint so Bilibili returns the ``dash`` node
+        (fragmented-MP4 on-demand tracks) instead of the removed ``durl`` node.
+
+        Returns the ``data`` dict containing ``dash`` and ``support_formats``
+        (plus ``accept_quality``/``quality``) on success. Callers should treat
+        an absent ``dash`` node as "DASH unavailable" (e.g. paid PGC content).
+        """
+        if cid is None:
+            if page_index is None:
+                raise ArgsException("page_index 和 cid 至少提供一个。")
+            cid = await self._get_cid_by_index(page_index)
+        params = {
+            "qn": str(qn),
+            "fnval": 4048,
+            "fnver": 0,
+            "fourk": 1,
+            "gaia_source": "pre-load",
+            "isGaiaAvoided": "true",
+            "avid": self._aid,
+            "bvid": self._bvid,
+            "cid": cid,
+            "from_client": "BROWSER",
+            "web_location": 1315873,
+            "try_look": 1,
+        }
+        params.update(_get_dm_img_params())
+        api = {
+            "url": "https://api.bilibili.com/x/player/wbi/playurl",
+            "method": "GET",
+            "verify": False,
+        }
+        return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+
     async def get_danmaku_xml(self, page_index=None, cid=None) -> str:
         """Fetch raw danmaku XML (deflate-compressed, decoded to str)."""
         if cid is None:

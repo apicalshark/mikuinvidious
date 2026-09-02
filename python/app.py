@@ -133,10 +133,9 @@ async def add_security_headers(response):
 
 app.register_blueprint(proxy_bp)
 
-# from dash_proxy import dash_proxy_bp
-#
-# app.register_blueprint(dash_proxy_bp)
-# FIXME: DASH proxy is deprecated. Uncomment to re-enable the deprecated DASH endpoints.
+from dash_proxy import dash_proxy_bp
+
+app.register_blueprint(dash_proxy_bp)
 
 from views_bangumi import bangumi_bp
 

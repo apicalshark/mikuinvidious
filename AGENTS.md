@@ -397,6 +397,137 @@ POST https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket  
 4. Cache for 3 days
 ```
 
+## DASH Migration Plan (durl → DASH)
+
+**Status: BACKEND + CORE FRONTEND IMPLEMENTED (Sep 2 2026)**
+- **Done:** `api/video.py:get_dash_playurl()` (wbi playurl, fnval=4048); `dash_proxy.py` rewritten as canonical DASH stack (UGC+PGC fetch, `miku_dash_<vid>_<idx>` cache, isoff-on-demand MPD gen, `/proxy/dash/...` Range-capable `CdnConnection` proxy with 206/Content-Range passthrough); `app.py` re-registers `dash_proxy_bp`; `views.py:api_component_player` switched to DASH and passes `is_dash`/`dash_url` to `player_part.html`; `extra.py:video_get_src_for_qn` marked deprecated; `video_view` precaches DASH instead of durl; dash.js vendored (`static/vjs/dash.min.js` v4.7.4) and loaded in `video.html`; `player.js` gained `DashPlayerManager` + DASH quality switching + buffer-controller skip.
+- **Remaining:** PGC premium end-to-end verification against a paid ep; `video_listen`/audio (durl-based) migration; download route tied to best DASH track; HLS/m3u8 deprecated-function cleanup (phase F); full live end-to-end test.
+
+### DASH CDN header requirement (verified Sep 2 2026)
+
+Bilibili's `.bilivideo.com` DASH CDN returns **403 Forbidden** when the track request carries the **Android app User-Agent** (`BiliDroid/...`, the one `get_common_headers()` uses for the API layer). It only serves DASH track ranges to a **web-browser User-Agent**. Tested from this host: web Chrome UA + `Referer` + `Origin: https://www.bilibili.com` + Range → `206` with a valid fragmented-MP4 init segment; android UA with the same URL/logic → `403`. The other headers (`x-bili-ticket`, `session_id`, `x-bili-trace-id`, buvid, cookies, `app-key`, `x-bili-metadata-*`) do NOT trigger the 403 — only the UA does. `proxy_dash` therefore builds a CDN-specific header dict (web UA + Referer/Origin) instead of reusing `get_common_headers()`.
+**Goal:** Bilibili has finally removed the `durl` (progressive MP4/FLV) response from `playurl`. We must mark the durl stack as deprecated and build a DASH stack that proxies Bilibili's fragmented-MP4 DASH streams through the app, played in the browser with **dash.js**.
+
+### Why durl is dead
+
+The `playurl` endpoints (`/x/player/playurl`, `/x/player/wbi/playurl`, `/pgc/player/web/playurl`) no longer return a `durl` node. Only the `dash` node is returned (DASH fragmented MP4, separate video + audio tracks). The current `durl` code path therefore always fails/returns empty, breaking playback.
+
+### Research: How PipePipe (reference impl) does DASH
+
+Cloned to `/tmp/PipePipe` (with HTTPS submodules). Key files:
+- `PipePipeExtractor/.../services/bilibili/extractors/BillibiliStreamExtractor.java` — extraction
+- `PipePipeClient/app/src/main/java/org/schabi/newpipe/player/resolver/PlaybackResolver.java` — `createBiliBiliDashManifest()` (lines ~586-654) — manifest generation
+
+**Findings:**
+
+1. **Stream fetch** — requests `playurl` with `fnval=4048` (DASH+4K+8K+HDR+Dolby+AV1 bits), `qn=120`, `fnver=0`, `fourk=1`:
+   - UGC: `https://api.bilibili.com/x/player/wbi/playurl` (wbi-signed, `web_location=1315873`, `dm_img*` fingerprint params, `try_look=1` when anonymous)
+   - PGC/premium: `https://api.bilibili.com/pgc/player/web/v2/playurl` (NOT wbi-signed)
+2. **Response shape:** `data.dash` (UGC) or `result.video_info.dash` (PGC); throws "Paid content" if `dash` is empty and the ep is paid.
+3. **Track fields consumed** per representation (`baseUrl`/`base_url`, `id`, `codecs`, `bandwidth`, `width`, `height`, `frameRate`/`frame_rate`, and crucially `SegmentBase.Initialization` + `SegmentBase.indexRange`):
+   - Video: `dash.video[]`
+   - Audio: `dash.audio[]`, plus Dolby (`dash.dolby.audio[]`) and Hi-Res (`dash.flac.audio[]`) merged in
+4. **No segment-list / no live-streaming** — each track is a *single fragmented MP4*; on-demand DASH. The `indexRange` points at the SIDX box, so the player computes segment byte-offsets itself and issues HTTP Range requests.
+5. **Manifest** — PipePipe generates a minimal `isoff-on-demand` MPD per stream (*not* full multi-quality ABR; ExoPlayer picks the resolution). Exact template:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <MPD xmlns="urn:mpeg:dash:schema:mpd:2011" type="static"
+        profiles="urn:mpeg:dash:profile:isoff-on-demand:2011"
+        minBufferTime="PT1.5S" mediaPresentationDuration="PT<dur>S">
+     <Period duration="PT<dur>S">
+       <AdaptationSet contentType="<video|audio>" mimeType="<video/mp4|audio/mp4>" subsegmentAlignment="true">
+         <Representation id=".." bandwidth=".." codecs=".." width height frameRate>
+           <BaseURL>track_url</BaseURL>
+           <SegmentBase indexRange="<start>-<end>">
+             <Initialization range="<start>-<end>"/>
+           </SegmentBase>
+         </Representation>
+       </AdaptationSet>
+     </Period>
+   </MPD>
+   ```
+6. **Playback** — ExoPlayer consumes the MPD + track URL directly; the sidx drives Range requests into the same file. For multi-track ABR, each Representation/AdaptationSet can carry its own BaseURL.
+
+### Architecture for MikuInvidious DASH stack
+
+Goal: **dash.js in the browser + on-demand MPD generated server-side + Range-capable byte proxy** that re-uses the existing WARP/CDN infra (`CdnConnection`, cookie/ticket headers, `is_safe_proxy_url`).
+
+```
+Browser (dash.js)
+   │  GET /video/dash/<vid>/<idx>/manifest.mpd      → generated MPD (isoff-on-demand)
+   │  GET /proxy/dash/<vid>/<idx>/<video|audio>/<qn>/<cid>  → Range-capable byte proxy
+   ▼
+Quart
+   ├─ video_get_dash_for_qn()  (watch/playurl?fnval=4048 → dash node + support_formats)
+   │    ├─ UGC:  api.bilibili.com/x/player/wbi/playurl   (wbi)
+   │    ├─ PGC:  /pgc/player/web/v2/playurl             (results.video_info.dash)
+   │    └─  cached redis: miku_dash_<vid>_<idx>  (1800s)
+   ├─ generate_vod_mpd()       (isoff-on-demand, SegmentBase indexRange + Initialization)
+   │    └─ BaseURL = /proxy/dash/<vid>/<idx>/<type>/<qn>/<cid>
+   └─ /proxy/dash/...          (CdnConnection through WARP)
+        ├─ looks up track URL from cached dash JSON
+        ├─ forwards Range / If-Range / X-Playback-Session-Id + bili auth headers
+        └─ returns 200/206, passes Content-Range/Content-Length/Accept-Ranges/ETag
+```
+
+**Critical requirements (deltas from the old deprecated `dash_proxy.py`):**
+- The old `proxy_dash` used `httpx` streaming and **stripped** `Content-Range`/`Content-Length` — that breaks on-demand DASH. The proxy **must** emit `206 Partial Content` + `Content-Range` + `Content-Length` + `Accept-Ranges`, and forward the client's `Range` upstream. Use `CdnConnection` (raw SOCKS5 socket through WARP, as `proxy.py` now does) rather than httpx.
+- Track URLs must be resolved *per-request* from the cached dash JSON (`miku_dash_<vid>_<idx>`), not baked into the MPD (they expire / rotate).
+- Must normalize both `baseUrl`/`base_url` and `backupUrl`/`backup_url` key spellings returned by Bilibili.
+- Handle PGC premium shape: `result.video_info.dash` (new) vs `result.dash` (legacy) vs `data.dash` (UGC).
+
+### Task Checklist
+
+#### A. durl stack → deprecate
+- [x] Add `DeprecationWarning` / docstring notes to `extra.video_get_src_for_qn` and the `durl` branches in `views.py`.
+- [ ] Keep `/proxy/video/` progressive route working (still used for B23 redirects/downloads + FLV live) but remove the `mikuinv_..._bak` fallback crawl for VOD in `proxy.py` (no durl upstream anymore).
+- [x] Convert `api_component_player.get_durl_playurls()` → dash-based `supported_src` (quality list derived from `support_formats`, no per-qn url caching).
+
+#### B. Canonical DASH fetch (api layer)
+- [x] Add `Video.get_dash_playurl(page_index=None, cid=None, qn=120)` to `python/api/video.py` returning `data` node (wbi playurl, fnval=4048, fourk=1, dm_img params — model on PipePipe + existing `get_download_url`).
+- [x] Promote `dash_proxy.video_get_dash_for_qn` from deprecated → canonical: UGC + PGC fallback, returning `{"dash":..., "support_formats":...}` shape; store normalized `base_url`/`backup_url` keys.
+- [x] Redis cache key `miku_dash_<vid>_<idx>` (orjson, 1800s) + helper to read/write.
+
+#### C. MPD manifest endpoint
+- [x] Rewrite `generate_vod_mpd` (currently deprecated in `dash_proxy.py`, hovered at `proxy_dash`): isoff-on-demand profile, `<AdaptationSet>` per media type, `<SegmentBase indexRange=... indexRangeExact="true">` + `<Initialization range=.../>`, BaseURL → `/proxy/dash/...`, only for tracks with valid SegmentBase.
+- [x] Route `GET /video/dash/<vid>/<idx>/manifest.mpd` (re-enable, no longer deprecated), respecting `use_proxy=false`.
+
+#### D. Range-capable track proxy
+- [x] Add `@proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")` (or `dash_proxy.py` re-registered) using `CdnConnection`:
+  - resolve track URL from cached dash JSON (`miku_dash_<vid>_<idx>`),
+  - validate via `is_safe_proxy_url`,
+  - build bili headers (cookie jar, x-bili-ticket, session_id, trace-id, buvid), forward `Range`/`If-Range`/`X-Playback-Session-Id`,
+  - pass through status (200/206), `Content-Type`, `Content-Length`, `Content-Range`, `Accept-Ranges`, `ETag`, `Last-Modified`, `Cache-Control`.
+- [x] Optional: HEAD support for dash.js `Range`/index probing.
+
+#### E. Frontend: dash.js
+- [x] Vendor `dash.min.js` into `static/vjs/` (from `npm`/CDN `dashjs`, pinned version), update CSP/media-src/worker-src if needed.
+- [x] `templates/macros.html` + `components/player_part.html`: when DASH is available, set `window.is_dash` + MPD URL (`/video/dash/<vid>/<idx>/manifest.mpd`), keep mpegts.js FLV / native MP4 as fallbacks.
+- [x] `static/themes/modern/js/player.js`: add `DashPlayerManager` (mirror `VodStreamManager`): `dashjs.MediaPlayer().create()`, `initialize(video, mpdUrl, false)`, `updateSettings({streaming:{buffer:{fastSwitchEnabled:true}}})`, reconnect/recovery on `ERROR` event; wire quality menu via `setQualityFor('video', idx)` / ABR auto.
+- [x] `api_component_player` returns `is_dash` + `dash_url` to the template so the macro can render the right player path.
+- [ ] Keep download links (`/download` → `/proxy/video/...`) working via best DASH video track merged with audio? *(Out of scope for v1 — keep current behavior, note limitation.)*
+
+#### F. Cleanup / docs
+- [ ] Remove duplicate deprecated functions (`generate_vod_master_m3u8`, `video_master_m3u8_view`, `video_media_m3u8_view`, `generate_vod_media_m3u8`) or gate behind durl/DASH deprecation.
+- [x] Refresh `app.py` blueprint registration (currently commented out `dash_proxy_bp`).
+- [ ] Update this AGENTS.md with implementation status once code lands.
+
+### Files to Modify After Migration
+
+| File | Current role | Action |
+|---|---|---|
+| `python/api/video.py` | `get_download_url` (durl-based) | Add `get_dash_playurl()`, keep old method for compat |
+| `python/dash_proxy.py` | Deprecated DASH code | Rewrite as canonical DASH stack (MPD gen + proxy + fetch) |
+| `python/proxy.py` | `/proxy/video/` durl streaming | Remove durl-only `_bak`/lower-quality crawl; add Range passthrough helpers if reused |
+| `python/extra.py` | `video_get_src_for_qn` (durl) | Mark deprecated; add `video_get_dash_for_qn` canonical or delegate to api.video |
+| `python/views.py` | `api_component_player` durl precache | Switch to dash fetch; pass `is_dash`/`dash_url` to templates |
+| `python/app.py` | blueprints | Re-register dash blueprint |
+| `templates/macros.html` | video_player macro | Render dash.js path when available |
+| `templates/themes/modern/components/player_part.html` | player fragment | Pass dash flags |
+| `static/themes/modern/js/player.js` | mpegts/hls/native VOD | Add `DashPlayerManager` |
+| `static/vjs/` | hls.js/mpegts.js | Add `dash.min.js` |
+| `good.md`/README | docs | Update player stack list |
+
 ## Development Conventions
 
 - **License:** GNU GPL-3.0.

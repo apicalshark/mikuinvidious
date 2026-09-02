@@ -353,7 +353,22 @@ async def article_to_any(article_text, dest_fmt):
 
 
 async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
-    """Get a specific available source for video."""
+    """Get a specific available source for video.
+
+    .. deprecated::
+       Bilibili removed the ``durl`` (progressive MP4/FLV) node from ``playurl``.
+       Use :func:`~dash_proxy.video_get_dash_for_qn` (or
+       :meth:`api.video.Video.get_dash_playurl`) for DASH instead. Kept only for
+       legacy audio/listen and B23 download paths.
+    """
+    import warnings
+
+    warnings.warn(
+        "video_get_src_for_qn / durl playurl is deprecated: Bilibili no longer "
+        "returns a durl node. Use the DASH stack (dash_proxy.video_get_dash_for_qn).",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     cid = await vi.get_cid(idx)
     api = Api(
         "https://api.bilibili.com/x/player/playurl",
