@@ -335,7 +335,7 @@ async def _get_anonymous_cookies() -> dict[str, str]:
                 headers=HEADERS,
             )
             ticket_data = resp.json().get("data") or {}
-        _anonymous_cookies_expires = ts + ticket_data.get("created_at", 259200)
+        _anonymous_cookies_expires = ts + int(ticket_data.get("ttl") or 259200)
     except Exception:
         _anonymous_cookies_expires = now + 60  # retry in 60s
 
