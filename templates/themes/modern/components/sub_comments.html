@@ -1,5 +1,5 @@
 {% if sub_comments['replies'] %}
-    <div class="ml-14 mt-3 space-y-3 border-l-2 border-on-surface/10 pl-4">
+    <div class="mt-3 space-y-3 border-on-surface/10">
         {% for rep in sub_comments['replies'] %}
             <div class="flex gap-3 group">
                 <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
