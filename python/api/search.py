@@ -210,9 +210,9 @@ _SEARCH_HEADERS = {
 async def _fetch(url: str, params: dict) -> dict:
     """Fetch JSON via an async curl_cffi session (Chrome impersonation).
 
-    Returns the raw ``data`` node of the response (matching what upstream
-    ``Api.result`` returns).  Cookies are deliberately not forwarded so the
-    browser impersonation isn't tripped by our generated pseudo-cookies.
+    Returns the response's ``data`` or ``result`` payload (matching what
+    upstream ``Api.result`` returns). Cookies are deliberately not forwarded
+    so the browser impersonation isn't tripped by our generated pseudo-cookies.
     """
     async with _creq.AsyncSession(
         proxy=request_settings.get_proxy() or None
@@ -226,7 +226,7 @@ async def _fetch(url: str, params: dict) -> dict:
             timeout=10.0,
         )
     if resp.status_code != 200:
-        raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
+        raise ResponseCodeException(resp.status_code, f"HTTP {resp.status_code}")
     try:
         data = resp.json()
     except Exception:
@@ -236,7 +236,11 @@ async def _fetch(url: str, params: dict) -> dict:
     if data.get("code") != 0:
         msg = data.get("msg") or data.get("message") or "接口未返回错误信息"
         raise ResponseCodeException(data.get("code", -1), msg, data)
-    return data.get("data") or {}
+    if data.get("data") is not None:
+        return data["data"]
+    if data.get("result") is not None:
+        return data["result"]
+    return data
 
 
 async def _wbi_get(url: str, params: dict, wbi: bool = True) -> dict:
@@ -463,6 +467,7 @@ async def search_manga(
         resp = await session.post(
             "https://manga.bilibili.com/twirp/comic.v1.Comic/Search?device=pc&platform=web",
             data=data,
+            cookies=credential.get_cookies() if credential is not None else None,
             headers=_SEARCH_HEADERS,
             impersonate=_IMPERSONATE,
             timeout=10.0,
