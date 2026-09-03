@@ -278,35 +278,62 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
         '  <Period id="1" start="PT0S">',
     ]
 
-    # --- Video adaptation set ---
+    # --- Video adaptation sets (one per codec) ---
+    # Bilibili returns multiple codec variants (AVC/HEVC/AV1) at each quality
+    # level.  Mixing them in one AdaptationSet breaks MSE: the SourceBuffer is
+    # created for the first codec the player picks, and appending data encoded
+    # with a *different* codec triggers CHUNK_DEMUXER_ERROR_APPEND_FAILED
+    # ("Video stream codec hevc doesn't match SourceBuffer codecs.").
+    # Fix: group tracks by their ``codecid`` into separate AdaptationSets
+    # so each SourceBuffer only ever sees one codec family.
+    as_id = 1
     videos = _normalize_track_urls(dash.get("video", []))
     if videos:
-        mpd.append('    <AdaptationSet id="1" contentType="video" mimeType="video/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1">')
+        from collections import OrderedDict
+        # Group by codecid (7=AVC, 12=HEVC, 13=AV1) rather than the full
+        # codecs string — Bilibili uses different HEVC level strings per
+        # resolution (e.g. hvc1.1.6.L150.90 vs hvc1.1.6.L120.90) which would
+        # unnecessarily fragment the groups.
+        codec_groups: OrderedDict[int, list] = OrderedDict()
         for video_track in videos:
-            qn = video_track.get("id")
-            cid = video_track.get("codecid", 0)
-            bandwidth = video_track.get("bandwidth", 0)
-            width = video_track.get("width", 0)
-            height = video_track.get("height", 0)
-            frame_rate = video_track.get("frameRate") or video_track.get("frame_rate") or "24"
-            codecs = video_track.get("codecs") or "avc1.64001F"
-            if qn is None or not video_track.get("SegmentBase"):
-                continue
-            sb = video_track["SegmentBase"]
-            init_range = _sb_initialization_range(sb)
-            index_range = sb.get("indexRange", "")
-            index_exact = ' indexRangeExact="true"' if index_range else ""
-            if not index_range:
-                continue
+            codecid = video_track.get("codecid", 0)
+            codec_groups.setdefault(codecid, []).append(video_track)
+        as_id = 1
+        for _codecid, tracks in codec_groups.items():
+            # Use the codecs string from the first track in the group for the
+            # AdaptationSet-level codecs attribute.
+            codecs_str = tracks[0].get("codecs") or "avc1.64001F"
             mpd.append(
-                f'      <Representation id="video_{qn}_{cid}" codecs="{codecs}" bandwidth="{bandwidth}" width="{width}" height="{height}" frameRate="{frame_rate}">'
+                f'    <AdaptationSet id="{as_id}" contentType="video" mimeType="video/mp4"'
+                f' codecs="{codecs_str}" segmentAlignment="true"'
+                f' subsegmentAlignment="true" startWithSAP="1">'
             )
-            mpd.append(f"        <BaseURL>/proxy/dash/{vid}/{idx}/video/{qn}/{cid}</BaseURL>")
-            mpd.append(f'        <SegmentBase indexRange="{index_range}"{index_exact}>')
-            mpd.append(f'          <Initialization range="{init_range}"/>')
-            mpd.append("        </SegmentBase>")
-            mpd.append("      </Representation>")
-        mpd.append("    </AdaptationSet>")
+            for video_track in tracks:
+                qn = video_track.get("id")
+                cid = video_track.get("codecid", 0)
+                bandwidth = video_track.get("bandwidth", 0)
+                width = video_track.get("width", 0)
+                height = video_track.get("height", 0)
+                frame_rate = video_track.get("frameRate") or video_track.get("frame_rate") or "24"
+                if qn is None or not video_track.get("SegmentBase"):
+                    continue
+                sb = video_track["SegmentBase"]
+                init_range = _sb_initialization_range(sb)
+                index_range = sb.get("indexRange", "")
+                index_exact = ' indexRangeExact="true"' if index_range else ""
+                if not index_range:
+                    continue
+                track_codecs = video_track.get("codecs") or codecs_str
+                mpd.append(
+                    f'      <Representation id="video_{qn}_{cid}" codecs="{track_codecs}" bandwidth="{bandwidth}" width="{width}" height="{height}" frameRate="{frame_rate}">'
+                )
+                mpd.append(f"        <BaseURL>/proxy/dash/{vid}/{idx}/video/{qn}/{cid}</BaseURL>")
+                mpd.append(f'        <SegmentBase indexRange="{index_range}"{index_exact}>')
+                mpd.append(f'          <Initialization range="{init_range}"/>')
+                mpd.append("        </SegmentBase>")
+                mpd.append("      </Representation>")
+            mpd.append("    </AdaptationSet>")
+            as_id += 1
 
     # --- Audio adaptation set ---
     audios = _normalize_track_urls(dash.get("audio", []))
@@ -315,7 +342,7 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     if not audios:
         audios = _normalize_track_urls((dash.get("flac") or {}).get("audio", []))
     if audios:
-        mpd.append('    <AdaptationSet id="2" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1">')
+        mpd.append(f'    <AdaptationSet id="{as_id}" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1">')
         for audio_track in audios:
             qn = audio_track.get("id")
             cid = audio_track.get("codecid", 0)
