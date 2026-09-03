@@ -1,0 +1,32 @@
+<div id="comments-cursor"
+     data-next-offset="{{ vcomments.get('next_offset', '') }}"
+     data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"></div>
+{% for rep in vcomments['replies'] %}
+    <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
+        <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
+            <img loading="lazy"
+                 class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
+                 src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
+                 alt="" />
+        </a>
+        <div class="flex-grow space-y-1">
+            <div class="flex items-baseline justify-between">
+                <a href="/space/{{ rep['member']['mid'] }}"
+                   class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
+                <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
+            </div>
+            <p class="text-sm text-on-surface-variant leading-relaxed break-words">{{ rep['content']['message'] }}</p>
+            <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
+                <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
+                {% set rcount = rep.get('rcount', 0) %}
+                {% if rcount > 0 %}
+                    <button class="sub-comment-toggle flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                            data-vid="{{ vid }}" data-root="{{ rep['rpid'] }}" data-count="{{ rcount }}">
+                        <i class="icon ion-ios-chatboxes"></i> <span>{{ rcount }} 条回复</span>
+                    </button>
+                {% endif %}
+            </div>
+            <div class="sub-comment-slot" data-root="{{ rep['rpid'] }}"></div>
+        </div>
+    </div>
+{% endfor %}

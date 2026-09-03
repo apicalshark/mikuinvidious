@@ -414,14 +414,110 @@
                     });
 
                 // Load Meta/Comments Component
-                fetch(`/api/component/meta/${window.current_vid}/${window.idx}`, { headers })
+                const metaUrl = `/api/component/meta/${window.current_vid}/${window.idx}`;
+                fetch(metaUrl, { headers })
                     .then(r => r.text())
                     .then(html => {
                         const container = document.getElementById('comments-loader-container');
+                        if (!container) return;
+                        container.innerHTML = html;
+                        setupCommentInfiniteScroll();
+                    })
+                    .catch(err => {
+                        console.error('[comments] fetch failed:', err);
+                        const container = document.getElementById('comments-loader-container');
                         if (container) {
-                            container.innerHTML = html;
+                            container.innerHTML = '<div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm"><h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2"><i class="icon ion-ios-chatbubbles"></i> 评论</h3><p class="text-center text-on-surface-variant py-8">评论加载失败，请稍后再试</p></div>';
                         }
                     });
+
+                // Sub-comment expand (YouTube-style)
+                document.addEventListener('click', function(e) {
+                    const btn = e.target.closest('.sub-comment-toggle');
+                    if (!btn) return;
+                    const vid = btn.dataset.vid;
+                    const root = btn.dataset.root;
+                    const slot = btn.closest('.flex-grow').querySelector('.sub-comment-slot');
+                    if (!slot || slot.dataset.loaded) { slot.classList.toggle('hidden'); return; }
+
+                    btn.querySelector('span').textContent = '加载中...';
+                    fetch(`/api/component/comments/${vid}/${root}`, { headers })
+                        .then(r => r.text())
+                        .then(html => {
+                            slot.innerHTML = html;
+                            slot.dataset.loaded = '1';
+                            btn.querySelector('span').textContent = btn.dataset.count + ' 条回复';
+                        })
+                        .catch(() => {
+                            btn.querySelector('span').textContent = '加载失败';
+                        });
+                });
+
+                    // Infinite scroll for the top-level comment list (mirrors PipePipe's
+                    // scroll-to-end pagination): when the user scrolls the comment box
+                    // to the bottom, fetch the next page via the next-offset cursor.
+                    let commentsLoading = false;
+                    window.loadMoreComments = async function(vid, idx) {
+                        if (commentsLoading) return;
+                        const cursorEl = document.getElementById('comments-cursor');
+                        if (!cursorEl) return;
+                        const next = cursorEl.dataset.nextOffset;
+                        if (!next || cursorEl.dataset.isEnd === 'true') return;
+
+                        commentsLoading = true;
+                        const spy = document.getElementById('comments-scroll-spy');
+                        const spinner = document.getElementById('comments-load-more');
+                        if (spinner) spinner.classList.remove('hidden');
+                        try {
+                            const r = await fetch(`/api/component/comments/${vid}/${idx}/more?next=${encodeURIComponent(next)}`, { headers });
+                            const html = await r.text();
+                            const list = document.getElementById('comments-list');
+                            if (list && cursorEl) {
+                                // Append the new comment items, then replace the stale
+                                // cursor with the one embedded in the fetched fragment.
+                                const tmp = document.createElement('div');
+                                tmp.innerHTML = html;
+                                const newCursor = tmp.querySelector('#comments-cursor');
+                                const items = tmp.querySelectorAll('[data-rpid]');
+                                items.forEach(el => list.appendChild(el));
+                                if (newCursor) {
+                                    cursorEl.dataset.nextOffset = newCursor.dataset.nextOffset;
+                                    cursorEl.dataset.isEnd = newCursor.dataset.isEnd;
+                                }
+                            }
+                        } catch (err) {
+                            console.error('[comments] load more failed:', err);
+                        } finally {
+                            commentsLoading = false;
+                            if (spinner) spinner.classList.add('hidden');
+                            const cur = document.getElementById('comments-cursor');
+                            if (!cur || cur.dataset.isEnd !== 'true') {
+                                // Re-observe so the spy can trigger again once it's scrolled
+                                // back into view with the newly appended content.
+                                window.__commentIO && window.__commentIO.observe(spy);
+                            }
+                        }
+                    };
+
+                    // Re-arm observer after content is replaced on first load.
+                    let commentIO = null;
+                    const setupCommentInfiniteScroll = function() {
+                        const spy = document.getElementById('comments-scroll-spy');
+                        if (!spy) return; // first page not mounted yet; retry later
+                        if (commentIO) return;
+                        commentIO = new IntersectionObserver((entries) => {
+                            if (entries[0].isIntersecting) {
+                                commentIO.unobserve(spy);
+                                window.loadMoreComments(window.current_vid, window.idx);
+                            }
+                        }, { rootMargin: '200px' });
+                        window.__commentIO = commentIO;
+                        commentIO.observe(spy);
+                    };
+                    setupCommentInfiniteScroll();
+
+                    // Re-arm once more after the (asynchronously loaded) first page mounts.
+                    setTimeout(setupCommentInfiniteScroll, 250);
             }
         });
     </script>

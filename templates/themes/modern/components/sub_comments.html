@@ -1,0 +1,29 @@
+{% if sub_comments['replies'] %}
+    <div class="ml-14 mt-3 space-y-3 border-l-2 border-on-surface/10 pl-4">
+        {% for rep in sub_comments['replies'] %}
+            <div class="flex gap-3 group">
+                <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
+                    <img loading="lazy"
+                         class="w-7 h-7 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
+                         src="{{ (rep['member']['avatar'] + '@32w_32h.webp')|pic }}"
+                         alt="" />
+                </a>
+                <div class="flex-grow space-y-0.5">
+                    <div class="flex items-baseline gap-2">
+                        <a href="/space/{{ rep['member']['mid'] }}"
+                           class="font-semibold text-xs text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
+                        {% if rep.get('reply_control', {}).get('time_desc') %}
+                            <span class="text-xs text-on-surface-variant/60">{{ rep['reply_control']['time_desc'] }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-sm text-on-surface-variant leading-relaxed break-words">{{ rep['content']['message'] }}</p>
+                    <div class="flex items-center gap-3 text-xs text-on-surface-variant/60 pt-0.5">
+                        <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default">
+                            <i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}

@@ -16,6 +16,7 @@
 import asyncio
 import datetime
 import re
+import sys
 
 _background_tasks = set()
 
@@ -769,21 +770,92 @@ async def api_component_meta(vid, idx):
     passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce and re.match(r'^[A-Za-z0-9_-]{16,40}$', passed_nonce):
         g.csp_nonce = passed_nonce
+
+    def debug(*args):
+        print("[comments]", *args, file=sys.stderr, flush=True)
+
+    async def safe_api(coro, timeout=4.0):
+        try:
+            result = await asyncio.wait_for(coro, timeout=timeout)
+            return result
+        except Exception as exc:
+            debug(f"safe_api exception for vid={vid}: {type(exc).__name__}: {exc}")
+            return None
+
+    raw_result = await safe_api(
+        comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), 4.0
+    )
+
+    _empty = {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
+    vcomments = (
+        raw_result if raw_result and not isinstance(raw_result, Exception) else _empty
+    )
+
+    return await render_template_with_theme(
+        "components/meta_part.html",
+        vid=vid,
+        vcomments=vcomments,
+        is_live=False,
+    )
+
+
+@app.route("/api/component/comments/<vid>/<int:idx>/more")
+@rate_limit(**RATE_LIMITS["normal"])
+async def api_component_meta_more(vid, idx):
+    """Fetch the next page of top-level comments (infinite scroll, matching PipePipe)."""
+    passed_nonce = request.headers.get("X-CSP-Nonce")
+    if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
+        g.csp_nonce = passed_nonce
+
+    next_offset = request.args.get("next", "")
+    if not isinstance(next_offset, str) or len(next_offset) > 512:
+        next_offset = ""
+
     async def safe_api(coro, timeout=4.0):
         try:
             return await asyncio.wait_for(coro, timeout=timeout)
         except Exception:
             return None
 
-    tasks = [
-        safe_api(comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), 4.0),
-    ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    raw = await safe_api(
+        comment.get_comments(
+            vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE, next_offset=next_offset
+        ),
+        4.0,
+    )
     vcomments = (
-        results[0] if results[0] and not isinstance(results[0], Exception) else {"page": {"count": 0}, "replies": []}
+        raw if raw and not isinstance(raw, Exception)
+        else {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
     )
 
-    return await render_template_with_theme("components/meta_part.html", vid=vid, vcomments=vcomments, is_live=False)
+    return await render_template_with_theme(
+        "components/comment_items.html",
+        vid=vid,
+        vcomments=vcomments,
+        is_live=False,
+    )
+
+
+@app.route("/api/component/comments/<vid>/<int:rpid>")
+@rate_limit(**RATE_LIMITS["normal"])
+async def api_component_sub_comments(vid, rpid):
+    """Return rendered sub-comment HTML for a given parent comment."""
+    passed_nonce = request.headers.get("X-CSP-Nonce")
+    if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
+        g.csp_nonce = passed_nonce
+
+    async def safe_api(coro, timeout=4.0):
+        try:
+            return await asyncio.wait_for(coro, timeout=timeout)
+        except Exception:
+            return None
+
+    result = await safe_api(
+        comment.get_sub_comments(vid, rpid, comment.CommentResourceType.VIDEO.value, 1), 4.0
+    )
+    sub = result if result and not isinstance(result, Exception) else {"page": {"count": 0}, "replies": []}
+
+    return await render_template_with_theme("components/sub_comments.html", sub_comments=sub, parent_rpid=rpid)
 
 
 @app.route("/video/<vid>")
