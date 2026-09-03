@@ -16,7 +16,7 @@
 Bilibili search module.
 
 Drop-in replacement for ``bilibili_api.search``.  The parameter handling,
-enums and the raw result dict returned by ``search_by_type`` mirror the
+enums and the raw result dict returned by ``search_by_type`` mimic the
 upstream ``bilibili-api-python`` package (v17.4.2) so that behaviour matches
 exactly.  Requests are made with ``curl_cffi`` (Chrome impersonation) so
 Bilibili's risk control serves full results instead of truncating them --
