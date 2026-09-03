@@ -263,19 +263,44 @@
             const vid = btn.dataset.vid;
             const root = btn.dataset.root;
             const slot = btn.closest('.flex-grow').querySelector('.sub-comment-slot');
-            if (!slot) return;
-            if (slot.dataset.loaded) { slot.classList.toggle('hidden'); return; }
+            if (!slot || slot.dataset.loading === '1') return;
+            if (slot.classList.contains('hidden')) { slot.classList.remove('hidden'); return; }
+            if (slot.dataset.loaded) { slot.classList.add('hidden'); return; }
 
             btn.querySelector('span').textContent = '加载中...';
-            fetch('/api/component/comments/' + vid + '/' + root)
-                .then(function(r) { return r.text(); })
+            slot.dataset.loading = '1';
+            const page = slot.dataset.nextPage || '1';
+            fetch('/api/component/comments/' + vid + '/' + root + '?page=' + encodeURIComponent(page))
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.text();
+                })
                 .then(function(html) {
-                    slot.innerHTML = html;
-                    slot.dataset.loaded = '1';
-                    btn.querySelector('span').textContent = btn.dataset.count + ' 条回复';
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = html;
+                    const pageEl = tmp.querySelector('.sub-comments-page');
+                    if (!pageEl) throw new Error('Invalid sub-comment response');
+                    const existing = new Set(Array.from(slot.querySelectorAll('[data-rpid]'), function(el) { return el.dataset.rpid; }));
+                    let added = 0;
+                    pageEl.querySelectorAll('[data-rpid]').forEach(function(el) {
+                        if (existing.has(el.dataset.rpid)) el.remove();
+                        else { existing.add(el.dataset.rpid); added += 1; }
+                    });
+                    slot.appendChild(pageEl);
+                    const loadedCount = Number(slot.dataset.loadedCount || 0) + added;
+                    const isEnd = pageEl.dataset.isEnd === 'true';
+                    slot.dataset.loadedCount = String(loadedCount);
+                    slot.dataset.nextPage = String(Number(pageEl.dataset.page) + 1);
+                    if (isEnd) slot.dataset.loaded = '1';
+                    btn.querySelector('span').textContent = isEnd
+                        ? btn.dataset.count + ' 条回复'
+                        : '已加载 ' + loadedCount + ' 条，点击加载更多';
                 })
                 .catch(function() {
                     btn.querySelector('span').textContent = '加载失败';
+                })
+                .finally(function() {
+                    delete slot.dataset.loading;
                 });
         });
     </script>

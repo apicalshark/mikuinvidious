@@ -19,14 +19,13 @@ Minimal drop-in for ``bilibili_api.comment`` covering get_comments and its
 enums as used by MikuInvidious.
 """
 
-import asyncio
 import json as _json
 import sys
 from enum import Enum
 
 from curl_cffi import requests as _creq
 
-from .client import _enc_wbi, _get_mixin_key
+from .client import _enc_wbi, _get_mixin_key, request_settings
 from .exceptions import ArgsException, ResponseCodeException
 from .video import bv2av
 
@@ -75,7 +74,7 @@ _COMMENT_HEADERS = {
 
 
 async def _fetch(url: str, params: dict, cookies: dict) -> dict:
-    """Fetch JSON via curl_cffi (Chrome impersonation) in a worker thread.
+    """Fetch JSON via an async curl_cffi session (Chrome impersonation).
 
     NOTE: we deliberately do NOT send our generated anonymous cookies -- passing
     our fake buvid/b_nut/b_lsid set trips Bilibili's risk control and truncates
@@ -83,8 +82,10 @@ async def _fetch(url: str, params: dict, cookies: dict) -> dict:
     cookies, letting curl_cffi's own session/bawt handling apply) returns full
     20-item pages with working pagination.
     """
-    def _do():
-        return _creq.get(
+    async with _creq.AsyncSession(
+        proxy=request_settings.get_proxy() or None
+    ) as session:
+        resp = await session.get(
             url,
             params=params,
             cookies=cookies or None,
@@ -92,8 +93,6 @@ async def _fetch(url: str, params: dict, cookies: dict) -> dict:
             impersonate=_IMPERSONATE,
             timeout=10.0,
         )
-
-    resp = await asyncio.to_thread(_do)
     if resp.status_code != 200:
         raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
     try:
@@ -125,12 +124,13 @@ async def get_comments(
     if page_index <= 0:
         raise ArgsException("page_index 必须大于或等于 1")
     type_value = type_.value if isinstance(type_, Enum) else type_
+    order_value = order.value if isinstance(order, Enum) else order
     oid_numeric = await _ensure_numeric_oid(oid)
 
     params = {
         "oid": oid_numeric,
         "type": type_value,
-        "mode": 3,
+        "mode": 2 if order_value == OrderType.TIME.value else 3,
         "pagination_str": _json.dumps({"offset": next_offset}),
         "plat": 1,
         "web_location": 1315875,
@@ -166,7 +166,14 @@ async def get_comments(
     replies = data.get("replies") or []
     for t in top:
         t["isTop"] = True
-    merged = top + replies
+    merged = []
+    seen_rpids = set()
+    for reply in top + replies:
+        rpid = reply.get("rpid")
+        if rpid in seen_rpids:
+            continue
+        seen_rpids.add(rpid)
+        merged.append(reply)
 
     # Extract next cursor for pagination
     pagination = cursor.get("pagination_reply") or {}

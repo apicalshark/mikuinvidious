@@ -42,6 +42,14 @@ _itable = {c: i for i, c in enumerate(_table)}
 
 
 def bv2av(x: str) -> int:
+    if (
+        not isinstance(x, str)
+        or not re.fullmatch(r"BV[a-zA-Z0-9]{10}", x)
+        or any(char not in _itable for char in x[3:])
+    ):
+        raise ArgsException(
+            "bvid 提供错误，必须是以 BV 开头的纯字母和数字组成的 12 位字符串（大小写敏感）。"
+        )
     arr = list(x)
     arr[3], arr[9] = arr[9], arr[3]
     arr[4], arr[7] = arr[7], arr[4]

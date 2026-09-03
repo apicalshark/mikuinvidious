@@ -850,10 +850,21 @@ async def api_component_sub_comments(vid, rpid):
         except Exception:
             return None
 
+    page = request.args.get("page", 1, type=int)
+    if page is None or page < 1:
+        page = 1
+
     result = await safe_api(
-        comment.get_sub_comments(vid, rpid, comment.CommentResourceType.VIDEO.value, 1), 4.0
+        comment.get_sub_comments(
+            vid, rpid, comment.CommentResourceType.VIDEO.value, page
+        ),
+        4.0,
     )
-    sub = result if result and not isinstance(result, Exception) else {"page": {"count": 0}, "replies": []}
+    sub = (
+        result
+        if result and not isinstance(result, Exception)
+        else {"page": {"count": 0, "num": page, "size": 20}, "replies": []}
+    )
 
     return await render_template_with_theme("components/sub_comments.html", sub_comments=sub, parent_rpid=rpid)
 
