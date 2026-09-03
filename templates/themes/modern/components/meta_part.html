@@ -5,33 +5,17 @@
             <i class="icon ion-ios-chatbubbles"></i>
             {{ '评论' }} ({{ vcomments['page']['count'] }})
         </h3>
-        <div class="space-y-6">
+        <div class="space-y-6" id="comments-list">
             {% if vcomments['replies'] %}
-                {% for rep in vcomments['replies'] %}
-                    <div class="flex gap-4 group">
-                        <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
-                            <img loading="lazy"
-                                 class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
-                                 src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
-                                 alt="" />
-                        </a>
-                        <div class="flex-grow space-y-1">
-                            <div class="flex items-baseline justify-between">
-                                <a href="/space/{{ rep['member']['mid'] }}"
-                                   class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
-                                <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
-                            </div>
-                            <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message'] }}</p>
-                            <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
-                                <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
-                            </div>
-                        </div>
-                    </div>
-                {% endfor %}
+                {% include "themes/modern/components/comment_items.html" %}
             {% else %}
                 <p class="text-center text-on-surface-variant py-8">{{ '暂无评论或评论加载失败' }}</p>
             {% endif %}
         </div>
+        <div id="comments-load-more" class="hidden text-center py-4">
+            <span class="text-sm text-on-surface-variant/70"><i class="icon ion-ios-loading animate-spin"></i> 加载中...</span>
+        </div>
+        <div id="comments-scroll-spy" class="h-px"></div>
     </div>
 {% endif %}
 <!-- Recommendations (For Mobile Layout usually at bottom, but here we just return the block) -->

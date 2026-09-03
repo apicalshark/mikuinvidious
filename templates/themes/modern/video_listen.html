@@ -150,14 +150,14 @@
                     <i class="icon ion-ios-chatbubbles"></i>
                     评论 ({{ vcomments['page']['count'] }})
                 </h3>
-                <div class="space-y-6">
+                <div class="space-y-6" id="comments-list">
                     {% if vcomments['replies'] %}
                         {% for rep in vcomments['replies'] %}
-                            <div class="flex gap-4 group">
+                            <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
                                 <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
                                     <img loading="lazy"
                                          class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
-                                         src="{{ "{}@100w".format(rep['member']['avatar']) |pic }}"
+                                         src="{{ (rep['member']['avatar'] + '@48w_48h.webp')|pic }}"
                                          alt="" />
                                 </a>
                                 <div class="flex-grow space-y-1">
@@ -166,10 +166,18 @@
                                            class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
                                         <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
                                     </div>
-                                    <p class="text-sm text-on-surface-variant leading-relaxed  break-words">{{ rep['content']['message'] }}</p>
+                                    <p class="text-sm text-on-surface-variant leading-relaxed break-words">{{ rep['content']['message'] }}</p>
                                     <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
                                         <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
+                                        {% set rcount = rep.get('rcount', 0) %}
+                                        {% if rcount > 0 %}
+                                            <button class="sub-comment-toggle flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                                                    data-vid="{{ vid }}" data-root="{{ rep['rpid'] }}" data-count="{{ rcount }}">
+                                                <i class="icon ion-ios-chatboxes"></i> <span>{{ rcount }} 条回复</span>
+                                            </button>
+                                        {% endif %}
                                     </div>
+                                    <div class="sub-comment-slot" data-root="{{ rep['rpid'] }}"></div>
                                 </div>
                             </div>
                         {% endfor %}
@@ -248,4 +256,52 @@
         </div>
     </div>
     <script src="/static/themes/modern/js/audioplayer.js"></script>
+    <script nonce="{{ csp_nonce }}">
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.sub-comment-toggle');
+            if (!btn) return;
+            const vid = btn.dataset.vid;
+            const root = btn.dataset.root;
+            const slot = btn.closest('.flex-grow').querySelector('.sub-comment-slot');
+            if (!slot || slot.dataset.loading === '1') return;
+            if (slot.classList.contains('hidden')) { slot.classList.remove('hidden'); return; }
+            if (slot.dataset.loaded) { slot.classList.add('hidden'); return; }
+
+            btn.querySelector('span').textContent = '加载中...';
+            slot.dataset.loading = '1';
+            const page = slot.dataset.nextPage || '1';
+            fetch('/api/component/comments/' + vid + '/' + root + '?page=' + encodeURIComponent(page))
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.text();
+                })
+                .then(function(html) {
+                    const tmp = document.createElement('div');
+                    tmp.innerHTML = html;
+                    const pageEl = tmp.querySelector('.sub-comments-page');
+                    if (!pageEl) throw new Error('Invalid sub-comment response');
+                    const existing = new Set(Array.from(slot.querySelectorAll('[data-rpid]'), function(el) { return el.dataset.rpid; }));
+                    let added = 0;
+                    pageEl.querySelectorAll('[data-rpid]').forEach(function(el) {
+                        if (existing.has(el.dataset.rpid)) el.remove();
+                        else { existing.add(el.dataset.rpid); added += 1; }
+                    });
+                    slot.appendChild(pageEl);
+                    const loadedCount = Number(slot.dataset.loadedCount || 0) + added;
+                    const isEnd = pageEl.dataset.isEnd === 'true';
+                    slot.dataset.loadedCount = String(loadedCount);
+                    slot.dataset.nextPage = String(Number(pageEl.dataset.page) + 1);
+                    if (isEnd) slot.dataset.loaded = '1';
+                    btn.querySelector('span').textContent = isEnd
+                        ? btn.dataset.count + ' 条回复'
+                        : '已加载 ' + loadedCount + ' 条，点击加载更多';
+                })
+                .catch(function() {
+                    btn.querySelector('span').textContent = '加载失败';
+                })
+                .finally(function() {
+                    delete slot.dataset.loading;
+                });
+        });
+    </script>
 {% endblock %}

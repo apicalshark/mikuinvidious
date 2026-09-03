@@ -167,9 +167,15 @@ async def _get_mixin_key(credential: Credential = None) -> str:
 def _enc_wbi(params: dict, mixin_key: str) -> dict:
     params.pop("w_rid", None)
     params["wts"] = int(time.time())
-    if not params.get("web_location"):
+    if params.get("web_location") is None:
         params["web_location"] = 1550101
-    query = urllib.parse.urlencode(sorted(params.items()))
+    # Match PipePipe / bilibili-API-collect: sort keys, then percent-encode each
+    # pair with %20 (NOT the '+' that urllib.urlencode uses, which produces an
+    # invalid wbi signature whenever a value contains a space).
+    query = "&".join(
+        f"{urllib.parse.quote(str(k), safe='')}={urllib.parse.quote(str(v), safe='')}"
+        for k, v in sorted(params.items())
+    )
     params["w_rid"] = hashlib.md5((query + mixin_key).encode("utf-8")).hexdigest()
     return params
 

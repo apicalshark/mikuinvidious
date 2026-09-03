@@ -20,41 +20,58 @@ by MikuInvidious: get_info, get_tags, get_related, get_pages, get_cid,
 get_aid, get_danmaku_xml and playurl resolution helpers.
 """
 
-import re
 import base64
 import json as _json
 import random
+import re
 
-from .client import Api, get_bili_client, HEADERS
+from .client import HEADERS, Api, get_bili_client
 from .credential import Credential
 from .exceptions import ArgsException
 
 __all__ = ["Video"]
 
-# bv2av / av2bv conversion (adapted from bilibili-API-collect)
-_table = "fZodR9XQDSUm21yCkr6zBqiveYah8bt4xsWpHnJE7jL5VG3guMTKNPAwcF"
+# bv2av / av2bv conversion (matching PipePipe's DeviceForger utils -- the
+# algorithm bilibili actually uses for the current bvid format).
+_XOR_CODE = 23442827791579
+_MASK_CODE = 2251799813685247
+_MAX_AID = 1 << 51
+_BASE = 58
+_table = "FcwAPNKTMug3GV5Lj7EJnHpWsx4tb8haYeviqBz6rkCy12mUSDQX9RdoZf"
 _itable = {c: i for i, c in enumerate(_table)}
-_s = [11, 10, 3, 8, 4, 6]
-_XOR = 177451812
-_ADD = 8728348608
 
 
 def bv2av(x: str) -> int:
-    if not re.match(r"^BV[a-zA-Z0-9]{10}$", x):
-        raise ArgsException("bvid 提供错误，必须是以 BV 开头的纯字母和数字组成的 12 位字符串（大小写敏感）。")
-    r = 0
-    for i in range(6):
-        r += _itable[x[_s[i]]] * 58 ** i
-    return (r - _ADD) ^ _XOR
+    if (
+        not isinstance(x, str)
+        or not re.fullmatch(r"BV[a-zA-Z0-9]{10}", x)
+        or any(char not in _itable for char in x[3:])
+    ):
+        raise ArgsException(
+            "bvid 提供错误，必须是以 BV 开头的纯字母和数字组成的 12 位字符串（大小写敏感）。"
+        )
+    arr = list(x)
+    arr[3], arr[9] = arr[9], arr[3]
+    arr[4], arr[7] = arr[7], arr[4]
+    sub = "".join(arr[3:])
+    tmp = 0
+    for c in sub:
+        tmp = tmp * _BASE + _itable[c]
+    return (tmp & _MASK_CODE) ^ _XOR_CODE
 
 
 def av2bv(x: int) -> str:
     if x <= 0:
         raise ArgsException("aid 不能小于或等于 0。")
-    x = (x ^ _XOR) + _ADD
-    r = list("BV1  4 1 7  ")
-    for i in range(6):
-        r[_s[i]] = _table[x // 58 ** i % 58]
+    tmp = (_MAX_AID | x) ^ _XOR_CODE
+    r = list("BV1000000000")
+    idx = len(r) - 1
+    while tmp > 0:
+        r[idx] = _table[tmp % _BASE]
+        tmp //= _BASE
+        idx -= 1
+    r[3], r[9] = r[9], r[3]
+    r[4], r[7] = r[7], r[4]
     return "".join(r)
 
 
