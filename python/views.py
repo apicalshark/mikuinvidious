@@ -22,8 +22,7 @@ _background_tasks = set()
 
 import orjson
 import transformers
-from api import article, audio, comment, homepage, live, live_area, opus, user, video, video_zone
-from bilibili_api import search
+from api import article, audio, comment, homepage, live, live_area, opus, search, user, video, video_zone
 from extra import (
     article_to_any,
     article_to_html,
@@ -216,6 +215,18 @@ async def search_view():
     sinfo = await search.search_by_type(
         q, page=i, search_type=search_type, order_type=order_map.get(request.args.get("sort"))
     )
+    # Bilibili's search endpoint is subject to risk control (HTTP 412 / v_voucher)
+    # that can return `{'v_voucher': ...}` instead of a proper result dict. The
+    # templates assume `page`/`numPages`/`numResults`/`result` exist, so normalise
+    # any unexpected/empty payload to a safe shape to avoid a 500 error page.
+    if not isinstance(sinfo, dict) or "result" not in sinfo or "page" not in sinfo:
+        _try_page = sinfo.get("page") if isinstance(sinfo, dict) else None
+        sinfo = {
+            "result": [],
+            "page": _try_page if isinstance(_try_page, int) else 0,
+            "numPages": 0,
+            "numResults": 0,
+        }
     results = []
     if search_type == search.SearchObjectType.VIDEO:
         for item in sinfo.get("result", []):
