@@ -38,11 +38,15 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
+import uuid
+from collections import deque
 from urllib.parse import urlparse
 
 import aiofiles
 import orjson
-from quart import Blueprint, Response, redirect, request
+from csrf import csrf_protect
+from quart import Blueprint, Response, jsonify, redirect, request
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import (
     Network,
@@ -374,7 +378,7 @@ async def _cache_durl_entry(vid: str, idx: int, qn: int, desc: str, node: dict |
 
 
 async def fetch_durl_supported_src(v, vid: str, idx: int, play_data: dict | None = None,
-                                   ep_id=None, max_qualities: int = 4) -> list:
+                                   ep_id=None, max_qualities: int = 4, force: bool = False) -> list:
     """Fetch + cache progressive (``durl``) URLs for durl-only videos.
 
     Returns a ``supported_src`` list of ``{quality, new_description, ext}``
@@ -382,12 +386,16 @@ async def fetch_durl_supported_src(v, vid: str, idx: int, play_data: dict | None
     via ``/proxy/video/<vid>_<idx>_<qn><ext>``). Each quality's primary +
     backup CDN URL is cached under ``mikuinv_<vid>_<idx>_<qn>`` (``+_bak``),
     and the assembled list under ``mikuinv_<vid>_<idx>`` for fast reuse.
+
+    With ``force=True`` the list cache is bypassed and every quality is
+    re-resolved (used to recover from the stale-list race below).
     """
-    cached = await appredis.get(f"mikuinv_{vid}_{idx}")
-    if cached:
-        data = safe_json_loads(cached)
-        if isinstance(data, list) and data:
-            return data
+    if not force:
+        cached = await appredis.get(f"mikuinv_{vid}_{idx}")
+        if cached:
+            data = safe_json_loads(cached)
+            if isinstance(data, list) and data:
+                return data
 
     qualities = _durl_quality_list(play_data, max_qualities)
 
@@ -415,6 +423,54 @@ async def fetch_durl_supported_src(v, vid: str, idx: int, play_data: dict | None
     if supported:
         await appredis.setex(f"mikuinv_{vid}_{idx}", 1800, orjson.dumps(supported))
     return supported
+
+
+class _DurlResolveError(Exception):
+    """Progressive URL resolution failed; carries the legacy HTTP status."""
+
+    def __init__(self, message: str, status: int = 404):
+        super().__init__(message)
+        self.status = status
+
+
+async def _resolve_durl_download(v, vid: str, idx: int, qual: int, play_data: dict | None = None):
+    """Resolve ``(url, qn, ext)`` for a durl-only download.
+
+    Tolerates the stale-list race: the ``/proxy/video/`` route deletes
+    per-quality CDN keys when it rotates to backups (proxy.py), while the
+    quality-list cache (``mikuinv_<vid>_<idx>``) can still reference them.
+    On a per-quality miss the resolution is retried once with a forced fresh
+    fetch (reusing neither the list cache nor the possibly-stale initial
+    ``durl``) before giving up.
+    """
+    for force in (False, True):
+        node_data = play_data
+        if force and isinstance(node_data, dict):
+            # Drop the possibly-stale initial durl; keep support_formats so
+            # all qualities are re-fetched fresh.
+            node_data = {**node_data, "durl": None}
+        try:
+            supported = await asyncio.wait_for(
+                fetch_durl_supported_src(v, vid, idx, play_data=node_data, force=force),
+                timeout=25.0,
+            )
+        except Exception as exc:
+            print(f"[DashProxy] durl resolve (force={force}) failed for {vid}:{idx}: {exc}")
+            if force:
+                raise _DurlResolveError("upstream error", status=502) from exc
+            continue
+        if not supported:
+            if force:
+                raise _DurlResolveError("no progressive sources", status=404)
+            continue
+        qn, ext = _choose_durl_entry(supported, qual)
+        url = await appredis.get(f"mikuinv_{vid}_{idx}_{qn}")
+        if url:
+            if isinstance(url, bytes):
+                url = url.decode()
+            return url, qn, ext
+        print(f"[DashProxy] durl cache miss for {vid}:{idx}:qn={qn} (force={force}), re-resolving...")
+    raise _DurlResolveError("progressive URL expired, please retry", status=404)
 
 
 async def _load_dash_data(vid, idx) -> dict | None:
@@ -617,6 +673,9 @@ def _download_size_status(headers: dict) -> int:
 # Maximum permitted size per individual DASH track download (500 MB).
 _MAX_DOWNLOAD_TRACK_BYTES = 500 * 1024 * 1024
 
+# Sentinel returned by _download_track_to_file when a job cancel was observed.
+_DOWNLOAD_CANCELLED = -3
+
 # Bounded semaphore to cap concurrent download & mux disk usage.
 _download_limiter = asyncio.Semaphore(5)
 
@@ -684,69 +743,92 @@ def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
     return video, audio
 
 
+async def _open_cdn_track(url: str, headers: dict, proxy_url: str):
+    """Connect + send request + read headers, with one bili_ticket refresh retry.
+
+    Returns ``(conn, resp_headers)``; the caller owns ``conn.close()``.
+    """
+    headers = dict(headers)
+    conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
+    await conn.connect()
+    await conn.send_request()
+    resp_headers = await conn.read_response_headers()
+    if resp_headers.status_code in (403, 412, 514):
+        await conn.close()
+        ticket = await TicketManager.get_ticket(force_refresh=True)
+        if ticket:
+            headers["x-bili-ticket"] = ticket
+        else:
+            headers.pop("x-bili-ticket", None)
+        conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
+        await conn.connect()
+        await conn.send_request()
+        resp_headers = await conn.read_response_headers()
+    return conn, resp_headers
+
+
 async def _download_track_to_file(
     url: str,
     headers: dict,
     proxy_url: str,
     dest: str,
     max_bytes: int = _MAX_DOWNLOAD_TRACK_BYTES,
+    progress_cb=None,
+    cancel_event: asyncio.Event | None = None,
 ) -> int:
-    """Download a full DASH track body to ``dest`` via CdnConnection. Returns byte count, or -1 on error/oversize."""
-    conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
+    """Download a full DASH track body to ``dest`` via CdnConnection.
+
+    Returns byte count, ``-1`` on error/oversize, or ``_DOWNLOAD_CANCELLED``
+    when ``cancel_event`` is set mid-download (partial file left for caller
+    cleanup).
+    """
     try:
-        await conn.connect()
-        await conn.send_request()
-        resp_headers = await conn.read_response_headers()
-        if resp_headers.status_code in (403, 412, 514):
-            await conn.close()
-            ticket = await TicketManager.get_ticket(force_refresh=True)
-            if ticket:
-                headers["x-bili-ticket"] = ticket
-            else:
-                headers.pop("x-bili-ticket", None)
-            conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
-            await conn.connect()
-            await conn.send_request()
-            resp_headers = await conn.read_response_headers()
-        if resp_headers.status_code not in (200, 206):
-            await conn.close()
-            return -1
-
-        # Check Content-Length header to reject oversized tracks before downloading
-        cl_header = resp_headers.headers.get("content-length")
-        if cl_header:
-            try:
-                cl_val = int(cl_header)
-                if cl_val > max_bytes:
-                    print(f"[DashProxy] track Content-Length {cl_val} exceeds limit {max_bytes}")
-                    await conn.close()
-                    return -1
-            except ValueError:
-                pass
-
-        total = 0
-        file_obj = await asyncio.to_thread(open, dest, "wb")
+        conn, resp_headers = await _open_cdn_track(url, headers, proxy_url)
         try:
-            async for chunk in conn.iter_chunks():
-                total += len(chunk)
-                if total > max_bytes:
-                    print(f"[DashProxy] downloaded bytes {total} exceeded limit {max_bytes}")
-                    await conn.close()
-                    return -1
-                await asyncio.to_thread(file_obj.write, chunk)
-        finally:
-            await asyncio.to_thread(file_obj.close)
+            if resp_headers.status_code not in (200, 206):
+                return -1
 
-        await conn.close()
-        return total
+            # Check Content-Length header to reject oversized tracks before downloading
+            cl_header = resp_headers.headers.get("content-length")
+            if cl_header:
+                try:
+                    cl_val = int(cl_header)
+                    if cl_val > max_bytes:
+                        print(f"[DashProxy] track Content-Length {cl_val} exceeds limit {max_bytes}")
+                        return -1
+                except ValueError:
+                    pass
+
+            total = 0
+            file_obj = await asyncio.to_thread(open, dest, "wb")
+            try:
+                async for chunk in conn.iter_chunks():
+                    if cancel_event is not None and cancel_event.is_set():
+                        return _DOWNLOAD_CANCELLED
+                    total += len(chunk)
+                    if total > max_bytes:
+                        print(f"[DashProxy] downloaded bytes {total} exceeded limit {max_bytes}")
+                        return -1
+                    await asyncio.to_thread(file_obj.write, chunk)
+                    if progress_cb is not None:
+                        progress_cb(len(chunk))
+            finally:
+                await asyncio.to_thread(file_obj.close)
+
+            return total
+        finally:
+            await conn.close()
     except Exception as exc:
         print(f"[DashProxy] track download error: {exc}")
-        await conn.close()
         return -1
 
 
-async def _mux_tracks(video_path: str, audio_path: str, out_path: str) -> None:
-    """Remux video + audio tracks into a single faststart MP4 with ffmpeg (-c copy)."""
+async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None) -> None:
+    """Remux video + audio tracks into a single faststart MP4 with ffmpeg (-c copy).
+
+    When ``job`` (a ``_DownloadJob``) is given, the ffmpeg subprocess handle is
+    tracked on it so a cancel request can kill the mux mid-flight.
+    """
     ffmpeg = await asyncio.to_thread(shutil.which, "ffmpeg")
     if not ffmpeg:
         raise RuntimeError("ffmpeg not available on this server")
@@ -765,9 +847,52 @@ async def _mux_tracks(video_path: str, audio_path: str, out_path: str) -> None:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    _, stderr = await proc.communicate()
+    try:
+        if job is not None:
+            job.ffmpeg_proc = proc
+            comm_task = asyncio.ensure_future(proc.communicate())
+            cancel_task = asyncio.ensure_future(job.cancel_event.wait())
+            try:
+                done, _ = await asyncio.wait(
+                    {comm_task, cancel_task}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if comm_task not in done:
+                    proc.kill()
+                    await proc.wait()
+                    raise _JobCancelled()
+                _, stderr = await comm_task
+            finally:
+                for t in (comm_task, cancel_task):
+                    if not t.done():
+                        t.cancel()
+                job.ffmpeg_proc = None
+        else:
+            _, stderr = await proc.communicate()
+    except _JobCancelled:
+        try:
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
+        except Exception:
+            pass
+        raise
     if proc.returncode != 0:
         raise RuntimeError("ffmpeg mux failed: " + (stderr or b"").decode(errors="replace")[-600:])
+
+
+def _choose_durl_entry(supported: list, want: int) -> tuple:
+    """Pick ``(quality, ext)`` from a durl ``supported_src`` list.
+
+    Best quality at or below the request (mirrors ``/proxy/video/`` fallback
+    order); ``want=0`` (e.g. listen-page download) means "best available".
+    """
+    try:
+        want = int(want)
+    except (TypeError, ValueError):
+        want = 0
+    candidates = [s for s in supported if s["quality"] <= want] if want > 0 else []
+    chosen = candidates[0] if candidates else supported[0]
+    return chosen["quality"], chosen.get("ext") or ".mp4"
 
 
 async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
@@ -791,26 +916,10 @@ async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
         print(f"[DashProxy] durl download fetch failed for {vid}:{idx}: {exc}")
         play_data = None
     try:
-        supported = await asyncio.wait_for(
-            fetch_durl_supported_src(v, vid, idx, play_data=play_data),
-            timeout=25.0,
-        )
-    except Exception as exc:
-        print(f"[DashProxy] durl download fallback failed for {vid}:{idx}: {exc}")
-        return Response("Upstream error", status=502)
-    if not supported:
-        return Response("Not Found", status=404)
-    try:
-        want = int(qual)
-    except (TypeError, ValueError):
-        want = 0
-    # Best quality at or below the request (mirrors /proxy/video/ fallback
-    # order); qual=0 (e.g. listen-page download) means "best available".
-    candidates = [s for s in supported if s["quality"] <= want] if want > 0 else []
-    chosen = candidates[0] if candidates else supported[0]
-    qn, ext = chosen["quality"], chosen.get("ext") or ".mp4"
-    url = await appredis.get(f"mikuinv_{vid}_{idx}_{qn}")
-    if not url:
+        url, qn, ext = await _resolve_durl_download(v, vid, idx, qual, play_data=play_data)
+    except _DurlResolveError as exc:
+        if exc.status == 502:
+            return Response("Upstream error", status=502)
         return Response("Not Found", status=404)
     return redirect(f"/proxy/video/{vid}_{idx}_{qn}{ext}?dl=1", code=302)
 
@@ -1010,3 +1119,409 @@ async def video_dash_manifest_view(vid, idx):
     if not mpd_content:
         return Response("Not Found", status=404)
     return Response(mpd_content, content_type="application/dash+xml")
+
+
+# ---------------------------------------------------------------------------
+# Background download jobs (floating progress dialog + cancel)
+# ---------------------------------------------------------------------------
+# POST /download (fetch/XHR branch in app.py) creates a job and returns
+# immediately with a job_id; the browser then polls
+# GET /download/status/<job_id> for live progress ("downloading %", "muxing",
+# server speed) and finally downloads GET /download/file/<job_id>.
+# POST /download/cancel/<job_id> (or closing the page) aborts the server-side
+# fetch/mux and deletes the temp files.
+#
+# Job IDs are unguessable (uuid4), so concurrent downloads from many users are
+# isolated from each other. The registry is in-memory: Granian runs a single
+# worker (see python/main.py — no workers= arg), so no cross-process state or
+# Redis coordination is needed for the task handles.
+
+# Max concurrent actively-downloading/muxing jobs server-wide; extras queue.
+_JOB_SLOTS = 3
+# Finished files stay available for re-download (retry link) this long.
+_JOB_READY_TTL = 15 * 60
+# Error/cancelled job records are swept after this long.
+_JOB_END_TTL = 5 * 60
+# Active jobs with no progress update for this long are treated as stalled.
+_JOB_STALL_TIMEOUT = 30 * 60
+
+# Job states: queued -> resolving -> downloading -> muxing -> ready
+#                                                 \-> error / cancelled
+
+
+class _JobCancelled(Exception):
+    """Internal control-flow signal: the user cancelled this download job."""
+
+
+class _DownloadJob:
+    """Mutable per-download state. Only touched from the single event loop."""
+
+    def __init__(self, vid: str, idx: int, qual: int):
+        self.job_id = uuid.uuid4().hex
+        self.vid = vid
+        self.idx = idx
+        self.qual = qual
+        self.state = "queued"
+        self.total_bytes = 0
+        self.done_bytes = 0
+        self.speed_bps = 0.0
+        self.filename = f"{vid}_{idx}.mp4"
+        self.tmpdir = None
+        self.outpath = None
+        self.error = None
+        now = time.time()
+        self.created_at = now
+        self.updated_at = now
+        self.cancel_event = asyncio.Event()
+        self.ffmpeg_proc = None
+        self.task = None
+        self._samples = deque()  # (monotonic_ts, done_bytes) for speed calc
+
+    def touch(self):
+        self.updated_at = time.time()
+
+    def throw_if_cancelled(self):
+        if self.cancel_event.is_set():
+            raise _JobCancelled()
+
+    def add_progress(self, n: int):
+        """Sync per-chunk progress callback: updates bytes + rolling speed."""
+        self.done_bytes += n
+        now = time.monotonic()
+        samples = self._samples
+        samples.append((now, self.done_bytes))
+        while samples and now - samples[0][0] > 4.0:
+            samples.popleft()
+        if len(samples) >= 2:
+            dt = samples[-1][0] - samples[0][0]
+            if dt > 0.2:
+                self.speed_bps = (samples[-1][1] - samples[0][1]) / dt
+        self.updated_at = time.time()
+
+    def to_status(self) -> dict:
+        percent = None
+        if self.total_bytes > 0:
+            percent = round(min(self.done_bytes / self.total_bytes, 1.0) * 100, 1)
+        return {
+            "job_id": self.job_id,
+            "state": self.state,
+            "percent": percent,
+            "done_bytes": self.done_bytes,
+            "total_bytes": self.total_bytes,
+            "speed_bps": round(self.speed_bps, 1),
+            "filename": self.filename,
+            "error": self.error,
+        }
+
+
+_download_jobs: dict[str, _DownloadJob] = {}
+_jobs_lock = asyncio.Lock()
+_job_slots = asyncio.Semaphore(_JOB_SLOTS)
+
+
+def _remove_job_tmpdir(job: _DownloadJob):
+    tmpdir = job.tmpdir
+    job.tmpdir = None
+    if tmpdir:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+async def _sweep_jobs():
+    """Drop expired/terminal jobs and reap stalled ones. Called on every job endpoint hit."""
+    now = time.time()
+    async with _jobs_lock:
+        for jid, job in list(_download_jobs.items()):
+            age = now - job.updated_at
+            if job.state == "ready" and age > _JOB_READY_TTL:
+                _remove_job_tmpdir(job)
+                del _download_jobs[jid]
+            elif job.state in ("error", "cancelled") and age > _JOB_END_TTL:
+                _remove_job_tmpdir(job)
+                del _download_jobs[jid]
+            elif job.state in ("queued", "resolving", "downloading", "muxing") and age > _JOB_STALL_TIMEOUT:
+                # Stalled (e.g. hung upstream socket): ask the worker to abort.
+                job.cancel_event.set()
+                if job.task is not None and job.task.done():
+                    _remove_job_tmpdir(job)
+                    del _download_jobs[jid]
+        # Hard registry cap: drop oldest terminal jobs first.
+        if len(_download_jobs) > 100:
+            terminal = sorted(
+                ((j.updated_at, jid) for jid, j in _download_jobs.items()
+                 if j.state in ("ready", "error", "cancelled"))
+            )
+            for _, jid in terminal[: len(_download_jobs) - 100]:
+                _remove_job_tmpdir(_download_jobs[jid])
+                del _download_jobs[jid]
+
+
+async def _get_job(job_id: str) -> _DownloadJob | None:
+    if not job_id or len(job_id) > 64:
+        return None
+    async with _jobs_lock:
+        return _download_jobs.get(job_id)
+
+
+async def create_download_job(vid: str, idx: int, qual: int) -> str:
+    """Register a download job and launch its background worker. Returns job_id."""
+    if not appconf["proxy"]["use_proxy"]:
+        raise RuntimeError("Proxying is disabled")
+    await _sweep_jobs()
+    job = _DownloadJob(vid, idx, qual)
+    async with _jobs_lock:
+        _download_jobs[job.job_id] = job
+    job.task = asyncio.ensure_future(_run_download_job(job))
+    return job.job_id
+
+
+async def cancel_download_job(job_id: str) -> dict | None:
+    """Signal a job to abort. Returns its status dict, or None if unknown."""
+    job = await _get_job(job_id)
+    if job is None:
+        return None
+    if job.state not in ("ready", "error", "cancelled"):
+        job.cancel_event.set()
+        proc = job.ffmpeg_proc
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+    return job.to_status()
+
+
+async def _peek_content_length(url: str, headers: dict, proxy_url: str,
+                               cancel_event: asyncio.Event | None = None) -> int:
+    """Fetch only response headers to learn a track's size (0 if unknown).
+
+    Opens a throwaway connection and closes it without reading the body.
+    Raises RuntimeError if the track exceeds the per-track size cap.
+    """
+    try:
+        conn, resp_headers = await _open_cdn_track(url, headers, proxy_url)
+    except Exception as exc:
+        print(f"[DashProxy] size peek failed: {exc}")
+        return 0
+    try:
+        if resp_headers.status_code not in (200, 206):
+            return 0
+        cl = (resp_headers.headers or {}).get("content-length")
+        if not cl:
+            return 0
+        try:
+            size = int(cl)
+        except (TypeError, ValueError):
+            return 0
+        if size > _MAX_DOWNLOAD_TRACK_BYTES:
+            raise RuntimeError("track exceeds server size limit")
+        return max(size, 0)
+    finally:
+        await conn.close()
+
+
+async def _run_dash_job(job: _DownloadJob, dash_data: dict):
+    """Download best video (<=1080p cap) + audio tracks, then ffmpeg-mux."""
+    max_qn = min(job.qual, _FREE_DOWNLOAD_MAX_QN) if job.qual > 0 else _FREE_DOWNLOAD_MAX_QN
+    video, audio = _pick_download_tracks(dash_data, max_qn)
+    if not video or not audio:
+        raise RuntimeError("no suitable DASH tracks for download")
+    vurl = video.get("base_url") or video.get("baseUrl")
+    aurl = audio.get("base_url") or audio.get("baseUrl")
+    if not vurl or not aurl:
+        raise RuntimeError("track has no URL")
+    if not _is_safe_dash_url(vurl) or not _is_safe_dash_url(aurl):
+        raise RuntimeError("invalid CDN target")
+
+    proxy_url = Network.get_proxy()
+    headers = await _build_dash_cdn_headers()
+
+    tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix=f"miku_dl_{job.job_id}_")
+    job.tmpdir = tmpdir
+    vpath = os.path.join(tmpdir, "video.m4s")
+    apath = os.path.join(tmpdir, "audio.m4s")
+    outpath = os.path.join(tmpdir, "out.mp4")
+    job.outpath = outpath
+    actual_qn = int(video.get("id") or max_qn)
+    job.filename = f"{job.vid}_{job.idx}_p{actual_qn}.mp4"
+
+    vsize = await _peek_content_length(vurl, headers, proxy_url)
+    job.throw_if_cancelled()
+    asize = await _peek_content_length(aurl, headers, proxy_url)
+    job.throw_if_cancelled()
+    job.total_bytes = vsize + asize
+    job.state = "downloading"
+    job.touch()
+
+    n = await _download_track_to_file(
+        vurl, headers, proxy_url, vpath,
+        progress_cb=job.add_progress, cancel_event=job.cancel_event,
+    )
+    if n == _DOWNLOAD_CANCELLED:
+        raise _JobCancelled()
+    if n < 0:
+        raise RuntimeError("video track download failed")
+    job.throw_if_cancelled()
+    n = await _download_track_to_file(
+        aurl, headers, proxy_url, apath,
+        progress_cb=job.add_progress, cancel_event=job.cancel_event,
+    )
+    if n == _DOWNLOAD_CANCELLED:
+        raise _JobCancelled()
+    if n < 0:
+        raise RuntimeError("audio track download failed")
+
+    job.state = "muxing"
+    job.speed_bps = 0.0
+    job.touch()
+    await _mux_tracks(vpath, apath, outpath, job=job)
+    for p in (vpath, apath):
+        try:
+            await asyncio.to_thread(os.remove, p)
+        except Exception:
+            pass
+
+
+async def _run_durl_job(job: _DownloadJob):
+    """Download fallback for durl-only videos: progressive MP4, no mux step."""
+    from api import video as video_mod
+
+    try:
+        v = video_mod.Video(bvid=job.vid, credential=appcred)
+    except Exception:
+        raise RuntimeError("invalid video ID") from None
+    try:
+        play_data = await asyncio.wait_for(
+            video_get_dash_for_qn(v, job.idx), timeout=DASH_FETCH_TIMEOUT
+        )
+    except Exception as exc:
+        print(f"[DashProxy] job {job.job_id} durl fetch failed: {exc}")
+        play_data = None
+    job.throw_if_cancelled()
+    try:
+        url, qn, ext = await _resolve_durl_download(
+            v, job.vid, job.idx, job.qual, play_data=play_data
+        )
+    except _DurlResolveError as exc:
+        raise RuntimeError(str(exc)) from None
+    if not _is_safe_dash_url(url):
+        raise RuntimeError("invalid CDN target")
+
+    tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix=f"miku_dl_{job.job_id}_")
+    job.tmpdir = tmpdir
+    outpath = os.path.join(tmpdir, f"out{ext}")
+    job.outpath = outpath
+    job.filename = f"{job.vid}_{job.idx}_p{qn}{ext}"
+
+    headers = await _build_dash_cdn_headers()
+    proxy_url = Network.get_proxy()
+    job.total_bytes = await _peek_content_length(url, headers, proxy_url)
+    job.throw_if_cancelled()
+    job.state = "downloading"
+    job.touch()
+    n = await _download_track_to_file(
+        url, headers, proxy_url, outpath,
+        progress_cb=job.add_progress, cancel_event=job.cancel_event,
+    )
+    if n == _DOWNLOAD_CANCELLED:
+        raise _JobCancelled()
+    if n < 0:
+        raise RuntimeError("progressive download failed")
+
+
+async def _run_download_job(job: _DownloadJob):
+    """Background worker: resolve -> download (-> mux) -> ready. Never raises."""
+    acquired = False
+    try:
+        await _job_slots.acquire()
+        acquired = True
+        job.throw_if_cancelled()
+        job.state = "resolving"
+        job.touch()
+        dash_data = await _load_dash_data(job.vid, job.idx)
+        job.throw_if_cancelled()
+        if has_valid_dash_tracks(dash_data):
+            await _run_dash_job(job, dash_data)
+        else:
+            await _run_durl_job(job)
+        job.throw_if_cancelled()
+        if not job.outpath or not os.path.exists(job.outpath):
+            raise RuntimeError("finished file missing")
+        job.state = "ready"
+        job.speed_bps = 0.0
+        job.touch()
+        print(f"[DashProxy] download job {job.job_id} ready: {job.filename}")
+    except _JobCancelled:
+        job.state = "cancelled"
+        job.touch()
+        print(f"[DashProxy] download job {job.job_id} cancelled")
+    except Exception as exc:
+        job.state = "error"
+        job.error = str(exc)[:300]
+        job.touch()
+        print(f"[DashProxy] download job {job.job_id} error: {exc}")
+    finally:
+        if acquired:
+            _job_slots.release()
+        if job.state in ("error", "cancelled"):
+            await asyncio.to_thread(_remove_job_tmpdir, job)
+        job.touch()
+
+
+@dash_proxy_bp.route("/download/status/<job_id>")
+@rate_limit(**RATE_LIMITS["proxy"])
+async def download_status(job_id):
+    """Live progress for a download job (polled by the floating dialog)."""
+    await _sweep_jobs()
+    job = await _get_job(job_id)
+    if job is None:
+        return jsonify({"error": "job not found or expired"}), 404
+    return jsonify(job.to_status())
+
+
+@dash_proxy_bp.route("/download/file/<job_id>")
+@rate_limit(**RATE_LIMITS["proxy"])
+async def download_file(job_id):
+    """Stream the finished file as an attachment. Kept until TTL for retries."""
+    await _sweep_jobs()
+    job = await _get_job(job_id)
+    if job is None:
+        return jsonify({"error": "job not found or expired"}), 404
+    if job.state != "ready":
+        return jsonify(job.to_status()), 409
+    outpath = job.outpath
+    if not outpath or not os.path.exists(outpath):
+        return jsonify({"error": "file no longer available"}), 410
+    try:
+        size = await asyncio.to_thread(os.path.getsize, outpath)
+    except OSError:
+        return jsonify({"error": "file no longer available"}), 410
+
+    async def generate():
+        f = await asyncio.to_thread(open, outpath, "rb")
+        try:
+            while True:
+                chunk = await asyncio.to_thread(f.read, 512 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            await asyncio.to_thread(f.close)
+
+    resp = Response(generate())
+    resp.headers["Content-Type"] = "video/mp4"
+    resp.headers["Content-Length"] = str(size)
+    resp.headers["Content-Disposition"] = f'attachment; filename="{job.filename}"'
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
+
+
+@dash_proxy_bp.route("/download/cancel/<job_id>", methods=["POST"])
+@csrf_protect()
+@rate_limit(**RATE_LIMITS["normal"])
+async def download_cancel(job_id):
+    """Abort a running/queued job and delete its temp files."""
+    await _sweep_jobs()
+    status = await cancel_download_job(job_id)
+    if status is None:
+        return jsonify({"error": "job not found or expired"}), 404
+    return jsonify(status)

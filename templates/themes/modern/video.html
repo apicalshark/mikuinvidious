@@ -152,6 +152,7 @@
                                         <i class="icon ion-md-download"></i>
                                         <span>下载</span>
                                     </button>
+                                </form>
                             {% endif %}
                         </div>
                     </div>
@@ -375,6 +376,7 @@
     <script src="/static/danmakujs/danmaku.min.js"></script>
 
     <script src="/static/themes/modern/js/player.js"></script>
+    <script src="/static/themes/modern/js/download.js"></script>
 
     <script nonce="{{ csp_nonce }}">
         function updateDownloadDropdown() {
@@ -394,6 +396,9 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            // Floating download dialog (progress + cancel) instead of a blank tab.
+            const dlForm = document.getElementById('download-form');
+            if (dlForm && window.MikuDownload) window.MikuDownload.attach(dlForm);
             if (!window.is_live) {
                 const cspNonce = document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') || '';
                 const headers = cspNonce ? { 'X-CSP-Nonce': cspNonce } : {};
