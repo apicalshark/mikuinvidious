@@ -1,0 +1,69 @@
+name: Security audit
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: pip-audit (Python deps)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10
+
+      - name: Export frozen requirements from uv.lock
+        run: uv export --frozen --no-dev --no-emit-project -o /tmp/requirements-frozen.txt
+
+      - name: Install pip-audit
+        run: pip install --no-cache-dir pip-audit
+
+      - name: Audit locked dependencies
+        run: pip-audit -r /tmp/requirements-frozen.txt --desc on
+
+      - name: Audit requirements.txt floor
+        run: pip-audit -r requirements.txt --desc on
+
+  npm-audit:
+    name: npm audit (JS deps)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit for HIGH/CRITICAL
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Verify package integrity
+        run: npm audit signatures
+
+  gitleaks:
+    name: gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Scan for leaked secrets
+        uses: gitleaks/gitleaks-action@v3

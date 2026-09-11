@@ -27,7 +27,7 @@ services:
       - redis
 
   caddy:
-    image: caddy:alpine
+    image: caddy:alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
     container_name: miku_caddy
     restart: always
     ports:
@@ -43,7 +43,7 @@ services:
       - app
 
   redis:
-    image: redis:alpine
+    image: redis:alpine@sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576
     container_name: miku_redis
     restart: always
 
