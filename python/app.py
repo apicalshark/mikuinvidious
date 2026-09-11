@@ -27,7 +27,7 @@ import views  # noqa: F401
 from api import exceptions
 from csrf import csrf_protect, inject_csrf_token
 from proxy import proxy_bp
-from quart import Response, g, make_response, redirect, request, send_from_directory, url_for
+from quart import Response, g, jsonify, make_response, redirect, request, send_from_directory, url_for
 from rate_limit import RATE_LIMITS, add_rate_limit_headers, rate_limit
 from shared import (
     Network,
@@ -247,6 +247,20 @@ async def dl_redirect():
 
     # Muxed DASH download: resolves the best video (<=1080p anonymous cap) + audio
     # tracks and remuxes them into a single playable MP4 via ffmpeg.
+    #
+    # fetch/XHR callers (the floating download dialog) get a background job id
+    # and poll /download/status/<job_id> instead of hanging on this response;
+    # plain form posts keep the legacy 302 for no-JS clients.
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or \
+            "application/json" in request.headers.get("Accept", ""):
+        from dash_proxy import DownloadCapacityError, create_download_job
+        try:
+            job_id = await create_download_job(bvid, int(cvid), int(qual))
+        except DownloadCapacityError as exc:
+            return jsonify({"error": str(exc)}), 429
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc)}), 403
+        return jsonify({"job_id": job_id})
     return redirect(f"/proxy/download/{bvid}/{cvid}/{qual}", code=302)
 
 

@@ -122,11 +122,13 @@
                                 <span class="hidden sm:inline">哔哩哔哩</span>
                             </a>
                             {% if site_allow_download %}
-                                <form class="flex gap-2"
+                                <form id="download-form"
+                                      class="flex gap-2"
                                       action="/download"
                                       method="post"
                                       rel="noopener"
                                       target="_blank">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                                     <input type="hidden" name="id" value="{{ vinfo['bvid'] }}" />
                                     <input type="hidden" name="cvid" value="{{ idx }}" />
                                     <input type="hidden" name="qual" value="0" />
@@ -256,7 +258,12 @@
         </div>
     </div>
     <script src="/static/themes/modern/js/audioplayer.js"></script>
+    <script src="/static/themes/modern/js/download.js"></script>
     <script nonce="{{ csp_nonce }}">
+        document.addEventListener('DOMContentLoaded', function() {
+            const dlForm = document.getElementById('download-form');
+            if (dlForm && window.MikuDownload) window.MikuDownload.attach(dlForm);
+        });
         document.addEventListener('click', function(e) {
             const btn = e.target.closest('.sub-comment-toggle');
             if (!btn) return;
