@@ -157,7 +157,11 @@
             var speed = fmtSpeed(st.speed_bps);
             var bytes = fmtBytes(st.done_bytes) +
                 (st.total_bytes > 0 ? " / " + fmtBytes(st.total_bytes) : "");
-            if (st.percent !== null && st.percent !== undefined) {
+            if (st.note) {
+                // Transient server note, e.g. retry backoff after an upstream cut.
+                label = st.note + " " + bytes;
+                setBar(st.percent !== null && st.percent !== undefined ? st.percent : null);
+            } else if (st.percent !== null && st.percent !== undefined) {
                 label = "下载中 " + st.percent + "% · " + bytes + (speed ? " · " + speed : "");
                 setBar(st.percent);
             } else {
