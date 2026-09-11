@@ -142,6 +142,7 @@ Remaining work: PGC premium end-to-end verification against a paid episode; `vid
 - **Never send the `bili_ticket` cookie to the web API.** It triggers the anti-bot `v_voucher` precheck (empty results, e.g. broken `/search`). Only the `x-bili-ticket` *header* (CDN/DASH proxying) may carry it.
 - **Space endpoints are risk-controlled from datacenter IPs** (HTTP 412 / `-352`) without the WARP proxy. `User.get_user_info` falls back to non-wbi `/x/web-interface/card`; `User.get_videos` falls back to `/x/series/recArchivesByKeywords` + `dm_img_*` fingerprint, normalized to the same `list.vlist` shape. Some non-wbi endpoints (`/x/web-interface/view`, danmaku, playurl) also 412 without WARP — IP-level anti-bot responses, not code defects.
 - **Streaming routes use long timeouts** (up to 3 hours) to prevent idle drops during long-form content; image proxying uses an aggressive concurrency limit with WebP resizing.
+- **Live `getInfoByRoom` requires WBI + browser TLS.** Since ~Aug 2026 Bilibili's web client calls it as `wbiSign({room_id, web_location: "444.8"})`; unsigned httpx requests get `-352` risk control. `api/live.py:get_room_info` therefore uses curl_cffi Chrome impersonation (`_wbi_get`, same pattern as `search.py`/`comment.py`). Other live endpoints (play-info v2, playUrl, danmu, area list) were unaffected; note the area-list `second/getList` and empty play-info `stream[]` from datacenter IPs are IP-level gating (need WARP), not signing issues.
 
 ## Bilibili API Reference
 

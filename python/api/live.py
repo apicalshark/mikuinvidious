@@ -29,8 +29,9 @@ from enum import Enum
 import brotli
 from aiohttp import WSMsgType
 
-from .client import HEADERS, Api
+from .client import HEADERS, Api, _enc_wbi, _get_mixin_key, request_settings
 from .credential import Credential
+from .exceptions import ResponseCodeException
 
 __all__ = [
     "LiveRoom",
@@ -71,6 +72,81 @@ class LiveCodec(Enum):
     DEFAULT = "0,1"
 
 
+# getInfoByRoom started enforcing WBI signing + browser TLS fingerprint in
+# Aug 2026 (Bilibili's web client sends wbiSign({room_id, web_location}));
+# unsigned httpx requests now get -352 risk control. Same curl_cffi Chrome
+# impersonation pattern as search.py / comment.py.
+_IMPERSONATE = "chrome124"
+
+_LIVE_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Referer": "https://live.bilibili.com",
+    "Accept-Language": "zh-CN,zh;q=0.9",
+    "Accept": "application/json, text/plain, */*",
+}
+
+
+async def _fetch(url: str, params: dict) -> dict:
+    """Fetch JSON via an async curl_cffi session (Chrome impersonation).
+
+    Returns the response's ``data`` or ``result`` payload (matching what
+    ``Api.result`` returns). Cookies are deliberately not forwarded so the
+    browser impersonation isn't tripped by generated pseudo-cookies.
+    """
+    from curl_cffi import requests as _creq
+
+    async with _creq.AsyncSession(
+        proxy=request_settings.get_proxy() or None
+    ) as session:
+        resp = await session.get(
+            url,
+            params=params,
+            cookies=None,
+            headers=_LIVE_HEADERS,
+            impersonate=_IMPERSONATE,
+            timeout=10.0,
+        )
+    if resp.status_code != 200:
+        raise ResponseCodeException(resp.status_code, f"HTTP {resp.status_code}")
+    try:
+        data = resp.json()
+    except Exception:
+        raise ResponseCodeException(-1, "JSON 解析失败") from None
+    if not isinstance(data, dict):
+        raise ResponseCodeException(-1, "API 返回数据非 JSON 对象")
+    if data.get("code") != 0:
+        msg = data.get("msg") or data.get("message") or "接口未返回错误信息"
+        raise ResponseCodeException(data.get("code", -1), msg, data)
+    if data.get("data") is not None:
+        return data["data"]
+    if data.get("result") is not None:
+        return data["result"]
+    return data
+
+
+async def _wbi_get(url: str, params: dict, wbi: bool = True) -> dict:
+    """GET with optional wbi signing + -403 mixin-key retry (curl_cffi)."""
+    clean = {k: v for k, v in params.items() if v is not None}
+    for attempt in range(3):
+        request_params = dict(clean)
+        try:
+            if wbi:
+                mixin = await _get_mixin_key()
+                request_params = _enc_wbi(request_params, mixin)
+            return await _fetch(url, request_params)
+        except ResponseCodeException as exc:
+            if exc.code == -403 and wbi and attempt < 2:
+                from .client import recalculate_wbi
+
+                recalculate_wbi()
+                continue
+            raise
+    raise ResponseCodeException(-403, "Wbi 重试次数超过限制")
+
+
 class LiveRoom:
     def __init__(self, room_display_id, credential=None):
         self.room_display_id = room_display_id
@@ -106,13 +182,14 @@ class LiveRoom:
         return await Api(**api, credential=self.credential).update_params(**params).result
 
     async def get_room_info(self) -> dict:
-        params = {"room_id": self.room_display_id}
-        api = {
-            "url": "https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom",
-            "method": "GET",
-            "verify": False,
-        }
-        return await Api(**api, credential=self.credential).update_params(**params).result
+        # WBI-signed via curl_cffi: Bilibili's web client calls this endpoint
+        # as wbiSign({room_id, web_location: "444.8"}); anything else gets -352.
+        params = {"room_id": self.room_display_id, "web_location": "444.8"}
+        return await _wbi_get(
+            "https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom",
+            params,
+            wbi=True,
+        )
 
     async def get_room_play_url(self, screen_resolution=ScreenResolution.ORIGINAL) -> dict:
         if isinstance(screen_resolution, ScreenResolution):
