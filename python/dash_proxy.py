@@ -42,7 +42,7 @@ from urllib.parse import urlparse
 
 import aiofiles
 import orjson
-from quart import Blueprint, Response, request
+from quart import Blueprint, Response, redirect, request
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import (
     Network,
@@ -113,8 +113,31 @@ def _normalize_track_urls(tracks: list | None) -> list:
     return out
 
 
+def _parse_pgc_playurl(pgc: dict) -> dict | None:
+    """Normalize a PGC playurl response to the UGC play-data shape."""
+    if not isinstance(pgc, dict) or pgc.get("code") != 0:
+        return None
+    result = pgc.get("result") or {}
+    video_info = result.get("video_info") if isinstance(result, dict) else None
+    dash = (video_info or {}).get("dash") if isinstance(video_info, dict) else None
+    if not dash and isinstance(result, dict):
+        dash = result.get("dash")
+    durl = (result.get("durl") or []) if isinstance(result, dict) else []
+    if not durl and isinstance(video_info, dict):
+        durl = video_info.get("durl") or []
+    support_formats = result.get("support_formats", []) if isinstance(result, dict) else []
+    return {
+        "code": 0,
+        "dash": dash or {},
+        "durl": durl,
+        "support_formats": support_formats,
+        "quality": result.get("quality", 0) if isinstance(result, dict) else 0,
+        "accept_quality": result.get("accept_quality", []) if isinstance(result, dict) else [],
+    }
+
+
 async def video_get_dash_for_qn(vi, idx, ep_id=None) -> dict:
-    """Fetch canonical DASH play info, returning a ``{"dash":..., "support_formats":...}`` dict.
+    """Fetch canonical DASH play info, returning a ``{"dash":..., "durl":..., "support_formats":...}`` dict.
 
     Uses :meth:`api.video.Video.get_dash_playurl` (wbi-signed UGC endpoint).
     Falls back to the PGC playurl endpoint (not wbi-signed) when the UGC path
@@ -133,10 +156,11 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None) -> dict:
     # 1) UGC wbi playurl (canonical path)
     try:
         data = await v.get_dash_playurl(page_index=idx, cid=cid, qn=120)
-        if data and isinstance(data, dict) and (data.get("dash") or data.get("support_formats")):
+        if data and isinstance(data, dict) and (data.get("dash") or data.get("durl") or data.get("support_formats")):
             return {
                 "code": data.get("code", 0),
                 "dash": data.get("dash") or {},
+                "durl": data.get("durl") or [],
                 "support_formats": data.get("support_formats") or [],
                 "quality": data.get("quality", 0),
                 "accept_quality": data.get("accept_quality", []),
@@ -178,24 +202,219 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None) -> dict:
             follow_redirects=True,
         )
         pgc = pgc_raw.json()
-        if isinstance(pgc, dict) and pgc.get("code") == 0:
-            result = pgc.get("result") or {}
-            dash = result.get("video_info", {}).get("dash") if isinstance(result.get("video_info"), dict) else result.get("dash")
-            if not dash and isinstance(result, dict):
-                dash = result.get("dash")
-            support_formats = result.get("support_formats", []) if isinstance(result, dict) else []
-            return {
-                "code": 0,
-                "dash": dash or {},
-                "support_formats": support_formats,
-                "quality": result.get("quality", 0) if isinstance(result, dict) else 0,
-                "accept_quality": result.get("accept_quality", []) if isinstance(result, dict) else [],
-            }
-        print(f"[DashProxy] PGC fallback returned code {pgc.get('code')}")
-        return {"code": pgc.get("code", -1), "message": pgc.get("message", "PGC playurl failed")}
+        parsed = _parse_pgc_playurl(pgc)
+        if parsed:
+            return parsed
+        print(f"[DashProxy] PGC fallback returned code {pgc.get('code') if isinstance(pgc, dict) else '?'}")
+        code = pgc.get("code", -1) if isinstance(pgc, dict) else -1
+        msg = pgc.get("message", "PGC playurl failed") if isinstance(pgc, dict) else "PGC playurl failed"
+        return {"code": code, "message": msg}
     except Exception as exc:
         print(f"[DashProxy] PGC fallback failed for {v.get_bvid()}: {exc}")
         return {"code": -1, "message": str(exc)}
+
+
+def has_valid_dash_tracks(dash_data: dict | None) -> bool:
+    """Check whether a dash payload has at least one playable track.
+
+    A track is playable when it carries a ``SegmentBase`` with an
+    ``indexRange`` — dash.js needs the sidx range to compute segment
+    byte-offsets. Some UGC uploads are ``durl``-only (progressive MP4, no
+    ``dash`` node at all, e.g. BV1kH35z9EzG); those must fall back to the
+    progressive ``/proxy/video/`` path instead of serving an empty MPD.
+    """
+    if not dash_data or not isinstance(dash_data, dict):
+        return False
+    dash = dash_data.get("dash") or {}
+    if not isinstance(dash, dict):
+        return False
+    for key in ("video", "audio"):
+        for t in dash.get(key) or []:
+            if not isinstance(t, dict):
+                continue
+            sb = t.get("SegmentBase") or {}
+            if sb.get("indexRange"):
+                return True
+    return False
+
+
+async def _fetch_single_durl_pgc(v, base_params: dict, ep_id=None) -> dict | None:
+    """Retry a 404'd UGC durl request against the PGC playurl endpoint."""
+    import re as _re
+
+    try:
+        client = await Network.get_async_client()
+        cookies = {}
+        if v.credential and v.credential.sessdata:
+            cookies = {
+                "SESSDATA": v.credential.sessdata,
+                "bili_jct": v.credential.bili_jct,
+                "buvid3": v.credential.buvid3,
+                "buvid4": v.credential.buvid4,
+                "DedeUserID": v.credential.dedeuserid,
+            }
+        pgc_params = dict(base_params)
+        if ep_id is None:
+            try:
+                info = await v.get_info()
+                m = _re.search(r"ep(\d+)", info.get("redirect_url", "") or "")
+                if m:
+                    ep_id = m.group(1)
+            except Exception:
+                pass
+        if ep_id:
+            pgc_params["ep_id"] = ep_id
+        raw = await client.get(
+            "https://api.bilibili.com/pgc/player/web/playurl",
+            params=pgc_params,
+            cookies=cookies,
+            headers={
+                "Referer": "https://www.bilibili.com",
+                "User-Agent": (
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+                ),
+            },
+            follow_redirects=True,
+        )
+        pgc = raw.json()
+        if isinstance(pgc, dict) and pgc.get("code") == 0:
+            parsed = _parse_pgc_playurl(pgc)
+            return parsed if parsed and parsed.get("durl") else None
+    except Exception:
+        pass
+    return None
+
+
+async def _fetch_single_durl(v, idx: int, qn: int, ep_id=None) -> dict | None:
+    """Fetch one progressive (``durl``) playurl for a quality level.
+
+    Uses the non-wbi ``/x/player/playurl`` endpoint (per-quality ``qn``),
+    which still returns a ``durl`` node for durl-only uploads. Returns the
+    ``data``-shaped dict on success, else None.
+    """
+    from api.client import Api
+
+    try:
+        cid = await v.get_cid(idx)
+    except Exception:
+        return None
+    api = Api(
+        "https://api.bilibili.com/x/player/playurl",
+        "GET",
+        verify=False,
+        credential=v.credential,
+    )
+    api.params = {
+        "avid": v.get_aid(),
+        "cid": cid,
+        "qn": qn,
+        "platform": "html5",
+        "high_quality": 1,
+    }
+    try:
+        res = await asyncio.wait_for(api.request(), timeout=4.0)
+    except Exception as exc:
+        # PGC content 404s on the UGC endpoint — retry the PGC playurl.
+        if not (hasattr(exc, "code") and exc.code == -404):
+            return None
+        return await _fetch_single_durl_pgc(v, api.params, ep_id=ep_id)
+    if isinstance(res, dict) and res.get("durl"):
+        return res
+    return None
+
+
+def _durl_quality_list(play_data: dict | None, max_qualities: int) -> list[tuple[int, str]]:
+    """Ordered ``(qn, description)`` list for the durl fallback fetches."""
+    support_formats = []
+    if isinstance(play_data, dict):
+        support_formats = play_data.get("support_formats") or []
+    qualities: list[tuple[int, str]] = []
+    for f in support_formats:
+        if not isinstance(f, dict) or f.get("quality") is None:
+            continue
+        try:
+            qn = int(f["quality"])
+        except (TypeError, ValueError):
+            continue
+        if any(q == qn for q, _ in qualities):
+            continue
+        qualities.append((qn, f.get("new_description") or f.get("display_desc") or str(qn)))
+        if len(qualities) >= max_qualities:
+            break
+    if not qualities:
+        fallback_qn = 0
+        try:
+            fallback_qn = int((play_data or {}).get("quality") or 0)
+        except (TypeError, ValueError):
+            fallback_qn = 0
+        qualities = [(fallback_qn or 64, str(fallback_qn or 64))]
+    return qualities
+
+
+async def _cache_durl_entry(vid: str, idx: int, qn: int, desc: str, node: dict | None) -> dict | None:
+    """Cache one quality's durl URLs; return its ``supported_src`` entry."""
+    if not isinstance(node, dict):
+        return None
+    durl = node.get("durl") or []
+    if not durl or not isinstance(durl[0], dict) or not durl[0].get("url"):
+        return None
+    url = durl[0]["url"]
+    ext = ".flv" if ".flv" in url.lower() else ".mp4"
+    actual_qn = node.get("quality", qn)
+    try:
+        actual_qn = int(actual_qn)
+    except (TypeError, ValueError):
+        actual_qn = qn
+    await appredis.setex(f"mikuinv_{vid}_{idx}_{actual_qn}", 1800, url)
+    backups = durl[0].get("backup_url", []) or []
+    if backups and backups[0] != url:
+        await appredis.setex(f"mikuinv_{vid}_{idx}_{actual_qn}_bak", 1800, backups[0])
+    return {"quality": actual_qn, "new_description": desc, "ext": ext}
+
+
+async def fetch_durl_supported_src(v, vid: str, idx: int, play_data: dict | None = None,
+                                   ep_id=None, max_qualities: int = 4) -> list:
+    """Fetch + cache progressive (``durl``) URLs for durl-only videos.
+
+    Returns a ``supported_src`` list of ``{quality, new_description, ext}``
+    (the shape ``macros.html`` / ``player.js`` expect for native playback
+    via ``/proxy/video/<vid>_<idx>_<qn><ext>``). Each quality's primary +
+    backup CDN URL is cached under ``mikuinv_<vid>_<idx>_<qn>`` (``+_bak``),
+    and the assembled list under ``mikuinv_<vid>_<idx>`` for fast reuse.
+    """
+    cached = await appredis.get(f"mikuinv_{vid}_{idx}")
+    if cached:
+        data = safe_json_loads(cached)
+        if isinstance(data, list) and data:
+            return data
+
+    qualities = _durl_quality_list(play_data, max_qualities)
+
+    # Reuse the durl already fetched for the first quality (avoids one request).
+    initial_durl = (play_data or {}).get("durl") if isinstance(play_data, dict) else None
+    initial_qn = None
+    try:
+        initial_qn = int((play_data or {}).get("quality") or 0)
+    except (TypeError, ValueError):
+        initial_qn = None
+
+    async def resolve_one(qn: int, desc: str) -> dict | None:
+        if initial_durl and initial_qn == qn:
+            node = play_data
+        else:
+            node = await _fetch_single_durl(v, idx, qn, ep_id=ep_id)
+        return await _cache_durl_entry(vid, idx, qn, desc, node)
+
+    results = await asyncio.gather(*[resolve_one(qn, desc) for qn, desc in qualities])
+    supported = sorted(
+        [r for r in results if r],
+        key=lambda r: r["quality"],
+        reverse=True,
+    )
+    if supported:
+        await appredis.setex(f"mikuinv_{vid}_{idx}", 1800, orjson.dumps(supported))
+    return supported
 
 
 async def _load_dash_data(vid, idx) -> dict | None:
@@ -551,6 +770,51 @@ async def _mux_tracks(video_path: str, audio_path: str, out_path: str) -> None:
         raise RuntimeError("ffmpeg mux failed: " + (stderr or b"").decode(errors="replace")[-600:])
 
 
+async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
+    """Download fallback for durl-only videos (no playable DASH tracks).
+
+    Progressive MP4s are already muxed (video + audio in one file), so no
+    ffmpeg step is needed: resolve the best progressive URL at or below the
+    requested quality and redirect to the native ``/proxy/video/`` path with
+    ``?dl=1`` (attachment), reusing its ticket-refresh + backup-URL +
+    lower-quality fallbacks.
+    """
+    from api import video as video_mod
+
+    try:
+        v = video_mod.Video(bvid=vid, credential=appcred)
+    except Exception:
+        return Response("Bad Request: invalid video ID", status=400)
+    try:
+        play_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=8.0)
+    except Exception as exc:
+        print(f"[DashProxy] durl download fetch failed for {vid}:{idx}: {exc}")
+        play_data = None
+    try:
+        supported = await asyncio.wait_for(
+            fetch_durl_supported_src(v, vid, idx, play_data=play_data),
+            timeout=25.0,
+        )
+    except Exception as exc:
+        print(f"[DashProxy] durl download fallback failed for {vid}:{idx}: {exc}")
+        return Response("Upstream error", status=502)
+    if not supported:
+        return Response("Not Found", status=404)
+    try:
+        want = int(qual)
+    except (TypeError, ValueError):
+        want = 0
+    # Best quality at or below the request (mirrors /proxy/video/ fallback
+    # order); qual=0 (e.g. listen-page download) means "best available".
+    candidates = [s for s in supported if s["quality"] <= want] if want > 0 else []
+    chosen = candidates[0] if candidates else supported[0]
+    qn, ext = chosen["quality"], chosen.get("ext") or ".mp4"
+    url = await appredis.get(f"mikuinv_{vid}_{idx}_{qn}")
+    if not url:
+        return Response("Not Found", status=404)
+    return redirect(f"/proxy/video/{vid}_{idx}_{qn}{ext}?dl=1", code=302)
+
+
 @dash_proxy_bp.route("/proxy/download/<vid>/<int:idx>/<int:qual>")
 @rate_limit(**RATE_LIMITS["proxy"])
 async def proxy_download(vid, idx, qual):
@@ -558,14 +822,18 @@ async def proxy_download(vid, idx, qual):
 
     Downloads both tracks through the WARP tunnel, remuxes with ffmpeg into a
     single faststart MP4, and streams it back as an attachment.
+
+    Durl-only uploads (no DASH tracks, e.g. BV1kH35z9EzG) fall back to a
+    redirect at the native progressive ``/proxy/video/`` path — those MP4s
+    are already muxed, so no ffmpeg step is needed.
     """
     if not appconf["proxy"]["use_proxy"]:
         return Response("Forbidden: Proxying is disabled.", status=403)
 
     max_qn = min(qual, _FREE_DOWNLOAD_MAX_QN) if qual > 0 else _FREE_DOWNLOAD_MAX_QN
     dash_data = await _load_dash_data(vid, idx)
-    if not dash_data or not dash_data.get("dash"):
-        return Response("Not Found", status=404)
+    if not has_valid_dash_tracks(dash_data):
+        return await _proxy_download_durl_fallback(vid, idx, qual)
 
     video, audio = _pick_download_tracks(dash_data, max_qn)
     if not video or not audio:
