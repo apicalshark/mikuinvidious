@@ -57,7 +57,7 @@ from shared import (
     appredis,
     safe_json_loads,
 )
-from stream import CdnConnection, CdnProtocolError, CdnTimeoutError
+from stream import CdnConnectError, CdnConnection, CdnProtocolError, CdnTimeoutError
 
 dash_proxy_bp = Blueprint("dash_proxy", __name__)
 
@@ -676,6 +676,33 @@ _MAX_DOWNLOAD_TRACK_BYTES = 500 * 1024 * 1024
 # Sentinel returned by _download_track_to_file when a job cancel was observed.
 _DOWNLOAD_CANCELLED = -3
 
+# Resume-with-backoff when the CDN/WARP tunnel cuts a track download mid-body
+# ("Upstream connection closed prematurely", connection resets, read timeouts).
+# Up to _TRACK_DOWNLOAD_MAX_RETRIES resume attempts (Range requests) after the
+# initial try, waiting a few seconds between attempts.
+_TRACK_DOWNLOAD_MAX_RETRIES = 5
+_TRACK_DOWNLOAD_RETRY_DELAYS = (2.0, 4.0, 8.0, 12.0, 16.0)
+_RETRYABLE_TRACK_ERRORS = (
+    CdnConnectError,
+    CdnProtocolError,
+    CdnTimeoutError,
+    asyncio.TimeoutError,
+    OSError,  # covers ConnectionResetError / BrokenPipeError
+)
+
+
+class _TrackCut(Exception):
+    """Internal control flow: connection cut mid-attempt, carries partial progress."""
+
+    def __init__(self, total: int, file_obj, cause: Exception):
+        super().__init__(str(cause))
+        self.total = total
+        self.file_obj = file_obj
+        self.cause = cause
+
+
+_CUT_ERRORS = (_TrackCut, *_RETRYABLE_TRACK_ERRORS)
+
 # Bounded semaphore to cap concurrent download & mux disk usage.
 _download_limiter = asyncio.Semaphore(5)
 
@@ -775,6 +802,39 @@ async def _open_cdn_track(url: str, headers: dict, proxy_url: str):
     return conn, resp_headers
 
 
+def _parse_content_range_start(headers) -> int | None:
+    """Parse the start offset from a ``Content-Range: bytes <start>-...`` header."""
+    cr = ((headers or {}).get("content-range") or "")
+    m = re.match(r"bytes\s+(\d+)-", cr)
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except (TypeError, ValueError):
+        return None
+
+
+async def _await_track_retry(attempt: int, cancel_event: asyncio.Event | None,
+                             note_cb, exc: Exception) -> str:
+    """Back off before resume attempt ``attempt`` (0-based). Returns 'retry', 'abort' or 'cancelled'."""
+    if attempt >= _TRACK_DOWNLOAD_MAX_RETRIES:
+        print(f"[DashProxy] track download retries exhausted after {attempt} retries: {exc}")
+        return "abort"
+    print(f"[DashProxy] track download cut, will resume "
+          f"(retry {attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES}): {exc}")
+    delay = _TRACK_DOWNLOAD_RETRY_DELAYS[min(attempt, len(_TRACK_DOWNLOAD_RETRY_DELAYS) - 1)]
+    if note_cb is not None:
+        note_cb(f"连接中断，{delay:g}秒后重试（第{attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES}次）…")
+    if cancel_event is None:
+        await asyncio.sleep(delay)
+        return "retry"
+    try:
+        await asyncio.wait_for(cancel_event.wait(), timeout=delay)
+        return "cancelled"
+    except asyncio.TimeoutError:
+        return "retry"
+
+
 async def _download_track_to_file(
     url: str,
     headers: dict,
@@ -783,52 +843,142 @@ async def _download_track_to_file(
     max_bytes: int = _MAX_DOWNLOAD_TRACK_BYTES,
     progress_cb=None,
     cancel_event: asyncio.Event | None = None,
+    note_cb=None,
+    rewind_cb=None,
 ) -> int:
-    """Download a full DASH track body to ``dest`` via CdnConnection.
+    """Download a full track body to ``dest`` via CdnConnection, resuming on cuts.
+
+    When upstream cuts the connection mid-body (reset / premature close /
+    read timeout), waits a few seconds and resumes from the downloaded offset
+    with a ``Range`` request, up to ``_TRACK_DOWNLOAD_MAX_RETRIES`` retries.
 
     Returns byte count, ``-1`` on error/oversize, or ``_DOWNLOAD_CANCELLED``
-    when ``cancel_event`` is set mid-download (partial file left for caller
-    cleanup).
+    when ``cancel_event`` is set (checked per chunk and during backoff waits;
+    the partial file is left for caller cleanup).
     """
+    total = 0
+    attempt = 0
+    file_obj = None
     try:
-        conn, resp_headers = await _open_cdn_track(url, headers, proxy_url)
-        try:
-            if resp_headers.status_code not in (200, 206):
-                return -1
-
-            # Check Content-Length header to reject oversized tracks before downloading
-            cl_header = resp_headers.headers.get("content-length")
-            if cl_header:
-                try:
-                    cl_val = int(cl_header)
-                    if cl_val > max_bytes:
-                        print(f"[DashProxy] track Content-Length {cl_val} exceeds limit {max_bytes}")
-                        return -1
-                except ValueError:
-                    pass
-
-            total = 0
-            file_obj = await asyncio.to_thread(open, dest, "wb")
+        while True:
+            if cancel_event is not None and cancel_event.is_set():
+                return _DOWNLOAD_CANCELLED
             try:
-                async for chunk in conn.iter_chunks():
-                    if cancel_event is not None and cancel_event.is_set():
-                        return _DOWNLOAD_CANCELLED
-                    total += len(chunk)
-                    if total > max_bytes:
-                        print(f"[DashProxy] downloaded bytes {total} exceeded limit {max_bytes}")
-                        return -1
-                    await asyncio.to_thread(file_obj.write, chunk)
-                    if progress_cb is not None:
-                        progress_cb(len(chunk))
-            finally:
-                await asyncio.to_thread(file_obj.close)
-
-            return total
-        finally:
-            await conn.close()
+                total, file_obj, outcome = await _fetch_track_attempt(
+                    url, headers, proxy_url, dest, file_obj, total,
+                    max_bytes, progress_cb, cancel_event, rewind_cb,
+                )
+            except _CUT_ERRORS as exc:
+                if isinstance(exc, _TrackCut):
+                    # Keep the bytes streamed before the cut so we resume, not restart.
+                    total, file_obj = exc.total, exc.file_obj
+                    cause = exc.cause
+                else:
+                    # Cut during connect/headers: no progress made yet.
+                    cause = exc
+                decision = await _await_track_retry(attempt, cancel_event, note_cb, cause)
+                if decision == "retry":
+                    attempt += 1
+                    continue
+                return _DOWNLOAD_CANCELLED if decision == "cancelled" else -1
+            if note_cb is not None:
+                note_cb(None)
+            if outcome == "cancelled":
+                return _DOWNLOAD_CANCELLED
+            return total if outcome == "done" else -1
     except Exception as exc:
         print(f"[DashProxy] track download error: {exc}")
         return -1
+    finally:
+        if file_obj is not None:
+            await asyncio.to_thread(file_obj.close)
+
+
+def _validate_track_response(resp_headers, total: int, max_bytes: int) -> str:
+    """Classify a track GET response: 'ok', 'restart', or 'fatal'.
+
+    'restart' means the server ignored our resume ``Range`` (HTTP 200) — the
+    caller must truncate and start over. 'fatal' (bad status, resume offset
+    mismatch, oversize) must not be retried.
+    """
+    status = resp_headers.status_code
+    if status not in (200, 206):
+        return "fatal"
+    if total > 0:
+        if status != 206:
+            return "restart"
+        if _parse_content_range_start(resp_headers.headers) != total:
+            print(f"[DashProxy] resume offset mismatch "
+                  f"(have {total}, server {resp_headers.headers.get('content-range')})")
+            return "fatal"
+        return "ok"
+    cl_header = resp_headers.headers.get("content-length")
+    if cl_header:
+        try:
+            if int(cl_header) > max_bytes:
+                print(f"[DashProxy] track Content-Length {cl_header} exceeds limit {max_bytes}")
+                return "fatal"
+        except ValueError:
+            pass
+    return "ok"
+
+
+async def _fetch_track_attempt(url: str, headers: dict, proxy_url: str, dest: str,
+                               file_obj, total: int, max_bytes: int,
+                               progress_cb, cancel_event, rewind_cb):
+    """One GET (or Range-resume) attempt. Returns ``(total, file_obj, outcome)``.
+
+    ``outcome`` is 'done' (clean EOF), 'fatal' (do not retry), or 'cancelled'.
+    Raises ``_TrackCut`` (carrying partial progress) or ``_RETRYABLE_TRACK_ERRORS``
+    on connection cuts so the caller can back off and resume.
+    """
+    req_headers = dict(headers)
+    if total > 0:
+        req_headers["Range"] = f"bytes={total}-"
+    conn, resp_headers = await _open_cdn_track(url, req_headers, proxy_url)
+    try:
+        action = _validate_track_response(resp_headers, total, max_bytes)
+        if action == "fatal":
+            return total, file_obj, "fatal"
+        if action == "restart":
+            if file_obj is not None:
+                await asyncio.to_thread(file_obj.close)
+                file_obj = None
+            if rewind_cb is not None:
+                rewind_cb(total)
+            total = 0
+        if file_obj is None:
+            file_obj = await asyncio.to_thread(open, dest, "wb" if total == 0 else "ab")
+        total, outcome = await _stream_track_body(
+            conn, file_obj, total, max_bytes, progress_cb, cancel_event
+        )
+        return total, file_obj, outcome
+    finally:
+        await conn.close()
+
+
+async def _stream_track_body(conn, file_obj, total: int, max_bytes: int,
+                             progress_cb, cancel_event):
+    """Stream ``iter_chunks()`` to ``file_obj``. Returns ``(total, outcome)``.
+
+    Raises ``_TrackCut`` (carrying the bytes streamed so far) on connection
+    cuts so the caller can resume with ``Range`` instead of restarting.
+    """
+    try:
+        async for chunk in conn.iter_chunks():
+            if cancel_event is not None and cancel_event.is_set():
+                return total, "cancelled"
+            prospective_total = total + len(chunk)
+            if prospective_total > max_bytes:
+                print(f"[DashProxy] downloaded bytes {prospective_total} exceeded limit {max_bytes}")
+                return total, "fatal"
+            await asyncio.to_thread(file_obj.write, chunk)
+            total = prospective_total
+            if progress_cb is not None:
+                progress_cb(len(chunk))
+        return total, "done"
+    except _RETRYABLE_TRACK_ERRORS as exc:
+        raise _TrackCut(total, file_obj, exc) from exc
 
 
 async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None) -> None:
@@ -1180,6 +1330,7 @@ class _DownloadJob:
         self.total_bytes = 0
         self.done_bytes = 0
         self.speed_bps = 0.0
+        self.status_note = None  # transient user-facing note (e.g. retry backoff)
         self.filename = f"{vid}_{idx}.mp4"
         self.tmpdir = None
         self.outpath = None
@@ -1198,6 +1349,18 @@ class _DownloadJob:
     def throw_if_cancelled(self):
         if self.cancel_event.is_set():
             raise _JobCancelled()
+
+    def set_note(self, msg: str | None):
+        """Set/clear the transient user-facing status note (sync callback)."""
+        self.status_note = msg
+        self.touch()
+
+    def rewind_progress(self, n: int):
+        """Rewind progress accounting (server ignored our resume Range)."""
+        self.done_bytes = max(0, self.done_bytes - n)
+        self._samples.clear()
+        self.speed_bps = 0.0
+        self.touch()
 
     def add_progress(self, n: int):
         """Sync per-chunk progress callback: updates bytes + rolling speed."""
@@ -1225,6 +1388,7 @@ class _DownloadJob:
             "total_bytes": self.total_bytes,
             "speed_bps": round(self.speed_bps, 1),
             "filename": self.filename,
+            "note": self.status_note,
             "error": self.error,
         }
 
@@ -1375,6 +1539,7 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     n = await _download_track_to_file(
         vurl, headers, proxy_url, vpath,
         progress_cb=job.add_progress, cancel_event=job.cancel_event,
+        note_cb=job.set_note, rewind_cb=job.rewind_progress,
     )
     if n == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()
@@ -1384,6 +1549,7 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     n = await _download_track_to_file(
         aurl, headers, proxy_url, apath,
         progress_cb=job.add_progress, cancel_event=job.cancel_event,
+        note_cb=job.set_note, rewind_cb=job.rewind_progress,
     )
     if n == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()
@@ -1391,6 +1557,7 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
         raise RuntimeError("audio track download failed")
 
     job.state = "muxing"
+    job.set_note(None)
     job.speed_bps = 0.0
     job.touch()
     await _mux_tracks(vpath, apath, outpath, job=job)
@@ -1441,6 +1608,7 @@ async def _run_durl_job(job: _DownloadJob):
     n = await _download_track_to_file(
         url, headers, proxy_url, outpath,
         progress_cb=job.add_progress, cancel_event=job.cancel_event,
+        note_cb=job.set_note, rewind_cb=job.rewind_progress,
     )
     if n == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()
@@ -1467,6 +1635,7 @@ async def _run_download_job(job: _DownloadJob):
         if not job.outpath or not os.path.exists(job.outpath):
             raise RuntimeError("finished file missing")
         job.state = "ready"
+        job.set_note(None)
         job.speed_bps = 0.0
         job.touch()
         print(f"[DashProxy] download job {job.job_id} ready: {job.filename}")
