@@ -701,7 +701,14 @@ async def api_component_player(vid, idx):
         ep_id = None
 
     async def get_dash_data():
-        """Fetch canonical DASH play info (cached under miku_dash_*) and return it."""
+        """Fetch canonical play info (DASH, or durl-only for some uploads).
+
+        Returns the raw play-data dict when it carries either a ``dash``
+        node or a ``durl`` node. DASH payloads are cached under
+        ``miku_dash_*``; durl-only payloads are returned uncached here and
+        their per-quality URLs are cached under ``mikuinv_*`` by the
+        progressive fallback below.
+        """
         cached = await appredis.get(f"miku_dash_{vid}_{idx}")
         if cached:
             cached_data = safe_json_loads(cached)
@@ -710,12 +717,13 @@ async def api_component_player(vid, idx):
         try:
             from dash_proxy import video_get_dash_for_qn
 
-            data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=5.0)
-            if data and isinstance(data, dict) and data.get("dash"):
-                await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
+            data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=8.0)
+            if data and isinstance(data, dict) and (data.get("dash") or data.get("durl")):
+                if data.get("dash"):
+                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
                 return data
         except Exception as e:
-            print(f"[Player] DASH fetch failed for {vid}:{idx}: {e}")
+            print(f"[Player] playurl fetch failed for {vid}:{idx}: {e}")
         return None
 
     try:
@@ -755,7 +763,9 @@ async def api_component_player(vid, idx):
         vinfo = {"pic": ""}
 
     dash_data = await get_dash_data()
-    is_dash = bool(dash_data)
+    from dash_proxy import fetch_durl_supported_src, has_valid_dash_tracks
+
+    is_dash = has_valid_dash_tracks(dash_data)
     dash_url = f"/video/dash/{vid}/{idx}/manifest.mpd" if is_dash else ""
     dash_video_tracks = ((dash_data or {}).get("dash") or {}).get("video") or []
     dash_tracks_by_quality = {}
@@ -766,8 +776,8 @@ async def api_component_player(vid, idx):
         segment_base = track.get("SegmentBase") or {}
         if quality is not None and segment_base.get("indexRange"):
             dash_tracks_by_quality.setdefault(str(quality), track)
-    supported_src = (
-        [
+    if is_dash:
+        supported_src = [
             {
                 "quality": f.get("quality"),
                 "new_description": f.get("new_description") or f.get("display_desc") or "",
@@ -776,9 +786,18 @@ async def api_component_player(vid, idx):
             for f in (dash_data or {}).get("support_formats") or []
             if isinstance(f, dict) and f.get("quality") is not None
         ]
-        if is_dash
-        else []
-    )
+    else:
+        # Progressive (durl) fallback: some UGC uploads return no DASH
+        # ``dash`` node at all (e.g. BV1kH35z9EzG) — only a progressive
+        # MP4 ``durl``. Serve those through the native /proxy/video/ path.
+        try:
+            supported_src = await asyncio.wait_for(
+                fetch_durl_supported_src(v, vid, idx, play_data=dash_data, ep_id=ep_id),
+                timeout=20.0,
+            )
+        except Exception as e:
+            print(f"[Player] durl fallback failed for {vid}:{idx}: {e}")
+            supported_src = []
 
     return await render_template_with_theme(
         "components/player_part.html",
@@ -967,18 +986,30 @@ async def video_view(vid, idx=0):
     vrelated = results[2] if is_valid(results[2]) else []
     vset = results[3] if is_valid(results[3]) else [{"page": 1, "part": vid}]
 
-    # Pre-cache DASH play info if proxy is enabled
+    # Pre-cache play info if proxy is enabled (DASH, or durl fallback)
     if appconf["proxy"]["use_proxy"]:
 
         async def precache_dash():
             try:
-                from dash_proxy import video_get_dash_for_qn
+                from dash_proxy import (
+                    fetch_durl_supported_src,
+                    has_valid_dash_tracks,
+                    video_get_dash_for_qn,
+                )
 
-                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=4.0)
-                if data and data.get("dash"):
+                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=8.0)
+                if has_valid_dash_tracks(data):
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
+                elif data and data.get("durl"):
+                    try:
+                        await asyncio.wait_for(
+                            fetch_durl_supported_src(v, vid, idx, play_data=data),
+                            timeout=25.0,
+                        )
+                    except Exception as e:
+                        print(f"[Video] Pre-cache durl fallback failed for {vid}: {e}")
             except Exception as e:
-                print(f"[Video] Pre-cache DASH failed for {vid}: {e}")
+                print(f"[Video] Pre-cache playurl failed for {vid}: {e}")
 
         task = asyncio.create_task(precache_dash())
         _background_tasks.add(task)
