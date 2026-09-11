@@ -44,7 +44,7 @@
         backdrop.id = "miku-dl-backdrop";
         backdrop.className = "fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 p-4";
         backdrop.innerHTML =
-            '<div class="w-full max-w-md rounded-2xl bg-surface text-on-surface p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="下载进度">' +
+            '<div class="w-full max-w-md rounded-2xl bg-surface text-on-surface p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="下载进度" tabindex="-1">' +
             '<div class="flex items-start justify-between gap-4">' +
             '<h3 class="text-lg font-bold flex items-center gap-2"><i class="icon ion-md-download"></i>下载视频</h3>' +
             '<button id="miku-dl-close" class="text-on-surface-variant hover:text-on-surface text-xl leading-none px-1" aria-label="关闭">&times;</button>' +
@@ -62,6 +62,7 @@
         document.body.appendChild(backdrop);
         var refs = {
             backdrop: backdrop,
+            dialog: backdrop.querySelector('[role="dialog"]'),
             file: backdrop.querySelector("#miku-dl-file"),
             bar: backdrop.querySelector("#miku-dl-bar"),
             status: backdrop.querySelector("#miku-dl-status"),
@@ -69,10 +70,39 @@
             cancel: backdrop.querySelector("#miku-dl-cancel"),
             ok: backdrop.querySelector("#miku-dl-ok"),
             close: backdrop.querySelector("#miku-dl-close"),
+            previousFocus: null,
         };
         refs.close.addEventListener("click", onCloseButton);
         refs.ok.addEventListener("click", hideDialog);
         refs.cancel.addEventListener("click", onCancelButton);
+        refs.backdrop.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                onCloseButton();
+                return;
+            }
+            if (event.key !== "Tab") return;
+
+            var controls = Array.prototype.filter.call(
+                refs.dialog.querySelectorAll(
+                    'a[href], button:not([disabled]), input:not([disabled]), ' +
+                    'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'),
+                function (control) { return !control.closest(".hidden"); });
+            if (!controls.length) {
+                event.preventDefault();
+                refs.dialog.focus();
+                return;
+            }
+            var first = controls[0];
+            var last = controls[controls.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
         return refs;
     }
 
@@ -83,14 +113,23 @@
 
     function showDialog() {
         var d = ensureDialog();
+        if (d.backdrop.classList.contains("hidden")) {
+            d.previousFocus = document.activeElement;
+        }
         d.backdrop.classList.remove("hidden");
         d.backdrop.classList.add("flex");
+        d.close.focus();
     }
 
     function hideDialog() {
         if (!dlg) return;
+        var previousFocus = dlg.previousFocus;
+        dlg.previousFocus = null;
         dlg.backdrop.classList.add("hidden");
         dlg.backdrop.classList.remove("flex");
+        if (previousFocus && previousFocus.isConnected && previousFocus.focus) {
+            previousFocus.focus();
+        }
     }
 
     function setBar(percent) {
@@ -159,34 +198,39 @@
 
     async function pollStatus() {
         if (!active || active.terminal) return;
-        var jobId = active.jobId;
+        var current = active;
+        var jobId = current.jobId;
         try {
             var resp = await fetch("/download/status/" + encodeURIComponent(jobId), {
                 credentials: "same-origin",
             });
+            if (active !== current || active.jobId !== jobId) return;
             if (resp.status === 404) {
-                active.terminal = true;
+                current.terminal = true;
                 render({ state: "error", error: "任务已过期，请重新下载" });
                 return;
             }
             if (!resp.ok) throw new Error("HTTP " + resp.status);
             var st = await resp.json();
-            active.failures = 0;
+            if (active !== current || active.jobId !== jobId) return;
+            current.failures = 0;
             render(st);
             if (st.state === "ready" || st.state === "error" || st.state === "cancelled") {
-                active.terminal = true;
+                current.terminal = true;
                 if (st.state === "ready") triggerBrowserDownload();
                 return;
             }
         } catch (err) {
-            active.failures += 1;
-            if (active.failures >= MAX_POLL_FAILURES) {
-                active.terminal = true;
+            if (active !== current || active.jobId !== jobId) return;
+            current.failures += 1;
+            if (current.failures >= MAX_POLL_FAILURES) {
+                current.terminal = true;
                 render({ state: "error", error: "与服务器失去连接，请重试" });
                 return;
             }
         }
-        active.timer = setTimeout(pollStatus, POLL_MS);
+        if (active !== current || active.jobId !== jobId) return;
+        current.timer = setTimeout(pollStatus, POLL_MS);
     }
 
     function triggerBrowserDownload() {
@@ -202,10 +246,11 @@
 
     async function cancelActive(silent) {
         if (!active || active.terminal) return;
-        var jobId = active.jobId;
-        var csrf = active.csrf;
+        var current = active;
+        var jobId = current.jobId;
+        var csrf = current.csrf;
         stopPolling();
-        active.terminal = true;
+        current.terminal = true;
         try {
             var body = new FormData();
             body.append("csrf_token", csrf);
@@ -217,6 +262,7 @@
         } catch (err) {
             /* best effort: page may be unloading */
         }
+        if (active !== current || active.jobId !== jobId) return;
         if (!silent) render({ state: "cancelled" });
     }
 

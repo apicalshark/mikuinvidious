@@ -750,9 +750,13 @@ async def _open_cdn_track(url: str, headers: dict, proxy_url: str):
     """
     headers = dict(headers)
     conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
-    await conn.connect()
-    await conn.send_request()
-    resp_headers = await conn.read_response_headers()
+    try:
+        await conn.connect()
+        await conn.send_request()
+        resp_headers = await conn.read_response_headers()
+    except BaseException:
+        await conn.close()
+        raise
     if resp_headers.status_code in (403, 412, 514):
         await conn.close()
         ticket = await TicketManager.get_ticket(force_refresh=True)
@@ -761,9 +765,13 @@ async def _open_cdn_track(url: str, headers: dict, proxy_url: str):
         else:
             headers.pop("x-bili-ticket", None)
         conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
-        await conn.connect()
-        await conn.send_request()
-        resp_headers = await conn.read_response_headers()
+        try:
+            await conn.connect()
+            await conn.send_request()
+            resp_headers = await conn.read_response_headers()
+        except BaseException:
+            await conn.close()
+            raise
     return conn, resp_headers
 
 
@@ -1138,6 +1146,9 @@ async def video_dash_manifest_view(vid, idx):
 
 # Max concurrent actively-downloading/muxing jobs server-wide; extras queue.
 _JOB_SLOTS = 3
+# Bound active workers (running or queued) so overload is rejected before a
+# task is registered. Completed jobs retained for download do not count.
+_MAX_ACTIVE_JOBS = _JOB_SLOTS * 4
 # Finished files stay available for re-download (retry link) this long.
 _JOB_READY_TTL = 15 * 60
 # Error/cancelled job records are swept after this long.
@@ -1151,6 +1162,10 @@ _JOB_STALL_TIMEOUT = 30 * 60
 
 class _JobCancelled(Exception):
     """Internal control-flow signal: the user cancelled this download job."""
+
+
+class DownloadCapacityError(RuntimeError):
+    """Raised when the server-wide active download queue is full."""
 
 
 class _DownloadJob:
@@ -1267,10 +1282,15 @@ async def create_download_job(vid: str, idx: int, qual: int) -> str:
     if not appconf["proxy"]["use_proxy"]:
         raise RuntimeError("Proxying is disabled")
     await _sweep_jobs()
-    job = _DownloadJob(vid, idx, qual)
     async with _jobs_lock:
+        active_jobs = sum(
+            job.state not in ("ready", "error", "cancelled") for job in _download_jobs.values()
+        )
+        if active_jobs >= _MAX_ACTIVE_JOBS:
+            raise DownloadCapacityError("Download queue is full; please try again later")
+        job = _DownloadJob(vid, idx, qual)
+        job.task = asyncio.ensure_future(_run_download_job(job))
         _download_jobs[job.job_id] = job
-    job.task = asyncio.ensure_future(_run_download_job(job))
     return job.job_id
 
 

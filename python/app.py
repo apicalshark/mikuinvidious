@@ -253,9 +253,11 @@ async def dl_redirect():
     # plain form posts keep the legacy 302 for no-JS clients.
     if request.headers.get("X-Requested-With") == "XMLHttpRequest" or \
             "application/json" in request.headers.get("Accept", ""):
-        from dash_proxy import create_download_job
+        from dash_proxy import DownloadCapacityError, create_download_job
         try:
             job_id = await create_download_job(bvid, int(cvid), int(qual))
+        except DownloadCapacityError as exc:
+            return jsonify({"error": str(exc)}), 429
         except RuntimeError as exc:
             return jsonify({"error": str(exc)}), 403
         return jsonify({"job_id": job_id})
