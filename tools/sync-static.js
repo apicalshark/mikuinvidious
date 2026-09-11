@@ -7,8 +7,10 @@
  * and commit the refreshed files under static/.
  *
  * Usage:
- *   npm run sync:static          # copy node_modules dist files -> static/
- *   node tools/sync-static.js --check   # exit 1 if any dest is out of date
+ *   npm run sync:static          # update + copy, pointers stripped, no maps
+ *   npm run sync:static:maps     # update + copy with source maps (debugging)
+ *   node tools/sync-static.js --check         # exit 1 if any dest is out of date
+ *   node tools/sync-static.js --with-maps     # copy <dest>.map files too
  */
 const fs = require("fs");
 const path = require("path");
@@ -44,6 +46,10 @@ function sha1(file) {
 }
 
 const checkOnly = process.argv.includes("--check");
+// Release default: strip sourceMappingURL pointers and skip .map files so
+// ~9.5 MB of maps never lands in git or the Docker image. Pass
+// --with-maps for local debugging (copies <dest>.map, rewrites pointer).
+const includeMaps = process.argv.includes("--with-maps");
 let failed = 0;
 
 function withoutMapPointer(content) {
@@ -59,21 +65,26 @@ function syncEntry({ pkg, src, dest, map }) {
     return;
   }
   const label = `${dest}  (${pkg}@${pkgVersion(pkg)})`;
-  // Source map: copy as <dest>.map and point the trailing
-  // sourceMappingURL comment at it (dest basename may differ from src).
-  const mapFrom = map ? path.join(NM, path.dirname(src), map) : null;
-  const mapTo = map ? `${to}.map` : null;
+  // Source map (opt-in via --with-maps): copy as <dest>.map and point the
+  // trailing sourceMappingURL comment at it (dest basename may differ).
+  // Default release behavior: strip the pointer, no map file.
+  const mapFrom = map && includeMaps ? path.join(NM, path.dirname(src), map) : null;
+  const mapTo = map && includeMaps ? `${to}.map` : null;
   if (mapFrom && !fs.existsSync(mapFrom)) {
     console.error(`MISSING MAP: ${path.dirname(src)}/${map} (package ${pkg})`);
     failed++;
     return;
   }
   if (checkOnly) {
-    // Compare JS ignoring the (rewritten) pointer line, plus the map bytes.
+    // Compare JS ignoring the pointer line, plus the map bytes when opted in.
+    // Without maps, a leftover <dest>.map or a present pointer counts as stale.
+    const destJs = fs.existsSync(to) ? fs.readFileSync(to, "utf8") : null;
     let stale =
-      !fs.existsSync(to) ||
-      withoutMapPointer(fs.readFileSync(from, "utf8")) !== withoutMapPointer(fs.readFileSync(to, "utf8"));
+      destJs === null ||
+      withoutMapPointer(fs.readFileSync(from, "utf8")) !== withoutMapPointer(destJs);
     if (mapTo) stale = stale || !fs.existsSync(mapTo) || sha1(mapFrom) !== sha1(mapTo);
+    else if (map && (fs.existsSync(`${to}.map`) || /\/\/[#@]\s*sourceMappingURL=\S+/.test(destJs)))
+      stale = true;
     console.log(`${stale ? "STALE " : "OK     "} ${label}`);
     if (stale) failed++;
   } else {
@@ -87,6 +98,12 @@ function syncEntry({ pkg, src, dest, map }) {
         `//# sourceMappingURL=${path.basename(mapTo)}`,
       );
       if (updated !== content) fs.writeFileSync(to, updated);
+    } else {
+      // Strip pointer; drop any map left over from a --with-maps run.
+      const content = fs.readFileSync(to, "utf8");
+      const updated = withoutMapPointer(content).replace(/\s*$/, "\n");
+      if (updated !== content) fs.writeFileSync(to, updated);
+      if (map && fs.existsSync(`${to}.map`)) fs.rmSync(`${to}.map`);
     }
     console.log(`synced ${label}${mapTo ? " +map" : ""}`);
   }

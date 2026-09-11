@@ -6,6 +6,7 @@
   "scripts": {
     "build:css": "tailwindcss -i static/themes/modern/css/tailwind-input.css -o static/themes/modern/css/main.css --minify",
     "sync:static": "npm update --ignore-scripts hls.js mpegts.js media-chrome hls-video-element opencc-js dashjs danmaku && node tools/sync-static.js",
+    "sync:static:maps": "node tools/sync-static.js --with-maps",
     "postinstall": "node tools/sync-static.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint:python": "ruff check python",
