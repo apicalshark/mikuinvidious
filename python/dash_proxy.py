@@ -968,11 +968,12 @@ async def _stream_track_body(conn, file_obj, total: int, max_bytes: int,
         async for chunk in conn.iter_chunks():
             if cancel_event is not None and cancel_event.is_set():
                 return total, "cancelled"
-            total += len(chunk)
-            if total > max_bytes:
-                print(f"[DashProxy] downloaded bytes {total} exceeded limit {max_bytes}")
+            prospective_total = total + len(chunk)
+            if prospective_total > max_bytes:
+                print(f"[DashProxy] downloaded bytes {prospective_total} exceeded limit {max_bytes}")
                 return total, "fatal"
             await asyncio.to_thread(file_obj.write, chunk)
+            total = prospective_total
             if progress_cb is not None:
                 progress_cb(len(chunk))
         return total, "done"
