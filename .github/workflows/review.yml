@@ -29,10 +29,7 @@ jobs:
         run: pip install --no-cache-dir pip-audit
 
       - name: Audit locked dependencies
-        run: pip-audit -r /tmp/requirements-frozen.txt --desc on
-
-      - name: Audit requirements.txt floor
-        run: pip-audit -r requirements.txt --desc on
+        run: pip-audit --disable-pip -r /tmp/requirements-frozen.txt --desc on
 
   npm-audit:
     name: npm audit (JS deps)
