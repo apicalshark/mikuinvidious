@@ -279,8 +279,8 @@ async def _fetch_single_durl_pgc(v, base_params: dict, ep_id=None) -> dict | Non
         )
         pgc = raw.json()
         if isinstance(pgc, dict) and pgc.get("code") == 0:
-            node = pgc.get("result")
-            return node if isinstance(node, dict) else None
+            parsed = _parse_pgc_playurl(pgc)
+            return parsed if parsed and parsed.get("durl") else None
     except Exception:
         pass
     return None
