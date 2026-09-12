@@ -47,6 +47,7 @@ async def validate_csrf_token(token: str) -> bool:
 
 def csrf_protect():
     """Decorator to protect endpoints with CSRF validation."""
+
     def decorator(f):
         @wraps(f)
         async def wrapped(*args, **kwargs):
@@ -59,9 +60,12 @@ def csrf_protect():
 
                 if not await validate_csrf_token(token):
                     from quart import Response
+
                     return Response("CSRF token validation failed", status=403)
             return await f(*args, **kwargs)
+
         return wrapped
+
     return decorator
 
 

@@ -98,9 +98,7 @@ async def _fetch(url: str, params: dict) -> dict:
     """
     from curl_cffi import requests as _creq
 
-    async with _creq.AsyncSession(
-        proxy=request_settings.get_proxy() or None
-    ) as session:
+    async with _creq.AsyncSession(proxy=request_settings.get_proxy() or None) as session:
         resp = await session.get(
             url,
             params=params,
@@ -368,9 +366,7 @@ class LiveDanmaku:
                     await self._handle_data(bytes(data))
 
     async def _heartbeat(self) -> None:
-        HEARTBEAT = self._pack(
-            b"[object Object]", self.PROTOCOL_VERSION_HEARTBEAT, self.DATAPACK_TYPE_HEARTBEAT
-        )
+        HEARTBEAT = self._pack(b"[object Object]", self.PROTOCOL_VERSION_HEARTBEAT, self.DATAPACK_TYPE_HEARTBEAT)
         while True:
             try:
                 await self._ws.send_bytes(HEARTBEAT)
@@ -388,7 +384,15 @@ class LiveDanmaku:
                     info["data"]["cmd"] = "DANMU_MSG"
                 else:
                     event_name = cmd
-                self.dispatch(event_name, {"room_display_id": self.room_display_id, "room_real_id": self._real_id, "type": event_name, "data": info["data"]})
+                self.dispatch(
+                    event_name,
+                    {
+                        "room_display_id": self.room_display_id,
+                        "room_real_id": self._real_id,
+                        "type": event_name,
+                        "data": info["data"],
+                    },
+                )
                 self.dispatch("ALL", info)
 
     @staticmethod
@@ -425,10 +429,7 @@ class LiveDanmaku:
             except Exception:
                 content = data[16:]
 
-        if (
-            header[2] == self.PROTOCOL_VERSION_HEARTBEAT
-            and header[3] == self.DATAPACK_TYPE_HEARTBEAT_RESPONSE
-        ):
+        if header[2] == self.PROTOCOL_VERSION_HEARTBEAT and header[3] == self.DATAPACK_TYPE_HEARTBEAT_RESPONSE:
             view = struct.unpack(">I", data[16:20])[0] if len(data) >= 20 else 0
             ret.append({"protocol_version": header[2], "datapack_type": header[3], "data": {"view": view}})
             return ret

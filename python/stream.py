@@ -166,9 +166,7 @@ class CdnConnection:
         headers.setdefault("connection", "keep-alive")
 
         req_line = f"GET {self._path} HTTP/1.1\r\n".encode()
-        header_lines = b"".join(
-            f"{k}: {v}\r\n".encode() for k, v in headers.items()
-        )
+        header_lines = b"".join(f"{k}: {v}\r\n".encode() for k, v in headers.items())
         request = req_line + header_lines + b"\r\n"
 
         self._writer.write(request)
@@ -197,7 +195,7 @@ class CdnConnection:
             colon = hline.find(b":")
             if colon > 0:
                 k = hline[:colon].decode("latin-1").strip()
-                v = hline[colon + 1:].strip().decode("latin-1").strip()
+                v = hline[colon + 1 :].strip().decode("latin-1").strip()
                 resp.headers[k.lower()] = v
 
         self._response = resp

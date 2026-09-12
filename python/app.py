@@ -70,7 +70,7 @@ async def setup_request():
     g.csp_nonce = secrets.token_urlsafe(16)
 
     hist_id = request.cookies.get("hist_id")
-    if not hist_id or not re.match(r'^[a-f0-9]{16}$', hist_id):
+    if not hist_id or not re.match(r"^[a-f0-9]{16}$", hist_id):
         g.hist_id = os.urandom(8).hex()
         g.set_hist_cookie = True
     else:
@@ -81,14 +81,16 @@ async def setup_request():
 @app.context_processor
 def inject_csp_nonce():
     """Make CSP nonce available to all templates."""
-    return {"csp_nonce": getattr(g, 'csp_nonce', '')}
+    return {"csp_nonce": getattr(g, "csp_nonce", "")}
 
 
 @app.after_request
 async def set_hist_id(response):
-    if getattr(g, 'set_hist_cookie', False):
+    if getattr(g, "set_hist_cookie", False):
         is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
-        response.set_cookie("hist_id", g.hist_id, max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure)
+        response.set_cookie(
+            "hist_id", g.hist_id, max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure
+        )
     return response
 
 
@@ -106,14 +108,16 @@ async def add_security_headers(response):
 
     # Skip CSP for AJAX/fragment requests (they have different nonces)
     # These are requests made via fetch/XHR that return HTML fragments
-    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest" or \
-              request.headers.get("Sec-Fetch-Mode") == "fetch" or \
-              request.headers.get("HX-Request") == "true" or \
-              request.path.startswith("/api/component/")
+    is_ajax = (
+        request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        or request.headers.get("Sec-Fetch-Mode") == "fetch"
+        or request.headers.get("HX-Request") == "true"
+        or request.path.startswith("/api/component/")
+    )
 
     # Add CSP header with nonce (skip for AJAX fragment requests)
     if not is_ajax:
-        csp_nonce = getattr(g, 'csp_nonce', '')
+        csp_nonce = getattr(g, "csp_nonce", "")
         if csp_nonce:
             csp = (
                 "default-src 'self'; "
@@ -160,7 +164,9 @@ async def toggle_theme_api():
 
     print(f"[Theme] Toggling from {old_val} to {new_val}")
     resp = await make_response("OK")
-    resp.set_cookie("dark-theme", new_val, path="/", max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=request.is_secure)
+    resp.set_cookie(
+        "dark-theme", new_val, path="/", max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=request.is_secure
+    )
     return resp
 
 
@@ -174,7 +180,8 @@ async def toggle_theme_api():
 async def b32tv_redirect(b32tvid):
     # Validate b32tvid format (base32, typically 6-12 chars)
     import re
-    if not re.match(r'^[A-Za-z0-9]{6,12}$', b32tvid):
+
+    if not re.match(r"^[A-Za-z0-9]{6,12}$", b32tvid):
         return Response("Invalid short link format", status=400)
 
     client = await Network.get_async_client()
@@ -217,10 +224,14 @@ async def b32tv_redirect(b32tvid):
             return redirect(url_for("audio_list_view", amid="am" + url.path.split("/audio/am")[-1].split("?")[0]))
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         print(f"[Redirect] Error redirecting b23.tv/{b32tvid}: {e}")
         return await render_template_with_theme(
-            "error.html", status="网络错误", desc="无法解析短链接，请检查网络连接或代理设置。", suggest="请检查您的网络连接或代理设置。"
+            "error.html",
+            status="网络错误",
+            desc="无法解析短链接，请检查网络连接或代理设置。",
+            suggest="请检查您的网络连接或代理设置。",
         ), 500
     finally:
         if req:
@@ -238,7 +249,8 @@ async def dl_redirect():
 
     # Validate input to prevent open redirect
     import re
-    if not bvid or not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', bvid):
+
+    if not bvid or not re.match(r"^(BV[a-zA-Z0-9]{10}|av\d+)$", bvid):
         return Response("Invalid video ID", status=400)
     if not cvid or not cvid.isdigit():
         return Response("Invalid page index", status=400)
@@ -251,9 +263,11 @@ async def dl_redirect():
     # fetch/XHR callers (the floating download dialog) get a background job id
     # and poll /download/status/<job_id> instead of hanging on this response;
     # plain form posts keep the legacy 302 for no-JS clients.
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or \
-            "application/json" in request.headers.get("Accept", ""):
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get(
+        "Accept", ""
+    ):
         from dash_proxy import DownloadCapacityError, create_download_job
+
         try:
             job_id = await create_download_job(bvid, int(cvid), int(qual))
         except DownloadCapacityError as exc:
@@ -333,12 +347,11 @@ async def resp_exception_view(e):
 async def general_exception_view(e):
     # Log full error internally but show generic message to user
     import traceback
+
     error_msg = f"{type(e).__name__}: {e}"
     traceback.print_exc()
     print(f"[ERROR] {error_msg}")
     # Never expose internal error details to users
     return await render_template_with_theme(
-        "error.html",
-        status="服务器错误",
-        desc="服务器内部错误，请稍后重试或联系管理员。"
+        "error.html", status="服务器错误", desc="服务器内部错误，请稍后重试或联系管理员。"
     ), 500

@@ -6,6 +6,7 @@ import warnings
 # This file contains the legacy custom implementation of Bilibili ticket fetching.
 # It is kept here for reference but is no longer used in favor of the upstream bilibili_api implementation.
 
+
 class LegacyTicketManager:
     """
     Legacy custom implementation of Bilibili's x-bili-ticket fetching.
@@ -19,10 +20,11 @@ class LegacyTicketManager:
         DEPRECATED: No longer used.
         """
         from shared import get_common_headers
+
         warnings.warn(
             "LegacyTicketManager.fetch_new_ticket_custom is deprecated and not for production use.",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=2,
         )
 
         key_id = "ec01"

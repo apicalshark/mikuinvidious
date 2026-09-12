@@ -31,6 +31,7 @@ __all__ = ["User", "VideoOrder", "ArticleOrder"]
 
 class VideoOrder(Enum):
     """投稿排序方式。"""
+
     PUBDATE = "pubdate"
     CLICK = "click"
     STOW = "stow"
@@ -38,6 +39,7 @@ class VideoOrder(Enum):
 
 class ArticleOrder(Enum):
     """专栏排序方式。"""
+
     PUBDATE = "publish_time"
     FAVORITE = "favorite"
     VIEW = "view"
@@ -86,7 +88,11 @@ class User:
         last = None
         for _ in range(2):
             try:
-                result = await Api(**card_api, credential=self.credential, wbi=False).update_params(photo=True, mid=self.uid).result
+                result = (
+                    await Api(**card_api, credential=self.credential, wbi=False)
+                    .update_params(photo=True, mid=self.uid)
+                    .result
+                )
                 result = result if isinstance(result, dict) else {}
                 card = result.get("card")
                 if isinstance(card, dict):
@@ -178,19 +184,21 @@ class User:
             if not isinstance(a, dict):
                 continue
             stat = a.get("stat") or {}
-            vlist.append({
-                "aid": a.get("aid"),
-                "bvid": a.get("bvid", ""),
-                "title": a.get("title", ""),
-                "pic": (a.get("pic") or "").replace("http:", "https:"),
-                "duration": a.get("duration", 0),
-                "created": a.get("pubdate", a.get("ctime", 0)),
-                "play": stat.get("view", 0),
-                "comment": stat.get("reply", 0),
-                "mid": self.uid,
-                "author": a.get("author", "") or "",
-                "desc": a.get("desc", ""),
-            })
+            vlist.append(
+                {
+                    "aid": a.get("aid"),
+                    "bvid": a.get("bvid", ""),
+                    "title": a.get("title", ""),
+                    "pic": (a.get("pic") or "").replace("http:", "https:"),
+                    "duration": a.get("duration", 0),
+                    "created": a.get("pubdate", a.get("ctime", 0)),
+                    "play": stat.get("view", 0),
+                    "comment": stat.get("reply", 0),
+                    "mid": self.uid,
+                    "author": a.get("author", "") or "",
+                    "desc": a.get("desc", ""),
+                }
+            )
         # Match the shape returned by Api.result for the primary arc/search endpoint
         # (which unwraps to the data node): {list: {vlist}, page: {...}}.
         # The recArchivesByKeywords response exposes the real total under

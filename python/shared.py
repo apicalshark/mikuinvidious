@@ -36,7 +36,10 @@ from api.client import get_bili_ticket
 def get_common_headers(bili_conf):
     """Get common headers for Bilibili API requests from config."""
     return {
-        "User-Agent": bili_conf.get("user_agent", "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2"),
+        "User-Agent": bili_conf.get(
+            "user_agent",
+            "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2",
+        ),
         "Referer": bili_conf.get("referer", "https://www.bilibili.com"),
         "env": bili_conf.get("env", "prod"),
         "app-key": bili_conf.get("app_key", "android64"),
@@ -84,6 +87,7 @@ class TicketManager:
 
             if force_refresh:
                 from api.client import refresh_bili_ticket
+
                 refresh_bili_ticket()
                 cls._ticket = None
                 cls._expiry = 0
@@ -205,7 +209,10 @@ appconf = {
         "article_allowed_formats": os.environ.get("ARTICLE_ALLOWED_FORMATS", "markdown,plain,html").split(","),
     },
     "bili": {
-        "user_agent": os.environ.get("BILI_USER_AGENT", "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2"),
+        "user_agent": os.environ.get(
+            "BILI_USER_AGENT",
+            "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2",
+        ),
         "referer": os.environ.get("BILI_REFERER", "https://www.bilibili.com"),
         "env": os.environ.get("BILI_ENV", "prod"),
         "app_key": os.environ.get("BILI_APP_KEY", "android64"),
@@ -312,6 +319,7 @@ if appconf["credential"]["use_cred"]:
         try:
             if NACL_AVAILABLE:
                 import base64
+
                 data = base64.b64decode(value)
                 if len(data) > nacl.secret.SecretBox.NONCE_SIZE:
                     try:

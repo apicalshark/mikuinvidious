@@ -47,9 +47,7 @@ def bv2av(x: str) -> int:
         or not re.fullmatch(r"BV[a-zA-Z0-9]{10}", x)
         or any(char not in _itable for char in x[3:])
     ):
-        raise ArgsException(
-            "bvid 提供错误，必须是以 BV 开头的纯字母和数字组成的 12 位字符串（大小写敏感）。"
-        )
+        raise ArgsException("bvid 提供错误，必须是以 BV 开头的纯字母和数字组成的 12 位字符串（大小写敏感）。")
     arr = list(x)
     arr[3], arr[9] = arr[9], arr[3]
     arr[4], arr[7] = arr[7], arr[4]
@@ -126,9 +124,7 @@ class Video:
 
     def set_bvid(self, bvid: str) -> None:
         if not re.search(r"^BV[a-zA-Z0-9]{10}$", bvid):
-            raise ArgsException(
-                "bvid 提供错误，必须是以 BV 开头的纯字母和数字组成的 12 位字符串（大小写敏感）。"
-            )
+            raise ArgsException("bvid 提供错误，必须是以 BV 开头的纯字母和数字组成的 12 位字符串（大小写敏感）。")
         self._bvid = bvid
         self._aid = bv2av(bvid)
 
@@ -290,6 +286,7 @@ class Video:
             headers=HEADERS,
         )
         import zlib
+
         raw = resp.content
         try:
             decompressed = zlib.decompress(raw, -zlib.MAX_WBITS)

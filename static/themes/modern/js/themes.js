@@ -20,12 +20,18 @@ function handleThemeToggle() {
   const newTheme = isDarkTheme ? THEME_LIGHT : THEME_DARK;
   setTheme(newTheme);
   helpers.storage.set(STORAGE_KEY_THEME, newTheme);
-  
+
   // Get CSRF token from meta tag or form
-  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || 
-                    document.querySelector('input[name="csrf_token"]')?.value;
+  const csrfToken =
+    document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ||
+    document.querySelector('input[name="csrf_token"]')?.value;
   if (csrfToken) {
-    helpers.xhr("POST", "/toggle_theme", { payload: `csrf_token=${encodeURIComponent(csrfToken)}` }, {});
+    helpers.xhr(
+      "POST",
+      "/toggle_theme",
+      { payload: `csrf_token=${encodeURIComponent(csrfToken)}` },
+      {}
+    );
   }
 }
 
@@ -67,7 +73,12 @@ if (toggle_search_opencc) {
     helpers.storage.set("search_opencc", newVal);
     const secureFlag = location.protocol === "https:" ? "; Secure" : "";
     document.cookie =
-      "search_opencc=" + newVal + "; path=/; max-age=" + 3600 * 24 * 30 + "; SameSite=Lax" + secureFlag;
+      "search_opencc=" +
+      newVal +
+      "; path=/; max-age=" +
+      3600 * 24 * 30 +
+      "; SameSite=Lax" +
+      secureFlag;
     location.reload();
   });
 }

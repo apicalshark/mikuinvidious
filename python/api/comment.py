@@ -33,6 +33,7 @@ from .video import bv2av
 def _debug(*args):
     print("[comments]", *args, file=sys.stderr, flush=True)
 
+
 __all__ = ["CommentResourceType", "OrderType", "get_comments", "get_sub_comments"]
 
 
@@ -82,9 +83,7 @@ async def _fetch(url: str, params: dict, cookies: dict) -> dict:
     cookies, letting curl_cffi's own session/bawt handling apply) returns full
     20-item pages with working pagination.
     """
-    async with _creq.AsyncSession(
-        proxy=request_settings.get_proxy() or None
-    ) as session:
+    async with _creq.AsyncSession(proxy=request_settings.get_proxy() or None) as session:
         resp = await session.get(
             url,
             params=params,
@@ -118,9 +117,7 @@ async def _ensure_numeric_oid(oid):
     return int(oid)
 
 
-async def get_comments(
-    oid, type_, page_index=1, order=OrderType.TIME, credential=None, next_offset=""
-) -> dict:
+async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credential=None, next_offset="") -> dict:
     if page_index <= 0:
         raise ArgsException("page_index 必须大于或等于 1")
     type_value = type_.value if isinstance(type_, Enum) else type_
@@ -141,11 +138,7 @@ async def get_comments(
     data = None
     last_exc = None
     for use_wbi in (True, False):
-        url = (
-            "https://api.bilibili.com/x/v2/reply/wbi/main"
-            if use_wbi
-            else "https://api.bilibili.com/x/v2/reply/main"
-        )
+        url = "https://api.bilibili.com/x/v2/reply/wbi/main" if use_wbi else "https://api.bilibili.com/x/v2/reply/main"
         try:
             request_params = dict(params)
             if use_wbi:

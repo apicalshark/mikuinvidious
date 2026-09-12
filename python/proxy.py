@@ -44,6 +44,7 @@ async def is_safe_proxy_url(url: str) -> bool:
         # Resolve and check IP
         # Resolve and check IP (both IPv4 and IPv6)
         import socket
+
         try:
             addr_infos = await asyncio.to_thread(
                 socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
@@ -51,8 +52,13 @@ async def is_safe_proxy_url(url: str) -> bool:
             for family, _, _, _, sockaddr in addr_infos:
                 ip = sockaddr[0]
                 ip_obj = ipaddress.ip_address(ip)
-                if (ip_obj.is_private or ip_obj.is_loopback or
-                    ip_obj.is_link_local or ip_obj.is_multicast or ip_obj.is_reserved):
+                if (
+                    ip_obj.is_private
+                    or ip_obj.is_loopback
+                    or ip_obj.is_link_local
+                    or ip_obj.is_multicast
+                    or ip_obj.is_reserved
+                ):
                     return False
         except socket.gaierror:
             return False
@@ -83,8 +89,13 @@ async def render_proxy_pic(req_path):
 
             content_type = resp.headers.get("content-type", "").lower()
             allowed_image_types = [
-                "image/jpeg", "image/jpg", "image/png", "image/gif",
-                "image/webp", "image/bmp", "image/avif"
+                "image/jpeg",
+                "image/jpg",
+                "image/png",
+                "image/gif",
+                "image/webp",
+                "image/bmp",
+                "image/avif",
             ]
             if not any(content_type.startswith(t) for t in allowed_image_types):
                 print(f"[Proxy] Invalid Content-Type for image: {content_type}")
@@ -100,9 +111,6 @@ async def render_proxy_pic(req_path):
         except Exception as e:
             print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
             return Response("Upstream error", status=502)
-
-
-
 
 
 @proxy_bp.route("/proxy/<path:subpath>")

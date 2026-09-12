@@ -358,15 +358,19 @@ async def space_json_feed(mid):
     for v in uvids.get("list", {}).get("vlist", []):
         bvid = v.get("bvid", "")
         title = v.get("title", "")
-        items.append({
-            "id": bvid,
-            "url": f"{site_url}/video/{bvid}",
-            "external_url": f"https://www.bilibili.com/video/{bvid}",
-            "title": title,
-            "content_text": title,
-            "date_published": datetime.datetime.fromtimestamp(v.get("created", 0), tz=datetime.timezone.utc).isoformat(),
-            "image": v.get("pic", ""),
-        })
+        items.append(
+            {
+                "id": bvid,
+                "url": f"{site_url}/video/{bvid}",
+                "external_url": f"https://www.bilibili.com/video/{bvid}",
+                "title": title,
+                "content_text": title,
+                "date_published": datetime.datetime.fromtimestamp(
+                    v.get("created", 0), tz=datetime.timezone.utc
+                ).isoformat(),
+                "image": v.get("pic", ""),
+            }
+        )
 
     feed = {
         "version": "https://jsonfeed.org/version/1.1",
@@ -480,6 +484,7 @@ async def read_view(cid):
         )
     except Exception:
         import traceback
+
         traceback.print_exc()
         return await render_template_with_theme(
             "error.html",
@@ -502,9 +507,12 @@ async def live_list_view():
         return await render_template_with_theme("home.html", videos=rooms, title="直播")
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         print(f"[ERROR] Live list error: {e}")
-        return await render_template_with_theme("error.html", status="直播列表加载失败", desc="无法获取直播列表，请稍后重试。"), 500
+        return await render_template_with_theme(
+            "error.html", status="直播列表加载失败", desc="无法获取直播列表，请稍后重试。"
+        ), 500
 
 
 @app.route("/live/<room_id>")
@@ -618,9 +626,12 @@ async def live_room_view(room_id):
         )
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         print(f"[ERROR] Live room error: {e}")
-        return await render_template_with_theme("error.html", status="直播加载失败", desc="无法加载直播间，请检查网络或稍后重试。"), 500
+        return await render_template_with_theme(
+            "error.html", status="直播加载失败", desc="无法加载直播间，请检查网络或稍后重试。"
+        ), 500
 
 
 @app.route("/video_listen/<vid>")
@@ -630,7 +641,8 @@ async def live_room_view(room_id):
 async def video_listen_view(vid, idx=0):
     # Validate video ID format
     import re
-    if not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', vid):
+
+    if not re.match(r"^(BV[a-zA-Z0-9]{10}|av\d+)$", vid):
         return Response("Invalid video ID format", status=400)
 
     ato, idx = request.args.get("ato") == "1", int(idx)
@@ -691,7 +703,7 @@ async def video_listen_view(vid, idx=0):
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_player(vid, idx):
     passed_nonce = request.headers.get("X-CSP-Nonce")
-    if passed_nonce and re.match(r'^[A-Za-z0-9_-]{16,40}$', passed_nonce):
+    if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
         g.csp_nonce = passed_nonce
     v = video.Video(bvid=vid, credential=appcred)
     ep_id = request.args.get("ep_id")
@@ -816,7 +828,7 @@ async def api_component_player(vid, idx):
 async def api_component_meta(vid, idx):
     # Use passed CSP nonce from main page to avoid CSP mismatch
     passed_nonce = request.headers.get("X-CSP-Nonce")
-    if passed_nonce and re.match(r'^[A-Za-z0-9_-]{16,40}$', passed_nonce):
+    if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
         g.csp_nonce = passed_nonce
 
     def debug(*args):
@@ -835,9 +847,7 @@ async def api_component_meta(vid, idx):
     )
 
     _empty = {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
-    vcomments = (
-        raw_result if raw_result and not isinstance(raw_result, Exception) else _empty
-    )
+    vcomments = raw_result if raw_result and not isinstance(raw_result, Exception) else _empty
 
     return await render_template_with_theme(
         "components/meta_part.html",
@@ -872,7 +882,8 @@ async def api_component_meta_more(vid, idx):
         4.0,
     )
     vcomments = (
-        raw if raw and not isinstance(raw, Exception)
+        raw
+        if raw and not isinstance(raw, Exception)
         else {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
     )
 
@@ -903,9 +914,7 @@ async def api_component_sub_comments(vid, rpid):
         page = 1
 
     result = await safe_api(
-        comment.get_sub_comments(
-            vid, rpid, comment.CommentResourceType.VIDEO.value, page
-        ),
+        comment.get_sub_comments(vid, rpid, comment.CommentResourceType.VIDEO.value, page),
         4.0,
     )
     sub = (
@@ -925,7 +934,8 @@ async def api_component_sub_comments(vid, rpid):
 async def video_view(vid, idx=0):
     # Validate video ID format
     import re
-    if not re.match(r'^(BV[a-zA-Z0-9]{10}|av\d+)$', vid):
+
+    if not re.match(r"^(BV[a-zA-Z0-9]{10}|av\d+)$", vid):
         return Response("Invalid video ID format", status=400)
 
     idx, ato = int(idx), request.args.get("ato") == "1"

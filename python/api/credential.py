@@ -57,9 +57,7 @@ class Credential:
         **kwargs,
     ):
         self.sessdata = (
-            None
-            if sessdata is None
-            else (sessdata if sessdata.find("%") != -1 else urllib.parse.quote(sessdata))
+            None if sessdata is None else (sessdata if sessdata.find("%") != -1 else urllib.parse.quote(sessdata))
         )
         self.bili_jct = bili_jct
         self.buvid3 = buvid3
@@ -183,9 +181,7 @@ class Credential:
             from Crypto.Hash import SHA256
             from Crypto.PublicKey import RSA
         except ImportError:
-            raise RuntimeError(
-                "Cookie 刷新需要安装 pycryptodome：uv add pycryptodome"
-            )
+            raise RuntimeError("Cookie 刷新需要安装 pycryptodome：uv add pycryptodome")
 
         import binascii
         import time
@@ -300,6 +296,4 @@ def sync(coroutine):
         return asyncio.new_event_loop().run_until_complete(coroutine)
     else:
         with ThreadPoolExecutor() as executor:
-            return executor.submit(
-                lambda c: asyncio.new_event_loop().run_until_complete(c), coroutine
-            ).result()
+            return executor.submit(lambda c: asyncio.new_event_loop().run_until_complete(c), coroutine).result()

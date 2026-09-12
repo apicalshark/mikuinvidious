@@ -110,32 +110,32 @@ class LiveStream:
         amf_data = bytearray()
 
         # Name: "onMetaData" (AMF0 string)
-        amf_data.extend(b'\x02')  # AMF0 String marker
-        amf_data.extend(struct.pack('>H', 10))  # String length
-        amf_data.extend(b'onMetaData')  # String value
+        amf_data.extend(b"\x02")  # AMF0 String marker
+        amf_data.extend(struct.pack(">H", 10))  # String length
+        amf_data.extend(b"onMetaData")  # String value
 
         # Value: ECMA array with __stream_ended__=true
-        amf_data.extend(b'\x08')  # AMF0 ECMA array marker
-        amf_data.extend(struct.pack('>I', 1))  # Number of properties
+        amf_data.extend(b"\x08")  # AMF0 ECMA array marker
+        amf_data.extend(struct.pack(">I", 1))  # Number of properties
 
         # Property: "__stream_ended__" = true
-        prop_name = b'__stream_ended__'
-        amf_data.extend(struct.pack('>H', len(prop_name)))  # Property name length
+        prop_name = b"__stream_ended__"
+        amf_data.extend(struct.pack(">H", len(prop_name)))  # Property name length
         amf_data.extend(prop_name)  # Property name
-        amf_data.extend(b'\x01')  # AMF0 Boolean marker
-        amf_data.extend(b'\x01')  # Boolean value (true)
+        amf_data.extend(b"\x01")  # AMF0 Boolean marker
+        amf_data.extend(b"\x01")  # Boolean value (true)
 
         # End of object marker
-        amf_data.extend(b'\x00\x00\x09')
+        amf_data.extend(b"\x00\x00\x09")
 
         # FLV Tag header
-        tag_type = b'\x12'  # Script Data (18)
-        data_size = len(amf_data).to_bytes(3, 'big')
-        timestamp = b'\x00\x00\x00\x00'  # 0
-        stream_id = b'\x00\x00\x00'  # 0
+        tag_type = b"\x12"  # Script Data (18)
+        data_size = len(amf_data).to_bytes(3, "big")
+        timestamp = b"\x00\x00\x00\x00"  # 0
+        stream_id = b"\x00\x00\x00"  # 0
 
         # Previous tag size
-        prev_tag_size = (11 + len(amf_data)).to_bytes(4, 'big')
+        prev_tag_size = (11 + len(amf_data)).to_bytes(4, "big")
 
         return bytes(tag_type + data_size + timestamp + stream_id + bytes(amf_data) + prev_tag_size)
 

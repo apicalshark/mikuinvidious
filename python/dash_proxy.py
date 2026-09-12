@@ -377,8 +377,9 @@ async def _cache_durl_entry(vid: str, idx: int, qn: int, desc: str, node: dict |
     return {"quality": actual_qn, "new_description": desc, "ext": ext}
 
 
-async def fetch_durl_supported_src(v, vid: str, idx: int, play_data: dict | None = None,
-                                   ep_id=None, max_qualities: int = 4, force: bool = False) -> list:
+async def fetch_durl_supported_src(
+    v, vid: str, idx: int, play_data: dict | None = None, ep_id=None, max_qualities: int = 4, force: bool = False
+) -> list:
     """Fetch + cache progressive (``durl``) URLs for durl-only videos.
 
     Returns a ``supported_src`` list of ``{quality, new_description, ext}``
@@ -565,6 +566,7 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     videos = _normalize_track_urls(dash.get("video", []))
     if videos:
         from collections import OrderedDict
+
         # Group by codecid (7=AVC, 12=HEVC, 13=AV1) rather than the full
         # codecs string — Bilibili uses different HEVC level strings per
         # resolution (e.g. hvc1.1.6.L150.90 vs hvc1.1.6.L120.90) which would
@@ -617,7 +619,9 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     if not audios:
         audios = _normalize_track_urls((dash.get("flac") or {}).get("audio", []))
     if audios:
-        mpd.append(f'    <AdaptationSet id="{as_id}" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1">')
+        mpd.append(
+            f'    <AdaptationSet id="{as_id}" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1">'
+        )
         for audio_track in audios:
             qn = audio_track.get("id")
             cid = audio_track.get("codecid", 0)
@@ -669,6 +673,7 @@ def _download_size_status(headers: dict) -> int:
     if parsed_content_length > _MAX_DOWNLOAD_TRACK_BYTES:
         return _DOWNLOAD_TOO_LARGE
     return 0
+
 
 # Maximum permitted size per individual DASH track download (500 MB).
 _MAX_DOWNLOAD_TRACK_BYTES = 500 * 1024 * 1024
@@ -804,7 +809,7 @@ async def _open_cdn_track(url: str, headers: dict, proxy_url: str):
 
 def _parse_content_range_start(headers) -> int | None:
     """Parse the start offset from a ``Content-Range: bytes <start>-...`` header."""
-    cr = ((headers or {}).get("content-range") or "")
+    cr = (headers or {}).get("content-range") or ""
     m = re.match(r"bytes\s+(\d+)-", cr)
     if not m:
         return None
@@ -814,14 +819,12 @@ def _parse_content_range_start(headers) -> int | None:
         return None
 
 
-async def _await_track_retry(attempt: int, cancel_event: asyncio.Event | None,
-                             note_cb, exc: Exception) -> str:
+async def _await_track_retry(attempt: int, cancel_event: asyncio.Event | None, note_cb, exc: Exception) -> str:
     """Back off before resume attempt ``attempt`` (0-based). Returns 'retry', 'abort' or 'cancelled'."""
     if attempt >= _TRACK_DOWNLOAD_MAX_RETRIES:
         print(f"[DashProxy] track download retries exhausted after {attempt} retries: {exc}")
         return "abort"
-    print(f"[DashProxy] track download cut, will resume "
-          f"(retry {attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES}): {exc}")
+    print(f"[DashProxy] track download cut, will resume (retry {attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES}): {exc}")
     delay = _TRACK_DOWNLOAD_RETRY_DELAYS[min(attempt, len(_TRACK_DOWNLOAD_RETRY_DELAYS) - 1)]
     if note_cb is not None:
         note_cb(f"连接中断，{delay:g}秒后重试（第{attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES}次）…")
@@ -865,8 +868,16 @@ async def _download_track_to_file(
                 return _DOWNLOAD_CANCELLED
             try:
                 total, file_obj, outcome = await _fetch_track_attempt(
-                    url, headers, proxy_url, dest, file_obj, total,
-                    max_bytes, progress_cb, cancel_event, rewind_cb,
+                    url,
+                    headers,
+                    proxy_url,
+                    dest,
+                    file_obj,
+                    total,
+                    max_bytes,
+                    progress_cb,
+                    cancel_event,
+                    rewind_cb,
                 )
             except _CUT_ERRORS as exc:
                 if isinstance(exc, _TrackCut):
@@ -908,8 +919,9 @@ def _validate_track_response(resp_headers, total: int, max_bytes: int) -> str:
         if status != 206:
             return "restart"
         if _parse_content_range_start(resp_headers.headers) != total:
-            print(f"[DashProxy] resume offset mismatch "
-                  f"(have {total}, server {resp_headers.headers.get('content-range')})")
+            print(
+                f"[DashProxy] resume offset mismatch (have {total}, server {resp_headers.headers.get('content-range')})"
+            )
             return "fatal"
         return "ok"
     cl_header = resp_headers.headers.get("content-length")
@@ -923,9 +935,18 @@ def _validate_track_response(resp_headers, total: int, max_bytes: int) -> str:
     return "ok"
 
 
-async def _fetch_track_attempt(url: str, headers: dict, proxy_url: str, dest: str,
-                               file_obj, total: int, max_bytes: int,
-                               progress_cb, cancel_event, rewind_cb):
+async def _fetch_track_attempt(
+    url: str,
+    headers: dict,
+    proxy_url: str,
+    dest: str,
+    file_obj,
+    total: int,
+    max_bytes: int,
+    progress_cb,
+    cancel_event,
+    rewind_cb,
+):
     """One GET (or Range-resume) attempt. Returns ``(total, file_obj, outcome)``.
 
     ``outcome`` is 'done' (clean EOF), 'fatal' (do not retry), or 'cancelled'.
@@ -949,16 +970,13 @@ async def _fetch_track_attempt(url: str, headers: dict, proxy_url: str, dest: st
             total = 0
         if file_obj is None:
             file_obj = await asyncio.to_thread(open, dest, "wb" if total == 0 else "ab")
-        total, outcome = await _stream_track_body(
-            conn, file_obj, total, max_bytes, progress_cb, cancel_event
-        )
+        total, outcome = await _stream_track_body(conn, file_obj, total, max_bytes, progress_cb, cancel_event)
         return total, file_obj, outcome
     finally:
         await conn.close()
 
 
-async def _stream_track_body(conn, file_obj, total: int, max_bytes: int,
-                             progress_cb, cancel_event):
+async def _stream_track_body(conn, file_obj, total: int, max_bytes: int, progress_cb, cancel_event):
     """Stream ``iter_chunks()`` to ``file_obj``. Returns ``(total, outcome)``.
 
     Raises ``_TrackCut`` (carrying the bytes streamed so far) on connection
@@ -991,13 +1009,20 @@ async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None)
     if not ffmpeg:
         raise RuntimeError("ffmpeg not available on this server")
     cmd = [
-        ffmpeg, "-y",
-        "-i", video_path,
-        "-i", audio_path,
-        "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-c", "copy",
-        "-movflags", "+faststart",
+        ffmpeg,
+        "-y",
+        "-i",
+        video_path,
+        "-i",
+        audio_path,
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-c",
+        "copy",
+        "-movflags",
+        "+faststart",
         out_path,
     ]
     proc = await asyncio.create_subprocess_exec(
@@ -1011,9 +1036,7 @@ async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None)
             comm_task = asyncio.ensure_future(proc.communicate())
             cancel_task = asyncio.ensure_future(job.cancel_event.wait())
             try:
-                done, _ = await asyncio.wait(
-                    {comm_task, cancel_task}, return_when=asyncio.FIRST_COMPLETED
-                )
+                done, _ = await asyncio.wait({comm_task, cancel_task}, return_when=asyncio.FIRST_COMPLETED)
                 if comm_task not in done:
                     proc.kill()
                     await proc.wait()
@@ -1258,9 +1281,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         if resp_headers.status_code in [200, 206]:
             current_ct = proxy_resp.headers.get("Content-Type", "").lower()
             if not current_ct or "application/octet-stream" in current_ct:
-                proxy_resp.headers["Content-Type"] = (
-                    "video/mp4" if media_type == "video" else "audio/mp4"
-                )
+                proxy_resp.headers["Content-Type"] = "video/mp4" if media_type == "video" else "audio/mp4"
         return proxy_resp
     except Exception as exc:
         print(f"[DashProxy] proxy_dash error: {exc}")
@@ -1426,8 +1447,7 @@ async def _sweep_jobs():
         # Hard registry cap: drop oldest terminal jobs first.
         if len(_download_jobs) > 100:
             terminal = sorted(
-                ((j.updated_at, jid) for jid, j in _download_jobs.items()
-                 if j.state in ("ready", "error", "cancelled"))
+                ((j.updated_at, jid) for jid, j in _download_jobs.items() if j.state in ("ready", "error", "cancelled"))
             )
             for _, jid in terminal[: len(_download_jobs) - 100]:
                 _remove_job_tmpdir(_download_jobs[jid])
@@ -1447,9 +1467,7 @@ async def create_download_job(vid: str, idx: int, qual: int) -> str:
         raise RuntimeError("Proxying is disabled")
     await _sweep_jobs()
     async with _jobs_lock:
-        active_jobs = sum(
-            job.state not in ("ready", "error", "cancelled") for job in _download_jobs.values()
-        )
+        active_jobs = sum(job.state not in ("ready", "error", "cancelled") for job in _download_jobs.values())
         if active_jobs >= _MAX_ACTIVE_JOBS:
             raise DownloadCapacityError("Download queue is full; please try again later")
         job = _DownloadJob(vid, idx, qual)
@@ -1474,8 +1492,9 @@ async def cancel_download_job(job_id: str) -> dict | None:
     return job.to_status()
 
 
-async def _peek_content_length(url: str, headers: dict, proxy_url: str,
-                               cancel_event: asyncio.Event | None = None) -> int:
+async def _peek_content_length(
+    url: str, headers: dict, proxy_url: str, cancel_event: asyncio.Event | None = None
+) -> int:
     """Fetch only response headers to learn a track's size (0 if unknown).
 
     Opens a throwaway connection and closes it without reading the body.
@@ -1537,9 +1556,14 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     job.touch()
 
     n = await _download_track_to_file(
-        vurl, headers, proxy_url, vpath,
-        progress_cb=job.add_progress, cancel_event=job.cancel_event,
-        note_cb=job.set_note, rewind_cb=job.rewind_progress,
+        vurl,
+        headers,
+        proxy_url,
+        vpath,
+        progress_cb=job.add_progress,
+        cancel_event=job.cancel_event,
+        note_cb=job.set_note,
+        rewind_cb=job.rewind_progress,
     )
     if n == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()
@@ -1547,9 +1571,14 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
         raise RuntimeError("video track download failed")
     job.throw_if_cancelled()
     n = await _download_track_to_file(
-        aurl, headers, proxy_url, apath,
-        progress_cb=job.add_progress, cancel_event=job.cancel_event,
-        note_cb=job.set_note, rewind_cb=job.rewind_progress,
+        aurl,
+        headers,
+        proxy_url,
+        apath,
+        progress_cb=job.add_progress,
+        cancel_event=job.cancel_event,
+        note_cb=job.set_note,
+        rewind_cb=job.rewind_progress,
     )
     if n == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()
@@ -1577,17 +1606,13 @@ async def _run_durl_job(job: _DownloadJob):
     except Exception:
         raise RuntimeError("invalid video ID") from None
     try:
-        play_data = await asyncio.wait_for(
-            video_get_dash_for_qn(v, job.idx), timeout=DASH_FETCH_TIMEOUT
-        )
+        play_data = await asyncio.wait_for(video_get_dash_for_qn(v, job.idx), timeout=DASH_FETCH_TIMEOUT)
     except Exception as exc:
         print(f"[DashProxy] job {job.job_id} durl fetch failed: {exc}")
         play_data = None
     job.throw_if_cancelled()
     try:
-        url, qn, ext = await _resolve_durl_download(
-            v, job.vid, job.idx, job.qual, play_data=play_data
-        )
+        url, qn, ext = await _resolve_durl_download(v, job.vid, job.idx, job.qual, play_data=play_data)
     except _DurlResolveError as exc:
         raise RuntimeError(str(exc)) from None
     if not _is_safe_dash_url(url):
@@ -1606,9 +1631,14 @@ async def _run_durl_job(job: _DownloadJob):
     job.state = "downloading"
     job.touch()
     n = await _download_track_to_file(
-        url, headers, proxy_url, outpath,
-        progress_cb=job.add_progress, cancel_event=job.cancel_event,
-        note_cb=job.set_note, rewind_cb=job.rewind_progress,
+        url,
+        headers,
+        proxy_url,
+        outpath,
+        progress_cb=job.add_progress,
+        cancel_event=job.cancel_event,
+        note_cb=job.set_note,
+        rewind_cb=job.rewind_progress,
     )
     if n == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()

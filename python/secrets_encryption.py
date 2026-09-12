@@ -20,6 +20,7 @@ try:
     import nacl.exceptions
     import nacl.secret
     import nacl.utils
+
     NACL_AVAILABLE = True
 except ImportError:
     NACL_AVAILABLE = False

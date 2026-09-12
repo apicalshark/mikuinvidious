@@ -214,9 +214,7 @@ async def _fetch(url: str, params: dict) -> dict:
     upstream ``Api.result`` returns). Cookies are deliberately not forwarded
     so the browser impersonation isn't tripped by our generated pseudo-cookies.
     """
-    async with _creq.AsyncSession(
-        proxy=request_settings.get_proxy() or None
-    ) as session:
+    async with _creq.AsyncSession(proxy=request_settings.get_proxy() or None) as session:
         resp = await session.get(
             url,
             params=params,
@@ -295,9 +293,7 @@ async def search(keyword: str, page: int = 1) -> dict:
         dict: 调用 API 返回的结果
     """
     params = {"keyword": keyword, "page": page}
-    return await _wbi_get(
-        "https://api.bilibili.com/x/web-interface/wbi/search/all/v2", params, wbi=True
-    )
+    return await _wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/all/v2", params, wbi=True)
 
 
 async def search_by_type(  # noqa: C901 - faithful port of upstream param logic
@@ -342,10 +338,7 @@ async def search_by_type(  # noqa: C901 - faithful port of upstream param logic
         raise ArgsException("缺少 search_type")
         # params["search_type"] = SearchObjectType.VIDEO.value
     # category_id
-    if (
-        search_type.value == SearchObjectType.ARTICLE.value
-        or search_type.value == SearchObjectType.PHOTO.value
-    ):
+    if search_type.value == SearchObjectType.ARTICLE.value or search_type.value == SearchObjectType.PHOTO.value:
         if category_id:
             if isinstance(category_id, int):
                 params["category_id"] = category_id
@@ -383,9 +376,7 @@ async def search_by_type(  # noqa: C901 - faithful port of upstream param logic
         time_stamp = _to_timestamps(time_start, time_end)
         params["pubtime_begin_s"] = time_stamp[0]
         params["pubtime_end_s"] = time_stamp[1]
-    return await _wbi_get(
-        "https://api.bilibili.com/x/web-interface/wbi/search/type", params, wbi=True
-    )
+    return await _wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/type", params, wbi=True)
 
 
 async def get_default_search_keyword() -> dict:
@@ -395,9 +386,7 @@ async def get_default_search_keyword() -> dict:
     Returns:
         dict: 调用 API 返回的结果
     """
-    return await _wbi_get(
-        "https://api.bilibili.com/x/web-interface/wbi/search/default", {}, wbi=True
-    )
+    return await _wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/default", {}, wbi=True)
 
 
 async def get_hot_search_keywords() -> dict:
@@ -437,14 +426,10 @@ async def search_games(keyword: str) -> dict:
     Returns:
         dict: 调用 API 返回的结果
     """
-    return await _fetch(
-        "https://line1-h5-pc-api.biligame.com/game/wiki/search", {"keyword": keyword}
-    )
+    return await _fetch("https://line1-h5-pc-api.biligame.com/game/wiki/search", {"keyword": keyword})
 
 
-async def search_manga(
-    keyword: str, page_num: int = 1, page_size: int = 9, credential: Credential = None
-):
+async def search_manga(keyword: str, page_num: int = 1, page_size: int = 9, credential: Credential = None):
     """
     搜索漫画特用函数
 
@@ -461,9 +446,7 @@ async def search_manga(
         dict: 调用 API 返回的结果
     """
     data = {"key_word": keyword, "page_num": page_num, "page_size": page_size}
-    async with _creq.AsyncSession(
-        proxy=request_settings.get_proxy() or None
-    ) as session:
+    async with _creq.AsyncSession(proxy=request_settings.get_proxy() or None) as session:
         resp = await session.post(
             "https://manga.bilibili.com/twirp/comic.v1.Comic/Search?device=pc&platform=web",
             data=data,
@@ -504,6 +487,4 @@ async def search_cheese(
         "page_size": page_size,
         "sort_type": order.value,
     }
-    return await _fetch(
-        "https://api.bilibili.com/pugv/app/web/seasonSeek?classification_id=-1", params
-    )
+    return await _fetch("https://api.bilibili.com/pugv/app/web/seasonSeek?classification_id=-1", params)

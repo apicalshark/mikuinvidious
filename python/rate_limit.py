@@ -57,18 +57,9 @@ class RateLimiter:
             # Get oldest entry to calculate reset time
             oldest = await self.redis.zrange(redis_key, 0, 0, withscores=True)
             reset_time = int(oldest[0][1]) + window if oldest else now + window
-            return False, {
-                "remaining": 0,
-                "reset": reset_time,
-                "limit": limit,
-                "retry_after": reset_time - now
-            }
+            return False, {"remaining": 0, "reset": reset_time, "limit": limit, "retry_after": reset_time - now}
 
-        return True, {
-            "remaining": limit - current_count,
-            "reset": now + window,
-            "limit": limit
-        }
+        return True, {"remaining": limit - current_count, "reset": now + window, "limit": limit}
 
     async def get_current_usage(self, key: str, window: int) -> int:
         """Get current request count for a key."""
@@ -93,13 +84,14 @@ def get_rate_limiter() -> RateLimiter:
 def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=None):
     """
     Rate limiting decorator for Quart routes.
-    
+
     Args:
         limit: Maximum requests allowed in the window
         window: Time window in seconds
         key_func: Function to generate rate limit key from request (default: IP-based)
         exempt_when: Callable that returns True to exempt from rate limiting
     """
+
     def decorator(f):
         @wraps(f)
         async def wrapped(*args, **kwargs):
@@ -115,9 +107,12 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
                 key = await key_func(request)
             else:
                 # Default: IP + endpoint
-                ip = (request.headers.get("X-Real-IP") or
-                      request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or
-                      request.remote_addr or "127.0.0.1")
+                ip = (
+                    request.headers.get("X-Real-IP")
+                    or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+                    or request.remote_addr
+                    or "127.0.0.1"
+                )
                 key = f"{ip}:{request.path}"
 
             limiter = get_rate_limiter()
@@ -125,13 +120,16 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
 
             # Add rate limit headers
             from quart import g
+
             g.rate_limit_info = info
 
             if not allowed:
                 return Response(f"Rate limit exceeded. Try again in {info['retry_after']} seconds.", status=429)
 
             return await f(*args, **kwargs)
+
         return wrapped
+
     return decorator
 
 
@@ -140,7 +138,8 @@ async def add_rate_limit_headers(response):
     if not appconf["rate_limit"]["enabled"]:
         return response
     from quart import g
-    if hasattr(g, 'rate_limit_info'):
+
+    if hasattr(g, "rate_limit_info"):
         info = g.rate_limit_info
         response.headers["X-RateLimit-Limit"] = str(info["limit"])
         response.headers["X-RateLimit-Remaining"] = str(info["remaining"])
@@ -150,10 +149,10 @@ async def add_rate_limit_headers(response):
 
 # Predefined rate limit configs for different endpoint types
 RATE_LIMITS = {
-    "strict": {"limit": 10, "window": 60},      # 10 req/min - for sensitive endpoints
-    "normal": {"limit": 60, "window": 60},      # 60 req/min - for normal API endpoints
-    "loose": {"limit": 300, "window": 60},      # 300 req/min - for static content
-    "search": {"limit": 20, "window": 60},      # 20 req/min - for search
-    "proxy": {"limit": 100, "window": 60},      # 100 req/min - for media proxy
-    "auth": {"limit": 5, "window": 300},        # 5 req/5min - for auth endpoints
+    "strict": {"limit": 10, "window": 60},  # 10 req/min - for sensitive endpoints
+    "normal": {"limit": 60, "window": 60},  # 60 req/min - for normal API endpoints
+    "loose": {"limit": 300, "window": 60},  # 300 req/min - for static content
+    "search": {"limit": 20, "window": 60},  # 20 req/min - for search
+    "proxy": {"limit": 100, "window": 60},  # 100 req/min - for media proxy
+    "auth": {"limit": 5, "window": 300},  # 5 req/5min - for auth endpoints
 }
