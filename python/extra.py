@@ -17,6 +17,7 @@
 
 import asyncio
 import re
+from urllib.parse import urlparse
 
 import bleach
 import orjson
@@ -336,9 +337,15 @@ def article_to_html(article_text):
         if child.name == "a":
             if child.has_attr("href"):
                 href = child["href"]
-                if "bilibili.com" in href:
+                parsed = urlparse(href)
+                host = (parsed.hostname or "").lower()
+                if host == "bilibili.com" or host.endswith(".bilibili.com"):
                     # Try to make it relative if it's a bilibili link
-                    href = href.split("bilibili.com")[-1]
+                    href = parsed.path or "/"
+                    if parsed.query:
+                        href += f"?{parsed.query}"
+                    if parsed.fragment:
+                        href += f"#{parsed.fragment}"
                 child["href"] = href
             # Keep only href
             href = child.get("href", "#")
