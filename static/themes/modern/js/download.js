@@ -11,7 +11,7 @@
  *   POST /download            (XHR branch) -> {"job_id": ...}
  *   GET  /download/status/<id>             -> {state, percent, done_bytes,
  *                                              total_bytes, speed_bps,
- *                                              filename, error}
+ *                                              actual_qn, filename, error}
  *   GET  /download/file/<id>               -> finished MP4 attachment
  *   POST /download/cancel/<id>             -> abort server-side work
  *
@@ -188,6 +188,18 @@
       setBar(0);
     }
     d.status.textContent = label;
+    if (
+      active &&
+      active.actualQn &&
+      active.requestedQn > 0 &&
+      active.actualQn !== active.requestedQn &&
+      (st.state === "queued" ||
+        st.state === "resolving" ||
+        st.state === "downloading" ||
+        st.state === "muxing")
+    ) {
+      d.status.textContent += "（所选清晰度不可用，已切换为最高可用清晰度）";
+    }
     var terminal = st.state === "ready" || st.state === "error" || st.state === "cancelled";
     d.cancel.classList.toggle("hidden", terminal);
     d.ok.classList.toggle("hidden", !terminal);
@@ -224,6 +236,18 @@
       var st = await resp.json();
       if (active !== current || active.jobId !== jobId) return;
       current.failures = 0;
+      if (
+        !current.qualitySynced &&
+        st.actual_qn !== null &&
+        st.actual_qn !== undefined
+      ) {
+        current.qualitySynced = true;
+        var actualQn = parseInt(st.actual_qn, 10);
+        if (!isNaN(actualQn)) {
+          current.actualQn = actualQn;
+          syncQualityUI(current);
+        }
+      }
       render(st);
       if (st.state === "ready" || st.state === "error" || st.state === "cancelled") {
         current.terminal = true;
@@ -303,6 +327,21 @@
     }
   }
 
+  function syncQualityUI(current) {
+    // The server falls back to the highest playable quality when the
+    // requested one is unavailable (e.g. 4K anonymously -> 1080p). Mirror
+    // that in the page dropdown and the dialog header so the UI shows what
+    // is actually downloading.
+    var form = current.form;
+    var sel = form ? form.querySelector('select[name="qual"]') : null;
+    if (!sel) return;
+    var opt = sel.querySelector('option[value="' + current.actualQn + '"]');
+    if (opt) {
+      sel.value = String(current.actualQn);
+      ensureDialog().file.textContent = opt.text;
+    }
+  }
+
   async function startFromForm(form) {
     // One dialog per page: a new download supersedes the previous one.
     if (active && !active.terminal) await cancelActive(true);
@@ -312,6 +351,8 @@
     var csrf = data.get("csrf_token") || "";
     var sel = form.querySelector('select[name="qual"]');
     var qualText = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : "";
+    var requestedQn = sel ? parseInt(sel.value, 10) : 0;
+    if (isNaN(requestedQn)) requestedQn = 0;
 
     showDialog();
     d.file.textContent = qualText || "准备下载…";
@@ -353,6 +394,9 @@
       terminal: false,
       fileUrl: "/download/file/" + encodeURIComponent(jobId),
       form: form,
+      requestedQn: requestedQn,
+      actualQn: null,
+      qualitySynced: false,
     };
     pollStatus();
   }

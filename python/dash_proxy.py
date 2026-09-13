@@ -1347,6 +1347,7 @@ class _DownloadJob:
         self.vid = vid
         self.idx = idx
         self.qual = qual
+        self.actual_qn = None  # quality actually being fetched (fallback of qual)
         self.state = "queued"
         self.total_bytes = 0
         self.done_bytes = 0
@@ -1408,6 +1409,7 @@ class _DownloadJob:
             "done_bytes": self.done_bytes,
             "total_bytes": self.total_bytes,
             "speed_bps": round(self.speed_bps, 1),
+            "actual_qn": self.actual_qn,
             "filename": self.filename,
             "note": self.status_note,
             "error": self.error,
@@ -1545,6 +1547,7 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     outpath = os.path.join(tmpdir, "out.mp4")
     job.outpath = outpath
     actual_qn = int(video.get("id") or max_qn)
+    job.actual_qn = actual_qn
     job.filename = f"{job.vid}_{job.idx}_p{actual_qn}.mp4"
 
     vsize = await _peek_content_length(vurl, headers, proxy_url)
@@ -1615,6 +1618,7 @@ async def _run_durl_job(job: _DownloadJob):
         url, qn, ext = await _resolve_durl_download(v, job.vid, job.idx, job.qual, play_data=play_data)
     except _DurlResolveError as exc:
         raise RuntimeError(str(exc)) from None
+    job.actual_qn = qn
     if not _is_safe_dash_url(url):
         raise RuntimeError("invalid CDN target")
 
