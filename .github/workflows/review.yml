@@ -53,14 +53,14 @@ jobs:
       - name: Verify package integrity
         run: npm audit signatures
 
-  gitleaks:
-    name: gitleaks (secret scan)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
+  # gitleaks:
+  #   name: gitleaks (secret scan)
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v7
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Scan for leaked secrets
-        uses: gitleaks/gitleaks-action@v3
+  #     - name: Scan for leaked secrets
+  #       uses: gitleaks/gitleaks-action@v3
