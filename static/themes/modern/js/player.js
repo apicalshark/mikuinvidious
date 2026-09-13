@@ -469,6 +469,12 @@ class DashPlayerManager {
     };
     this.player.on(dashjs.MediaPlayer.events.ERROR, this._errorHandler);
 
+    // Keep the quality menu truthful: highlight whatever is actually
+    // being rendered (ABR may start lower or drop down from the top
+    // entry, e.g. when higher tracks fail).
+    this._qualityHandler = () => this._syncQualityUI();
+    this.player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, this._qualityHandler);
+
     this.video.play().catch((error) => {
       if (error.name === "NotAllowedError") {
         showAutoplayOverlay(this.video);
@@ -524,6 +530,32 @@ class DashPlayerManager {
     }
   }
 
+  _syncQualityUI() {
+    try {
+      const rep = this.player.getCurrentRepresentationForType("video");
+      if (!rep) return;
+      // MPD Representation ids are "video_<qn>_<codecid>"
+      const m = /_(\d+)_/.exec(String(rep.id || ""));
+      const qn = m ? m[1] : String((window.supported_src || []).find((s) => Number(s.bandwidth) === Number(rep.bandwidth))?.quality ?? "");
+      if (!qn) return;
+      const list = document.getElementById("quality-list");
+      if (list) {
+        const btn = list.querySelector(`button[data-qn="${qn}"]`);
+        if (btn) {
+          list.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
+        }
+      }
+      const label = document.getElementById("current-quality-label");
+      if (label) {
+        const src = (window.supported_src || []).find((s) => String(s.quality) === qn);
+        if (src) label.innerText = src.new_description;
+      }
+    } catch (e) {
+      console.warn("[DashManager] Could not sync DASH quality UI:", e);
+    }
+  }
+
   destroy(isFinal = true) {
     if (isFinal) this.destroyed = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
@@ -531,6 +563,11 @@ class DashPlayerManager {
       try {
         if (this._errorHandler)
           this.player.off(dashjs.MediaPlayer.events.ERROR, this._errorHandler);
+        if (this._qualityHandler)
+          this.player.off(
+            dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED,
+            this._qualityHandler
+          );
         this.player.reset();
       } catch (e) {
         console.error("[DashManager] Error during destroy:", e);
@@ -1163,6 +1200,8 @@ function setupVodQuality(video, list, label) {
 
   if (window.is_dash) {
     // DASH quality switching resolves the API quality against MPD representations.
+    // Buttons carry data-qn so DashPlayerManager can re-highlight the entry
+    // that is actually rendered (see QUALITY_CHANGE_RENDERED sync).
     sorted.forEach((src, i) => {
       const btn = createOption(
         src.new_description,
@@ -1173,6 +1212,7 @@ function setupVodQuality(video, list, label) {
         },
         list
       );
+      btn.dataset.qn = String(src.quality);
       if (i === 0) btn.classList.add("active");
       list.appendChild(btn);
     });

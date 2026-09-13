@@ -789,6 +789,11 @@ async def api_component_player(vid, idx):
         if quality is not None and segment_base.get("indexRange"):
             dash_tracks_by_quality.setdefault(str(quality), track)
     if is_dash:
+        # Only offer qualities backed by an actual track in the manifest.
+        # support_formats advertises every quality (e.g. 4K) even when the
+        # playurl response carries no playable track for it (anonymous
+        # sessions top out at qn 80); listing those would highlight a
+        # quality the player can never render.
         supported_src = [
             {
                 "quality": f.get("quality"),
@@ -796,7 +801,9 @@ async def api_component_player(vid, idx):
                 "bandwidth": (dash_tracks_by_quality.get(str(f.get("quality"))) or {}).get("bandwidth"),
             }
             for f in (dash_data or {}).get("support_formats") or []
-            if isinstance(f, dict) and f.get("quality") is not None
+            if isinstance(f, dict)
+            and f.get("quality") is not None
+            and str(f.get("quality")) in dash_tracks_by_quality
         ]
     else:
         # Progressive (durl) fallback: some UGC uploads return no DASH
