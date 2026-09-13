@@ -501,11 +501,16 @@ class DashPlayerManager {
   setQuality(source) {
     if (!this.player) return;
     try {
-      const bitrates = this.player.getBitrateInfoListFor("video") || [];
-      const target =
-        source?.bandwidth == null
-          ? null
-          : bitrates.find((bitrate) => Number(bitrate.bitrate) === Number(source.bandwidth));
+      // Representations API of the vendored dash.js.
+      const reps = this.player.getRepresentationsByType("video") || [];
+      let target = null;
+      if (source?.bandwidth != null) {
+        target = reps.find((r) => Number(r.bandwidth) === Number(source.bandwidth));
+      }
+      if (!target && source?.quality != null) {
+        // MPD Representation ids are "video_<qn>_<codecid>"
+        target = reps.find((r) => String(r.id).includes(`_${source.quality}_`));
+      }
       if (!target) {
         console.warn("[DashManager] DASH quality is not present in the manifest:", source?.quality);
         return;
@@ -513,8 +518,7 @@ class DashPlayerManager {
       this.player.updateSettings({
         streaming: { abr: { autoSwitchBitrate: { video: false } } },
       });
-      const qualityIndex = target.qualityIndex ?? bitrates.indexOf(target);
-      this.player.setQualityFor("video", qualityIndex, true);
+      this.player.setRepresentationForTypeById("video", target.id, true);
     } catch (e) {
       console.warn("[DashManager] Could not set DASH quality:", e);
     }
