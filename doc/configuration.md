@@ -13,6 +13,7 @@ Settings related to the site's identity and features.
 | `site_url` | `SITE_URL` | `https://example.org` | The public URL of your instance. Used for metadata and links. |
 | `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | A boolean (`true`/`false`) to show a link to the modified source code. |
 | `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | A boolean (`true`/`false`) to enable or disable video download buttons. |
+| `max_download_size_mb` | `MAX_DOWNLOAD_SIZE_MB` | `1024` | Maximum allowed size (in MB) per downloaded track. A DASH download fetches a video track plus an audio track; jobs with a track over this limit are rejected with an error stating this instance's limit. |
 | `site_show_unsafe_error_response` | `SITE_SHOW_UNSAFE_ERROR_RESPONSE` | `false` | A boolean (`true`/`false`) to show detailed, potentially unsafe error messages. **Use with caution.** |
 | `nyaa_bangumi` | `NYAA_BANGUMI` | `true` | A boolean (`true`/`false`) to enable or disable Nyaa search in Bangumi view. |
 | `robots_policy` | `ROBOTS_POLICY` | `strict` | Controls the `robots.txt` policy. Can be `strict` (disallow all), `relaxed` (allow articles and search), or `PLEASE_INDEX_EVERYTHING` (use with extreme caution). |

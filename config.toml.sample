@@ -13,6 +13,12 @@ site_modified_source_code_url = 'https://github.com/apicalshark/mikuinvidious'
 # This will not really disable download, it just hides the download buttons on the UI.
 site_allow_download = true
 
+# Maximum allowed size per downloaded track, in megabytes.
+# A DASH download fetches a video track plus an audio track, and each one must
+# fit within this limit or the job is rejected with an error telling the user
+# this instance's limit. Raise it if your server has disk space to spare.
+max_download_size_mb = 1024
+
 # This will allow (potentially unsafe) error responses to be showed directly on site.
 # Useful for debugging backend issues.
 site_show_unsafe_error_response = false

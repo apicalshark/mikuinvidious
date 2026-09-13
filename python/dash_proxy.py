@@ -655,9 +655,24 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
 # Anonymous scraping caps out at 1080p (quality 80). Anything higher (1080p+,
 # 1080p60, 4K...) requires login / season-vip. Keep downloads capped at 1080p.
 _FREE_DOWNLOAD_MAX_QN = 80
-_MAX_DOWNLOAD_TRACK_BYTES = 1024 * 1024 * 1024
 _DOWNLOAD_TOO_LARGE = -2
 _download_limiter = asyncio.Semaphore(2)
+
+# Fallback per-track download size cap (MB) when the hoster did not configure one.
+_DEFAULT_MAX_DOWNLOAD_MB = 1024
+
+
+def _max_download_size_mb() -> int:
+    """Hoster-configured per-track download cap in MB (``[site] max_download_size_mb``)."""
+    try:
+        return max(int(appconf["site"].get("max_download_size_mb", _DEFAULT_MAX_DOWNLOAD_MB)), 1)
+    except (TypeError, ValueError):
+        return _DEFAULT_MAX_DOWNLOAD_MB
+
+
+def _max_download_track_bytes() -> int:
+    """Hoster-configured per-track download cap in bytes."""
+    return _max_download_size_mb() * 1024 * 1024
 
 
 def _download_size_status(headers: dict) -> int:
@@ -670,13 +685,9 @@ def _download_size_status(headers: dict) -> int:
         return -1
     if parsed_content_length < 0:
         return -1
-    if parsed_content_length > _MAX_DOWNLOAD_TRACK_BYTES:
+    if parsed_content_length > _max_download_track_bytes():
         return _DOWNLOAD_TOO_LARGE
     return 0
-
-
-# Maximum permitted size per individual DASH track download (500 MB).
-_MAX_DOWNLOAD_TRACK_BYTES = 500 * 1024 * 1024
 
 # Sentinel returned by _download_track_to_file when a job cancel was observed.
 _DOWNLOAD_CANCELLED = -3
@@ -843,7 +854,7 @@ async def _download_track_to_file(
     headers: dict,
     proxy_url: str,
     dest: str,
-    max_bytes: int = _MAX_DOWNLOAD_TRACK_BYTES,
+    max_bytes: int | None = None,
     progress_cb=None,
     cancel_event: asyncio.Event | None = None,
     note_cb=None,
@@ -858,7 +869,11 @@ async def _download_track_to_file(
     Returns byte count, ``-1`` on error/oversize, or ``_DOWNLOAD_CANCELLED``
     when ``cancel_event`` is set (checked per chunk and during backoff waits;
     the partial file is left for caller cleanup).
+
+    ``max_bytes`` defaults to the hoster-configured per-track cap.
     """
+    if max_bytes is None:
+        max_bytes = _max_download_track_bytes()
     total = 0
     attempt = 0
     file_obj = None
@@ -1517,8 +1532,10 @@ async def _peek_content_length(
             size = int(cl)
         except (TypeError, ValueError):
             return 0
-        if size > _MAX_DOWNLOAD_TRACK_BYTES:
-            raise RuntimeError("track exceeds server size limit")
+        if size > _max_download_track_bytes():
+            raise RuntimeError(
+                f"this instance maximum allowed download size is {_max_download_size_mb()} MB"
+            )
         return max(size, 0)
     finally:
         await conn.close()

@@ -178,6 +178,7 @@ appconf = {
         if os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "").lower() not in ["false", ""]
         else False,
         "site_allow_download": os.environ.get("SITE_ALLOW_DOWNLOAD", "true").lower() == "true",
+        "max_download_size_mb": int(os.environ.get("MAX_DOWNLOAD_SIZE_MB", 1024)),
         "site_show_unsafe_error_response": os.environ.get("SITE_SHOW_UNSAFE_ERROR_RESPONSE", "false").lower() == "true",
         "nyaa_bangumi": os.environ.get("NYAA_BANGUMI", "false").lower() == "true",
         "robots_policy": os.environ.get("ROBOTS_POLICY", "strict"),
