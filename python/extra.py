@@ -337,7 +337,10 @@ def article_to_html(article_text):
         if child.name == "a":
             if child.has_attr("href"):
                 href = child["href"]
-                parsed = urlparse(href)
+                try:
+                    parsed = urlparse(href)
+                except ValueError:
+                    continue
                 host = (parsed.hostname or "").lower()
                 if host == "bilibili.com" or host.endswith(".bilibili.com"):
                     # Try to make it relative if it's a bilibili link
