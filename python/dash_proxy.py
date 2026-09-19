@@ -64,6 +64,13 @@ dash_proxy_bp = Blueprint("dash_proxy", __name__)
 DASH_CACHE_TTL = 1800
 DASH_FETCH_TIMEOUT = 8.0
 
+# Per-attempt deadline for reaching a DASH CDN URL (connect + request +
+# response headers). Healthy edges answer sidx/init range requests in well
+# under a second; a stalled edge must fail over to a backup URL instead of
+# hanging until dash.js abandons the request — abandoned handlers surface
+# as bare 500s in the access log with no app-side traceback.
+DASH_ATTEMPT_TIMEOUT = 8.0
+
 # Raw CDN domains allowed through the DASH track proxy.
 _ALLOWED_DASH_DOMAINS = [
     ".hdslb.com",
@@ -1202,6 +1209,104 @@ async def proxy_download(vid, idx, qual):
             _download_limiter.release()
 
 
+def _dash_candidate_urls(track: dict) -> list:
+    """Primary + backup CDN URLs for a DASH track, safety-checked.
+
+    Bilibili serves every track from ``base_url`` with 2-3 mirrors in
+    ``backup_url``. The primary edge sometimes stalls individual objects
+    (cold cache / tarpit: latency swinging from ms to 25s+), so the proxy
+    must be able to fail over instead of hanging on the primary.
+    """
+    candidates = []
+    primary = track.get("base_url") or track.get("baseUrl")
+    backups = track.get("backup_url") or track.get("backupUrl") or []
+    if isinstance(backups, str):
+        backups = [backups]
+    for url in [primary, *(backups if isinstance(backups, list) else [])]:
+        if isinstance(url, str) and url and url not in candidates and _is_safe_dash_url(url):
+            candidates.append(url)
+    return candidates
+
+
+async def _fetch_dash_attempt(url: str, headers: dict, proxy_url: str):
+    """Connect + request + read headers for one candidate URL.
+
+    Bounded by ``DASH_ATTEMPT_TIMEOUT`` so a stalled edge fails fast and
+    the caller can try the next mirror. Returns ``(conn, resp_headers)``;
+    the caller owns ``conn.close()``. Raises ``TimeoutError`` on stall
+    (closed connection included) and propagates other errors.
+    """
+    conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
+    try:
+        resp_headers = await asyncio.wait_for(
+            _dash_handshake(conn),
+            timeout=DASH_ATTEMPT_TIMEOUT,
+        )
+        return conn, resp_headers
+    except BaseException:
+        await conn.close()
+        raise
+
+
+async def _dash_handshake(conn: CdnConnection):
+    """One connect + request + header-read sequence (deadline applied by caller)."""
+    await conn.connect()
+    await conn.send_request()
+    return await conn.read_response_headers()
+
+
+async def _refresh_dash_ticket(headers: dict) -> dict:
+    """Refresh the bili ticket after a 403-class response. Returns updated headers."""
+    headers = dict(headers)
+    ticket = await TicketManager.get_ticket(force_refresh=True)
+    if ticket:
+        headers["x-bili-ticket"] = ticket
+    else:
+        headers.pop("x-bili-ticket", None)
+    headers["session_id"] = TicketManager._generate_session_id()
+    headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+    return headers
+
+
+class _DashUpstreamError(Exception):
+    """All candidate mirrors failed for a DASH track."""
+
+
+async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str):
+    """Try each candidate mirror in order; return ``(conn, resp_headers)``.
+
+    Stalled edges fail fast (``DASH_ATTEMPT_TIMEOUT``) so playback falls over
+    to the next mirror instead of hanging until dash.js abandons the request
+    (which used to surface as a bare 500 with no app-side log). Raises
+    ``_DashUpstreamError`` when every mirror fails; the caller owns
+    ``conn.close()`` on success.
+    """
+    ticket_refreshed = False
+    last_error: Exception | None = None
+    for url in urls:
+        host = urlparse(url).hostname or url
+        try:
+            conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url)
+        except (asyncio.TimeoutError, TimeoutError) as exc:
+            last_error = exc
+            print(f"[DashProxy] {label} {host} stalled, trying next mirror")
+            continue
+        except (CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError) as exc:
+            last_error = exc
+            print(f"[DashProxy] {label} {host} failed ({exc}), trying next mirror")
+            continue
+        if resp_headers.status_code in [403, 412, 514]:
+            await conn.close()
+            last_error = RuntimeError(f"CDN returned {resp_headers.status_code}")
+            if not ticket_refreshed:
+                headers = await _refresh_dash_ticket(headers)
+                ticket_refreshed = True
+            print(f"[DashProxy] {label} {host} -> {resp_headers.status_code}, trying next mirror")
+            continue
+        return conn, resp_headers
+    raise _DashUpstreamError(f"all mirrors failed for {label}: {last_error}")
+
+
 @dash_proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
 @rate_limit(**RATE_LIMITS["proxy"])
 async def proxy_dash(vid, idx, media_type, qn, cid):
@@ -1211,62 +1316,54 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     the client's Range request upstream, faithfully emitting ``206 Partial
     Content`` with ``Content-Range``/``Content-Length``/``ETag`` so the sidx
     (SegmentBase indexRange) can drive byte-range seeking in dash.js.
+
+    Each track is tried on its primary ``base_url`` first, then on its
+    ``backup_url`` mirrors: individual objects sometimes stall on one edge
+    while siblings serve in milliseconds, and hanging on the primary until
+    dash.js abandons the request is what used to surface as bare 500s.
     """
+    started = time.monotonic()
+    host = "-"
+    conn = None
     if media_type not in ("video", "audio"):
         return Response("Bad Request: media_type must be video|audio", status=400)
 
-    dash_data = await _load_dash_data(vid, idx)
-    if not dash_data:
-        return Response("Not Found", status=404)
-    track = _lookup_track(dash_data, media_type, qn, cid)
-    if not track:
-        return Response("Not Found", status=404)
-
-    url = track.get("base_url") or track.get("baseUrl")
-    if not url:
-        return Response("Not Found: track has no URL", status=404)
-
-    if not appconf["proxy"]["use_proxy"]:
-        return Response("Forbidden: Proxying is disabled.", status=403)
-    if not _is_safe_dash_url(url):
-        return Response("Forbidden: Invalid proxy target", status=403)
-
-    creds = appconf["credential"]
-    cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds.get("use_cred") else {}
-
-    headers = await _build_dash_cdn_headers()
-
-    # Forward runtime Range/conditional headers from the browser player
-    for k, v in request.headers.items():
-        if k.lower() in ["range", "if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
-            headers[k.lower()] = v
-
-    if cookie_jar:
-        cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_jar.items())
-        existing = headers.get("cookie", "")
-        headers["cookie"] = f"{existing}; {cookie_str}".lstrip("; ") if existing else cookie_str
-
-    proxy_url = Network.get_proxy()
-    conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
-
     try:
-        await conn.connect()
-        await conn.send_request()
-        resp_headers = await conn.read_response_headers()
+        dash_data = await _load_dash_data(vid, idx)
+        if not dash_data:
+            return Response("Not Found", status=404)
+        track = _lookup_track(dash_data, media_type, qn, cid)
+        if not track:
+            return Response("Not Found", status=404)
 
-        if resp_headers.status_code in [403, 412, 514]:
-            await conn.close()
-            ticket = await TicketManager.get_ticket(force_refresh=True)
-            if ticket:
-                headers["x-bili-ticket"] = ticket
-            else:
-                headers.pop("x-bili-ticket", None)
-            headers["session_id"] = TicketManager._generate_session_id()
-            headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-            conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
-            await conn.connect()
-            await conn.send_request()
-            resp_headers = await conn.read_response_headers()
+        if not appconf["proxy"]["use_proxy"]:
+            return Response("Forbidden: Proxying is disabled.", status=403)
+        urls = _dash_candidate_urls(track)
+        if not urls:
+            return Response("Not Found: track has no URL", status=404)
+
+        creds = appconf["credential"]
+        cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds.get("use_cred") else {}
+
+        headers = await _build_dash_cdn_headers()
+
+        # Forward runtime Range/conditional headers from the browser player
+        for k, v in request.headers.items():
+            if k.lower() in ["range", "if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
+                headers[k.lower()] = v
+
+        if cookie_jar:
+            cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_jar.items())
+            existing = headers.get("cookie", "")
+            headers["cookie"] = f"{existing}; {cookie_str}".lstrip("; ") if existing else cookie_str
+
+        proxy_url = Network.get_proxy()
+        label = f"{vid}:{idx} {media_type}/{qn}/{cid}"
+        try:
+            conn, resp_headers = await _fetch_dash_track(urls, headers, proxy_url, label)
+        except _DashUpstreamError as exc:
+            print(f"[DashProxy] proxy_dash error: {exc}")
+            return Response("Upstream error", status=502)
 
         async def generate():
             try:
@@ -1298,9 +1395,21 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             if not current_ct or "application/octet-stream" in current_ct:
                 proxy_resp.headers["Content-Type"] = "video/mp4" if media_type == "video" else "audio/mp4"
         return proxy_resp
+    except asyncio.CancelledError:
+        # Client (dash.js/Caddy) abandoned a hung upstream wait. Re-raise so
+        # Granian handles the disconnect, but leave a trace: these used to be
+        # the mysterious log-free 500s.
+        print(f"[DashProxy] {media_type}/{qn}/{cid} {host} abandoned after {time.monotonic() - started:.1f}s")
+        if conn is not None:
+            await conn.close()
+        raise
     except Exception as exc:
-        print(f"[DashProxy] proxy_dash error: {exc}")
-        await conn.close()
+        print(
+            f"[DashProxy] proxy_dash error: {vid}:{idx} {media_type}/{qn}/{cid} {host} "
+            f"after {time.monotonic() - started:.1f}s: {exc}"
+        )
+        if conn is not None:
+            await conn.close()
         return Response("Upstream error", status=502)
 
 
