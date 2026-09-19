@@ -464,6 +464,14 @@ class DashPlayerManager {
     this._errorHandler = (event) => {
       const err = event && event.error;
       if (!err) return;
+      // Segment-download errors (26=sidx, 27=media, 28=init) mean dash.js
+      // already exhausted its own retries; its ABR drops to a lower
+      // representation on its own. A full re-init here would discard the
+      // buffer and replay the same failing requests in a loop.
+      if (err.code === 26 || err.code === 27 || err.code === 28) {
+        console.warn("[DashManager] Segment unavailable, leaving it to ABR:", err.code, err.message);
+        return;
+      }
       console.warn("[DashManager] DASH error:", err.code, err.message);
       this.reconnect();
     };
