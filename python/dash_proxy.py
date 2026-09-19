@@ -71,6 +71,15 @@ DASH_FETCH_TIMEOUT = 8.0
 # as bare 500s in the access log with no app-side traceback.
 DASH_ATTEMPT_TIMEOUT = 8.0
 
+# Mid-body watchdog for DASH track proxying. The handshake deadline above only
+# covers connect + request + response headers; some edges answer headers in ms
+# and then tarpit the body (~100 KB/s on a sick cache object), which used to
+# hang until dash.js abandoned the request (bare 500s, no failover). Past
+# DASH_BODY_GRACE seconds, a cumulative average under DASH_BODY_FLOOR_KBPS
+# aborts the edge and retries the remaining Range on the next mirror.
+DASH_BODY_GRACE = 3.0
+DASH_BODY_FLOOR_KBPS = 300
+
 # Raw CDN domains allowed through the DASH track proxy.
 _ALLOWED_DASH_DOMAINS = [
     ".hdslb.com",
@@ -1272,8 +1281,47 @@ class _DashUpstreamError(Exception):
     """All candidate mirrors failed for a DASH track."""
 
 
+class _SlowDashBody(Exception):
+    """Upstream body trickling below the watchdog floor (retryable on next mirror)."""
+
+
+async def _yield_dash_body(conn, label: str):
+    """Yield upstream body chunks with a throughput watchdog.
+
+    Past ``DASH_BODY_GRACE`` seconds, a cumulative average under
+    ``DASH_BODY_FLOOR_KBPS`` raises ``_SlowDashBody`` so the caller retries the
+    remaining Range on the next mirror instead of tarpitting until dash.js
+    abandons the request. Small (sidx/init) responses finish inside the grace
+    period and never trip.
+    """
+    got = 0
+    t0 = time.monotonic()
+    async for chunk in conn.iter_chunks():
+        got += len(chunk)
+        el = time.monotonic() - t0
+        if el > DASH_BODY_GRACE and got / el < DASH_BODY_FLOOR_KBPS * 1024:
+            raise _SlowDashBody(f"{got / el / 1024:.0f} KB/s < {DASH_BODY_FLOOR_KBPS} KB/s after {el:.1f}s")
+        yield chunk
+
+
+def _shift_dash_range(orig_range: str | None, yielded: int) -> str | None:
+    """Remaining Range after ``yielded`` bytes were already sent downstream.
+
+    Returns None when nothing was sent yet (keep the original request shape).
+    The byte sequence stays contiguous across mirror switches, so the retry is
+    invisible to the player: response headers were already emitted from the
+    first attempt.
+    """
+    if not yielded:
+        return None
+    m = re.match(r"bytes=(\d+)-(\d*)$", (orig_range or "").strip())
+    if not m:
+        return f"bytes={yielded}-"
+    return f"bytes={int(m.group(1)) + yielded}-{m.group(2)}"
+
+
 async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str):
-    """Try each candidate mirror in order; return ``(conn, resp_headers)``.
+    """Try each candidate mirror in order; return ``(conn, resp_headers, used_url)``.
 
     Stalled edges fail fast (``DASH_ATTEMPT_TIMEOUT``) so playback falls over
     to the next mirror instead of hanging until dash.js abandons the request
@@ -1303,7 +1351,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
                 ticket_refreshed = True
             print(f"[DashProxy] {label} {host} -> {resp_headers.status_code}, trying next mirror")
             continue
-        return conn, resp_headers
+        return conn, resp_headers, url
     raise _DashUpstreamError(f"all mirrors failed for {label}: {last_error}")
 
 
@@ -1360,19 +1408,49 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         proxy_url = Network.get_proxy()
         label = f"{vid}:{idx} {media_type}/{qn}/{cid}"
         try:
-            conn, resp_headers = await _fetch_dash_track(urls, headers, proxy_url, label)
+            conn, resp_headers, used_url = await _fetch_dash_track(urls, headers, proxy_url, label)
         except _DashUpstreamError as exc:
             print(f"[DashProxy] proxy_dash error: {exc}")
             return Response("Upstream error", status=502)
 
+        host = urlparse(used_url).hostname or "-"
+        pending = [u for u in urls if u != used_url]
+        orig_range = headers.get("range")
+        yielded = 0
+
         async def generate():
-            try:
-                async for chunk in conn.iter_chunks():
-                    yield chunk
-            except (CdnProtocolError, CdnTimeoutError):
-                pass
-            finally:
-                await conn.close()
+            nonlocal conn, host, yielded
+            while True:
+                try:
+                    async for chunk in _yield_dash_body(conn, label):
+                        yielded += len(chunk)
+                        yield chunk
+                except _SlowDashBody as exc:
+                    try:
+                        await conn.close()
+                    except Exception:
+                        pass
+                    if not pending:
+                        print(f"[DashProxy] {label} {host} body too slow ({exc}), mirrors exhausted")
+                        return
+                    print(f"[DashProxy] {label} {host} body too slow ({exc}), trying next mirror")
+                    if yielded:
+                        headers["range"] = _shift_dash_range(orig_range, yielded)
+                    try:
+                        conn, _, used = await _fetch_dash_track(pending, headers, proxy_url, label)
+                    except _DashUpstreamError as exc2:
+                        print(f"[DashProxy] {label} body failover failed: {exc2}")
+                        return
+                    host = urlparse(used).hostname or "-"
+                    pending.remove(used)
+                    continue
+                except (CdnProtocolError, CdnTimeoutError):
+                    pass
+                try:
+                    await conn.close()
+                except Exception:
+                    pass
+                return
 
         proxy_resp = Response(generate(), status=resp_headers.status_code)
         proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
