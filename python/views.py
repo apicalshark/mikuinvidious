@@ -600,6 +600,24 @@ async def live_room_view(room_id):
             _qn_node = (play_data.get("playurl_info") or {}).get("playurl") or {}
         qn_list = _qn_node.get("g_qn_desc", []) or [{"qn": 0, "desc": "默认"}]
 
+        # Reuse the initial (qn=10000) response for the default quality instead
+        # of refetching it: Bilibili -400s rapid parallel getRoomPlayInfo calls
+        # from one IP, so per-QN URLs are fetched sequentially below.
+        _default_flv, _default_hls = _extract_live_urls(play_data)
+        _default_url = _default_flv or _default_hls
+        _default_qn = live.ScreenResolution.ORIGINAL.value
+        supported_src = []
+        if _default_url:
+            print(f"[Live] Default room {room_id} QN {_default_qn}: {_default_url[:50]}...")
+            await appredis.setex(f"miku_live_{room_id}", 1800, _default_url)
+            await appredis.setex(f"miku_live_{room_id}_{_default_qn}", 1800, _default_url)
+            _default_desc = next(
+                (d.get("desc", "默认") for d in qn_list if d.get("qn") == _default_qn), "默认"
+            )
+            supported_src.append(
+                {"quality": _default_qn, "new_description": _default_desc, "url": _default_url}
+            )
+
         async def get_and_cache_qn(qn_val, qn_name):
             try:
                 # Wrap qn_val to satisfy bilibili-api's requirement for an Enum-like object with .value
@@ -633,11 +651,23 @@ async def live_room_view(room_id):
                 print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
             return None
 
-        q_results = await asyncio.gather(*[get_and_cache_qn(d["qn"], d["desc"]) for d in qn_list])
-        supported_src = [r for r in q_results if r]
+        # Sequential, not parallel: Bilibili answers one getRoomPlayInfo fine
+        # but -400s a burst of them (even qn=10000, which just succeeded).
+        for d in qn_list:
+            qn_val, qn_name = d.get("qn"), d.get("desc", "")
+            if qn_val == _default_qn and _default_url:
+                continue  # already resolved from the initial response
+            try:
+                await asyncio.sleep(0.4)
+                r = await get_and_cache_qn(qn_val, qn_name)
+            except Exception as e:
+                print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
+                r = None
+            if r:
+                supported_src.append(r)
 
         if supported_src:
-            # Set default quality as well
+            # Default entry is first; keep the default key in sync.
             await appredis.setex(f"miku_live_{room_id}", 1800, supported_src[0]["url"])
         else:
             # Final desperate fallback
