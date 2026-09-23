@@ -521,59 +521,109 @@ async def live_room_view(room_id):
         room_id_int = int(room_id)
         room = live.LiveRoom(room_id_int, credential=appcred)
 
-        # Get basic room info first
-        info_data = await room.get_room_info()
-
-        # Prioritize FLV for live streams as requested
+        # Get basic room info first (getInfoByRoom, fallback to getRoomBaseInfo
+        # when WBI/risk-control rejects the primary — PipePipe 1e330b87).
         try:
-            play_data = await room.get_room_play_info_v2(
-                live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV
-            )
+            info_data = await room.get_room_info()
         except Exception:
-            play_data = await room.get_room_play_info_v2(
-                live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4
-            )
+            info_data = await room.get_room_base_info()
+
+        def _assemble_flv(codec):
+            """host + base_url + extra, AVC preferred (PipePipe pickLiveFlvUrl)."""
+            try:
+                base = codec.get("base_url") or ""
+                infos = codec.get("url_info") or []
+                if not base or not infos:
+                    return ""
+                m = infos[0] or {}
+                return f"{m.get('host', '')}{base}{m.get('extra', '')}"
+            except Exception:
+                return ""
+
+        def _extract_live_urls(play_data):
+            """Return (flv_url, hls_master_url) from a v2 getRoomPlayInfo payload."""
+            flv, flv_hevc, hls_master = None, None, None
+            streams = []
+            try:
+                if isinstance(play_data, dict):
+                    # Api.result unwraps to play_url.stream; raw API nests
+                    # playurl_info.playurl.stream — accept both + bare stream.
+                    node = play_data.get("play_url") or {}
+                    if not node:
+                        node = (play_data.get("playurl_info") or {}).get("playurl") or {}
+                    streams = node.get("stream", []) or play_data.get("stream", [])
+            except Exception:
+                streams = []
+            for s in streams or []:
+                pname = s.get("protocol_name", "")
+                for f in s.get("format", []) or []:
+                    fname = f.get("format_name", "")
+                    if pname == "http_hls" and fname == "fmp4" and not hls_master:
+                        mu = f.get("master_url") or ""
+                        if mu:
+                            hls_master = mu
+                    if pname == "http_stream" and fname == "flv":
+                        for c in f.get("codec", []) or []:
+                            # Newer payloads already carry a full url; legacy
+                            # ones need host + base_url + extra assembly.
+                            full = c.get("url") or _assemble_flv(c) or c.get("base_url") or ""
+                            if not full:
+                                continue
+                            if c.get("codec_name") == "avc":
+                                flv = full
+                                break
+                            if not flv_hevc:
+                                flv_hevc = full
+                        if flv:
+                            break
+                if flv and hls_master:
+                    break
+            return flv or flv_hevc, hls_master
+
+        # Single DEFAULT request carries both ladders (PipePipe fetchLivePlaybackUrls).
+        try:
+            play_data = await room.get_room_play_info_v2()
+        except Exception:
+            # Prioritize FLV for live streams as requested
+            try:
+                play_data = await room.get_room_play_info_v2(
+                    live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV
+                )
+            except Exception:
+                play_data = await room.get_room_play_info_v2(
+                    live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4
+                )
 
         info = transformers.transform_live_room(info_data)
-        qn_list = play_data.get("play_url", {}).get("g_qn_desc", []) or [{"qn": 0, "desc": "默认"}]
+        _qn_node = (play_data.get("play_url") or {}) if isinstance(play_data, dict) else {}
+        if not _qn_node.get("g_qn_desc") and isinstance(play_data, dict):
+            _qn_node = (play_data.get("playurl_info") or {}).get("playurl") or {}
+        qn_list = _qn_node.get("g_qn_desc", []) or [{"qn": 0, "desc": "默认"}]
 
         async def get_and_cache_qn(qn_val, qn_name):
             try:
                 # Wrap qn_val to satisfy bilibili-api's requirement for an Enum-like object with .value
                 wrapped_qn = type("QN", (), {"value": qn_val})()
-                # Try FLV first
-                q_data = await room.get_room_play_info_v2(
-                    live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV, live_qn=wrapped_qn
-                )
-                stream = q_data.get("play_url", {}).get("stream", [])
-                url = None
-                for s in stream:
-                    for f in s.get("format", []):
-                        for c in f.get("codec", []):
-                            url = c.get("url") or c.get("base_url")
-                            if url:
-                                break
-                        if url:
-                            break
-                    if url:
-                        break
+                # Single DEFAULT request carries FLV + HLS ladders; prefer FLV
+                # (AVC-assembled), fall back to HLS master (PipePipe 79da4d21).
+                try:
+                    q_data = await room.get_room_play_info_v2(live_qn=wrapped_qn)
+                except Exception:
+                    q_data = await room.get_room_play_info_v2(
+                        live_protocol=live.LiveProtocol.FLV,
+                        live_format=live.LiveFormat.FLV,
+                        live_qn=wrapped_qn,
+                    )
+                flv_url, hls_master = _extract_live_urls(q_data)
+                url = flv_url or hls_master
 
                 if not url:
-                    # Fallback to HLS if FLV fails
+                    # Fallback to HLS-only request if DEFAULT gave nothing
                     q_data = await room.get_room_play_info_v2(
                         live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4, live_qn=wrapped_qn
                     )
-                    stream = q_data.get("play_url", {}).get("stream", [])
-                    for s in stream:
-                        for f in s.get("format", []):
-                            for c in f.get("codec", []):
-                                url = c.get("url") or c.get("base_url")
-                                if url:
-                                    break
-                            if url:
-                                break
-                        if url:
-                            break
+                    _, hls_master = _extract_live_urls(q_data)
+                    url = hls_master
 
                 if url:
                     print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")

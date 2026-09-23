@@ -89,7 +89,32 @@ _ALLOWED_DASH_DOMAINS = [
     ".bilibili.com",
     ".acgvideo.com",
     ".akamaized.net",
+    ".mountaintoys.cn",
 ]
+
+
+def _is_mcdn_url(url: str) -> bool:
+    """Detect Bilibili M-CDN (PCDN) edge nodes (PipePipe b3303f4).
+
+    Typically ``*.mcdn.bilivideo.cn`` / ``*.edge.mountaintoys.cn``. They are
+    built for the web player: flaky HEAD, non-browser 403s, short-lived
+    signatures — bad first choice for proxying/downloads.
+    """
+    return "mcdn.bilivideo" in url or "mountaintoys" in url or "os=mcdn" in url
+
+
+def _pick_stable_dash_url(primary: str | None, backups) -> str | None:
+    """Prefer a non-M-CDN URL (PipePipe ``pickStableStreamUrl``).
+
+    Keeps the primary when it is stable; otherwise returns the first stable
+    backup; falls back to the primary when everything is M-CDN.
+    """
+    if primary and not _is_mcdn_url(primary):
+        return primary
+    for cand in backups or []:
+        if isinstance(cand, str) and cand and not _is_mcdn_url(cand):
+            return cand
+    return primary
 
 
 def _is_safe_dash_url(url: str) -> bool:
@@ -1225,13 +1250,28 @@ def _dash_candidate_urls(track: dict) -> list:
     ``backup_url``. The primary edge sometimes stalls individual objects
     (cold cache / tarpit: latency swinging from ms to 25s+), so the proxy
     must be able to fail over instead of hanging on the primary.
+
+    M-CDN (PCDN) edges are deprioritized but kept as last-resort mirrors
+    (PipePipe b3303f4 ``pickStableStreamUrl``): the stable URL goes first,
+    remaining mirrors follow for failover.
     """
     candidates = []
     primary = track.get("base_url") or track.get("baseUrl")
     backups = track.get("backup_url") or track.get("backupUrl") or []
     if isinstance(backups, str):
         backups = [backups]
-    for url in [primary, *(backups if isinstance(backups, list) else [])]:
+    if not isinstance(backups, list):
+        backups = []
+    ordered = []
+    stable = _pick_stable_dash_url(primary, backups)
+    if stable:
+        ordered.append(stable)
+    for url in [primary, *backups]:
+        if isinstance(url, str) and url and url not in ordered:
+            ordered.append(url)
+    # Stable (non-M-CDN) first, M-CDN last as failover-only.
+    ordered.sort(key=lambda u: (1 if _is_mcdn_url(u) else 0))
+    for url in ordered:
         if isinstance(url, str) and url and url not in candidates and _is_safe_dash_url(url):
             candidates.append(url)
     return candidates

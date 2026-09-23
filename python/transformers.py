@@ -131,25 +131,42 @@ def transform_live_card(data):
 
 def transform_live_room(data):
     """Standardizes detailed live room info."""
-    # This depends on the specific API return structure of get_room_info
-    room_info = data.get("room_info", {})
-    anchor_info = data.get("anchor_info", {})
-    base_info = anchor_info.get("base_info", {})
+    # Supports both getInfoByRoom (room_info/anchor_info) and the
+    # getRoomBaseInfo fallback (flat by_room_ids entry — PipePipe 1e330b87).
+    if not isinstance(data, dict):
+        data = {}
+    room_info = data.get("room_info", {}) or {}
+    anchor_info = data.get("anchor_info", {}) or {}
+    base_info = anchor_info.get("base_info", {}) or {}
+    if not room_info and ("room_id" in data or "title" in data):
+        room_info = data
 
-    raw_desc = room_info.get("description", "")
+    raw_desc = room_info.get("description", "") or ""
+
+    face = base_info.get("face") or data.get("face") or room_info.get("face") or ""
+    pic = (
+        room_info.get("cover")
+        or room_info.get("cover_from_user")
+        or data.get("cover")
+        or ""
+    )
+    if isinstance(pic, str) and pic.startswith("http:"):
+        pic = "https:" + pic[4:]
+    if isinstance(face, str) and face.startswith("http:"):
+        face = "https:" + face[4:]
 
     return {
         "room_id": room_info.get("room_id"),
         "title": room_info.get("title"),
-        "pic": room_info.get("cover"),
+        "pic": pic,
         "online": room_info.get("online"),
         "description": raw_desc,
         "area_name": room_info.get("area_name"),
         "parent_area_name": room_info.get("parent_area_name"),
         "live_status": room_info.get("live_status"),  # 1: Live, 0: Offline
-        "start_time": room_info.get("live_start_time"),
-        "uname": base_info.get("uname"),
-        "face": base_info.get("face"),
+        "start_time": room_info.get("live_start_time") or room_info.get("live_time"),
+        "uname": base_info.get("uname") or room_info.get("uname"),
+        "face": face,
         "uid": room_info.get("uid"),
     }
 

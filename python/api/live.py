@@ -189,6 +189,32 @@ class LiveRoom:
             wbi=True,
         )
 
+    async def get_room_base_info(self) -> dict:
+        """Fallback room metadata via getRoomBaseInfo (PipePipe 1e330b87).
+
+        Uses ``by_room_ids`` instead of the WBI ``getInfoByRoom`` path, so a
+        ``-352``/``412`` on the primary endpoint does not kill the live page.
+        Returns the per-room dict (raises ResponseCodeException on error).
+        """
+        params = {"room_ids": self.room_display_id, "req_biz": "web_room_componet"}
+        data = await _wbi_get(
+            "https://api.live.bilibili.com/xlive/web-room/v1/index/getRoomBaseInfo",
+            params,
+            wbi=False,
+        )
+        rooms = data.get("by_room_ids") if isinstance(data, dict) else None
+        room = None
+        if isinstance(rooms, dict):
+            room = rooms.get(str(self.room_display_id))
+            if room is None:
+                try:
+                    room = rooms.get(int(str(self.room_display_id)))
+                except (TypeError, ValueError):
+                    room = None
+        if not room:
+            raise ResponseCodeException(-1, "无法获取直播间信息")
+        return room
+
     async def get_room_play_url(self, screen_resolution=ScreenResolution.ORIGINAL) -> dict:
         if isinstance(screen_resolution, ScreenResolution):
             qn = screen_resolution.value
