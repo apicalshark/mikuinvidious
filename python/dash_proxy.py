@@ -78,7 +78,7 @@ DASH_ATTEMPT_TIMEOUT = 8.0
 # DASH_BODY_GRACE seconds, a cumulative average under DASH_BODY_FLOOR_KBPS
 # aborts the edge and retries the remaining Range on the next mirror.
 DASH_BODY_GRACE = 3.0
-DASH_BODY_FLOOR_KBPS = 150
+DASH_BODY_FLOOR_KBPS = 100
 
 # Raw CDN domains allowed through the DASH track proxy.
 _ALLOWED_DASH_DOMAINS = [
