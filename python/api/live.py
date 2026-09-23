@@ -242,7 +242,11 @@ class LiveRoom:
         live_qn=ScreenResolution.ORIGINAL,
     ) -> dict:
         def _v(e, default):
-            return e.value if isinstance(e, Enum) else (default if e is None else e)
+            # Accept real Enums, duck-typed Enum-likes (anything with .value),
+            # and raw values; only None falls back to the default.
+            if e is None:
+                return default
+            return getattr(e, "value", e)
 
         params = {
             "room_id": self.room_display_id,
