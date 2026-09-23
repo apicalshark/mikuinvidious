@@ -12,7 +12,10 @@
                 <p class="text-white/50 text-sm tracking-widest uppercase">{{ '正在解析视频地址...' }}</p>
             </div>
         {% endif %}
-        <media-controller id="miku-player" class="w-full h-full">
+        <media-controller id="miku-player"
+                           class="w-full h-full"
+                           keyboardbackwardseekoffset="5"
+                           keyboardforwardseekoffset="5">
         {% if is_live %}
             <video slot="media"
                    id="player"
@@ -71,6 +74,10 @@
         <!-- Control Bar -->
         <media-control-bar class="w-full z-30">
             <media-play-button></media-play-button>
+            {% if not is_live %}
+                <media-seek-backward-button seekoffset="5"></media-seek-backward-button>
+                <media-seek-forward-button seekoffset="5"></media-seek-forward-button>
+            {% endif %}
             <button id="volume-btn" title="{{ '音量' }}" class="miku-control-btn">
                 <i class="icon ion-md-volume-high"></i>
             </button>
