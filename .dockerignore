@@ -52,3 +52,11 @@ COPYING
 doc/
 tools/
 tests/
+
+# Node build-time only (tailwind build + static vendoring; static/ is committed)
+node_modules/
+package.json
+package-lock.json
+tailwind.config.js
+.prettierrc
+.prettierignore
