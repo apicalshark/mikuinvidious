@@ -242,7 +242,7 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None) -> dict:
             cookies=cookies,
             headers={
                 "Referer": "https://www.bilibili.com",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
             },
             follow_redirects=True,
         )
@@ -317,7 +317,7 @@ async def _fetch_single_durl_pgc(v, base_params: dict, ep_id=None) -> dict | Non
                 "Referer": "https://www.bilibili.com",
                 "User-Agent": (
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
+                    "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
                 ),
             },
             follow_redirects=True,
@@ -775,7 +775,7 @@ async def _build_dash_cdn_headers() -> dict:
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
         ),
         "Referer": appconf["bili"].get("referer", "https://www.bilibili.com"),
         "Origin": "https://www.bilibili.com",

@@ -1,4 +1,4 @@
-{% macro video_player(vid, vinfo, idx, supported_src, is_live=False, is_dash=False, dash_url='') %}
+{% macro video_player(vid, vinfo, idx, supported_src, is_live=False, is_dash=False, dash_url='', subtitles=[]) %}
     {% set dim = vinfo.get('dimension') %}
     {% set w = dim.get('width', 16) if dim else 16 %}
     {% set h = dim.get('height', 9) if dim else 9 %}
@@ -31,6 +31,12 @@
                    playsinline
                    crossorigin
                    preload="none">
+                {% for sub in subtitles %}
+                    <track kind="subtitles"
+                           srclang="{{ sub['srclang'] }}"
+                           label="{{ sub['label'] }}"
+                           src="/res/subtitle/{{ vid }}:{{ idx }}:{{ sub['lan'] }}" />
+                {% endfor %}
             </video>
         {% else %}
             <video slot="media"
@@ -40,6 +46,12 @@
                    playsinline
                    crossorigin
                    preload="none">
+                {% for sub in subtitles %}
+                    <track kind="subtitles"
+                           srclang="{{ sub['srclang'] }}"
+                           label="{{ sub['label'] }}"
+                           src="/res/subtitle/{{ vid }}:{{ idx }}:{{ sub['lan'] }}" />
+                {% endfor %}
             </video>
         {% endif %}
         <!-- Danmaku Container - Direct child of controller to manage persistence manually -->
@@ -95,6 +107,7 @@
             <button id="danmaku-toggle" title="{{ '切换弹幕' }}" class="miku-control-btn">
                 <i class="icon ion-md-easel"></i>
             </button>
+            {% if not is_live and subtitles %}<media-captions-button></media-captions-button>{% endif %}
             <button id="quality-btn" title="{{ '切换解析度' }}" class="miku-control-btn px-2">
                 <i class="icon ion-md-settings"></i>
             </button>

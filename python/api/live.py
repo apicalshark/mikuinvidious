@@ -76,13 +76,11 @@ class LiveCodec(Enum):
 # Aug 2026 (Bilibili's web client sends wbiSign({room_id, web_location}));
 # unsigned httpx requests now get -352 risk control. Same curl_cffi Chrome
 # impersonation pattern as search.py / comment.py.
-_IMPERSONATE = "chrome124"
+_IMPERSONATE = "chrome150"
 
+# NOTE: no User-Agent here — libcurl-impersonate supplies the genuine Chrome
+# UA + matching sec-ch-ua hints for the impersonation target (see comment.py).
 _LIVE_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
     "Referer": "https://live.bilibili.com",
     "Accept-Language": "zh-CN,zh;q=0.9",
     "Accept": "application/json, text/plain, */*",
@@ -242,11 +240,7 @@ class LiveRoom:
         live_qn=ScreenResolution.ORIGINAL,
     ) -> dict:
         def _v(e, default):
-            # Accept real Enums, duck-typed Enum-likes (anything with .value),
-            # and raw values; only None falls back to the default.
-            if e is None:
-                return default
-            return getattr(e, "value", e)
+            return e.value if isinstance(e, Enum) else (default if e is None else e)
 
         params = {
             "room_id": self.room_display_id,

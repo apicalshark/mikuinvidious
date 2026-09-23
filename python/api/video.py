@@ -17,7 +17,7 @@ Bilibili video module.
 
 Minimal drop-in for ``bilibili_api.video`` covering only the methods used
 by MikuInvidious: get_info, get_tags, get_related, get_pages, get_cid,
-get_aid, get_danmaku_xml and playurl resolution helpers.
+get_aid, get_danmaku_xml, get_subtitle_meta and playurl resolution helpers.
 """
 
 import base64
@@ -273,6 +273,36 @@ class Video:
             "verify": False,
         }
         return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+
+    async def get_subtitle_meta(self, page_index=None, cid=None) -> list:
+        """Fetch subtitle metadata (PipePipe ``GET_SUBTITLE_META_URL``).
+
+        Wbi-signed ``/x/player/wbi/v2`` returns ``data.subtitle.subtitles``:
+        ``[{lan, lan_doc, subtitle_url (BCC JSON), ai_status, ...}]``.
+        Like PipePipe's ``ai_subtitle`` cookie gate, callers should only
+        invoke this when logged in (``credential.sessdata`` set) — anonymous
+        requests get an empty list. Returns [] when none exist.
+        """
+        if cid is None:
+            if page_index is None:
+                raise ArgsException("page_index 和 cid 至少提供一个。")
+            cid = await self._get_cid_by_index(page_index)
+        params = {
+            "aid": self._aid,
+            "cid": cid,
+            "isGaiaAvoided": "false",
+            "web_location": 1315873,
+        }
+        params.update(_get_dm_img_params())
+        api = {
+            "url": "https://api.bilibili.com/x/player/wbi/v2",
+            "method": "GET",
+            "verify": False,
+        }
+        data = await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+        if not isinstance(data, dict):
+            return []
+        return (data.get("subtitle") or {}).get("subtitles") or []
 
     async def get_danmaku_xml(self, page_index=None, cid=None) -> str:
         """Fetch raw danmaku XML (deflate-compressed, decoded to str)."""

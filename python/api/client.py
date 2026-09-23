@@ -44,7 +44,7 @@ __all__ = [
     "HEADERS",
 ]
 
-_CHROME_VERSIONS = list(range(130, 138))  # Chrome 130-137
+_CHROME_VERSIONS = list(range(148, 153))  # Chrome 148-152 (recent stable)
 
 
 def _random_chrome_ua() -> str:

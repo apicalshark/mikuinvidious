@@ -194,13 +194,11 @@ class CategoryTypeArticle(Enum):
 # curl_cffi impersonates a real browser TLS/HTTP2 fingerprint which Bilibili's
 # risk control trusts (the same as the comment module uses). Search endpoints
 # are wbi-signed; see .client._enc_wbi / _get_mixin_key.
-_IMPERSONATE = "chrome124"
+_IMPERSONATE = "chrome150"
 
+# NOTE: no User-Agent here — libcurl-impersonate supplies the genuine Chrome
+# UA + matching sec-ch-ua hints for the impersonation target (see comment.py).
 _SEARCH_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
     "Referer": "https://www.bilibili.com",
     "Accept-Language": "zh-CN,zh;q=0.9",
     "Accept": "application/json, text/plain, */*",

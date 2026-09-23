@@ -907,7 +907,28 @@ async def api_component_player(vid, idx):
         is_live=False,
         is_dash=is_dash,
         dash_url=dash_url,
+        subtitles=await _get_subtitles(v, idx),
     )
+
+
+async def _get_subtitles(v, idx) -> list:
+    """Best-effort subtitle list for the player (never delays rendering).
+
+    Login-gated like PipePipe's ``ai_subtitle`` cookie function: anonymous
+    sessions get []. Failures/timeouts degrade to no tracks.
+    """
+    try:
+        from shared import appcred as _cred
+
+        if not (_cred and _cred.sessdata):
+            return []
+        subs = await asyncio.wait_for(v.get_subtitle_meta(page_index=idx), timeout=6.0)
+        from res import _subtitle_entries
+
+        return _subtitle_entries(subs)
+    except Exception as e:
+        print(f"[Player] subtitle list failed: {e}")
+        return []
 
 
 @app.route("/api/component/meta/<vid>/<int:idx>")

@@ -59,15 +59,13 @@ class OrderType(Enum):
 # control truncates comment responses (to ~3) for Python's default TLS stack,
 # but serves full 20-item pages to a genuine browser fingerprint -- this is what
 # PipePipe gets via OkHttp. We use a Chrome impersonation so comments paginate.
-_IMPERSONATE = "chrome124"
+_IMPERSONATE = "chrome150"
 
-# Comment requests need the pseudo-cookie set (buvid3/buvid4/...) plus a Chrome
-# UA -- matching the impersonated fingerprint.
+# Comment requests need the pseudo-cookie set (buvid3/buvid4/...) — the
+# User-Agent is deliberately NOT set here: libcurl-impersonate supplies the
+# genuine Chrome UA + matching sec-ch-ua client hints for the impersonation
+# target, which stays consistent with the TLS fingerprint by construction.
 _COMMENT_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
     "Referer": "https://www.bilibili.com",
     "Accept-Language": "zh-CN,zh;q=0.9",
     "Accept": "application/json, text/plain, */*",
