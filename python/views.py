@@ -43,18 +43,7 @@ from extra import (
 )
 from quart import Response, g, redirect, request, url_for
 from rate_limit import RATE_LIMITS, rate_limit
-from shared import (
-    Network,
-    TicketManager,
-    app,
-    appconf,
-    appcred,
-    appredis,
-    get_common_headers,
-    render_template_with_theme,
-    safe_json_loads,
-)
-from stream import CdnConnection
+from shared import Network, app, appconf, appcred, appredis, render_template_with_theme, safe_json_loads
 
 _background_tasks = set()
 
@@ -526,49 +515,6 @@ async def live_list_view():
         ), 500
 
 
-async def _probe_live_flv_url(url: str, timeout: float = 8.0) -> bool:
-    """Pre-flight check: will the CDN actually serve this live FLV URL to us?
-
-    The play-info API hands out per-quality URLs even for ladders a guest
-    cannot play (CDN 403/412). Probing with the same WARP tunnel + headers
-    as playback (proxy.py live path) keeps dead qualities out of the menu
-    instead of letting the switch die in LiveManager.
-    """
-    try:
-        headers = get_common_headers(appconf["bili"]).copy()
-        ticket = await TicketManager.get_ticket()
-        if ticket:
-            headers["x-bili-ticket"] = ticket
-        headers["session_id"] = TicketManager._generate_session_id()
-        headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-        if appconf["credential"].get("buvid3"):
-            headers["buvid"] = appconf["credential"]["buvid3"]
-        if appconf["credential"].get("buvid4"):
-            headers["buvid4"] = appconf["credential"]["buvid4"]
-        creds = appconf["credential"]
-        if creds.get("use_cred"):
-            jar = {k: v for k, v in creds.items() if k != "use_cred" and v}
-            if jar:
-                cookie_str = "; ".join(f"{k}={v}" for k, v in jar.items())
-                existing = headers.get("cookie", "")
-                headers["cookie"] = f"{existing}; {cookie_str}".lstrip("; ") if existing else cookie_str
-        headers["Range"] = "bytes=0-1"
-        conn = CdnConnection(url, headers=headers, proxy_url=Network.get_proxy())
-        try:
-            await asyncio.wait_for(conn.connect(), timeout=timeout)
-            await asyncio.wait_for(conn.send_request(), timeout=timeout)
-            resp = await asyncio.wait_for(conn.read_response_headers(), timeout=timeout)
-            if resp.status_code in (200, 206):
-                return True
-            print(f"[Live] Probe {url[:50]}... -> {resp.status_code}, hiding quality")
-            return False
-        finally:
-            await conn.close()
-    except Exception as e:
-        print(f"[Live] Probe failed for {url[:50]}...: {e}")
-        return False
-
-
 @app.route("/live/<room_id>")
 async def live_room_view(room_id):
     try:
@@ -657,15 +603,8 @@ async def live_room_view(room_id):
         # Reuse the initial (qn=10000) response for the default quality instead
         # of refetching it: Bilibili -400s rapid parallel getRoomPlayInfo calls
         # from one IP, so per-QN URLs are fetched sequentially below.
-        # The FLV must also pass the CDN probe — otherwise fall back to the
-        # HLS master (hls.js adapts client-side) or nothing.
         _default_flv, _default_hls = _extract_live_urls(play_data)
-        _default_url = None
-        if _default_flv and await _probe_live_flv_url(_default_flv):
-            _default_url = _default_flv
-        elif _default_hls:
-            print(f"[Live] Default room {room_id} FLV unplayable, using HLS master")
-            _default_url = _default_hls
+        _default_url = _default_flv or _default_hls
         _default_qn = live.ScreenResolution.ORIGINAL.value
         supported_src = []
         if _default_url:
@@ -694,15 +633,7 @@ async def live_room_view(room_id):
                         live_qn=wrapped_qn,
                     )
                 flv_url, hls_master = _extract_live_urls(q_data)
-                url = None
-                if flv_url and await _probe_live_flv_url(flv_url):
-                    url = flv_url
-                elif hls_master:
-                    # FLV unplayable for this guest (CDN 403 etc.) but the HLS
-                    # master usually still is — list it instead of nothing.
-                    if flv_url:
-                        print(f"[Live] Room {room_id} QN {qn_val} FLV unplayable, using HLS master")
-                    url = hls_master
+                url = flv_url or hls_master
 
                 if not url:
                     # Fallback to HLS-only request if DEFAULT gave nothing
@@ -711,10 +642,6 @@ async def live_room_view(room_id):
                     )
                     _, hls_master = _extract_live_urls(q_data)
                     url = hls_master
-
-                if not url:
-                    print(f"[Live] Room {room_id} QN {qn_val} has no playable URL, hiding quality")
-                    return None
 
                 if url:
                     print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
