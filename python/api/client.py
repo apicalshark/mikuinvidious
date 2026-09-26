@@ -42,21 +42,18 @@ __all__ = [
     "get_wbi_mixin_key",
     "recalculate_wbi",
     "HEADERS",
+    "FIXED_CHROME_UA",
 ]
 
-_CHROME_VERSIONS = list(range(148, 153))  # Chrome 148-152 (recent stable)
-
-
-def _random_chrome_ua() -> str:
-    v = random.choice(_CHROME_VERSIONS)
-    return (
-        f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        f"(KHTML, like Gecko) Chrome/{v}.0.0.0 Safari/537.36"
-    )
+# Fixed UA — do not randomize (triggers risk control).
+FIXED_CHROME_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+)
 
 
 HEADERS: dict[str, str] = {
-    "User-Agent": _random_chrome_ua(),
+    "User-Agent": FIXED_CHROME_UA,
     "Referer": "https://www.bilibili.com",
     "Accept-Language": "zh-CN,zh;q=0.9",
 }

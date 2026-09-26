@@ -77,6 +77,9 @@ DASH_ATTEMPT_TIMEOUT = 8.0
 # hang until dash.js abandoned the request (bare 500s, no failover). Past
 # DASH_BODY_GRACE seconds, a cumulative average under DASH_BODY_FLOOR_KBPS
 # aborts the edge and retries the remaining Range on the next mirror.
+# The floor sits well above tarpit speeds but far below healthy edge
+# throughput, so sick mirrors fail over long before dash.js' fragment timeout
+# fires (see player.js) instead of burning all of its retries on one edge.
 DASH_BODY_GRACE = 3.0
 DASH_BODY_FLOOR_KBPS = 100
 
@@ -1321,6 +1324,62 @@ class _DashUpstreamError(Exception):
     """All candidate mirrors failed for a DASH track."""
 
 
+_CONTENT_RANGE_RE = re.compile(r"bytes\s+(\d+)-(\d+)(?:/(\d+|\*))?")
+
+
+def _dash_response_lengths(resp_headers) -> tuple[str | None, str | None]:
+    """Derive guaranteed ``(Content-Length, Content-Range)`` for a track response.
+
+    dash.js measures throughput and drives its ABR/abandon decisions from XHR
+    progress events. When the response carries no computable length
+    (``lengthComputable`` false), ``bytesTotal`` stays NaN, the
+    abandon-requests rule can never trigger, and a slow fragment hangs until
+    the XHR timeout fires as "Request timeout: non-computable download size"
+    (dash.js#4716) with ABR stuck on the top rendition.
+
+    Returns ``(content_length, content_range)`` with ``content_range`` None
+    for ``200`` responses. Returns ``(None, None)`` when a ``200``/``206``
+    response cannot provide computable lengths (missing/invalid headers) —
+    the caller must treat that mirror as unusable and try the next one
+    instead of serving a lengthless stream. Error statuses also return
+    ``(None, None)`` (lengths irrelevant there).
+    """
+    status = resp_headers.status_code
+    if status not in (200, 206):
+        return None, None
+    headers = resp_headers.headers or {}
+
+    cl: int | None = None
+    cl_raw = headers.get("content-length")
+    if cl_raw is not None:
+        try:
+            cl = int(str(cl_raw).strip())
+        except (TypeError, ValueError):
+            cl = None
+        if cl is not None and cl < 0:
+            cl = None
+
+    content_range: str | None = None
+    if status == 206:
+        cr_raw = (headers.get("content-range") or "").strip()
+        m = _CONTENT_RANGE_RE.match(cr_raw)
+        if not m:
+            return None, None
+        start, end = int(m.group(1)), int(m.group(2))
+        if end < start:
+            return None, None
+        total = m.group(3) or "*"
+        content_range = f"bytes {start}-{end}/{total}"
+        # A 206 length must equal the range span; prefer the range-derived
+        # value so a mismatched/odd upstream Content-Length cannot desync
+        # the byte count dash.js expects.
+        cl = end - start + 1
+
+    if cl is None:
+        return None, None
+    return str(cl), content_range
+
+
 class _SlowDashBody(Exception):
     """Upstream body trickling below the watchdog floor (retryable on next mirror)."""
 
@@ -1361,11 +1420,15 @@ def _shift_dash_range(orig_range: str | None, yielded: int) -> str | None:
 
 
 async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str):
-    """Try each candidate mirror in order; return ``(conn, resp_headers, used_url)``.
+    """Try each candidate mirror in order; return ``(conn, resp_headers, used_url, content_length, content_range)``.
 
     Stalled edges fail fast (``DASH_ATTEMPT_TIMEOUT``) so playback falls over
     to the next mirror instead of hanging until dash.js abandons the request
-    (which used to surface as a bare 500 with no app-side log). Raises
+    (which used to surface as a bare 500 with no app-side log). Mirrors whose
+    ``200``/``206`` response cannot provide computable lengths (see
+    ``_dash_response_lengths``) are likewise skipped: serving them would leave
+    dash.js with non-computable progress events, breaking throughput/ABR and
+    ending in "Request timeout: non-computable download size". Raises
     ``_DashUpstreamError`` when every mirror fails; the caller owns
     ``conn.close()`` on success.
     """
@@ -1391,7 +1454,16 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
                 ticket_refreshed = True
             print(f"[DashProxy] {label} {host} -> {resp_headers.status_code}, trying next mirror")
             continue
-        return conn, resp_headers, url
+        if resp_headers.status_code in (200, 206):
+            content_length, content_range = _dash_response_lengths(resp_headers)
+            if content_length is None:
+                await conn.close()
+                last_error = RuntimeError("CDN response has no computable length")
+                print(f"[DashProxy] {label} {host} has no computable length, trying next mirror")
+                continue
+        else:
+            content_length, content_range = None, None
+        return conn, resp_headers, url, content_length, content_range
     raise _DashUpstreamError(f"all mirrors failed for {label}: {last_error}")
 
 
@@ -1448,7 +1520,9 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         proxy_url = Network.get_proxy()
         label = f"{vid}:{idx} {media_type}/{qn}/{cid}"
         try:
-            conn, resp_headers, used_url = await _fetch_dash_track(urls, headers, proxy_url, label)
+            conn, resp_headers, used_url, content_length, content_range = await _fetch_dash_track(
+                urls, headers, proxy_url, label
+            )
         except _DashUpstreamError as exc:
             print(f"[DashProxy] proxy_dash error: {exc}")
             return Response("Upstream error", status=502)
@@ -1477,7 +1551,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     if yielded:
                         headers["range"] = _shift_dash_range(orig_range, yielded)
                     try:
-                        conn, _, used = await _fetch_dash_track(pending, headers, proxy_url, label)
+                        conn, _, used, _, _ = await _fetch_dash_track(pending, headers, proxy_url, label)
                     except _DashUpstreamError as exc2:
                         print(f"[DashProxy] {label} body failover failed: {exc2}")
                         return
@@ -1500,13 +1574,19 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         for k, v in resp_headers.headers.items():
             if k in [
                 "content-type",
-                "content-length",
-                "content-range",
                 "etag",
                 "last-modified",
                 "cache-control",
             ]:
                 proxy_resp.headers[k] = v
+
+        # Computable lengths are load-bearing for dash.js (throughput, ABR,
+        # abandon rule): always emit the validated/derived values instead of
+        # blindly forwarding upstream, which may omit or mismatch them.
+        if content_length is not None:
+            proxy_resp.headers["Content-Length"] = content_length
+        if content_range is not None:
+            proxy_resp.headers["Content-Range"] = content_range
 
         if resp_headers.status_code in [200, 206]:
             current_ct = proxy_resp.headers.get("Content-Type", "").lower()

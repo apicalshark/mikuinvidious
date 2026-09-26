@@ -204,9 +204,9 @@ class CdnConnection:
     async def iter_chunks(self):
         content_length = self._response.headers.get("content-length")
 
-        if content_length:
+        if content_length is not None and str(content_length).strip() != "":
             try:
-                remaining = int(content_length)
+                remaining = int(str(content_length).strip())
             except ValueError:
                 raise CdnProtocolError(f"Invalid Content-Length: {content_length!r}")
             while remaining > 0:

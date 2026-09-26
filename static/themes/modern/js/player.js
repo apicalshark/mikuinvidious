@@ -456,8 +456,16 @@ class DashPlayerManager {
     this.player.initialize(this.video, absoluteUrl, false);
     this.player.updateSettings({
       streaming: {
+        fragmentRequestTimeout: 60000,
         buffer: { fastSwitchEnabled: true },
-        abr: { autoSwitchBitrate: { video: true, audio: false } },
+        abr: {
+          autoSwitchBitrate: { video: true, audio: false },
+          // Keep abandon-on-slow-fragment explicitly enabled: with the
+          // computable Content-Lengths the track proxy guarantees, this
+          // lets ABR drop to a lower rendition during bandwidth dips
+          // instead of stalling on the top one (dash.js#4716).
+          rules: { abandonRequestsRule: { active: true } },
+        },
       },
     });
 
