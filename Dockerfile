@@ -1,4 +1,4 @@
-FROM astral/uv:python3.14-alpine@sha256:eb47c391d3a252d9d912270dd2b5e234af5493e92039fedb483f1dd1cb5659ce
+FROM astral/uv:python3.14-alpine@sha256:b165481b747c340b4b3b820f6e453c3aea939c8b583cbfc01c4e99ec61181bc2
 
 LABEL org.opencontainers.image.source=https://github.com/apicalshark/mikuinvidious
 
