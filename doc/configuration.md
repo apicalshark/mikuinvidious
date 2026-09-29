@@ -40,6 +40,15 @@ Settings related to the user interface and themes.
 
 ---
 
+## `[live]`
+Settings for live stream playback. The server picks one format per room and the player never switches mid-stream.
+
+| Key | Environment Variable | Default | Description |
+| --- | --- | --- | --- |
+| `prefer_hls` | `LIVE_PREFER_HLS` | `false` | A boolean (`true`/`false`) to reverse the live format policy. When `false` (default), FLV is served first with the HLS master as fallback; when `true`, HLS is served first with FLV as fallback. |
+
+---
+
 ## `[credential]`
 Allows the instance to make authenticated requests to Bilibili, which can provide access to higher-quality streams or content.
 

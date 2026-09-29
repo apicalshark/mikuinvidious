@@ -240,7 +240,13 @@ class LiveRoom:
         live_qn=ScreenResolution.ORIGINAL,
     ) -> dict:
         def _v(e, default):
-            return e.value if isinstance(e, Enum) else (default if e is None else e)
+            # Accepts real Enums (.value), the dynamic QN wrapper views.py
+            # builds (has .value but is not an Enum), raw ints, and None.
+            if isinstance(e, Enum):
+                return e.value
+            if e is None:
+                return default
+            return getattr(e, "value", e)
 
         params = {
             "room_id": self.room_display_id,

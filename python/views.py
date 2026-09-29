@@ -515,6 +515,29 @@ async def live_list_view():
         ), 500
 
 
+def _pick_live_url(flv_url, hls_url):
+    """Server-side live format policy: FLV first, HLS master fallback.
+
+    Reversed when ``LIVE_PREFER_HLS`` is set. One format per room — the
+    player never switches, so there is nothing to negotiate client-side.
+    """
+    if appconf["live"]["prefer_hls"]:
+        return hls_url or flv_url
+    return flv_url or hls_url
+
+
+def _live_fetchable_qualities(qn_list, default_qn):
+    """Qualities worth resolving: all when logged in, default-only anonymously.
+
+    Per-quality live ladders require login, so anonymous sessions only ever
+    play the default entry — skip the extra (doomed, -400-risking) fetches.
+    """
+    if appcred and appcred.sessdata:
+        return qn_list
+    print("[Live] Anonymous session: default quality only")
+    return [d for d in qn_list if d.get("qn") == default_qn] or qn_list[:1]
+
+
 @app.route("/live/<room_id>")
 async def live_room_view(room_id):
     try:
@@ -604,8 +627,9 @@ async def live_room_view(room_id):
         # of refetching it: Bilibili -400s rapid parallel getRoomPlayInfo calls
         # from one IP, so per-QN URLs are fetched sequentially below.
         _default_flv, _default_hls = _extract_live_urls(play_data)
-        _default_url = _default_flv or _default_hls
+        _default_url = _pick_live_url(_default_flv, _default_hls)
         _default_qn = live.ScreenResolution.ORIGINAL.value
+        live_format = "hls" if _default_hls and _default_url == _default_hls else "flv"
         supported_src = []
         if _default_url:
             print(f"[Live] Default room {room_id} QN {_default_qn}: {_default_url[:50]}...")
@@ -633,7 +657,7 @@ async def live_room_view(room_id):
                         live_qn=wrapped_qn,
                     )
                 flv_url, hls_master = _extract_live_urls(q_data)
-                url = flv_url or hls_master
+                url = _pick_live_url(flv_url, hls_master)
 
                 if not url:
                     # Fallback to HLS-only request if DEFAULT gave nothing
@@ -641,7 +665,7 @@ async def live_room_view(room_id):
                         live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4, live_qn=wrapped_qn
                     )
                     _, hls_master = _extract_live_urls(q_data)
-                    url = hls_master
+                    url = _pick_live_url("", hls_master)
 
                 if url:
                     print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
@@ -653,7 +677,8 @@ async def live_room_view(room_id):
 
         # Sequential, not parallel: Bilibili answers one getRoomPlayInfo fine
         # but -400s a burst of them (even qn=10000, which just succeeded).
-        for d in qn_list:
+        # Anonymous sessions only resolve the default quality (see helper).
+        for d in _live_fetchable_qualities(qn_list, _default_qn):
             qn_val, qn_name = d.get("qn"), d.get("desc", "")
             if qn_val == _default_qn and _default_url:
                 continue  # already resolved from the initial response
@@ -703,6 +728,7 @@ async def live_room_view(room_id):
             idx=0,
             vset=[],
             is_live=True,
+            live_format=live_format,
         )
     except Exception as e:
         import traceback
@@ -779,6 +805,27 @@ async def video_listen_view(vid, idx=0):
 # --- ASYNC COMPONENT API ---
 
 
+def _is_final_play_data(data) -> bool:
+    """True when play data is renderable (dash/durl) or a terminal paywall marker."""
+    return bool(isinstance(data, dict) and (data.get("paywall") or data.get("dash") or data.get("durl")))
+
+
+async def _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall) -> list:
+    """Progressive fallback list; [] for paywalled content (gated on every endpoint)."""
+    if paywall:
+        return []
+    try:
+        from dash_proxy import fetch_durl_supported_src
+
+        return await asyncio.wait_for(
+            fetch_durl_supported_src(v, vid, idx, play_data=dash_data, ep_id=ep_id),
+            timeout=20.0,
+        )
+    except Exception as e:
+        print(f"[Player] durl fallback failed for {vid}:{idx}: {e}")
+        return []
+
+
 @app.route("/api/component/player/<vid>/<int:idx>")
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_player(vid, idx):
@@ -810,8 +857,8 @@ async def api_component_player(vid, idx):
             from dash_proxy import video_get_dash_for_qn
 
             data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=8.0)
-            if data and isinstance(data, dict) and (data.get("dash") or data.get("durl")):
-                if data.get("dash"):
+            if _is_final_play_data(data):
+                if isinstance(data, dict) and data.get("dash"):
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
                 return data
         except Exception as e:
@@ -855,8 +902,9 @@ async def api_component_player(vid, idx):
         vinfo = {"pic": ""}
 
     dash_data = await get_dash_data()
-    from dash_proxy import fetch_durl_supported_src, has_valid_dash_tracks
+    from dash_proxy import has_valid_dash_tracks
 
+    paywall = bool((dash_data or {}).get("paywall"))
     is_dash = has_valid_dash_tracks(dash_data)
     dash_url = f"/video/dash/{vid}/{idx}/manifest.mpd" if is_dash else ""
     dash_video_tracks = ((dash_data or {}).get("dash") or {}).get("video") or []
@@ -889,14 +937,7 @@ async def api_component_player(vid, idx):
         # Progressive (durl) fallback: some UGC uploads return no DASH
         # ``dash`` node at all — only a progressive
         # MP4 ``durl``. Serve those through the native /proxy/video/ path.
-        try:
-            supported_src = await asyncio.wait_for(
-                fetch_durl_supported_src(v, vid, idx, play_data=dash_data, ep_id=ep_id),
-                timeout=20.0,
-            )
-        except Exception as e:
-            print(f"[Player] durl fallback failed for {vid}:{idx}: {e}")
-            supported_src = []
+        supported_src = await _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall)
 
     return await render_template_with_theme(
         "components/player_part.html",
@@ -908,6 +949,7 @@ async def api_component_player(vid, idx):
         is_dash=is_dash,
         dash_url=dash_url,
         subtitles=await _get_subtitles(v, idx),
+        paywall=paywall,
     )
 
 
@@ -942,17 +984,15 @@ async def api_component_meta(vid, idx):
     def debug(*args):
         print("[comments]", *args, file=sys.stderr, flush=True)
 
-    async def safe_api(coro, timeout=4.0):
-        try:
-            result = await asyncio.wait_for(coro, timeout=timeout)
-            return result
-        except Exception as exc:
-            debug(f"safe_api exception for vid={vid}: {type(exc).__name__}: {exc}")
-            return None
-
-    raw_result = await safe_api(
-        comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), 4.0
-    )
+    comments_closed = False
+    try:
+        raw_result = await asyncio.wait_for(
+            comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), 4.0
+        )
+    except Exception as exc:
+        debug(f"safe_api exception for vid={vid}: {type(exc).__name__}: {exc}")
+        comments_closed = getattr(exc, "code", None) == comment.COMMENTS_CLOSED_CODE
+        raw_result = None
 
     _empty = {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
     vcomments = raw_result if raw_result and not isinstance(raw_result, Exception) else _empty
@@ -962,6 +1002,7 @@ async def api_component_meta(vid, idx):
         vid=vid,
         vcomments=vcomments,
         is_live=False,
+        comments_closed=comments_closed,
     )
 
 

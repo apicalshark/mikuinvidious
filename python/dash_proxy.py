@@ -184,6 +184,25 @@ def _parse_pgc_playurl(pgc: dict) -> dict | None:
     }
 
 
+# Bilibili paywall codes from the UGC playurl endpoint (player bundle
+# pay-conf enum: 87005 Uni_NeedPay, 87007 Old_Charing_NeedPay,
+# 87008 Charing_NeedPay). Anonymous sessions can never clear these, so they
+# short-circuit to a paywall marker instead of the PGC fallback.
+PAYWALL_CODES = frozenset({87005, 87007, 87008})
+
+
+def _paywall_short_circuit(exc: Exception, ep_id) -> dict | None:
+    """Return a paywall marker for charged UGC, else None (keep PGC fallback).
+
+    Anonymous sessions can never clear these codes, and the PGC endpoint
+    cannot serve UGC charging content — except when an ep_id is present,
+    where premium PGC routing may still apply.
+    """
+    if ep_id is None and getattr(exc, "code", None) in PAYWALL_CODES:
+        return {"code": exc.code, "message": "paywall", "paywall": True}
+    return None
+
+
 async def video_get_dash_for_qn(vi, idx, ep_id=None) -> dict:
     """Fetch canonical DASH play info, returning a ``{"dash":..., "durl":..., "support_formats":...}`` dict.
 
@@ -219,6 +238,9 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None) -> dict:
             }
     except Exception as exc:
         print(f"[DashProxy] UGC playurl failed for {v.get_bvid()}: {exc}")
+        paywalled = _paywall_short_circuit(exc, ep_id)
+        if paywalled is not None:
+            return paywalled
 
     # 2) PGC playurl fallback (premium / non-wbi endpoint)
     try:
@@ -1465,6 +1487,20 @@ def _shift_dash_range(orig_range: str | None, yielded: int) -> str | None:
     return f"bytes={int(m.group(1)) + yielded}-{m.group(2)}"
 
 
+async def _abort_dash_body(conn, label: str, host: str, yielded: int, exc: Exception):
+    """Abort a cut stream: close upstream, then re-raise so the client retries.
+
+    Never end cleanly here — a truncated body delivered as 200/206 would be
+    cached/demuxed as complete instead of retried.
+    """
+    print(f"[DashProxy] {label} {host} mid-body cut after {yielded} bytes ({exc}); aborting")
+    try:
+        await conn.close()
+    except Exception:
+        pass
+    raise exc
+
+
 async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str):
     """Try each candidate mirror in order; return ``(conn, resp_headers, used_url, content_length, content_range)``.
 
@@ -1604,8 +1640,10 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     host = urlparse(used).hostname or "-"
                     pending.remove(used)
                     continue
-                except (CdnProtocolError, CdnTimeoutError):
-                    pass
+                except (CdnProtocolError, CdnTimeoutError) as exc:
+                    # Mid-body cut: abort instead of ending cleanly, so a
+                    # truncated segment is retried rather than demuxed.
+                    await _abort_dash_body(conn, label, host, yielded, exc)
                 try:
                     await conn.close()
                 except Exception:
@@ -1633,6 +1671,12 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             proxy_resp.headers["Content-Length"] = content_length
         if content_range is not None:
             proxy_resp.headers["Content-Range"] = content_range
+
+        # Segments are immutable for a given track+Range, so let the browser
+        # cache them aggressively: ABR flapping between renditions then
+        # re-requests identical ranges, which become instant cache hits
+        # instead of fresh trips over a shaky uplink.
+        proxy_resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
 
         if resp_headers.status_code in [200, 206]:
             current_ct = proxy_resp.headers.get("Content-Type", "").lower()

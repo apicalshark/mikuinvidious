@@ -1,4 +1,4 @@
-{% macro video_player(vid, vinfo, idx, supported_src, is_live=False, is_dash=False, dash_url='', subtitles=[]) %}
+{% macro video_player(vid, vinfo, idx, supported_src, is_live=False, is_dash=False, dash_url='', subtitles=[], paywall=False) %}
     {% set dim = vinfo.get('dimension') %}
     {% set w = dim.get('width', 16) if dim else 16 %}
     {% set h = dim.get('height', 9) if dim else 9 %}
@@ -6,7 +6,12 @@
     <div id="player-wrapper"
          class="relative w-full bg-black md:rounded-xl rounded-none overflow-hidden shadow-2xl aspect-video"
          style="max-height: 85vh;">
-        {% if not supported_src and not is_live %}
+        {% if paywall and not is_live %}
+            <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 z-50 bg-black px-6 text-center">
+                <p class="text-white/80 text-base">Restricted video</p>
+                <p class="text-white/50 text-sm">This video is restricted content and cannot be played anonymously.</p>
+            </div>
+        {% elif not supported_src and not is_live %}
             <div class="absolute inset-0 flex flex-col items-center justify-center gap-4 z-50 bg-black">
                 <div class="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
                 <p class="text-white/50 text-sm tracking-widest uppercase">{{ '正在解析视频地址...' }}</p>

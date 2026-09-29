@@ -457,6 +457,13 @@ class DashPlayerManager {
     this.player.updateSettings({
       streaming: {
         fragmentRequestTimeout: 60000,
+        // Transient home-uplink blips used to exhaust the default 3 attempts
+        // on fat top-rendition segments; 5 gives them room to ride through.
+        retryAttempts: {
+          MediaSegment: 5,
+          InitializationSegment: 5,
+          IndexSegment: 5,
+        },
         buffer: { fastSwitchEnabled: true },
         abr: {
           autoSwitchBitrate: { video: true, audio: false },
@@ -477,7 +484,27 @@ class DashPlayerManager {
       // representation on its own. A full re-init here would discard the
       // buffer and replay the same failing requests in a loop.
       if (err.code === 26 || err.code === 27 || err.code === 28) {
-        console.warn("[DashManager] Segment unavailable, leaving it to ABR:", err.code, err.message);
+        // Forensics for rare unreproducible failures: dash.js attaches the
+        // fragment request (bytesLoaded/bytesTotal) and response (status)
+        // to err.data, so the next occurrence logs enough to tell a
+        // transport abort apart from an upstream short body.
+        const req = (err.data && err.data.request) || {};
+        const resp = (err.data && err.data.response) || {};
+        console.warn(
+          "[DashManager] Segment unavailable, leaving it to ABR:",
+          err.code,
+          err.message,
+          {
+            url: req.url,
+            bytesLoaded: req.bytesLoaded,
+            bytesTotal: req.bytesTotal,
+            httpStatus: resp.status,
+            durationMs:
+              req.firstByteDate != null
+                ? Math.round(performance.now() - req.firstByteDate)
+                : undefined,
+          }
+        );
         return;
       }
       console.warn("[DashManager] DASH error:", err.code, err.message);
@@ -798,11 +825,20 @@ async function initMikuPlayer() {
       window.dashManager = new DashPlayerManager(video, window.dash_url);
       window.dashManager.init();
       window.vodManager = null;
-    } else if (currentSrc.includes(".flv") && mpegts.isSupported()) {
+    } else if (
+      currentSrc.includes(".flv") &&
+      typeof mpegts !== "undefined" &&
+      mpegts.isSupported()
+    ) {
       // Already on FLV
       window.vodManager = new VodStreamManager(video, currentSrc);
       window.vodManager.init();
-    } else if (flvSrc && mpegts.isSupported() && !video._flvFallbackTried) {
+    } else if (
+      flvSrc &&
+      typeof mpegts !== "undefined" &&
+      mpegts.isSupported() &&
+      !video._flvFallbackTried
+    ) {
       // MP4 is the current src but FLV is available — prefer it to avoid
       // Firefox's H.264 ConvertSampleToAVCC decode errors on Bilibili streams
       video._flvFallbackTried = true;
@@ -1014,12 +1050,15 @@ function setupLivePlayer(video, list, label) {
   if (window.isSettingUp) return;
   window.isSettingUp = true;
 
-  // Get the first supported source to check format
+  // Get the first supported source to check format. The server owns the
+  // format decision (window.live_format); URL sniffing is only a fallback
+  // for Bilibili master URLs, which don't always carry an .m3u8 suffix.
   const firstSrc = window.supported_src && window.supported_src[0];
   const liveUrl = firstSrc
     ? `/proxy/live/${window.current_vid}_${firstSrc.quality}`
     : `/proxy/live/${window.current_vid}`;
-  const isHls = firstSrc && firstSrc.url && firstSrc.url.includes(".m3u8");
+  const isHls =
+    window.live_format === "hls" || (firstSrc && firstSrc.url && firstSrc.url.includes(".m3u8"));
 
   // Clean up any existing players
   if (window.hls) {
@@ -1038,7 +1077,7 @@ function setupLivePlayer(video, list, label) {
   }
 
   if (isHls) {
-    if (Hls.isSupported()) {
+    if (typeof Hls !== "undefined" && Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: false,
         lowLatencyMode: false,
@@ -1061,11 +1100,15 @@ function setupLivePlayer(video, list, label) {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.warn("[Player] Fatal HLS network error, attempting to recover...");
+              console.warn(
+                "[Player] Fatal HLS network error, attempting to recover..."
+              );
               hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn("[Player] Fatal HLS media error, attempting to recover...");
+              console.warn(
+                "[Player] Fatal HLS media error, attempting to recover..."
+              );
               hls.recoverMediaError();
               break;
             default:
@@ -1088,7 +1131,7 @@ function setupLivePlayer(video, list, label) {
         video.play().catch(() => {});
       });
     }
-  } else if (mpegts.isSupported()) {
+  } else if (typeof mpegts !== "undefined" && mpegts.isSupported()) {
     window.liveManager = new LiveStreamManager(video, liveUrl, list, label);
     window.liveManager.init();
     updateLiveQualityMenu(video, null, window.liveManager, list, label, false);

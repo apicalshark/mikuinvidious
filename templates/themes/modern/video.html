@@ -41,6 +41,7 @@
         window.total_pages = {{ vset | length }};
         window.ato = {{ 'true' if ato else 'false' }};
         window.is_live = {{ 'true' if is_live else 'false' }};
+        window.live_format = '{{ live_format if is_live else "" }}';
         window.ep_id = '{{ ep_id if ep_id else "" }}';
     </script>
 {% endblock %}
@@ -368,9 +369,12 @@
         </div>
     </div>
 
+    {% if is_live and live_format == 'hls' %}
     <script src="/static/vjs/hls.min.js"></script>
-    <script src="/static/vjs/dash.min.js"></script>
+    {% elif is_live %}
     <script src="/static/vjs/mpegts.js"></script>
+    {% endif %}
+    <script src="/static/vjs/dash.min.js"></script>
     <script src="/static/vjs/media-chrome.js"></script>
 
     <script src="/static/danmakujs/danmaku.min.js"></script>

@@ -36,6 +36,16 @@ def _debug(*args):
 
 __all__ = ["CommentResourceType", "OrderType", "get_comments", "get_sub_comments"]
 
+# Terminal reply-zone code: the uploader closed the comment section.
+# Retrying unsigned cannot clear it (and currently just eats a -352), so the
+# wbi attempt re-raises immediately instead of falling through to plain.
+COMMENTS_CLOSED_CODE = 12061
+
+
+def _is_terminal_comment_error(exc: Exception) -> bool:
+    """True when no retry (e.g. the unsigned fallback) can clear the error."""
+    return isinstance(exc, ResponseCodeException) and exc.code == COMMENTS_CLOSED_CODE
+
 
 class CommentResourceType(Enum):
     VIDEO = 1
@@ -132,7 +142,8 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
     }
 
     # Main comment endpoint is wbi-signed. Prefer the wbi variant (matching
-    # PipePipe); fall back to the plain variant only if it fails.
+    # PipePipe); fall back to the plain variant only if it fails — except for
+    # terminal codes like a closed comment section, which no retry can clear.
     data = None
     last_exc = None
     for use_wbi in (True, False):
@@ -146,6 +157,8 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
             break
         except Exception as exc:
             _debug(f"get_comments oid={oid_numeric} wbi={use_wbi} failed: {type(exc).__name__}: {exc}")
+            if _is_terminal_comment_error(exc):
+                raise
             last_exc = exc
     if data is None:
         raise last_exc or ResponseCodeException(-1, "评论接口请求失败")

@@ -226,6 +226,11 @@ appconf = {
         "monitor_fd": os.environ.get("MONITOR_FD", "false").lower() == "true",
     },
     "display": {"default_theme": "modern"},
+    "live": {
+        # Server-side live format policy: FLV first, HLS master as fallback.
+        # Set LIVE_PREFER_HLS=true to reverse it (HLS first, FLV fallback).
+        "prefer_hls": os.environ.get("LIVE_PREFER_HLS", "false").lower() == "true",
+    },
     "credential": {
         "use_cred": os.environ.get("USE_CRED", "false").lower() == "true",
         "sessdata": os.environ.get("SESSDATA"),

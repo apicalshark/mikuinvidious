@@ -8,6 +8,8 @@
         <div class="space-y-6" id="comments-list">
             {% if vcomments['replies'] %}
                 {% include "themes/modern/components/comment_items.html" %}
+            {% elif comments_closed %}
+                <p class="text-center text-on-surface-variant py-8">{{ 'Comments are closed by the uploader.' }}</p>
             {% else %}
                 <p class="text-center text-on-surface-variant py-8">{{ '暂无评论或评论加载失败' }}</p>
             {% endif %}
