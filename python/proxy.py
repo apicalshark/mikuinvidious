@@ -19,6 +19,43 @@ from stream import CdnConnection, CdnProtocolError, CdnTimeoutError
 proxy_bp = Blueprint("proxy", __name__)
 
 
+async def _cdn_handshake(target_url: str, headers: dict, proxy_url: str | None, label: str):
+    """Connect + send request + read headers; (conn, headers) or (None, None)."""
+    c = CdnConnection(target_url, headers=headers, proxy_url=proxy_url)
+    try:
+        await c.connect()
+        await c.send_request()
+        rh = await c.read_response_headers()
+        return c, rh
+    except Exception as e:
+        print(f"[Proxy] {label} handshake failed: {e}")
+        await c.close()
+        return None, None
+
+
+async def _establish_cdn_connection(url: str, headers: dict, proxy_url: str | None):
+    """Handshake with retries: 3 attempts with backoff. (conn, headers) or (None, None).
+
+    A single WARP/SOCKS blip must not 502 the request.
+    """
+    for attempt in range(3):
+        conn, resp_headers = await _cdn_handshake(url, headers, proxy_url, f"primary attempt {attempt + 1}/3")
+        if conn is not None:
+            return conn, resp_headers
+        await asyncio.sleep(0.5 * (attempt + 1))
+    return None, None
+
+
+async def _try_backup_url(vid, vidx, vqn, headers: dict, proxy_url: str | None):
+    """Try the cached backup CDN URL; (conn, headers) or (None, None)."""
+    bak_url = await appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}_bak")
+    if not bak_url:
+        return None, None
+    if isinstance(bak_url, bytes):
+        bak_url = bak_url.decode()
+    return await _establish_cdn_connection(bak_url, headers, proxy_url)
+
+
 async def is_safe_proxy_url(url: str) -> bool:
     """Validate that a URL is safe to proxy (not pointing to internal/private IPs)."""
     try:
@@ -223,12 +260,16 @@ async def proxy_main(subpath):
             headers["cookie"] = f"{existing}; {cookie_str}".lstrip("; ") if existing else cookie_str
 
         proxy_url = Network.get_proxy()
-        conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
+
+        conn, resp_headers = await _establish_cdn_connection(url, headers, proxy_url)
+        if conn is None and not is_live:
+            # Primary unreachable (transport-level, not URL staleness — so the
+            # backup key is kept) — try the backup URL before 502.
+            conn, resp_headers = await _try_backup_url(vid, vidx, vqn, headers, proxy_url)
+        if conn is None:
+            return Response("Upstream error", status=502)
 
         try:
-            await conn.connect()
-            await conn.send_request()
-            resp_headers = await conn.read_response_headers()
             print(f"[Proxy] Connected: {url[:50]}... Status: {resp_headers.status_code}")
 
             if resp_headers.status_code in [403, 412, 514]:
@@ -247,10 +288,9 @@ async def proxy_main(subpath):
                     headers.pop("x-bili-ticket", None)
                 headers["session_id"] = TicketManager._generate_session_id()
                 headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-                conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
-                await conn.connect()
-                await conn.send_request()
-                resp_headers = await conn.read_response_headers()
+                conn, resp_headers = await _cdn_handshake(url, headers, proxy_url, "ticket-refresh retry")
+                if conn is None:
+                    return Response("Upstream error", status=502)
                 print(f"[Proxy] Retry status: {resp_headers.status_code}")
 
             # If still 403 after retry, try backup URL, then lower qualities, then expire cache
@@ -326,8 +366,13 @@ async def proxy_main(subpath):
                 try:
                     async for chunk in conn.iter_chunks():
                         yield chunk
-                except (CdnProtocolError, CdnTimeoutError):
-                    pass
+                except (CdnProtocolError, CdnTimeoutError) as e:
+                    # Mid-body cut: abort the connection instead of ending
+                    # cleanly, so a truncated body is never delivered as a
+                    # successful 200/206 (players would cache it as complete
+                    # instead of retrying the Range).
+                    print(f"[Proxy] Mid-body cut for {url[:80]}...: {e}")
+                    raise
                 finally:
                     await conn.close()
 

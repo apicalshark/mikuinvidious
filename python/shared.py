@@ -57,6 +57,9 @@ class TicketManager:
     _ticket = None
     _expiry = 0
     _lock = asyncio.Lock()
+    # Future shared by concurrent callers while a refresh is running, so a
+    # ticket miss stampedes one upstream fetch instead of N (singleflight).
+    _inflight = None
 
     @classmethod
     def _generate_trace_id(cls):
@@ -69,6 +72,31 @@ class TicketManager:
         return os.urandom(16).hex()  # 128 bits for session ID
 
     @classmethod
+    async def _fetch_new_ticket(cls):
+        """Fetch + Redis-cache a fresh ticket. Runs outside the lock.
+
+        Returns ``(ticket, expiry_ts)``; ``(None, 0)`` on any failure.
+        """
+        now = int(time.time())
+        try:
+            # Use upstream implementation. bilibili_api handles its own internal global cache,
+            # but we still cache in Redis for cross-process efficiency.
+            ticket, expiry_ts = await get_bili_ticket(appcred)
+        except Exception as e:
+            print(f"[Ticket] Error fetching ticket from upstream: {e}")
+            return None, 0
+        if not ticket:
+            return None, 0
+        try:
+            real_ttl = int(expiry_ts) - now
+            if real_ttl > 0:
+                await appredis.setex("miku_bili_ticket", real_ttl, ticket)
+                await appredis.setex("miku_bili_ticket_expiry", real_ttl, str(expiry_ts))
+        except Exception as e:
+            print(f"[Ticket] Error caching ticket in Redis: {e}")
+        return ticket, expiry_ts
+
+    @classmethod
     async def get_ticket(cls, force_refresh=False):
         async with cls._lock:
             now = int(time.time())
@@ -77,40 +105,46 @@ class TicketManager:
                 if cls._ticket and now < cls._expiry - 60:
                     return cls._ticket
 
-                # Check Redis cache
-                cached_ticket = await appredis.get("miku_bili_ticket")
-                cached_expiry = await appredis.get("miku_bili_ticket_expiry")
+                # Check Redis cache (a miss/degraded Redis falls through to fetch)
+                try:
+                    cached_ticket = await appredis.get("miku_bili_ticket")
+                    cached_expiry = await appredis.get("miku_bili_ticket_expiry")
+                except Exception:
+                    cached_ticket, cached_expiry = None, None
                 if cached_ticket and cached_expiry and now < int(cached_expiry) - 60:
                     cls._ticket = cached_ticket
                     cls._expiry = int(cached_expiry)
                     return cls._ticket
-
-            if force_refresh:
+            else:
                 from api.client import refresh_bili_ticket
 
                 refresh_bili_ticket()
                 cls._ticket = None
                 cls._expiry = 0
-                await appredis.delete("miku_bili_ticket")
-                await appredis.delete("miku_bili_ticket_expiry")
+                try:
+                    await appredis.delete("miku_bili_ticket")
+                    await appredis.delete("miku_bili_ticket_expiry")
+                except Exception:
+                    pass
 
-            # Generate new ticket using upstream bilibili_api
-            try:
-                # Use upstream implementation. bilibili_api handles its own internal global cache,
-                # but we still cache in Redis for cross-process efficiency.
-                ticket, expiry_ts = await get_bili_ticket(appcred)
-                if ticket:
-                    cls._ticket = ticket
-                    cls._expiry = int(expiry_ts)
-                    real_ttl = cls._expiry - now
-                    # Cache in Redis
-                    await appredis.setex("miku_bili_ticket", real_ttl, cls._ticket)
-                    await appredis.setex("miku_bili_ticket_expiry", real_ttl, str(cls._expiry))
-                    return cls._ticket
-            except Exception as e:
-                print(f"[Ticket] Error fetching ticket from upstream: {e}")
-
-            return None
+            if cls._inflight is None:
+                cls._inflight = asyncio.get_running_loop().create_future()
+                fetch = True
+            else:
+                fetch = False
+                fut = cls._inflight
+        if not fetch:
+            return await fut
+        ticket, expiry_ts = await cls._fetch_new_ticket()
+        async with cls._lock:
+            fut = cls._inflight
+            cls._inflight = None
+            if ticket:
+                cls._ticket = ticket
+                cls._expiry = int(expiry_ts)
+            if fut is not None and not fut.done():
+                fut.set_result(ticket)
+        return ticket
 
 
 class Network:

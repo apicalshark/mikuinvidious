@@ -340,6 +340,10 @@ async def _get_buvid():
 
 _anonymous_cookies: dict[str, str] = {}
 _anonymous_cookies_expires: float = 0
+_anonymous_cookies_lock = asyncio.Lock()
+# Future shared while a cookie refresh is running (singleflight: one
+# SPI + GenWebTicket round-trip no matter how many callers miss at once).
+_anonymous_cookies_inflight = None
 
 
 def _generate_uuid() -> str:
@@ -362,27 +366,19 @@ def _generate_b_lsid() -> str:
     return f"{rand_part}_{ts_part}"
 
 
-async def _get_anonymous_cookies() -> dict[str, str]:
-    """Get or generate the full anonymous cookie set required by Bilibili.
+async def _fetch_anonymous_cookies(now: float) -> tuple[dict[str, str], float]:
+    """Build the anonymous cookie set. Runs outside the lock; never raises.
 
-    Returns a dict with keys: buvid3, buvid4, b_nut, b_lsid, _uuid,
-    buvid_fp, bili_ticket, bili_ticket_expires.
-    Caches until bili_ticket expires.
+    Returns ``(cookies, expires_ts)``. Reuses the pooled client instead of
+    spawning a fresh one per call.
     """
-    global _anonymous_cookies, _anonymous_cookies_expires
-
-    now = time.time()
-    if _anonymous_cookies and _anonymous_cookies_expires > now:
-        return _anonymous_cookies
-
-    proxy = request_settings.get_proxy() or None
     cookies: dict[str, str] = {}
+    client = await get_bili_client()
 
     # Step 1: Fetch buvid3/buvid4 from /x/frontend/finger/spi
     try:
-        async with httpx.AsyncClient(proxy=proxy, timeout=10.0) as c:
-            resp = await c.get(_SPI_URL, headers=HEADERS)
-            spi = resp.json().get("data") or {}
+        resp = await client.get(_SPI_URL, headers=HEADERS)
+        spi = resp.json().get("data") or {}
         cookies["buvid3"] = spi.get("b_3", "")
         cookies["buvid4"] = spi.get("b_4", "")
     except Exception:
@@ -405,23 +401,56 @@ async def _get_anonymous_cookies() -> dict[str, str]:
     try:
         ts = int(now)
         hex_sign = _hmac_sha256("XgwSnGZ1p", f"ts{ts}")
-        async with httpx.AsyncClient(proxy=proxy, timeout=10.0) as c:
-            resp = await c.post(
-                _TICKET_URL,
-                params={
-                    "key_id": "ec02",
-                    "hexsign": hex_sign,
-                    "context[ts]": str(ts),
-                    "csrf": "",
-                },
-                headers=HEADERS,
-            )
-            ticket_data = resp.json().get("data") or {}
-        _anonymous_cookies_expires = ts + int(ticket_data.get("ttl") or 259200)
+        resp = await client.post(
+            _TICKET_URL,
+            params={
+                "key_id": "ec02",
+                "hexsign": hex_sign,
+                "context[ts]": str(ts),
+                "csrf": "",
+            },
+            headers=HEADERS,
+        )
+        ticket_data = resp.json().get("data") or {}
+        expires = ts + int(ticket_data.get("ttl") or 259200)
     except Exception:
-        _anonymous_cookies_expires = now + 60  # retry in 60s
+        expires = now + 60  # retry in 60s
+    return cookies, expires
 
-    _anonymous_cookies = cookies
+
+async def _get_anonymous_cookies() -> dict[str, str]:
+    """Get or generate the full anonymous cookie set required by Bilibili.
+
+    Returns a dict with keys: buvid3, buvid4, b_nut, b_lsid, _uuid,
+    buvid_fp, bili_ticket, bili_ticket_expires.
+    Caches until bili_ticket expires.
+    """
+    global _anonymous_cookies, _anonymous_cookies_expires, _anonymous_cookies_inflight
+
+    now = time.time()
+    if _anonymous_cookies and _anonymous_cookies_expires > now:
+        return _anonymous_cookies
+
+    async with _anonymous_cookies_lock:
+        now = time.time()
+        if _anonymous_cookies and _anonymous_cookies_expires > now:
+            return _anonymous_cookies
+        if _anonymous_cookies_inflight is None:
+            _anonymous_cookies_inflight = asyncio.get_running_loop().create_future()
+            fetch = True
+        else:
+            fetch = False
+            fut = _anonymous_cookies_inflight
+    if not fetch:
+        return await fut
+    cookies, expires = await _fetch_anonymous_cookies(now)
+    async with _anonymous_cookies_lock:
+        fut = _anonymous_cookies_inflight
+        _anonymous_cookies_inflight = None
+        _anonymous_cookies = cookies
+        _anonymous_cookies_expires = expires
+        if fut is not None and not fut.done():
+            fut.set_result(cookies)
     return cookies
 
 

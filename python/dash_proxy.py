@@ -522,25 +522,67 @@ async def _resolve_durl_download(v, vid: str, idx: int, qual: int, play_data: di
     raise _DurlResolveError("progressive URL expired, please retry", status=404)
 
 
-async def _load_dash_data(vid, idx) -> dict | None:
-    """Read cached dash JSON, or fetch + cache it. Returns the dash dict or None."""
+# Per-video in-flight dash fetches (singleflight) + negative-cache window for
+# failed fetches, so concurrent manifest/track hits share one playurl call.
+_dash_inflight: dict[str, asyncio.Future] = {}
+_dash_inflight_lock = asyncio.Lock()
+_DASH_MISS_TTL = 30
+
+
+async def _fetch_and_cache_dash_data(vid, idx, key):
+    """Fetch dash play info and cache it. Returns the dash dict or None."""
     from api import video
 
-    cached = await appredis.get(f"miku_dash_{vid}_{idx}")
-    if cached:
-        data = safe_json_loads(cached)
-        if isinstance(data, dict):
-            return data
     v = video.Video(bvid=vid, credential=appcred)
     try:
         data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=DASH_FETCH_TIMEOUT)
     except asyncio.TimeoutError:
         print(f"[DashProxy] Fetching dash for {vid}:{idx} timed out")
-        return None
+        data = None
     if not data or not data.get("dash"):
+        try:
+            await appredis.setex(f"{key}:miss", _DASH_MISS_TTL, "1")
+        except Exception:
+            pass
         return None
-    await appredis.setex(f"miku_dash_{vid}_{idx}", DASH_CACHE_TTL, orjson.dumps(data))
+    await appredis.setex(key, DASH_CACHE_TTL, orjson.dumps(data))
     return data
+
+
+async def _load_dash_data(vid, idx) -> dict | None:
+    """Read cached dash JSON, or fetch + cache it. Returns the dash dict or None.
+
+    Concurrent callers for the same video share one in-flight fetch
+    (singleflight), and failed fetches are negative-cached briefly so a
+    dead video does not stampede playurl on every manifest/track hit.
+    """
+    key = f"miku_dash_{vid}_{idx}"
+    cached = await appredis.get(key)
+    if cached:
+        data = safe_json_loads(cached)
+        if isinstance(data, dict):
+            return data
+    if await appredis.get(f"{key}:miss"):
+        return None
+    async with _dash_inflight_lock:
+        fut = _dash_inflight.get(key)
+        if fut is None:
+            fut = _dash_inflight[key] = asyncio.get_running_loop().create_future()
+            fetch = True
+        else:
+            fetch = False
+    if not fetch:
+        return await fut
+    try:
+        result = await _fetch_and_cache_dash_data(vid, idx, key)
+    except Exception as exc:
+        print(f"[DashProxy] dash fetch failed for {vid}:{idx}: {exc}")
+        result = None
+    async with _dash_inflight_lock:
+        _dash_inflight.pop(key, None)
+        if not fut.done():
+            fut.set_result(result)
+    return result
 
 
 def _lookup_track(dash_data, media_type: str, qn: int, cid: int) -> dict | None:
