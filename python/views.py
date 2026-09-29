@@ -887,7 +887,7 @@ async def api_component_player(vid, idx):
         ]
     else:
         # Progressive (durl) fallback: some UGC uploads return no DASH
-        # ``dash`` node at all (e.g. BV1kH35z9EzG) — only a progressive
+        # ``dash`` node at all — only a progressive
         # MP4 ``durl``. Serve those through the native /proxy/video/ path.
         try:
             supported_src = await asyncio.wait_for(

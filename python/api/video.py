@@ -27,7 +27,7 @@ import re
 
 from .client import HEADERS, Api, get_bili_client
 from .credential import Credential
-from .exceptions import ArgsException
+from .exceptions import ArgsException, ResponseCodeException
 
 __all__ = ["Video"]
 
@@ -88,8 +88,21 @@ _WEBGL_RENDERER_TEMPLATES = [
 ]
 
 
-def _get_dm_img_params() -> dict[str, str]:
-    """Generate dm_img fingerprint parameters required for playurl requests."""
+def _get_dm_img_params(fingerprint: bool = True) -> dict[str, str]:
+    """Risk-control device-log parameters for playurl requests.
+
+    The web player (`RISK_USER_LOG` middleware in player_core.*.js) sends a
+    real WebGL/canvas fingerprint via ``queryUserLog`` only when its KvSDK
+    config enables it (``payload_log == "1"``); otherwise it sends
+    ``dm_img_switch=0`` with no fingerprint at all. That mode works, but
+    live tests (Sep 2026) show it caps anonymous quality at
+    480p (tracks [16, 32]), while the WebGL-template approximation below
+    returns the full anonymous ladder up to 1080p ([16, 32, 64, 80]) — so
+    the faker stays the default. Pass ``fingerprint=False`` for the honest
+    no-fingerprint mode.
+    """
+    if not fingerprint:
+        return {"dm_img_switch": "0"}
     width = random.randint(1860, 1920)
     height = random.randint(930, 990)
     rnd = random.randint(0, 113)
@@ -109,6 +122,17 @@ def _get_dm_img_params() -> dict[str, str]:
         "dm_cover_img_str": renderer_b64,
         "dm_img_inter": _json.dumps({"ds": [], "wh": wh, "of": of}),
     }
+
+
+def is_gaia_risk_response(data) -> bool:
+    """True when a playurl ``data`` node carries the Gaia risk signal.
+
+    The web player rewrites ``code == 0`` + ``data.v_voucher`` to ``-352``
+    internally and enters its captcha flow (player_core.*.js ``getGaiaRisk``);
+    such responses contain no ``dash``/``durl`` node. Server-side has no
+    captcha UI, so callers should retry the avoidance lane instead.
+    """
+    return isinstance(data, dict) and bool(data.get("v_voucher"))
 
 
 class Video:
@@ -206,6 +230,39 @@ class Video:
     async def get_cid(self, page_index: int) -> int:
         return await self._get_cid_by_index(page_index)
 
+    async def _request_playurl(self, api: dict, params: dict, label: str) -> dict:
+        """GET a playurl endpoint with one Gaia-risk avoidance retry.
+
+        On ``v_voucher`` (or ``-352``) the web player solves a captcha and
+        retries with ``gaia_vtoken``; without a browser UI the supportable
+        equivalent is the avoidance lane (``isGaiaAvoided=true``,
+        ``gaia_source=pre-load``, ``try_look=1`` plus the WebGL-template
+        ``dm_img_*`` fingerprint), which the player's own prefetch path
+        uses (verified live Sep 29 2026).
+        """
+        try:
+            data = await Api(**api, credential=self.credential).update_params(**params).result
+        except ResponseCodeException as exc:
+            if exc.code != -352:
+                raise
+            data = None
+            print(f"[Video] {label} hit Gaia risk (-352) for {self._bvid}; retrying avoidance lane")
+        if not is_gaia_risk_response(data):
+            return data
+        print(f"[Video] {label} returned v_voucher for {self._bvid}; retrying avoidance lane")
+        retry = dict(params)
+        retry.update(
+            {
+                "gaia_source": "pre-load",
+                "isGaiaAvoided": "true",
+                "try_look": 1,
+            }
+        )
+        for key in ("dm_img_list", "dm_img_str", "dm_cover_img_str", "dm_img_inter"):
+            retry.pop(key, None)
+        retry.update(_get_dm_img_params())
+        return await Api(**api, credential=self.credential).update_params(**retry).result
+
     async def get_download_url(self, page_index=None, cid=None, html5=False) -> dict:
         """Fetch play URL info (returns the ``data`` node)."""
         if cid is None:
@@ -235,7 +292,7 @@ class Video:
             "method": "GET",
             "verify": False,
         }
-        return await Api(**api, credential=self.credential).update_params(**params).result
+        return await self._request_playurl(api, params, "get_download_url")
 
     async def get_dash_playurl(self, page_index=None, cid=None, qn=120) -> dict:
         """Fetch DASH play URL info (returns the ``data`` node).
@@ -271,8 +328,9 @@ class Video:
             "url": "https://api.bilibili.com/x/player/wbi/playurl",
             "method": "GET",
             "verify": False,
+            "wbi": True,
         }
-        return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+        return await self._request_playurl(api, params, "get_dash_playurl")
 
     async def get_subtitle_meta(self, page_index=None, cid=None) -> list:
         """Fetch subtitle metadata (PipePipe ``GET_SUBTITLE_META_URL``).
@@ -298,8 +356,9 @@ class Video:
             "url": "https://api.bilibili.com/x/player/wbi/v2",
             "method": "GET",
             "verify": False,
+            "wbi": True,
         }
-        data = await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+        data = await self._request_playurl(api, params, "get_subtitle_meta")
         if not isinstance(data, dict):
             return []
         return (data.get("subtitle") or {}).get("subtitles") or []

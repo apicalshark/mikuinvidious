@@ -204,6 +204,10 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None) -> dict:
     # 1) UGC wbi playurl (canonical path)
     try:
         data = await v.get_dash_playurl(page_index=idx, cid=cid, qn=120)
+        if isinstance(data, dict) and data.get("v_voucher"):
+            # Gaia risk gate survived the avoidance retry (no captcha UI
+            # server-side) — fall through to the PGC fallback below.
+            print(f"[DashProxy] UGC playurl risk-gated (v_voucher) for {v.get_bvid()}; trying PGC fallback")
         if data and isinstance(data, dict) and (data.get("dash") or data.get("durl") or data.get("support_formats")):
             return {
                 "code": data.get("code", 0),
@@ -268,7 +272,7 @@ def has_valid_dash_tracks(dash_data: dict | None) -> bool:
     A track is playable when it carries a ``SegmentBase`` with an
     ``indexRange`` — dash.js needs the sidx range to compute segment
     byte-offsets. Some UGC uploads are ``durl``-only (progressive MP4, no
-    ``dash`` node at all, e.g. BV1kH35z9EzG); those must fall back to the
+    ``dash`` node at all); those must fall back to the
     progressive ``/proxy/video/`` path instead of serving an empty MPD.
     """
     if not dash_data or not isinstance(dash_data, dict):
@@ -1172,7 +1176,7 @@ async def proxy_download(vid, idx, qual):
     Downloads both tracks through the WARP tunnel, remuxes with ffmpeg into a
     single faststart MP4, and streams it back as an attachment.
 
-    Durl-only uploads (no DASH tracks, e.g. BV1kH35z9EzG) fall back to a
+    Durl-only uploads (no DASH tracks) fall back to a
     redirect at the native progressive ``/proxy/video/`` path — those MP4s
     are already muxed, so no ffmpeg step is needed.
     """

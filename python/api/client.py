@@ -130,6 +130,18 @@ _NAV_URL = "https://api.bilibili.com/x/web-interface/nav"
 _TICKET_URL = "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket"
 _SPI_URL = "https://api.bilibili.com/x/frontend/finger/spi"
 
+# Static fallback WBI keys embedded in the web player bundle
+# (player_core.*.js `w()`/`C()`, `__NanoStaticHttpKey` gate; verified Sep 29 2026
+# against core.ba67b466.js). Used only when `/x/web-interface/nav` is
+# unreachable so wbi-signed requests degrade gracefully instead of failing.
+_FALLBACK_WBI_IMG_KEY = "5a6f002d0bb14fc9848fc64157648ad4"
+_FALLBACK_WBI_SUB_KEY = "0503a77b29d7409d9548fb44fe9daa1a"
+
+# `x-bili-device-req-json` header the web player attaches to every unified
+# request (player_core.*.js `r0` middleware). `mobi_app` is UA-parsed client-side;
+# plain web browsers send "web".
+_DEVICE_REQ_JSON = '{"platform":"web","device":"pc","mobi_app":"web"}'
+
 # Wbi mixin key cache
 __wbi_mixin_key = ""
 __wbi_lock = asyncio.Lock()
@@ -221,11 +233,19 @@ async def _get_mixin_key(credential: Credential = None) -> str:
     return "".join(le)[:32]
 
 
+def _mixin_from_keys(img_key: str, sub_key: str) -> str:
+    """Derive the 32-char wbi mixin key from raw img/sub key filenames."""
+    ae = img_key + sub_key
+    return "".join(ae[i] for i in OE if i < len(ae))[:32]
+
+
 def _enc_wbi(params: dict, mixin_key: str) -> dict:
     params.pop("w_rid", None)
     params["wts"] = int(time.time())
     if params.get("web_location") is None:
-        params["web_location"] = 1550101
+        # The web player forces web_location=1315873 on the playurl path
+        # (player_core.*.js `I()`); keep it as the global default for parity.
+        params["web_location"] = 1315873
     # Match PipePipe / bilibili-API-collect: sort keys, then percent-encode each
     # pair with %20 (NOT the '+' that urllib.urlencode uses, which produces an
     # invalid wbi signature whenever a value contains a space).
@@ -242,7 +262,14 @@ async def get_wbi_mixin_key(credential: Credential = None) -> str:
     if __wbi_mixin_key == "":
         async with __wbi_lock:
             if __wbi_mixin_key == "":
-                __wbi_mixin_key = await _get_mixin_key(credential)
+                try:
+                    key = await _get_mixin_key(credential)
+                except Exception as exc:
+                    key = ""
+                    print(f"[WBI] nav failed ({exc}); using static player fallback keys")
+                if not key:
+                    key = _mixin_from_keys(_FALLBACK_WBI_IMG_KEY, _FALLBACK_WBI_SUB_KEY)
+                __wbi_mixin_key = key
     return __wbi_mixin_key
 
 
@@ -506,6 +533,10 @@ class Api:
             cookies["opus-goback"] = "1"
 
             headers = dict(HEADERS) if not self.headers else dict(self.headers)
+            if self.wbi or "/x/player/" in self.url:
+                # Player parity: web clients attach device metadata to unified
+                # requests (player_core.*.js `r0` middleware).
+                headers.setdefault("x-bili-device-req-json", _DEVICE_REQ_JSON)
             json_content = None
             if self.json_body and request_data:
                 headers["Content-Type"] = "application/json"

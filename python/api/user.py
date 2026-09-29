@@ -171,7 +171,7 @@ class User:
                 "pn": pn,
                 "ps": ps,
             }
-            params.update(_get_dm_img_params())
+            params.update(_get_dm_img_params(fingerprint=True))
             try:
                 data = await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
                 break
