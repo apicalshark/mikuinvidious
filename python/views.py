@@ -307,10 +307,11 @@ async def search_view():
     return await render_template_with_theme(tmpl, q=q, sinfo=sinfo, rs=results, sort=request.args.get("sort"))
 
 
-def _space_data_key(mid):
-    # Single shared upstream payload for /space/<mid> (page 1) and
-    # /space/<mid>/json, so one Bilibili fetch serves both routes.
-    return f"space:data:{mid}"
+def _space_data_key(mid, pn=1):
+    # Page-1 payload (space:data:<mid>) is shared with /space/<mid>/json so
+    # one Bilibili fetch serves both routes; deeper pages get their own
+    # per-page key (space:data:<mid>:<pn>).
+    return f"space:data:{mid}" if pn == 1 else f"space:data:{mid}:{pn}"
 
 
 def _is_good_space_data(uinfo, uvids):
@@ -334,7 +335,7 @@ def _max_space_ttl():
     return max(max(cache_minutes("space_minutes"), cache_minutes("space_json_minutes")), 0) * 60
 
 
-async def _read_space_data(mid, max_age_seconds):
+async def _read_space_data(mid, max_age_seconds, pn=1):
     """Return (uinfo, uvids) if the unified entry is fresh for this reader.
 
     Each route passes its own TTL as max_age_seconds, so divergent
@@ -342,7 +343,7 @@ async def _read_space_data(mid, max_age_seconds):
     strictly enforced even though both share one key. Entries written
     before fetched_at existed are treated as expired (self-migrating).
     """
-    data = await cache_get(_space_data_key(mid), max_age_seconds)
+    data = await cache_get(_space_data_key(mid, pn), max_age_seconds)
     if not isinstance(data, dict):
         return None, None
     uinfo, uvids = data.get("uinfo"), data.get("uvids")
@@ -351,11 +352,13 @@ async def _read_space_data(mid, max_age_seconds):
     return uinfo, uvids
 
 
-async def _write_space_data(mid, uinfo, uvids):
-    """Store a healthy payload; key expiry covers the longest route policy."""
+async def _write_space_data(mid, uinfo, uvids, pn=1, ttl=None):
+    """Store a healthy payload; page-1 expiry covers the longest route policy."""
     if not _is_good_space_data(uinfo, uvids):
         return
-    await cache_set(_space_data_key(mid), {"uinfo": uinfo, "uvids": uvids}, _max_space_ttl())
+    if ttl is None:
+        ttl = _max_space_ttl()
+    await cache_set(_space_data_key(mid, pn), {"uinfo": uinfo, "uvids": uvids}, ttl)
 
 
 async def _fetch_space_data(mid, pn=1, ps=30):
@@ -371,22 +374,22 @@ async def space_view(mid):
     except (TypeError, ValueError):
         pn = 1
     pn = max(pn, 1)
-    # Unified page-1 cache shared with /space/<mid>/json. Deeper pages
-    # (?i=N, N>1) always fetch live so the shared key stays a single entry.
+    # Page-1 payload is shared with /space/<mid>/json; deeper pages get
+    # their own per-page key. All pages honor SPACE_CACHE_MINUTES.
     cache_ttl = cache_minutes("space_minutes") * 60
-    use_cache = pn == 1 and cache_ttl > 0
+    use_cache = cache_ttl > 0
     cache_hit = False
     uinfo = None
     uvids = {}
     if use_cache:
-        uinfo, uvids = await _read_space_data(mid, cache_ttl)
+        uinfo, uvids = await _read_space_data(mid, cache_ttl, pn)
         cache_hit = uinfo is not None
     if not cache_hit:
         u = user.User(mid, credential=appcred)
         try:
-            # ps=30 on the unified path so the payload is a superset the JSON
+            # ps=30 on the page-1 path so the payload is a superset the JSON
             # feed can also use; page-1 HTML is sliced back to 28 below.
-            uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=30 if use_cache else 28))
+            uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=30 if pn == 1 else 28))
         except Exception:
             # The user API is often risk-controlled / IP-blocked (412/-352) without the
             # WARP proxy; re-run the core profile fetch alone in case only a sibling
@@ -398,7 +401,9 @@ async def space_view(mid):
                 except Exception:
                     uinfo = None
         if use_cache:
-            await _write_space_data(mid, uinfo, uvids)
+            # Page-1 key expiry covers the longest (space/json) policy so a
+            # divergent JSON TTL isn't cut short; deeper pages use their own.
+            await _write_space_data(mid, uinfo, uvids, pn, _max_space_ttl() if pn == 1 else cache_ttl)
     if not isinstance(uinfo, dict) or not uinfo:
         return await render_template_with_theme(
             "error.html",
@@ -531,13 +536,14 @@ async def author_view(mid):
     except (TypeError, ValueError):
         pn = 1
     pn = max(pn, 1)
-    # Page-1 payload is cached; deeper pages always fetch live.
+    # Page-1 payload uses the base key; deeper pages get per-page keys.
     cache_ttl = cache_minutes("author_minutes") * 60
-    use_cache = pn == 1 and cache_ttl > 0
+    use_cache = cache_ttl > 0
+    cache_key = f"author:data:{mid}" if pn == 1 else f"author:data:{mid}:{pn}"
     cache_hit = False
     uinfo = uarticles = None
     if use_cache:
-        data = await cache_get(f"author:data:{mid}", cache_ttl)
+        data = await cache_get(cache_key, cache_ttl)
         if isinstance(data, dict):
             uinfo, uarticles = data.get("uinfo"), data.get("uarticles")
             cache_hit = (
@@ -550,9 +556,9 @@ async def author_view(mid):
     if not cache_hit:
         u = user.User(mid, credential=appcred)
         uinfo, uarticles = await asyncio.gather(u.get_user_info(), u.get_articles(pn=pn, ps=28))
-        # Only cache a healthy page-1 payload; never stick a broken profile.
+        # Only cache a healthy payload; never stick a broken profile.
         if use_cache and isinstance(uinfo, dict) and uinfo and isinstance(uarticles, dict):
-            await cache_set(f"author:data:{mid}", {"uinfo": uinfo, "uarticles": uarticles}, cache_ttl)
+            await cache_set(cache_key, {"uinfo": uinfo, "uarticles": uarticles}, cache_ttl)
     html = await render_template_with_theme("author.html", uinfo=uinfo, uarts=uarticles)
     if use_cache:
         return Response(

@@ -100,7 +100,7 @@ Configuration for connecting to the Redis database, which is required for cachin
 ## `[cache]`
 Settings for Redis-backed response caching.
 
-The space page (`/space/<mid>`, page 1) and the JSON feed (`/space/<mid>/json`) share a single upstream payload cached in Redis as `space:data:<mid>`, so one Bilibili fetch serves both routes and halves upstream bandwidth. Each payload is stamped with `fetched_at`: the Redis key expires after the *longer* of the two TTLs, while each route enforces its own max-age on read — so divergent intervals are each strictly respected (a route whose policy expired refetches and refreshes the shared entry). Only healthy payloads (valid profile + non-empty video list) are cached — transient failures that would render as "0 videos" are served live and never stored. Errors are never cached. Deeper space pages (`?i=N`, N>1) always fetch live.
+The space page (`/space/<mid>`, page 1) and the JSON feed (`/space/<mid>/json`) share a single upstream payload cached in Redis as `space:data:<mid>`, so one Bilibili fetch serves both routes and halves upstream bandwidth. Each payload is stamped with `fetched_at`: the Redis key expires after the *longer* of the two TTLs, while each route enforces its own max-age on read — so divergent intervals are each strictly respected (a route whose policy expired refetches and refreshes the shared entry). Only healthy payloads (valid profile + non-empty video list) are cached — transient failures that would render as "0 videos" are served live and never stored. Errors are never cached. Deeper space/author pages (`?i=N`, N>1) get their own per-page keys (`space:data:<mid>:<pn>`, `author:data:<mid>:<pn>`).
 
 | Key | Environment Variable | Default | Description |
 | --- | --- | --- | --- |
@@ -108,7 +108,7 @@ The space page (`/space/<mid>`, page 1) and the JSON feed (`/space/<mid>/json`) 
 | `space_json_minutes` | `SPACE_JSON_CACHE_MINUTES` | `5` | TTL for the `/space/<mid>/json` feed payload, in minutes. Set to `0` to disable. |
 | `video_minutes` | `VIDEO_CACHE_MINUTES` | `15` | TTL for the `/video/<vid>` detail payload (info/tags/related/pages), in minutes. Cached on healthy detail even if tags/related fall back to empty. `?listen=1` bypasses. Set to `0` to disable. |
 | `bangumi_minutes` | `BANGUMI_CACHE_MINUTES` | `60` | TTL for the `/bangumi/view/<ssid>` season payload, in minutes. Only cached with non-empty meta. Set to `0` to disable. |
-| `author_minutes` | `AUTHOR_CACHE_MINUTES` | `30` | TTL for the `/author/<mid>` page-1 payload, in minutes. Deeper pages (`?i=N`, N>1) always fetch live. Set to `0` to disable. |
+| `author_minutes` | `AUTHOR_CACHE_MINUTES` | `30` | TTL for the `/author/<mid>` payload, in minutes (page 1 on the base key, deeper pages on per-page keys). Set to `0` to disable. |
 | `article_minutes` | `ARTICLE_CACHE_MINUTES` | `30` | TTL for `/read/<cid>` + `/opus/<cid>` articles, in minutes. Only fully parsed bodies are cached; `?format=` exports bypass. Set to `0` to disable. |
 | `audio_minutes` | `AUDIO_CACHE_MINUTES` | `30` | TTL for `/audio/<auid>` + `/audio_list/<amid>` track payloads, in minutes. Comments stay live on cache HITs. Set to `0` to disable. |
 | `home_minutes` | `HOME_CACHE_MINUTES` | `30` | TTL for the `/` homepage feed, in minutes. Only non-empty feeds are cached. Set to `0` to disable. |
