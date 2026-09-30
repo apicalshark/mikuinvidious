@@ -124,7 +124,21 @@ async def render_proxy_pic(req_path):
             req = client.build_request("GET", url, headers=headers)
             resp = await client.send(req, follow_redirects=True)
 
-            content_type = resp.headers.get("content-type", "").lower()
+            content_type = resp.headers.get("content-type", "").lower().split(";")[0].strip()
+            # Bilibili's image CDN sometimes returns a bare extension
+            # ("jpg") instead of a MIME type. Normalize those so covers
+            # load; anything else non-image is still rejected below.
+            bare_image_types = {
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "png": "image/png",
+                "gif": "image/gif",
+                "webp": "image/webp",
+                "bmp": "image/bmp",
+                "avif": "image/avif",
+            }
+            if content_type in bare_image_types:
+                content_type = bare_image_types[content_type]
             allowed_image_types = [
                 "image/jpeg",
                 "image/jpg",
