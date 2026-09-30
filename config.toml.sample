@@ -103,6 +103,11 @@ legal_region = 'CN'
 # The default theme for new visitors. Currently only 'modern' is officially supported.
 default_theme = 'modern'
 
+[cache]
+# TTL for the /space/<mid>/json feed, in minutes. Also settable via
+# SPACE_JSON_CACHE_MINUTES env var. Set to 0 to disable caching.
+space_json_minutes = 5
+
 [redis]
 # Redis connection settings. Redis is REQUIRED for caching and session management.
 

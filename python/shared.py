@@ -204,6 +204,14 @@ def deep_update(base_dict, update_dict):
             base_dict[key] = value
 
 
+def _int_env(name, default):
+    """Parse an int env var, falling back to default on missing/invalid values."""
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
 appconf = {
     "site": {
         "site_name": os.environ.get("SITE_NAME", "MikuInvidious"),
@@ -268,6 +276,12 @@ appconf = {
     },
     "rate_limit": {
         "enabled": os.environ.get("RATE_LIMIT_ENABLED", "false").lower() == "true",
+    },
+    "cache": {
+        # TTL for the /space/<mid>/json feed, in minutes.
+        # Overridable via config.toml [cache] or SPACE_JSON_CACHE_MINUTES env var.
+        # Set to 0 to disable caching.
+        "space_json_minutes": _int_env("SPACE_JSON_CACHE_MINUTES", 5),
     },
 }
 

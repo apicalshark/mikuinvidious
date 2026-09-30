@@ -97,6 +97,15 @@ Configuration for connecting to the Redis database, which is required for cachin
 
 ---
 
+## `[cache]`
+Settings for Redis-backed response caching.
+
+| Key | Environment Variable | Default | Description |
+| --- | --- | --- | --- |
+| `space_json_minutes` | `SPACE_JSON_CACHE_MINUTES` | `5` | TTL for the `/space/<mid>/json` feed, in minutes. Successful (HTTP 200) responses are stored in Redis as `space:json:<mid>`; errors are never cached. Set to `0` to disable caching. |
+
+---
+
 ## `[quart]`
 This section can be used to pass any specific configuration options directly to the Quart framework (e.g., `TEMPLATES_AUTO_RELOAD = true`). These are advanced settings.
 

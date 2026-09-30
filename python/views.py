@@ -333,6 +333,25 @@ async def space_view(mid):
 
 @app.route("/space/<mid>/json")
 async def space_json_feed(mid):
+    try:
+        cache_minutes = int(appconf.get("cache", {}).get("space_json_minutes", 5))
+    except (TypeError, ValueError):
+        cache_minutes = 5
+    cache_ttl = cache_minutes * 60
+    cache_key = f"space:json:{mid}"
+    cached = None
+    if cache_ttl > 0:
+        try:
+            cached = await appredis.get(cache_key)
+        except Exception:
+            cached = None
+    if cached:
+        return Response(
+            cached,
+            status=200,
+            content_type="application/json",
+            headers={"X-Cache": "HIT"},
+        )
     u = user.User(mid, credential=appcred)
     try:
         uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=1, ps=30))
@@ -382,7 +401,16 @@ async def space_json_feed(mid):
         "items": items,
     }
 
-    return Response(orjson.dumps(feed), status=200, content_type="application/feed+json")
+    raw = orjson.dumps(feed)
+    # Cache only successful responses; never cache errors/empty payloads.
+    if raw and cache_ttl > 0:
+        try:
+            raw_str = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw)
+            if raw_str:
+                await appredis.set(cache_key, raw_str, ex=cache_ttl)
+        except Exception:
+            pass
+    return Response(raw, status=200, content_type="application/feed+json", headers={"X-Cache": "MISS"})
 
 
 @app.route("/author/<mid>")

@@ -244,6 +244,7 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 - **`[credential]`**: Bilibili cookies (SESSDATA, etc.) for authenticated access.
 - **`[proxy]`**: Global toggle for media proxying.
 - **`[redis]`**: Redis connection details.
+- **`[cache]`**: Response cache TTLs (e.g. `space_json_minutes`, default `5`; `SPACE_JSON_CACHE_MINUTES`).
 - **`[render]`**: Configuration for article rendering (Pandoc support).
 
 ## Development & Deployment
