@@ -104,15 +104,20 @@ legal_region = 'CN'
 default_theme = 'modern'
 
 [cache]
-# TTLs in minutes for the space page + JSON feed. Both routes share a single
-# upstream payload (Redis key space:data:<mid>), so one Bilibili fetch serves
-# both; each route enforces its own max-age (via the payload's fetched_at
-# stamp) while the key expires after the longer of the two. Only healthy
-# payloads (valid profile + non-empty video list) are cached. Set to 0 to
-# disable caching for that route.
-# Also settable via SPACE_CACHE_MINUTES / SPACE_JSON_CACHE_MINUTES env vars.
+# TTLs in minutes for page-data caches. Only healthy payloads are cached
+# (errors and transient empties are served live, never stored); each entry
+# carries a fetched_at stamp so readers enforce their own max-age. The space
+# page + JSON feed additionally share one key (space:data:<mid>), which
+# expires after the longer of the two TTLs. Set to 0 to disable that route.
+# Also settable via the *_CACHE_MINUTES env vars (see doc/configuration.md).
 space_minutes = 5
 space_json_minutes = 5
+video_minutes = 15
+bangumi_minutes = 60
+author_minutes = 30
+article_minutes = 30
+audio_minutes = 30
+home_minutes = 30
 
 [redis]
 # Redis connection settings. Redis is REQUIRED for caching and session management.

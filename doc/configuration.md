@@ -106,6 +106,14 @@ The space page (`/space/<mid>`, page 1) and the JSON feed (`/space/<mid>/json`) 
 | --- | --- | --- | --- |
 | `space_minutes` | `SPACE_CACHE_MINUTES` | `5` | TTL for the `/space/<mid>` page-1 payload, in minutes. Set to `0` to disable. |
 | `space_json_minutes` | `SPACE_JSON_CACHE_MINUTES` | `5` | TTL for the `/space/<mid>/json` feed payload, in minutes. Set to `0` to disable. |
+| `video_minutes` | `VIDEO_CACHE_MINUTES` | `15` | TTL for the `/video/<vid>` detail payload (info/tags/related/pages), in minutes. Cached on healthy detail even if tags/related fall back to empty. `?listen=1` bypasses. Set to `0` to disable. |
+| `bangumi_minutes` | `BANGUMI_CACHE_MINUTES` | `60` | TTL for the `/bangumi/view/<ssid>` season payload, in minutes. Only cached with non-empty meta. Set to `0` to disable. |
+| `author_minutes` | `AUTHOR_CACHE_MINUTES` | `30` | TTL for the `/author/<mid>` page-1 payload, in minutes. Deeper pages (`?i=N`, N>1) always fetch live. Set to `0` to disable. |
+| `article_minutes` | `ARTICLE_CACHE_MINUTES` | `30` | TTL for `/read/<cid>` + `/opus/<cid>` articles, in minutes. Only fully parsed bodies are cached; `?format=` exports bypass. Set to `0` to disable. |
+| `audio_minutes` | `AUDIO_CACHE_MINUTES` | `30` | TTL for `/audio/<auid>` + `/audio_list/<amid>` track payloads, in minutes. Comments stay live on cache HITs. Set to `0` to disable. |
+| `home_minutes` | `HOME_CACHE_MINUTES` | `30` | TTL for the `/` homepage feed, in minutes. Only non-empty feeds are cached. Set to `0` to disable. |
+
+All page caches emit `X-Cache: HIT` / `MISS` response headers (absent when caching is bypassed or disabled). Comments on video/audio pages load via separate component requests and are never part of the cached payload.
 
 ---
 

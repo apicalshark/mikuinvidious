@@ -9,7 +9,7 @@ import zhconv
 from api import bangumi
 from extra import av2bv
 from nyaa import search_nyaa
-from quart import Blueprint, jsonify, request
+from quart import Blueprint, Response, jsonify, request
 from rate_limit import RATE_LIMITS, rate_limit
 
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
@@ -79,6 +79,29 @@ async def bangumi_home():
 
 @bangumi_bp.route("/view/<int:ssid>")
 async def bangumi_view(ssid):
+    cache_ttl = shared.cache_minutes("bangumi_minutes", 60) * 60
+    cache_key = f"bangumi:data:{ssid}"
+    cache_hit = False
+    meta = episodes = None
+    if cache_ttl > 0:
+        data = await shared.cache_get(cache_key, cache_ttl)
+        if (
+            isinstance(data, dict)
+            and isinstance(data.get("meta"), dict)
+            and data.get("meta")
+            and isinstance(data.get("episodes"), list)
+        ):
+            meta, episodes = data["meta"], data["episodes"]
+            cache_hit = True
+    if cache_hit:
+        html = await shared.render_template_with_theme(
+            "bangumi_view.html",
+            meta=meta,
+            episodes=episodes,
+            ssid=ssid,
+            nyaa_enabled=shared.appconf["site"]["nyaa_bangumi"],
+        )
+        return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
     try:
         # 直接獲取元數據與劇集列表
@@ -126,14 +149,22 @@ async def bangumi_view(ssid):
             suggest=f"錯誤訊息：{str(e)}。這通常是因為該內容在您所在的地區不可用，或已被 B 站下架。",
         )
 
+    # Only cache healthy season payloads; region-blocked/removed titles
+    # (empty meta) are served live and never stuck in cache.
+    if cache_ttl > 0 and isinstance(meta, dict) and meta:
+        await shared.cache_set(cache_key, {"meta": meta, "episodes": episodes}, cache_ttl)
+
     # 返回基礎頁面，Nyaa 搜尋移至前端 API
-    return await shared.render_template_with_theme(
+    html = await shared.render_template_with_theme(
         "bangumi_view.html",
         meta=meta,
         episodes=episodes,
         ssid=ssid,
         nyaa_enabled=shared.appconf["site"]["nyaa_bangumi"],
     )
+    if cache_ttl > 0:
+        return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
+    return html
 
 
 @bangumi_bp.route("/play/ep<int:ep_id>")

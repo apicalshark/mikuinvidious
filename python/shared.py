@@ -278,13 +278,19 @@ appconf = {
         "enabled": os.environ.get("RATE_LIMIT_ENABLED", "false").lower() == "true",
     },
     "cache": {
-        # TTLs in minutes for the space page + JSON feed. Both routes share a
-        # single upstream payload (Redis key space:data:<mid>), so one
-        # Bilibili fetch serves both and halves upstream bandwidth.
-        # Overridable via config.toml [cache] or the env vars below.
+        # TTLs in minutes for page-data caches. Each route stores its upstream
+        # payload under its own Redis key; /space/<mid> and /space/<mid>/json
+        # additionally share one key (space:data:<mid>) so one Bilibili fetch
+        # serves both. Overridable via config.toml [cache] or the env vars.
         # Set to 0 to disable caching for that route.
         "space_minutes": _int_env("SPACE_CACHE_MINUTES", 5),
         "space_json_minutes": _int_env("SPACE_JSON_CACHE_MINUTES", 5),
+        "video_minutes": _int_env("VIDEO_CACHE_MINUTES", 15),
+        "bangumi_minutes": _int_env("BANGUMI_CACHE_MINUTES", 60),
+        "author_minutes": _int_env("AUTHOR_CACHE_MINUTES", 30),
+        "article_minutes": _int_env("ARTICLE_CACHE_MINUTES", 30),
+        "audio_minutes": _int_env("AUDIO_CACHE_MINUTES", 30),
+        "home_minutes": _int_env("HOME_CACHE_MINUTES", 30),
     },
 }
 
@@ -328,6 +334,55 @@ async def close_global_client():
     if Network._async_client and not Network._async_client.is_closed:
         await Network._async_client.aclose()
         print("[Shutdown] Global async client closed.")
+
+
+def cache_minutes(key, default=5):
+    """Read a [cache] TTL (in minutes); invalid values fall back to default."""
+    try:
+        return int(appconf.get("cache", {}).get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+async def cache_get(key, max_age_seconds):
+    """Return the cached payload dict if fresh, else None.
+
+    Entries carry a ``fetched_at`` stamp; readers older than their own
+    max-age treat the entry as expired. Anything unreadable (Redis down,
+    corrupt JSON, legacy entries without a stamp) is a silent miss so the
+    caller falls back to live data instead of 500ing.
+    """
+    try:
+        raw = await appredis.get(key)
+    except Exception:
+        return None
+    data = safe_json_loads(raw, default=None)
+    if not isinstance(data, dict):
+        return None
+    try:
+        age = time.time() - float(data.get("fetched_at", 0))
+    except (TypeError, ValueError):
+        return None
+    if age < 0 or age > max_age_seconds:
+        return None
+    return data
+
+
+async def cache_set(key, payload, ttl_seconds):
+    """Store a payload dict with a fetched_at stamp; failures are silent."""
+    if ttl_seconds <= 0 or not isinstance(payload, dict):
+        return
+    try:
+        payload = dict(payload)
+        payload["fetched_at"] = time.time()
+        raw = orjson.dumps(payload)
+        await appredis.set(
+            key,
+            raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw),
+            ex=ttl_seconds,
+        )
+    except Exception:
+        pass
 
 
 # Maintain a simple Redis-based cache for views

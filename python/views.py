@@ -17,7 +17,6 @@ import asyncio
 import datetime
 import re
 import sys
-import time
 
 import orjson
 import transformers
@@ -44,7 +43,18 @@ from extra import (
 )
 from quart import Response, g, redirect, request, url_for
 from rate_limit import RATE_LIMITS, rate_limit
-from shared import Network, app, appconf, appcred, appredis, render_template_with_theme, safe_json_loads
+from shared import (
+    Network,
+    app,
+    appconf,
+    appcred,
+    appredis,
+    cache_get,
+    cache_minutes,
+    cache_set,
+    render_template_with_theme,
+    safe_json_loads,
+)
 
 _background_tasks = set()
 
@@ -148,7 +158,22 @@ async def static_licenses_view():
 
 @app.route("/")
 async def home_view():
-    api_res = await homepage.get_videos()
+    cache_ttl = cache_minutes("home_minutes") * 60
+    cache_hit = False
+    api_res = None
+    if cache_ttl > 0:
+        data = await cache_get("home:data", cache_ttl)
+        if isinstance(data, dict) and isinstance(data.get("payload"), (dict, list)):
+            api_res = data["payload"]
+            cache_hit = True
+    if not cache_hit:
+        api_res = await homepage.get_videos()
+        # Only cache a healthy feed; an empty homepage is almost certainly a
+        # transient upstream blip, not a real empty front page.
+        if cache_ttl > 0 and isinstance(api_res, (dict, list)):
+            raw_probe = api_res.get("item") if isinstance(api_res, dict) else api_res
+            if isinstance(raw_probe, list) and raw_probe:
+                await cache_set("home:data", {"payload": api_res}, cache_ttl)
     processed_videos = []
     raw_list = []
     if isinstance(api_res, dict) and "item" in api_res:
@@ -159,7 +184,15 @@ async def home_view():
         card = transformers.transform_video_card(v)
         if card:
             processed_videos.append(card)
-    return await render_template_with_theme("home.html", videos=processed_videos)
+    html = await render_template_with_theme("home.html", videos=processed_videos)
+    if cache_ttl > 0:
+        return Response(
+            html,
+            status=200,
+            content_type="text/html",
+            headers={"X-Cache": "HIT" if cache_hit else "MISS"},
+        )
+    return html
 
 
 @app.route("/vv/<zid>")
@@ -274,14 +307,6 @@ async def search_view():
     return await render_template_with_theme(tmpl, q=q, sinfo=sinfo, rs=results, sort=request.args.get("sort"))
 
 
-def _cache_minutes(key, default=5):
-    """Read a [cache] TTL (in minutes); invalid values fall back to default."""
-    try:
-        return int(appconf.get("cache", {}).get(key, default))
-    except (TypeError, ValueError):
-        return default
-
-
 def _space_data_key(mid):
     # Single shared upstream payload for /space/<mid> (page 1) and
     # /space/<mid>/json, so one Bilibili fetch serves both routes.
@@ -306,7 +331,7 @@ def _is_good_space_data(uinfo, uvids):
 
 def _max_space_ttl():
     """Redis expiry for the shared key: the longest interested route policy."""
-    return max(max(_cache_minutes("space_minutes"), _cache_minutes("space_json_minutes")), 0) * 60
+    return max(max(cache_minutes("space_minutes"), cache_minutes("space_json_minutes")), 0) * 60
 
 
 async def _read_space_data(mid, max_age_seconds):
@@ -317,18 +342,8 @@ async def _read_space_data(mid, max_age_seconds):
     strictly enforced even though both share one key. Entries written
     before fetched_at existed are treated as expired (self-migrating).
     """
-    try:
-        raw = await appredis.get(_space_data_key(mid))
-    except Exception:
-        return None, None
-    data = safe_json_loads(raw, default=None)
+    data = await cache_get(_space_data_key(mid), max_age_seconds)
     if not isinstance(data, dict):
-        return None, None
-    try:
-        age = time.time() - float(data.get("fetched_at", 0))
-    except (TypeError, ValueError):
-        return None, None
-    if age < 0 or age > max_age_seconds:
         return None, None
     uinfo, uvids = data.get("uinfo"), data.get("uvids")
     if not _is_good_space_data(uinfo, uvids):
@@ -340,18 +355,7 @@ async def _write_space_data(mid, uinfo, uvids):
     """Store a healthy payload; key expiry covers the longest route policy."""
     if not _is_good_space_data(uinfo, uvids):
         return
-    ttl = _max_space_ttl()
-    if ttl <= 0:
-        return
-    try:
-        raw = orjson.dumps({"uinfo": uinfo, "uvids": uvids, "fetched_at": time.time()})
-        await appredis.set(
-            _space_data_key(mid),
-            raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw),
-            ex=ttl,
-        )
-    except Exception:
-        pass
+    await cache_set(_space_data_key(mid), {"uinfo": uinfo, "uvids": uvids}, _max_space_ttl())
 
 
 async def _fetch_space_data(mid, pn=1, ps=30):
@@ -369,7 +373,7 @@ async def space_view(mid):
     pn = max(pn, 1)
     # Unified page-1 cache shared with /space/<mid>/json. Deeper pages
     # (?i=N, N>1) always fetch live so the shared key stays a single entry.
-    cache_ttl = _cache_minutes("space_minutes") * 60
+    cache_ttl = cache_minutes("space_minutes") * 60
     use_cache = pn == 1 and cache_ttl > 0
     cache_hit = False
     uinfo = None
@@ -447,7 +451,7 @@ async def space_view(mid):
 
 @app.route("/space/<mid>/json")
 async def space_json_feed(mid):
-    cache_ttl = _cache_minutes("space_json_minutes") * 60
+    cache_ttl = cache_minutes("space_json_minutes") * 60
     cache_hit = False
     uinfo = uvids = None
     if cache_ttl > 0:
@@ -522,9 +526,42 @@ async def space_json_feed(mid):
 @app.route("/author/<mid>")
 @app.route("/author/<mid>/")
 async def author_view(mid):
-    u = user.User(mid, credential=appcred)
-    uinfo, uarticles = await asyncio.gather(u.get_user_info(), u.get_articles(pn=request.args.get("i") or 1, ps=28))
-    return await render_template_with_theme("author.html", uinfo=uinfo, uarts=uarticles)
+    try:
+        pn = int(request.args.get("i") or 1)
+    except (TypeError, ValueError):
+        pn = 1
+    pn = max(pn, 1)
+    # Page-1 payload is cached; deeper pages always fetch live.
+    cache_ttl = cache_minutes("author_minutes") * 60
+    use_cache = pn == 1 and cache_ttl > 0
+    cache_hit = False
+    uinfo = uarticles = None
+    if use_cache:
+        data = await cache_get(f"author:data:{mid}", cache_ttl)
+        if isinstance(data, dict):
+            uinfo, uarticles = data.get("uinfo"), data.get("uarticles")
+            cache_hit = (
+                isinstance(uinfo, dict)
+                and bool(uinfo)
+                and isinstance(uarticles, dict)
+            )
+            if not cache_hit:
+                uinfo = uarticles = None
+    if not cache_hit:
+        u = user.User(mid, credential=appcred)
+        uinfo, uarticles = await asyncio.gather(u.get_user_info(), u.get_articles(pn=pn, ps=28))
+        # Only cache a healthy page-1 payload; never stick a broken profile.
+        if use_cache and isinstance(uinfo, dict) and uinfo and isinstance(uarticles, dict):
+            await cache_set(f"author:data:{mid}", {"uinfo": uinfo, "uarticles": uarticles}, cache_ttl)
+    html = await render_template_with_theme("author.html", uinfo=uinfo, uarts=uarticles)
+    if use_cache:
+        return Response(
+            html,
+            status=200,
+            content_type="text/html",
+            headers={"X-Cache": "HIT" if cache_hit else "MISS"},
+        )
+    return html
 
 
 @app.route("/read/<cid>")
@@ -540,7 +577,6 @@ async def read_view(cid):
         if is_opus
         else f"https://www.bilibili.com/read/{cid}"
     )
-    client = await Network.get_async_client()
     cvid = cid.replace("cv", "").replace("opus", "")
     ua = "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com) 8.76.0 os/android model/WTF mobi_app/android build/8760000 channel/not_found innerVer/8760010 osVer/15 network/2"
 
@@ -553,6 +589,32 @@ async def read_view(cid):
         )
         else None
     )
+
+    cache_ttl = cache_minutes("article_minutes") * 60
+    # File exports (?format=) bypass the cache; the HTML flavor is part of
+    # the key so /read/cv.. and /opus/.. never share entries.
+    use_cache = want_format is None and cache_ttl > 0
+    cache_key = f"read:data:{cid}:{'opus' if is_opus else 'cv'}"
+    if use_cache:
+        data = await cache_get(cache_key, cache_ttl)
+        if (
+            isinstance(data, dict)
+            and isinstance(data.get("arinfo"), dict)
+            and data.get("arinfo")
+            and isinstance(data.get("content"), str)
+            and data.get("content")
+            and "无法解析文章内容" not in data.get("content")
+        ):
+            html = await render_template_with_theme(
+                "read.html",
+                cid=cid,
+                arinfo=data["arinfo"],
+                article_content=data["content"],
+                is_opus=is_opus,
+            )
+            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
+
+    client = await Network.get_async_client()
 
     # The public read/opus page is intermittently served with the content module
     # stripped (anti-bot) from datacenter IPs, even though HTTP 200 with title.
@@ -613,9 +675,23 @@ async def read_view(cid):
                     arinfo["title"] = api_info["title"]
         except Exception:
             pass
-        return await render_template_with_theme(
+        # Only cache fully parsed articles; stripped anti-bot bodies are
+        # retried live next time instead of sticking.
+        if (
+            use_cache
+            and isinstance(arinfo, dict)
+            and arinfo
+            and isinstance(content, str)
+            and content
+            and "无法解析文章内容" not in content
+        ):
+            await cache_set(cache_key, {"arinfo": arinfo, "content": content}, cache_ttl)
+        html = await render_template_with_theme(
             "read.html", cid=cid, arinfo=arinfo, article_content=content, is_opus=is_opus
         )
+        if use_cache:
+            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
+        return html
     except Exception:
         import traceback
 
@@ -1239,6 +1315,39 @@ async def video_view(vid, idx=0):
     except Exception:
         pass
 
+    cache_ttl = cache_minutes("video_minutes") * 60
+    cache_key = f"video:data:{vid}:{idx}"
+    if cache_ttl > 0:
+        data = await cache_get(cache_key, cache_ttl)
+        if (
+            isinstance(data, dict)
+            and isinstance(data.get("vinfo"), dict)
+            and (data["vinfo"].get("bvid") or data["vinfo"].get("title"))
+            and isinstance(data.get("vtags"), list)
+            and isinstance(data.get("vrelated"), list)
+            and isinstance(data.get("vset"), list)
+            and data.get("vset")
+        ):
+            vinfo, vtags, vrelated, vset = (
+                data["vinfo"],
+                data["vtags"],
+                data["vrelated"],
+                data["vset"],
+            )
+            html = await render_template_with_theme(
+                "video.html",
+                vid=vid,
+                vinfo=vinfo,
+                vcomments={"page": {"count": 0}, "replies": []},
+                vrelated=vrelated[:15],
+                keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
+                supported_src=[],
+                ato=ato,
+                idx=idx,
+                vset=vset,
+            )
+            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
+
     # LIGHTWEIGHT FETCH ONLY
     async def safe_api(coro, timeout=4.0):
         try:
@@ -1279,6 +1388,15 @@ async def video_view(vid, idx=0):
     vrelated = results[2] if is_valid(results[2]) else []
     vset = results[3] if is_valid(results[3]) else [{"page": 1, "part": vid}]
 
+    # Cache on healthy detail; tags/related/pages may fall back to empty
+    # (those sections degrade gracefully, unlike a missing vinfo).
+    if cache_ttl > 0 and isinstance(vinfo, dict) and (vinfo.get("bvid") or vinfo.get("title")):
+        await cache_set(
+            cache_key,
+            {"vinfo": vinfo, "vtags": vtags, "vrelated": vrelated, "vset": vset},
+            cache_ttl,
+        )
+
     # Pre-cache play info if proxy is enabled (DASH, or durl fallback)
     if appconf["proxy"]["use_proxy"]:
 
@@ -1311,7 +1429,7 @@ async def video_view(vid, idx=0):
     vcomments = {"page": {"count": 0}, "replies": []}
     supported_src = []
 
-    return await render_template_with_theme(
+    html = await render_template_with_theme(
         "video.html",
         vid=vid,
         vinfo=vinfo,
@@ -1323,13 +1441,15 @@ async def video_view(vid, idx=0):
         idx=idx,
         vset=vset,
     )
+    if cache_ttl > 0:
+        return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
+    return html
 
 
 @app.route("/audio/<auid>")
 async def audio_view(auid):
     ato = request.args.get("ato") == "1"
     auid_int = int(auid[2:]) if auid.startswith("au") else int(auid)
-    a = audio.Audio(auid_int, credential=appcred)
 
     async def get_audio_url():
         if not await appredis.exists(f"mikuinv_{auid}_{0}_0"):
@@ -1342,13 +1462,36 @@ async def audio_view(auid):
             except Exception:
                 pass
 
-    results = await asyncio.gather(
-        a.get_info(),
-        comment.get_comments(auid_int, comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE),
-        get_audio_url(),
-        return_exceptions=True,
-    )
-    ainfo = results[0] if not isinstance(results[0], Exception) else {}
+    cache_ttl = cache_minutes("audio_minutes") * 60
+    cache_key = f"audio:data:{auid}"
+    cache_hit = False
+    ainfo = None
+    acomments = {"page": {"count": 0}, "replies": []}
+    if cache_ttl > 0:
+        data = await cache_get(cache_key, cache_ttl)
+        if isinstance(data, dict) and isinstance(data.get("ainfo"), dict) and data.get("ainfo"):
+            ainfo = data["ainfo"]
+            cache_hit = True
+    if cache_hit:
+        # Info comes from cache; comments stay live so they never go stale.
+        try:
+            acomments = await comment.get_comments(
+                auid_int, comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE
+            )
+        except Exception:
+            pass
+    else:
+        a = audio.Audio(auid_int, credential=appcred)
+        results = await asyncio.gather(
+            a.get_info(),
+            comment.get_comments(auid_int, comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE),
+            get_audio_url(),
+            return_exceptions=True,
+        )
+        ainfo = results[0] if not isinstance(results[0], Exception) else {}
+        acomments = results[1] if not isinstance(results[1], Exception) else {"page": {"count": 0}, "replies": []}
+        if cache_ttl > 0 and isinstance(ainfo, dict) and ainfo:
+            await cache_set(cache_key, {"ainfo": ainfo}, cache_ttl)
     vinfo = {
         "title": ainfo.get("title", auid),
         "pic": ainfo.get("cover", ""),
@@ -1366,8 +1509,7 @@ async def audio_view(auid):
         "tid": 0,
         "tname": "Audio",
     }
-    acomments = results[1] if not isinstance(results[1], Exception) else {"page": {"count": 0}, "replies": []}
-    return await render_template_with_theme(
+    html = await render_template_with_theme(
         "video_listen.html",
         vid=auid,
         vinfo=vinfo,
@@ -1378,6 +1520,9 @@ async def audio_view(auid):
         idx=0,
         vset=[{"page": 1, "part": auid}],
     )
+    if cache_ttl > 0:
+        return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT" if cache_hit else "MISS"})
+    return html
 
 
 @app.route("/audio_list/<amid>")
@@ -1385,37 +1530,72 @@ async def audio_view(auid):
 async def audio_list_view(amid, idx=0):
     idx, ato = int(idx), request.args.get("ato") == "1"
     amid_int = int(amid[2:]) if amid.startswith("am") else int(amid)
-    al = audio.AudioList(amid_int, credential=appcred)
-    songs_res = await al.get_song_list()
-    songs = songs_res.get("data", [])
-    if not songs or idx >= len(songs):
-        return await render_template_with_theme("error.html", status="歌单为空", desc="没有找到歌曲"), 404
-    current_song = songs[idx]
-    auid = f"au{current_song['id']}"
-    a = audio.Audio(current_song["id"], credential=appcred)
+    cache_ttl = cache_minutes("audio_minutes") * 60
+    cache_key = f"audiolist:data:{amid}:{idx}"
+    cache_hit = False
+    songs = ainfo = list_info = None
+    acomments = {"page": {"count": 0}, "replies": []}
+    if cache_ttl > 0:
+        data = await cache_get(cache_key, cache_ttl)
+        cached_songs = data.get("songs") if isinstance(data, dict) else None
+        if (
+            isinstance(data, dict)
+            and isinstance(cached_songs, list)
+            and cached_songs
+            and all(isinstance(s, dict) and "id" in s for s in cached_songs)
+            and isinstance(data.get("ainfo"), dict)
+            and data.get("ainfo")
+            and isinstance(data.get("list_info"), dict)
+        ):
+            songs, ainfo, list_info = cached_songs, data["ainfo"], data["list_info"]
+            cache_hit = True
+    if cache_hit:
+        if idx >= len(songs):
+            return await render_template_with_theme("error.html", status="歌单为空", desc="没有找到歌曲"), 404
+        current_song = songs[idx]
+        # Track info comes from cache; comments stay live so they never go stale.
+        try:
+            acomments = await comment.get_comments(
+                current_song["id"], comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE
+            )
+        except Exception:
+            pass
+        auid = f"au{current_song['id']}"
+    else:
+        al = audio.AudioList(amid_int, credential=appcred)
+        songs_res = await al.get_song_list()
+        songs = songs_res.get("data", [])
+        if not songs or idx >= len(songs):
+            return await render_template_with_theme("error.html", status="歌单为空", desc="没有找到歌曲"), 404
+        current_song = songs[idx]
+        auid = f"au{current_song['id']}"
+        a = audio.Audio(current_song["id"], credential=appcred)
 
-    async def get_audio_url():
-        if not await appredis.exists(f"mikuinv_{amid}_{idx}_0"):
-            try:
-                asrc = await a.get_download_url()
-                if "cdns" in asrc and asrc["cdns"]:
-                    await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["cdns"][0])
-                elif "url" in asrc:
-                    await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["url"])
-            except Exception:
-                pass
+        async def get_audio_url():
+            if not await appredis.exists(f"mikuinv_{amid}_{idx}_0"):
+                try:
+                    asrc = await a.get_download_url()
+                    if "cdns" in asrc and asrc["cdns"]:
+                        await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["cdns"][0])
+                    elif "url" in asrc:
+                        await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["url"])
+                except Exception:
+                    pass
 
-    results = await asyncio.gather(
-        a.get_info(),
-        al.get_info(),
-        comment.get_comments(current_song["id"], comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE),
-        get_audio_url(),
-        return_exceptions=True,
-    )
-    ainfo, list_info = (
-        results[0] if not isinstance(results[0], Exception) else {},
-        results[1] if not isinstance(results[1], Exception) else {},
-    )
+        results = await asyncio.gather(
+            a.get_info(),
+            al.get_info(),
+            comment.get_comments(current_song["id"], comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE),
+            get_audio_url(),
+            return_exceptions=True,
+        )
+        ainfo, list_info = (
+            results[0] if not isinstance(results[0], Exception) else {},
+            results[1] if not isinstance(results[1], Exception) else {},
+        )
+        acomments = results[2] if not isinstance(results[2], Exception) else {"page": {"count": 0}, "replies": []}
+        if cache_ttl > 0 and songs and isinstance(ainfo, dict) and ainfo:
+            await cache_set(cache_key, {"songs": songs, "ainfo": ainfo, "list_info": list_info}, cache_ttl)
     vinfo = {
         "title": ainfo.get("title", auid),
         "pic": ainfo.get("cover", ""),
@@ -1433,7 +1613,6 @@ async def audio_list_view(amid, idx=0):
         "tid": 0,
         "tname": list_info.get("title", "Audio List"),
     }
-    acomments = results[2] if not isinstance(results[2], Exception) else {"page": {"count": 0}, "replies": []}
     vset = [
         {
             "page": i + 1,
@@ -1442,8 +1621,9 @@ async def audio_list_view(amid, idx=0):
             "first_frame": s.get("cover", ""),
         }
         for i, s in enumerate(songs)
+        if isinstance(s, dict)
     ]
-    return await render_template_with_theme(
+    html = await render_template_with_theme(
         "video_listen.html",
         vid=amid,
         vinfo=vinfo,
@@ -1454,6 +1634,9 @@ async def audio_list_view(amid, idx=0):
         idx=idx,
         vset=vset,
     )
+    if cache_ttl > 0:
+        return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT" if cache_hit else "MISS"})
+    return html
 
 
 @app.route("/history")
