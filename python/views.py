@@ -17,6 +17,7 @@ import asyncio
 import datetime
 import re
 import sys
+import time
 
 import orjson
 import transformers
@@ -273,29 +274,127 @@ async def search_view():
     return await render_template_with_theme(tmpl, q=q, sinfo=sinfo, rs=results, sort=request.args.get("sort"))
 
 
+def _cache_minutes(key, default=5):
+    """Read a [cache] TTL (in minutes); invalid values fall back to default."""
+    try:
+        return int(appconf.get("cache", {}).get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _space_data_key(mid):
+    # Single shared upstream payload for /space/<mid> (page 1) and
+    # /space/<mid>/json, so one Bilibili fetch serves both routes.
+    return f"space:data:{mid}"
+
+
+def _is_good_space_data(uinfo, uvids):
+    """Only healthy payloads may be cached: valid profile + non-empty vlist.
+
+    Transient upstream failures surface as exceptions (handled by callers) or
+    as valid-looking but empty vlists; caching those would stick the channel
+    on "0 videos" until expiry, so they are served live and never stored.
+    """
+    if not isinstance(uinfo, dict) or not (uinfo.get("name") or uinfo.get("face")):
+        return False
+    if not isinstance(uvids, dict):
+        return False
+    lst = uvids.get("list")
+    vlist = lst.get("vlist", []) if isinstance(lst, dict) else []
+    return isinstance(vlist, list) and len(vlist) > 0
+
+
+def _max_space_ttl():
+    """Redis expiry for the shared key: the longest interested route policy."""
+    return max(max(_cache_minutes("space_minutes"), _cache_minutes("space_json_minutes")), 0) * 60
+
+
+async def _read_space_data(mid, max_age_seconds):
+    """Return (uinfo, uvids) if the unified entry is fresh for this reader.
+
+    Each route passes its own TTL as max_age_seconds, so divergent
+    SPACE_CACHE_MINUTES / SPACE_JSON_CACHE_MINUTES policies are each
+    strictly enforced even though both share one key. Entries written
+    before fetched_at existed are treated as expired (self-migrating).
+    """
+    try:
+        raw = await appredis.get(_space_data_key(mid))
+    except Exception:
+        return None, None
+    data = safe_json_loads(raw, default=None)
+    if not isinstance(data, dict):
+        return None, None
+    try:
+        age = time.time() - float(data.get("fetched_at", 0))
+    except (TypeError, ValueError):
+        return None, None
+    if age < 0 or age > max_age_seconds:
+        return None, None
+    uinfo, uvids = data.get("uinfo"), data.get("uvids")
+    if not _is_good_space_data(uinfo, uvids):
+        return None, None
+    return uinfo, uvids
+
+
+async def _write_space_data(mid, uinfo, uvids):
+    """Store a healthy payload; key expiry covers the longest route policy."""
+    if not _is_good_space_data(uinfo, uvids):
+        return
+    ttl = _max_space_ttl()
+    if ttl <= 0:
+        return
+    try:
+        raw = orjson.dumps({"uinfo": uinfo, "uvids": uvids, "fetched_at": time.time()})
+        await appredis.set(
+            _space_data_key(mid),
+            raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw),
+            ex=ttl,
+        )
+    except Exception:
+        pass
+
+
+async def _fetch_space_data(mid, pn=1, ps=30):
+    u = user.User(mid, credential=appcred)
+    return await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=ps))
+
+
 @app.route("/space/<mid>")
 @app.route("/space/<mid>/")
 async def space_view(mid):
-    u = user.User(mid, credential=appcred)
+    try:
+        pn = int(request.args.get("i") or 1)
+    except (TypeError, ValueError):
+        pn = 1
+    pn = max(pn, 1)
+    # Unified page-1 cache shared with /space/<mid>/json. Deeper pages
+    # (?i=N, N>1) always fetch live so the shared key stays a single entry.
+    cache_ttl = _cache_minutes("space_minutes") * 60
+    use_cache = pn == 1 and cache_ttl > 0
+    cache_hit = False
     uinfo = None
     uvids = {}
-    try:
+    if use_cache:
+        uinfo, uvids = await _read_space_data(mid, cache_ttl)
+        cache_hit = uinfo is not None
+    if not cache_hit:
+        u = user.User(mid, credential=appcred)
         try:
-            pn = int(request.args.get("i") or 1)
-        except (TypeError, ValueError):
-            pn = 1
-        pn = max(pn, 1)
-        uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=28))
-    except Exception:
-        # The user API is often risk-controlled / IP-blocked (412/-352) without the
-        # WARP proxy; re-run the core profile fetch alone in case only a sibling
-        # gather task failed. The video list is optional and falls back to empty.
-        uvids = {}
-        if not isinstance(uinfo, dict) or not uinfo:
-            try:
-                uinfo = await u.get_user_info()
-            except Exception:
-                uinfo = None
+            # ps=30 on the unified path so the payload is a superset the JSON
+            # feed can also use; page-1 HTML is sliced back to 28 below.
+            uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=30 if use_cache else 28))
+        except Exception:
+            # The user API is often risk-controlled / IP-blocked (412/-352) without the
+            # WARP proxy; re-run the core profile fetch alone in case only a sibling
+            # gather task failed. The video list is optional and falls back to empty.
+            uvids = {}
+            if not isinstance(uinfo, dict) or not uinfo:
+                try:
+                    uinfo = await u.get_user_info()
+                except Exception:
+                    uinfo = None
+        if use_cache:
+            await _write_space_data(mid, uinfo, uvids)
     if not isinstance(uinfo, dict) or not uinfo:
         return await render_template_with_theme(
             "error.html",
@@ -322,51 +421,57 @@ async def space_view(mid):
         page["count"] = int(page.get("count", 0))
     except (TypeError, ValueError):
         page["count"] = 0
+    vlist = uvids.get("list", {}).get("vlist", [])
+    if pn == 1 and isinstance(vlist, list) and len(vlist) > 28:
+        # Unified payload carries ps=30 for the JSON feed; keep page-1 HTML
+        # identical to the classic ps=28 view so pagination stays aligned.
+        uvids["list"]["vlist"] = vlist = vlist[:28]
+        if isinstance(page, dict):
+            page["ps"] = 28
     # The fallback recArchivesByKeywords endpoint has no author/owner name; since
     # this is the user's own space, stamp it from the profile.
     uname = uinfo.get("name", "")
-    for v in uvids.get("list", {}).get("vlist", []):
+    for v in vlist:
         if not v.get("author") and uname:
             v["author"] = uname
-    return await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids)
+    html = await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids)
+    if use_cache:
+        return Response(
+            html,
+            status=200,
+            content_type="text/html",
+            headers={"X-Cache": "HIT" if cache_hit else "MISS"},
+        )
+    return html
 
 
 @app.route("/space/<mid>/json")
 async def space_json_feed(mid):
-    try:
-        cache_minutes = int(appconf.get("cache", {}).get("space_json_minutes", 5))
-    except (TypeError, ValueError):
-        cache_minutes = 5
-    cache_ttl = cache_minutes * 60
-    cache_key = f"space:json:{mid}"
-    cached = None
+    cache_ttl = _cache_minutes("space_json_minutes") * 60
+    cache_hit = False
+    uinfo = uvids = None
     if cache_ttl > 0:
+        # Served from the same unified payload as /space/<mid> (page 1):
+        # whichever route misses first pays for the one upstream fetch.
+        uinfo, uvids = await _read_space_data(mid, cache_ttl)
+        cache_hit = uinfo is not None
+    if not cache_hit:
         try:
-            cached = await appredis.get(cache_key)
-        except Exception:
-            cached = None
-    if cached:
-        return Response(
-            cached,
-            status=200,
-            content_type="application/json",
-            headers={"X-Cache": "HIT"},
-        )
-    u = user.User(mid, credential=appcred)
-    try:
-        uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=1, ps=30))
-    except Exception as e:
-        return Response(
-            orjson.dumps({"error": str(e)}),
-            status=502,
-            content_type="application/json",
-        )
-    if not isinstance(uinfo, dict) or not isinstance(uvids, dict):
-        return Response(
-            orjson.dumps({"error": "Unexpected response format from Bilibili API"}),
-            status=502,
-            content_type="application/json",
-        )
+            uinfo, uvids = await _fetch_space_data(mid, pn=1, ps=30)
+        except Exception as e:
+            return Response(
+                orjson.dumps({"error": str(e)}),
+                status=502,
+                content_type="application/json",
+            )
+        if not isinstance(uinfo, dict) or not isinstance(uvids, dict):
+            return Response(
+                orjson.dumps({"error": "Unexpected response format from Bilibili API"}),
+                status=502,
+                content_type="application/json",
+            )
+        if cache_ttl > 0:
+            await _write_space_data(mid, uinfo, uvids)
 
     site_url = appconf["site"]["site_url"]
     feed_url = f"{site_url}/space/{mid}/json"
@@ -402,15 +507,16 @@ async def space_json_feed(mid):
     }
 
     raw = orjson.dumps(feed)
-    # Cache only successful responses; never cache errors/empty payloads.
-    if raw and cache_ttl > 0:
-        try:
-            raw_str = raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw)
-            if raw_str:
-                await appredis.set(cache_key, raw_str, ex=cache_ttl)
-        except Exception:
-            pass
-    return Response(raw, status=200, content_type="application/feed+json", headers={"X-Cache": "MISS"})
+    # Payload caching already happened via _write_space_data above (healthy
+    # payloads only); the feed itself is cheaply rebuilt from cached data.
+    if cache_ttl > 0:
+        return Response(
+            raw,
+            status=200,
+            content_type="application/feed+json",
+            headers={"X-Cache": "HIT" if cache_hit else "MISS"},
+        )
+    return Response(raw, status=200, content_type="application/feed+json")
 
 
 @app.route("/author/<mid>")

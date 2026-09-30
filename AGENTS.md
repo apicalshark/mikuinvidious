@@ -244,7 +244,7 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 - **`[credential]`**: Bilibili cookies (SESSDATA, etc.) for authenticated access.
 - **`[proxy]`**: Global toggle for media proxying.
 - **`[redis]`**: Redis connection details.
-- **`[cache]`**: Response cache TTLs (e.g. `space_json_minutes`, default `5`; `SPACE_JSON_CACHE_MINUTES`).
+- **`[cache]`**: Response cache TTLs (e.g. `space_minutes` / `SPACE_CACHE_MINUTES`, `space_json_minutes` / `SPACE_JSON_CACHE_MINUTES`, default `5`). `/space/<mid>` (page 1) and `/space/<mid>/json` share one upstream payload (`space:data:<mid>`); only healthy (non-empty video list) payloads are cached, so transient "0 videos" failures are never stuck in cache.
 - **`[render]`**: Configuration for article rendering (Pandoc support).
 
 ## Development & Deployment

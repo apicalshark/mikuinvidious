@@ -278,9 +278,12 @@ appconf = {
         "enabled": os.environ.get("RATE_LIMIT_ENABLED", "false").lower() == "true",
     },
     "cache": {
-        # TTL for the /space/<mid>/json feed, in minutes.
-        # Overridable via config.toml [cache] or SPACE_JSON_CACHE_MINUTES env var.
-        # Set to 0 to disable caching.
+        # TTLs in minutes for the space page + JSON feed. Both routes share a
+        # single upstream payload (Redis key space:data:<mid>), so one
+        # Bilibili fetch serves both and halves upstream bandwidth.
+        # Overridable via config.toml [cache] or the env vars below.
+        # Set to 0 to disable caching for that route.
+        "space_minutes": _int_env("SPACE_CACHE_MINUTES", 5),
         "space_json_minutes": _int_env("SPACE_JSON_CACHE_MINUTES", 5),
     },
 }

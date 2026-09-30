@@ -100,9 +100,12 @@ Configuration for connecting to the Redis database, which is required for cachin
 ## `[cache]`
 Settings for Redis-backed response caching.
 
+The space page (`/space/<mid>`, page 1) and the JSON feed (`/space/<mid>/json`) share a single upstream payload cached in Redis as `space:data:<mid>`, so one Bilibili fetch serves both routes and halves upstream bandwidth. Each payload is stamped with `fetched_at`: the Redis key expires after the *longer* of the two TTLs, while each route enforces its own max-age on read — so divergent intervals are each strictly respected (a route whose policy expired refetches and refreshes the shared entry). Only healthy payloads (valid profile + non-empty video list) are cached — transient failures that would render as "0 videos" are served live and never stored. Errors are never cached. Deeper space pages (`?i=N`, N>1) always fetch live.
+
 | Key | Environment Variable | Default | Description |
 | --- | --- | --- | --- |
-| `space_json_minutes` | `SPACE_JSON_CACHE_MINUTES` | `5` | TTL for the `/space/<mid>/json` feed, in minutes. Successful (HTTP 200) responses are stored in Redis as `space:json:<mid>`; errors are never cached. Set to `0` to disable caching. |
+| `space_minutes` | `SPACE_CACHE_MINUTES` | `5` | TTL for the `/space/<mid>` page-1 payload, in minutes. Set to `0` to disable. |
+| `space_json_minutes` | `SPACE_JSON_CACHE_MINUTES` | `5` | TTL for the `/space/<mid>/json` feed payload, in minutes. Set to `0` to disable. |
 
 ---
 
