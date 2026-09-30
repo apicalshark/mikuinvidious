@@ -1020,7 +1020,7 @@ def _is_final_play_data(data) -> bool:
     return bool(isinstance(data, dict) and (data.get("paywall") or data.get("dash") or data.get("durl")))
 
 
-async def _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall) -> list:
+async def _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall, cid=None) -> list:
     """Progressive fallback list; [] for paywalled content (gated on every endpoint)."""
     if paywall:
         return []
@@ -1028,7 +1028,7 @@ async def _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall) -
         from dash_proxy import fetch_durl_supported_src
 
         return await asyncio.wait_for(
-            fetch_durl_supported_src(v, vid, idx, play_data=dash_data, ep_id=ep_id),
+            fetch_durl_supported_src(v, vid, idx, play_data=dash_data, ep_id=ep_id, cid=cid),
             timeout=20.0,
         )
     except Exception as e:
@@ -1066,7 +1066,7 @@ async def api_component_player(vid, idx):
         try:
             from dash_proxy import video_get_dash_for_qn
 
-            data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id), timeout=8.0)
+            data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id, cid=pgc_cid), timeout=8.0)
             if _is_final_play_data(data):
                 if isinstance(data, dict) and data.get("dash"):
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
@@ -1075,6 +1075,11 @@ async def api_component_player(vid, idx):
             print(f"[Player] playurl fetch failed for {vid}:{idx}: {e}")
         return None
 
+    # Known PGC cid from the season lookup below (None for plain UGC).
+    # Threaded into playurl resolution so a gated UGC cid lookup can't
+    # veto the PGC path. Defined here because get_dash_data() above
+    # closes over it and runs after this block.
+    pgc_cid = None
     try:
         if ep_id:
             from api.client import Api
@@ -1104,6 +1109,7 @@ async def api_component_player(vid, idx):
                     "pic": current_ep.get("cover") or res.get("cover"),
                     "title": f"{res.get('title', '')} - {current_ep.get('title', '')}",
                 }
+                pgc_cid = current_ep.get("cid")
             else:
                 vinfo = await v.get_info()
         else:
@@ -1147,7 +1153,7 @@ async def api_component_player(vid, idx):
         # Progressive (durl) fallback: some UGC uploads return no DASH
         # ``dash`` node at all — only a progressive
         # MP4 ``durl``. Serve those through the native /proxy/video/ path.
-        supported_src = await _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall)
+        supported_src = await _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall, cid=pgc_cid)
 
     return await render_template_with_theme(
         "components/player_part.html",

@@ -203,46 +203,58 @@ def _paywall_short_circuit(exc: Exception, ep_id) -> dict | None:
     return None
 
 
-async def video_get_dash_for_qn(vi, idx, ep_id=None) -> dict:
+async def video_get_dash_for_qn(vi, idx, ep_id=None, cid=None) -> dict:
     """Fetch canonical DASH play info, returning a ``{"dash":..., "durl":..., "support_formats":...}`` dict.
 
     Uses :meth:`api.video.Video.get_dash_playurl` (wbi-signed UGC endpoint).
     Falls back to the PGC playurl endpoint (not wbi-signed) when the UGC path
     returns an error / empty dash, which happens for premium (PGC) content.
+
+    UGC detail endpoints fake-404 PGC-only BVs (``-404 啥都木有``) under
+    risk control; that must not veto the PGC path, which needs no UGC cid
+    at all. Pass the known PGC ``cid`` (e.g. from season data) when
+    available — it is used for the UGC attempt and PGC params alike.
     """
     from api import video
 
     v = vi if isinstance(vi, video.Video) else video.Video(bvid=vi, credential=appcred)
-    try:
-        cid = await v.get_cid(idx)
-    except Exception as exc:
-        return {"code": -1, "message": f"failed to resolve cid: {exc}"}
+    if cid is None:
+        try:
+            cid = await v.get_cid(idx)
+        except Exception as exc:
+            print(f"[DashProxy] cid resolve failed for {v.get_bvid()}: {exc}")
+            cid = None
+            if ep_id is None:
+                return {"code": -1, "message": f"failed to resolve cid: {exc}"}
     if ep_id is None:
         ep_id = await _extract_ep_id(v)
 
-    # 1) UGC wbi playurl (canonical path)
-    try:
-        data = await v.get_dash_playurl(page_index=idx, cid=cid, qn=120)
-        if isinstance(data, dict) and data.get("v_voucher"):
-            # Gaia risk gate survived the avoidance retry (no captcha UI
-            # server-side) — fall through to the PGC fallback below.
-            print(f"[DashProxy] UGC playurl risk-gated (v_voucher) for {v.get_bvid()}; trying PGC fallback")
-        if data and isinstance(data, dict) and (data.get("dash") or data.get("durl") or data.get("support_formats")):
-            return {
-                "code": data.get("code", 0),
-                "dash": data.get("dash") or {},
-                "durl": data.get("durl") or [],
-                "support_formats": data.get("support_formats") or [],
-                "quality": data.get("quality", 0),
-                "accept_quality": data.get("accept_quality", []),
-            }
-    except Exception as exc:
-        print(f"[DashProxy] UGC playurl failed for {v.get_bvid()}: {exc}")
-        paywalled = _paywall_short_circuit(exc, ep_id)
-        if paywalled is not None:
-            return paywalled
+    # 1) UGC wbi playurl (canonical path) — needs a UGC cid.
+    if cid is not None:
+        try:
+            data = await v.get_dash_playurl(page_index=idx, cid=cid, qn=120)
+            if isinstance(data, dict) and data.get("v_voucher"):
+                # Gaia risk gate survived the avoidance retry (no captcha UI
+                # server-side) — fall through to the PGC fallback below.
+                print(f"[DashProxy] UGC playurl risk-gated (v_voucher) for {v.get_bvid()}; trying PGC fallback")
+            if data and isinstance(data, dict) and (data.get("dash") or data.get("durl") or data.get("support_formats")):
+                return {
+                    "code": data.get("code", 0),
+                    "dash": data.get("dash") or {},
+                    "durl": data.get("durl") or [],
+                    "support_formats": data.get("support_formats") or [],
+                    "quality": data.get("quality", 0),
+                    "accept_quality": data.get("accept_quality", []),
+                }
+        except Exception as exc:
+            print(f"[DashProxy] UGC playurl failed for {v.get_bvid()}: {exc}")
+            paywalled = _paywall_short_circuit(exc, ep_id)
+            if paywalled is not None:
+                return paywalled
 
     # 2) PGC playurl fallback (premium / non-wbi endpoint)
+    if ep_id is None and cid is None:
+        return {"code": -1, "message": "no playable source (UGC failed, no ep_id/cid for PGC fallback)"}
     try:
         client = await Network.get_async_client()
         cookies = {}
@@ -256,13 +268,14 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None) -> dict:
             }
         pgc_params = {
             "avid": v.get_aid(),
-            "cid": cid,
             "qn": 120,
             "fnval": 4048,
             "fourk": 1,
             "platform": "html5",
             "high_quality": 1,
         }
+        if cid is not None:
+            pgc_params["cid"] = cid
         if ep_id:
             pgc_params["ep_id"] = ep_id
         pgc_raw = await client.get(
@@ -360,19 +373,27 @@ async def _fetch_single_durl_pgc(v, base_params: dict, ep_id=None) -> dict | Non
     return None
 
 
-async def _fetch_single_durl(v, idx: int, qn: int, ep_id=None) -> dict | None:
+async def _fetch_single_durl(v, idx: int, qn: int, ep_id=None, cid=None) -> dict | None:
     """Fetch one progressive (``durl``) playurl for a quality level.
 
     Uses the non-wbi ``/x/player/playurl`` endpoint (per-quality ``qn``),
     which still returns a ``durl`` node for durl-only uploads. Returns the
-    ``data``-shaped dict on success, else None.
+    ``data``-shaped dict on success, else None. When UGC cid resolution is
+    gated but an ``ep_id`` is known, the PGC endpoint is tried directly.
     """
     from api.client import Api
 
-    try:
-        cid = await v.get_cid(idx)
-    except Exception:
-        return None
+    if cid is None:
+        try:
+            cid = await v.get_cid(idx)
+        except Exception:
+            if ep_id is None:
+                return None
+            return await _fetch_single_durl_pgc(
+                v,
+                {"avid": v.get_aid(), "qn": qn, "platform": "html5", "high_quality": 1},
+                ep_id=ep_id,
+            )
     api = Api(
         "https://api.bilibili.com/x/player/playurl",
         "GET",
@@ -448,7 +469,14 @@ async def _cache_durl_entry(vid: str, idx: int, qn: int, desc: str, node: dict |
 
 
 async def fetch_durl_supported_src(
-    v, vid: str, idx: int, play_data: dict | None = None, ep_id=None, max_qualities: int = 4, force: bool = False
+    v,
+    vid: str,
+    idx: int,
+    play_data: dict | None = None,
+    ep_id=None,
+    max_qualities: int = 4,
+    force: bool = False,
+    cid=None,
 ) -> list:
     """Fetch + cache progressive (``durl``) URLs for durl-only videos.
 
@@ -482,7 +510,7 @@ async def fetch_durl_supported_src(
         if initial_durl and initial_qn == qn:
             node = play_data
         else:
-            node = await _fetch_single_durl(v, idx, qn, ep_id=ep_id)
+            node = await _fetch_single_durl(v, idx, qn, ep_id=ep_id, cid=cid)
         return await _cache_durl_entry(vid, idx, qn, desc, node)
 
     results = await asyncio.gather(*[resolve_one(qn, desc) for qn, desc in qualities])
