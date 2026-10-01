@@ -1515,18 +1515,61 @@ def _shift_dash_range(orig_range: str | None, yielded: int) -> str | None:
     return f"bytes={int(m.group(1)) + yielded}-{m.group(2)}"
 
 
-async def _abort_dash_body(conn, label: str, host: str, yielded: int, exc: Exception):
-    """Abort a cut stream: close upstream, then re-raise so the client retries.
+def _expected_resume_start(orig_range: str | None, yielded: int) -> int | None:
+    """Expected Content-Range start after ``yielded`` bytes were sent.
 
-    Never end cleanly here — a truncated body delivered as 200/206 would be
-    cached/demuxed as complete instead of retried.
+    Returns None when the original request shape is unknown (failover keeps
+    whatever the mirror returns).
     """
-    print(f"[DashProxy] {label} {host} mid-body cut after {yielded} bytes ({exc}); aborting")
-    try:
-        await conn.close()
-    except Exception:
-        pass
-    raise exc
+    m = re.match(r"bytes=(\d+)-(\d*)$", (orig_range or "").strip())
+    if m:
+        try:
+            return int(m.group(1)) + yielded
+        except (TypeError, ValueError):
+            return None
+    if not orig_range:
+        # Full-file (no Range) request starting at 0.
+        return yielded
+    return None
+
+
+async def _failover_dash_conn(pending: list, headers: dict, proxy_url: str, label: str, orig_range, yielded: int):
+    """Fail over a cut/slow body to the next mirror.
+
+    Shifts ``headers["range"]`` when bytes were already sent, then walks
+    ``pending`` until a mirror answers with a byte-contiguous resume point.
+    Mirrors that ignore the resume Range (200 instead of 206) or start at
+    the wrong offset are skipped. Removes the used URL from ``pending`` and
+    returns ``(conn, used_url, resp_headers)``; raises ``_DashUpstreamError``
+    when no mirror is usable. The caller owns ``conn.close()``.
+    """
+    if yielded:
+        headers["range"] = _shift_dash_range(orig_range, yielded) or headers.get("range")
+    expected = _expected_resume_start(orig_range, yielded) if yielded else None
+    last_error: Exception | None = None
+    while pending:
+        try:
+            conn, resp_headers, used, _, _ = await _fetch_dash_track(pending, headers, proxy_url, label)
+        except _DashUpstreamError as exc:
+            raise exc
+        if yielded:
+            start = _parse_content_range_start(resp_headers.headers)
+            if resp_headers.status_code != 206 or (expected is not None and start != expected):
+                print(
+                    f"[DashProxy] {label} {urlparse(used).hostname} resume mismatch "
+                    f"(want start={expected}, got status={resp_headers.status_code} "
+                    f"range={resp_headers.headers.get('content-range')}), trying next mirror"
+                )
+                pending.remove(used)
+                try:
+                    await conn.close()
+                except Exception:
+                    pass
+                last_error = RuntimeError(f"resume offset mismatch on {used}")
+                continue
+        pending.remove(used)
+        return conn, used, resp_headers
+    raise _DashUpstreamError(f"all mirrors failed for {label}: {last_error}")
 
 
 async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str):
@@ -1649,29 +1692,39 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     async for chunk in _yield_dash_body(conn, label):
                         yielded += len(chunk)
                         yield chunk
-                except _SlowDashBody as exc:
+                except (asyncio.CancelledError, GeneratorExit):
+                    # Client went away mid-stream: just close upstream.
                     try:
                         await conn.close()
                     except Exception:
                         pass
-                    if not pending:
-                        print(f"[DashProxy] {label} {host} body too slow ({exc}), mirrors exhausted")
-                        return
-                    print(f"[DashProxy] {label} {host} body too slow ({exc}), trying next mirror")
-                    if yielded:
-                        headers["range"] = _shift_dash_range(orig_range, yielded)
+                    print(f"[DashProxy] {label} {host} client disconnected after {yielded} bytes")
+                    raise
+                except (_SlowDashBody, CdnProtocolError, CdnTimeoutError, CdnConnectError, OSError, TimeoutError) as exc:
                     try:
-                        conn, _, used, _, _ = await _fetch_dash_track(pending, headers, proxy_url, label)
+                        await conn.close()
+                    except Exception:
+                        pass
+                    kind = "body too slow" if isinstance(exc, _SlowDashBody) else "mid-body cut"
+                    if not pending:
+                        # No mirrors left: end the stream early WITHOUT
+                        # raising. Downstream Content-Length was already
+                        # emitted, so the short body surfaces as a length
+                        # mismatch and dash.js retries the Range — instead
+                        # of a 500 + TaskGroup traceback from re-raising
+                        # inside the generator.
+                        print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}); mirrors exhausted, truncating")
+                        return
+                    print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}), trying next mirror")
+                    try:
+                        conn, used, _ = await _failover_dash_conn(
+                            pending, headers, proxy_url, label, orig_range, yielded
+                        )
                     except _DashUpstreamError as exc2:
                         print(f"[DashProxy] {label} body failover failed: {exc2}")
                         return
                     host = urlparse(used).hostname or "-"
-                    pending.remove(used)
                     continue
-                except (CdnProtocolError, CdnTimeoutError) as exc:
-                    # Mid-body cut: abort instead of ending cleanly, so a
-                    # truncated segment is retried rather than demuxed.
-                    await _abort_dash_body(conn, label, host, yielded, exc)
                 try:
                     await conn.close()
                 except Exception:
