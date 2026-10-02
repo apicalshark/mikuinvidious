@@ -1,12 +1,84 @@
 bots:
-  - name: allow-json
+  # Infra paths: monitors can't solve PoW, never challenge them
+  - name: allow-infra-paths
+    path_regex: ^/(\.well-known/.*|favicon\.ico|robots\.txt)$
     action: ALLOW
-    expression: '"Accept" in headers && headers["Accept"].contains("application/json") || path.endsWith("/json")'
 
+  # Empty UA is overwhelmingly scraper traffic
+  - name: deny-empty-user-agent
+    action: DENY
+    expression: '!(\"User-Agent\" in headers)'
+
+  # Aggressive AI/data scrapers: hard deny
+  - name: deny-bad-ai-crawlers
+    user_agent_regex: (?i)(bytespider|claudebot|chatgpt-user|gptbot|ccbot|perplexitybot|petalbot|amazonbot|applebot-extended|cohere|diffbot|omgilibot|youbot|claude-)
+    action: DENY
+
+  # SEO crawlers: bandwidth thieves, no value
+  - name: deny-seo-scrapers
+    user_agent_regex: (?i)(mj12bot|ahrefsbot|semrushbot|dotbot|dataforseo|barkrowler|serpstat|blexbot|screaming)
+    action: DENY
+
+  # Scraping frameworks: slow+hard PoW instead of deny (fewer false positives)
+  - name: punish-scrape-frameworks
+    user_agent_regex: (?i)(scrapy|scrapy-playwright|selenium|puppeteer|playwright|headlesschrome|phantomjs|slimerjs)
+    action: CHALLENGE
+    challenge:
+      algorithm: slow
+      difficulty: 6
+      report_as: 6
+
+  # Scripting libs have no browser behind them: slow+hard challenge
+  - name: punish-script-libs
+    user_agent_regex: (?i)(python-requests|python-httpx|^httpx|aiohttp|axios|node-fetch|node\.js|got/|curl|wget|libwww-perl|java/|go-http-client|okhttp|restsharp)
+    action: CHALLENGE
+    challenge:
+      algorithm: slow
+      difficulty: 6
+      report_as: 6
+
+  # Public JSON API: cheap, cached, must work for RSS/scripts without JS
+  - name: allow-space-json
+    action: ALLOW
+    expression: 'path.startsWith("/space/") && path.endsWith("/json")'
+
+  # Verified crawlers only (UA + IP pin, never UA alone). Opt-in.
+  # - name: allow-qwantbot
+  #   user_agent_regex: \+https\://help\.qwant\.com/bot/
+  #   action: ALLOW
+  #   remote_addresses: ["91.242.162.0/24"]
+
+  # Datacenter/geo escalation (needs GeoIP). Opt-in.
+  # - name: weigh-aggressive-geos
+  #   action: WEIGH
+  #   geoip:
+  #     countries: [BR, CN]
+  #   weight:
+  #     adjust: 10
+
+  # Under load, make new sessions prove themselves harder (tune to ~2x cores)
+  - name: high-load-shed
+    action: WEIGH
+    expression: 'load_1m >= 8.0'
+    weight:
+      adjust: 20
+
+  # Default: challenge everything else (media stays behind PoW by design)
   - name: force-challenge-all
-    user_agent_regex: ".?"
+    user_agent_regex: .*
     action: CHALLENGE
     challenge:
       algorithm: fast
       difficulty: 4
       report_as: 4
+
+# Production store (default memory backend is not for production):
+# store:
+#   backend: valkey
+#   parameters:
+#     URL: "redis://redis:6379/1"
+
+# Metrics (bind localhost only, debug routes leak process details):
+# metrics:
+#   bind: "127.0.0.1:9090"
+#   network: tcp
