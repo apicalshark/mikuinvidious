@@ -7,7 +7,7 @@ bots:
   # Empty UA is overwhelmingly scraper traffic
   - name: deny-empty-user-agent
     action: DENY
-    expression: '!(\"User-Agent\" in headers)'
+    expression: '!("User-Agent" in headers)'
 
   # Aggressive AI/data scrapers: hard deny
   - name: deny-bad-ai-crawlers
