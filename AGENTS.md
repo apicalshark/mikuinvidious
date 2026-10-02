@@ -284,5 +284,5 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 - **Static Assets:** `static/` contains `hls.js`, `mpegts.js`, `dash.min.js`, and `danmaku.js`.
 - **Proxying Strategy:**
   - **Images:** Always proxied with WebP optimization.
-  - **Videos:** Proxied if `use_proxy=true`, via `CdnConnection` (raw socket; direct, or WARP SOCKS5 when configured).
+  - **Videos:** Always proxied via `CdnConnection` (raw socket; direct, or WARP SOCKS5 when configured).
 - **B23.tv:** Short links are resolved server-side.

@@ -1409,34 +1409,32 @@ async def video_view(vid, idx=0):
             cache_ttl,
         )
 
-    # Pre-cache play info if proxy is enabled (DASH, or durl fallback)
-    if appconf["proxy"]["use_proxy"]:
+    # Pre-cache play info (DASH, or durl fallback); proxying is always on.
+    async def precache_dash():
+        try:
+            from dash_proxy import (
+                fetch_durl_supported_src,
+                has_valid_dash_tracks,
+                video_get_dash_for_qn,
+            )
 
-        async def precache_dash():
-            try:
-                from dash_proxy import (
-                    fetch_durl_supported_src,
-                    has_valid_dash_tracks,
-                    video_get_dash_for_qn,
-                )
+            data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=8.0)
+            if has_valid_dash_tracks(data):
+                await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
+            elif data and data.get("durl"):
+                try:
+                    await asyncio.wait_for(
+                        fetch_durl_supported_src(v, vid, idx, play_data=data),
+                        timeout=25.0,
+                    )
+                except Exception as e:
+                    print(f"[Video] Pre-cache durl fallback failed for {vid}: {e}")
+        except Exception as e:
+            print(f"[Video] Pre-cache playurl failed for {vid}: {e}")
 
-                data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=8.0)
-                if has_valid_dash_tracks(data):
-                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
-                elif data and data.get("durl"):
-                    try:
-                        await asyncio.wait_for(
-                            fetch_durl_supported_src(v, vid, idx, play_data=data),
-                            timeout=25.0,
-                        )
-                    except Exception as e:
-                        print(f"[Video] Pre-cache durl fallback failed for {vid}: {e}")
-            except Exception as e:
-                print(f"[Video] Pre-cache playurl failed for {vid}: {e}")
-
-        task = asyncio.create_task(precache_dash())
-        _background_tasks.add(task)
-        task.add_done_callback(_background_tasks.discard)
+    task = asyncio.create_task(precache_dash())
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
 
     vcomments = {"page": {"count": 0}, "replies": []}
     supported_src = []

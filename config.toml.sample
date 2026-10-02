@@ -76,8 +76,9 @@ dedeuserid = ''
 ac_time_value = ''
 
 [proxy]
-# If your server is located outside of China, media proxying is likely required.
-use_proxy = true
+# Media proxying is always on. Set proxy_url below (or HTTP_PROXY env) to
+# route Bilibili traffic through a SOCKS5/HTTP proxy (e.g. WARP);
+# otherwise traffic goes direct.
 
 # The full URL of the SOCKS5/HTTP proxy. 
 # Example: 'socks5://127.0.0.1:1080'

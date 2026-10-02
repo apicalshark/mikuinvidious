@@ -69,8 +69,7 @@ Configures the use of a proxy (typically SOCKS5) for all outgoing requests to Bi
 
 | Key | Environment Variable | Default | Description |
 | --- | --- | --- | --- |
-| `use_proxy` | `NO_PROXY` | `true` | A boolean (`true`/`false`) to enable or disable the proxy. **Note:** This is inverted in the environment variable; setting `NO_PROXY=true` or `NO_PROXY=1` sets `use_proxy` to `false`. |
-| `proxy_url` | `HTTP_PROXY` or `http_proxy` | (None) | The full URL of the SOCKS5 proxy. Example: `socks5://127.0.0.1:1080`. |
+| `proxy_url` | `HTTP_PROXY` or `http_proxy` | (None) | The full URL of the SOCKS5 proxy. Example: `socks5://127.0.0.1:1080`. Media proxying itself is always on. |
 
 ---
 

@@ -20,11 +20,7 @@
                 <p class="flex items-start sm:items-center gap-3 mt-6 text-sm bg-primary-container/10 p-4 rounded-xl text-on-surface-variant">
                     <i class="icon ion-ios-information-circle-outline text-2xl text-primary flex-shrink-0"></i>
                     <span>
-                        {% if not proxy_status.use_proxy %}
-                            <strong class="text-primary block sm:inline mb-1 sm:mb-0">{{ '直接连接模式已开启：' }}</strong>{{ '视频将优先从 Akamai 镜像站加载，注意安全！！' }}
-                        {% else %}
-                            <strong class="text-primary block sm:inline mb-1 sm:mb-0">{{ '服务器代理模式已开启：' }}</strong>{{ '所有视频流量都将通过本服务器进行中转。' }}
-                        {% endif %}
+                        <strong class="text-primary block sm:inline mb-1 sm:mb-0">{{ '服务器代理模式已开启：' }}</strong>{{ '所有视频流量都将通过本服务器进行中转。' }}
                     </span>
                 </p>
             </div>

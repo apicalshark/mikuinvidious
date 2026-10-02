@@ -198,9 +198,6 @@ async def proxy_main(subpath):
             url = url.decode()
         urlp = urlparse(url)
 
-        if not appconf["proxy"]["use_proxy"]:
-            return Response("Forbidden: Proxying is disabled.", status=403)
-
         if not await is_safe_proxy_url(url):
             return Response("Forbidden: Invalid proxy target", status=403)
 

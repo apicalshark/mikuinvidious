@@ -154,8 +154,6 @@ class Network:
 
     @staticmethod
     def get_proxy():
-        if not appconf["proxy"]["use_proxy"]:
-            return None
         return appconf["proxy"]["proxy_url"] or None
 
     @classmethod
@@ -249,7 +247,6 @@ appconf = {
         "ac_time_value": os.environ.get("AC_TIME_VALUE"),
     },
     "proxy": {
-        "use_proxy": os.environ.get("NO_PROXY", "false").lower() not in ["true", "1"],
         "proxy_url": os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"),
     },
     "render": {
@@ -478,12 +475,11 @@ async def render_template_with_theme(fp, **kwargs):
 
 
 # --- GLOBAL PROXY CONFIGURATION FOR BILIBILI_API ---
-if appconf["proxy"]["use_proxy"]:
-    proxy_url = Network.get_proxy()
-    if proxy_url:
-        print(f"[Init] Setting global proxy for bilibili_api: {proxy_url}")
-        request_settings.set_proxy(proxy_url)
-    else:
-        print(
-            "[Init] Proxy enabled but no proxy URL found in config.toml or env vars! Falling back to direct connection."
-        )
+# Proxying is always on; proxy_url selects the WARP tunnel when set,
+# otherwise traffic goes direct.
+proxy_url = Network.get_proxy()
+if proxy_url:
+    print(f"[Init] Setting global proxy for bilibili_api: {proxy_url}")
+    request_settings.set_proxy(proxy_url)
+else:
+    print("[Init] No proxy URL found in config.toml or env vars, using direct connection.")

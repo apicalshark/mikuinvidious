@@ -1338,9 +1338,6 @@ async def proxy_download(vid, idx, qual):
     redirect at the native progressive ``/proxy/video/`` path — those MP4s
     are already muxed, so no ffmpeg step is needed.
     """
-    if not appconf["proxy"]["use_proxy"]:
-        return Response("Forbidden: Proxying is disabled.", status=403)
-
     if not _is_valid_vid(vid):
         return Response("Bad Request: invalid video ID", status=400)
 
@@ -1718,8 +1715,6 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         if not track:
             return Response("Not Found", status=404)
 
-        if not appconf["proxy"]["use_proxy"]:
-            return Response("Forbidden: Proxying is disabled.", status=403)
         urls = _dash_candidate_urls(track)
         if not urls:
             return Response("Not Found: track has no URL", status=404)
@@ -2032,8 +2027,6 @@ async def _get_job(job_id: str) -> _DownloadJob | None:
 
 async def create_download_job(vid: str, idx: int, qual: int) -> str:
     """Register a download job and launch its background worker. Returns job_id."""
-    if not appconf["proxy"]["use_proxy"]:
-        raise RuntimeError("Proxying is disabled")
     if not _is_valid_vid(vid):
         raise RuntimeError("invalid video ID")
     await _sweep_jobs()
