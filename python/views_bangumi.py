@@ -40,7 +40,10 @@ async def bangumi_home():
             filters[f_item["key"]] = val
 
     order = request.args.get("order", "3")
-    pn = int(request.args.get("page", 1))
+    try:
+        pn = max(int(request.args.get("page", 1)), 1)
+    except (TypeError, ValueError):
+        pn = 1
 
     from api.client import Api
 
@@ -141,12 +144,14 @@ async def bangumi_view(ssid):
                 }
             )
     except Exception as e:
+        # Detail stays server-side (str(e) can embed raw upstream bodies);
+        # users get a generic message.
         print(f"[Bangumi] Error fetching ssid {ssid}: {e}")
         return await shared.render_template_with_theme(
             "error.html",
             status="番剧加载失败",
             desc="后端服务器发送了无效的回复",
-            suggest=f"錯誤訊息：{str(e)}。這通常是因為該內容在您所在的地區不可用，或已被 B 站下架。",
+            suggest="這通常是因為該內容在您所在的地區不可用，或已被 B 站下架。如持續發生請稍後再試。",
         )
 
     # Only cache healthy season payloads; region-blocked/removed titles

@@ -168,8 +168,12 @@ async def toggle_theme_api():
 
     print(f"[Theme] Toggling from {old_val} to {new_val}")
     resp = await make_response("OK")
+    # Mirror the hist_id pattern: behind Caddy request.is_secure is always
+    # false, so honor X-Forwarded-Proto for the Secure flag.
+    forwarded = request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower()
+    is_secure = request.is_secure or forwarded == "https"
     resp.set_cookie(
-        "dark-theme", new_val, path="/", max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=request.is_secure
+        "dark-theme", new_val, path="/", max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure
     )
     return resp
 

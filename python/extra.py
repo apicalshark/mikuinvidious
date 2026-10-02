@@ -123,6 +123,28 @@ def _to_int(value, default=0):
         return default
 
 
+def _proxied_pic_url(raw_url):
+    """Rewrite an upstream image URL to the local ``/proxy/pic/`` path.
+
+    Returns None when the value is not a valid absolute http(s) URL, so
+    callers skip the node instead of raising IndexError on unexpected
+    upstream shapes (old code assumed ``scheme://host`` via split).
+    """
+    if not raw_url or not isinstance(raw_url, str):
+        return None
+    normalized = "https:" + raw_url if raw_url.startswith("//") else raw_url
+    try:
+        parts = urlparse(normalized)
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    proxied = parts.hostname + (parts.path or "/")
+    if parts.query:
+        proxied += "?" + parts.query
+    return "/proxy/pic/" + proxied
+
+
 def get_article_info(article_text, cid):
     """Extract article info from INITIAL_STATE in HTML."""
     pattern = re.compile(r"window\.__INITIAL_STATE__\s*=\s*({.*?});", re.DOTALL)
@@ -231,10 +253,8 @@ def article_to_html(article_text):
                                         url = rich.get("jump_url")
                                         if rich.get("emoji"):
                                             emoji_url = rich["emoji"].get("icon_url")
-                                            if emoji_url:
-                                                if emoji_url.startswith("//"):
-                                                    emoji_url = "https:" + emoji_url
-                                                proxied_emoji = "/proxy/pic/" + emoji_url.split("//")[1]
+                                            proxied_emoji = _proxied_pic_url(emoji_url)
+                                            if proxied_emoji:
                                                 emoji_style = (
                                                     "width: 1.2em; height: 1.2em; display: inline-block; "
                                                     "vertical-align: middle;"
@@ -286,9 +306,8 @@ def article_to_html(article_text):
                             elif p_type == 2:  # Image
                                 pics = p.get("pic", {}).get("pics", [])
                                 for pic in pics:
-                                    img_url = pic.get("url")
-                                    if img_url:
-                                        proxied_url = "/proxy/pic/" + img_url.split("//")[1]
+                                    proxied_url = _proxied_pic_url(pic.get("url"))
+                                    if proxied_url:
                                         img_html = f'<img src="{proxied_url}" class="mx-auto">'
                                         content_html += f'<figure style="text-align: center;">{img_html}</figure>'
                             elif p_type == 7:  # Code
@@ -324,9 +343,13 @@ def article_to_html(article_text):
         # Handle images
         if child.name == "img":
             if child.has_attr("data-src"):
-                child["src"] = "/proxy/pic/" + child["data-src"].split("//")[1]
+                proxied = _proxied_pic_url(child["data-src"])
+                if proxied:
+                    child["src"] = proxied
             elif child.has_attr("src") and child["src"].startswith("//"):
-                child["src"] = "/proxy/pic/" + child["src"].split("//")[1]
+                proxied = _proxied_pic_url(child["src"])
+                if proxied:
+                    child["src"] = proxied
 
             # Remove all other attributes except src and add mx-auto class
             src = child.get("src", "")

@@ -26,6 +26,15 @@ class NyaaResult:
         return vars(self)
 
 
+def _to_int(value) -> int:
+    """Best-effort int() for scraped table cells. Upstream text may be
+    empty, dashed, or comma-grouped ("1,234"); never raise."""
+    try:
+        return int(str(value if value is not None else 0).replace(",", "").strip() or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 7) -> list[NyaaResult]:
     """
     Search nyaa.si with automatic page detection and parallel fetching.
@@ -112,10 +121,10 @@ async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 7)
                     torrent_url=torrent_url,
                     magnet_url=magnet_url,
                     size=row_node("td:nth-child(4)").text().strip(),
-                    timestamp=int(row_node("td:nth-child(5)").attr("data-timestamp") or 0),
-                    seeders=int(row_node("td:nth-child(6)").text() or 0),
-                    leechers=int(row_node("td:nth-child(7)").text() or 0),
-                    downloads=int(row_node("td:nth-child(8)").text() or 0),
+                    timestamp=_to_int(row_node("td:nth-child(5)").attr("data-timestamp")),
+                    seeders=_to_int(row_node("td:nth-child(6)").text()),
+                    leechers=_to_int(row_node("td:nth-child(7)").text()),
+                    downloads=_to_int(row_node("td:nth-child(8)").text()),
                     is_trusted=is_trusted,
                     is_remake=is_remake,
                     is_batch=is_batch,

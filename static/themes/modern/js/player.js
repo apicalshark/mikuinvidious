@@ -23,8 +23,10 @@ class LiveStreamManager {
     this.MAX_LATENCY_THRESHOLD = 8.0;
     this.NORMAL_SPEED = 1.0;
 
-    // UNIQUE CLIENT ID FOR DISCONNECT PINGS
-    this.clientId = Math.random().toString(36).substring(2, 15);
+    // UNIQUE CLIENT ID FOR DISCONNECT PINGS (128-bit, URL-safe hex)
+    const _randBytes = new Uint8Array(16);
+    crypto.getRandomValues(_randBytes);
+    this.clientId = Array.from(_randBytes, (b) => b.toString(16).padStart(2, "0")).join("");
     if (this.url.includes("?")) {
       this.url += "&cid=" + this.clientId;
     } else {
@@ -42,7 +44,8 @@ class LiveStreamManager {
       if (match) {
         const roomId = match[1];
         const vqn = match[2] || "default";
-        const pingUrl = `/proxy/live/disconnect?room_id=${roomId}&vqn=${vqn}&cid=${this.clientId}`;
+        const pingParams = new URLSearchParams({ room_id: roomId, vqn: vqn, cid: this.clientId });
+        const pingUrl = `/proxy/live/disconnect?${pingParams.toString()}`;
         navigator.sendBeacon(pingUrl);
       }
     };

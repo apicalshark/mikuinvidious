@@ -67,7 +67,10 @@ class Credential:
         self.proxy = proxy
 
         for key, value in kwargs.items():
-            setattr(self, key, value)
+            # Same allowlist as from_cookies: never let arbitrary keys
+            # become object attributes.
+            if key in _EXTRA_COOKIE_NAMES:
+                setattr(self, key, value)
 
     def get_cookies(self) -> dict:
         """Return a request cookie dictionary (excluding the proxy field)."""
@@ -139,14 +142,9 @@ class Credential:
         c.dedeuserid = cookies.get("DedeUserID")
         c.ac_time_value = cookies.get("ac_time_value")
         for key, value in cookies.items():
-            if key not in (
-                "SESSDATA",
-                "bili_jct",
-                "buvid3",
-                "buvid4",
-                "DedeUserID",
-                "ac_time_value",
-            ):
+            # Allowlist only: arbitrary cookie keys must not become object
+            # attributes (would allow overwriting methods/flags like proxy).
+            if key in _EXTRA_COOKIE_NAMES:
                 setattr(c, key, value)
         return c
 
@@ -265,11 +263,21 @@ class Credential:
         self.ac_time_value = new_credential.ac_time_value
 
     def __str__(self):
-        return (
-            f"SESSDATA: {self.sessdata}; bili_jct: {self.bili_jct}; "
-            f"buvid3: {self.buvid3}; buvid4: {self.buvid4}; "
-            f"DedeUserID: {self.dedeuserid}; ac_time_value: {self.ac_time_value}"
-        )
+        # Never interpolate cookie values: this object routinely ends up in
+        # tracebacks and debug logs. Presence flags only.
+        present = [
+            name
+            for name, value in (
+                ("SESSDATA", self.sessdata),
+                ("bili_jct", self.bili_jct),
+                ("buvid3", self.buvid3),
+                ("buvid4", self.buvid4),
+                ("DedeUserID", self.dedeuserid),
+                ("ac_time_value", self.ac_time_value),
+            )
+            if value
+        ]
+        return f"<Credential cookies: {', '.join(present) or 'none'}>"
 
 
 def _ensure_event_loop():
