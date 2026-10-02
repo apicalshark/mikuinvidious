@@ -19,21 +19,21 @@ bots:
     user_agent_regex: (?i)(mj12bot|ahrefsbot|semrushbot|dotbot|dataforseo|barkrowler|serpstat|blexbot|screaming)
     action: DENY
 
-  # Scraping frameworks: slow+hard PoW instead of deny (fewer false positives)
+  # Scraping frameworks: hard PoW instead of deny (fewer false positives)
   - name: punish-scrape-frameworks
     user_agent_regex: (?i)(scrapy|scrapy-playwright|selenium|puppeteer|playwright|headlesschrome|phantomjs|slimerjs)
     action: CHALLENGE
     challenge:
-      algorithm: slow
+      algorithm: fast
       difficulty: 6
       report_as: 6
 
-  # Scripting libs have no browser behind them: slow+hard challenge
+  # Scripting libs have no browser behind them: hard challenge
   - name: punish-script-libs
     user_agent_regex: (?i)(python-requests|python-httpx|^httpx|aiohttp|axios|node-fetch|node\.js|got/|curl|wget|libwww-perl|java/|go-http-client|okhttp|restsharp)
     action: CHALLENGE
     challenge:
-      algorithm: slow
+      algorithm: fast
       difficulty: 6
       report_as: 6
 
