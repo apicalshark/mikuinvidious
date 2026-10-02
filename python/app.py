@@ -103,7 +103,11 @@ async def add_security_headers(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-    if request.is_secure:
+    # L3: the app sits behind Caddy (plain HTTP app:8080), so
+    # request.is_secure is always false in production. Honor the
+    # X-Forwarded-Proto header like the hist_id cookie already does.
+    forwarded_proto = request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower()
+    if request.is_secure or forwarded_proto == "https":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
 
     # Skip CSP for AJAX/fragment requests (they have different nonces)

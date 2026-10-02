@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
+import re
+from urllib.parse import urlparse
 from xml.dom import minidom
 
 from api import video
@@ -20,6 +22,38 @@ from danmaku import danmaku_xml_conv
 from quart import Response, jsonify
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import app, appcred, appredis
+
+# L2: strict route-param validation so subtitle cache keys cannot be
+# polluted with separators/wildcards and only real Bilibili IDs reach
+# the upstream API.
+_VID_RE = re.compile(r"^(BV[a-zA-Z0-9]{10}|av\d{1,20})$")
+_LAN_RE = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
+
+# L2: BCC subtitle files are fetched server-side; only Bilibili CDN/API
+# hosts are allowed (same allowlist family as the DASH track proxy).
+_ALLOWED_SUBTITLE_SUFFIXES = (
+    ".bilivideo.com",
+    ".bilivideo.cn",
+    ".hdslb.com",
+    ".bilibili.com",
+    ".acgvideo.com",
+    ".akamaized.net",
+)
+
+
+def _is_valid_vid(vid: str) -> bool:
+    return bool(vid) and bool(_VID_RE.match(vid))
+
+
+def _is_allowed_subtitle_url(url: str) -> bool:
+    try:
+        hostname = urlparse(url).hostname or ""
+    except Exception:
+        return False
+    hostname = hostname.lower()
+    if not hostname:
+        return False
+    return any(hostname == s.lstrip(".") or hostname.endswith(s) for s in _ALLOWED_SUBTITLE_SUFFIXES)
 
 
 @app.route("/res/danmaku/<vid>")
@@ -103,6 +137,8 @@ async def subtitle_list_res(vid, idx=0):
     """List available subtitles for a video part (login-gated like PipePipe)."""
     if vid.isdigit() or not (appcred and appcred.sessdata):
         return jsonify([])
+    if not _is_valid_vid(vid):
+        return jsonify([])
     try:
         key = f"miku_sublist_{vid}_{int(idx)}"
         cached = await appredis.get(key)
@@ -130,6 +166,8 @@ async def subtitle_vtt_res(vid, idx, lan):
     """Serve one subtitle track as WebVTT (cached; login-gated)."""
     if vid.isdigit() or not (appcred and appcred.sessdata):
         return Response("Not Found", status=404)
+    if not _is_valid_vid(vid) or not _LAN_RE.match(lan or ""):
+        return Response("Not Found", status=404)
     try:
         idx = int(idx)
         key = f"miku_sub_{vid}_{idx}_{lan}"
@@ -146,6 +184,8 @@ async def subtitle_vtt_res(vid, idx, lan):
             return Response("Not Found", status=404)
         if bcc_url.startswith("//"):
             bcc_url = "https:" + bcc_url
+        if not bcc_url.lower().startswith("https://") or not _is_allowed_subtitle_url(bcc_url):
+            return Response("Not Found", status=404)
         from shared import Network
 
         client = await Network.get_async_client()

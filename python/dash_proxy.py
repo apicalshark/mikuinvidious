@@ -33,9 +33,11 @@ was replaced with a raw-socket ``CdnConnection`` proxy.
 """
 
 import asyncio
+import ipaddress
 import os
 import re
 import shutil
+import socket
 import subprocess
 import tempfile
 import time
@@ -128,6 +130,70 @@ def _is_safe_dash_url(url: str) -> bool:
     if not any(hostname == d.lstrip(".") or hostname.endswith(d) for d in _ALLOWED_DASH_DOMAINS):
         return False
     return True
+
+
+async def _is_safe_dash_url_async(url: str) -> bool:
+    """Full DASH URL check: domain allowlist + private-IP DNS reject.
+
+    Mirrors ``proxy.is_safe_proxy_url`` so the DASH track proxy, muxed
+    downloads, and background jobs enforce the same SSRF bar as the
+    progressive ``/proxy/video/`` path (L1). The sync
+    :func:`_is_safe_dash_url` above stays as a fast pre-filter for
+    candidate lists; call this before connecting/fetching.
+    """
+    if not _is_safe_dash_url(url):
+        return False
+    try:
+        hostname = urlparse(url).hostname
+        if not hostname:
+            return False
+        addr_infos = await asyncio.to_thread(
+            socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
+        )
+        for _, _, _, _, sockaddr in addr_infos:
+            ip_obj = ipaddress.ip_address(sockaddr[0])
+            if (
+                ip_obj.is_private
+                or ip_obj.is_loopback
+                or ip_obj.is_link_local
+                or ip_obj.is_multicast
+                or ip_obj.is_reserved
+            ):
+                return False
+    except socket.gaierror:
+        return False
+    except Exception:
+        return False
+    return True
+
+
+# Bilibili video IDs for Content-Disposition filenames (M2). Quart route
+# params allow `"`, `;`, CR/LF-encoded chars that would break out of the
+# quoted filename and inject response headers (CWE-113). Validate strictly
+# and sanitize defensively at emission.
+_VID_RE = re.compile(r"^(BV[a-zA-Z0-9]{10}|av\d{1,20})$")
+
+
+def _is_valid_vid(vid: str) -> bool:
+    return bool(vid) and bool(_VID_RE.match(vid))
+
+
+def _safe_vid(vid: str) -> str:
+    """Strip anything outside ``[A-Za-z0-9_-]`` for safe header embedding."""
+    return "".join(c for c in (vid or "") if c.isalnum() or c in ("_", "-"))[:64]
+
+
+def _safe_download_filename(vid: str, idx: int, qn: int, ext: str = ".mp4") -> str:
+    try:
+        idx = int(idx)
+    except (TypeError, ValueError):
+        idx = 0
+    try:
+        qn = int(qn)
+    except (TypeError, ValueError):
+        qn = 0
+    ext = ext if ext in (".mp4", ".flv") else ".mp4"
+    return f"{_safe_vid(vid) or 'video'}_{idx}_p{qn}{ext}"
 
 
 async def _extract_ep_id(vi) -> str | None:
@@ -1275,6 +1341,9 @@ async def proxy_download(vid, idx, qual):
     if not appconf["proxy"]["use_proxy"]:
         return Response("Forbidden: Proxying is disabled.", status=403)
 
+    if not _is_valid_vid(vid):
+        return Response("Bad Request: invalid video ID", status=400)
+
     max_qn = min(qual, _FREE_DOWNLOAD_MAX_QN) if qual > 0 else _FREE_DOWNLOAD_MAX_QN
     dash_data = await _load_dash_data(vid, idx)
     if not has_valid_dash_tracks(dash_data):
@@ -1287,7 +1356,7 @@ async def proxy_download(vid, idx, qual):
     aurl = audio.get("base_url") or audio.get("baseUrl")
     if not vurl or not aurl:
         return Response("Not Found: track has no URL", status=404)
-    if not _is_safe_dash_url(vurl) or not _is_safe_dash_url(aurl):
+    if not await _is_safe_dash_url_async(vurl) or not await _is_safe_dash_url_async(aurl):
         return Response("Forbidden: Invalid proxy target", status=403)
 
     proxy_url = Network.get_proxy()
@@ -1327,7 +1396,7 @@ async def proxy_download(vid, idx, qual):
 
         resp = Response(generate())
         resp.headers["Content-Type"] = "video/mp4"
-        resp.headers["Content-Disposition"] = f'attachment; filename="{vid}_{idx}_p{actual_qn}.mp4"'
+        resp.headers["Content-Disposition"] = f'attachment; filename="{_safe_download_filename(vid, idx, actual_qn)}"'
         resp.headers["X-Accel-Buffering"] = "no"
         response_owns_cleanup = True
         return resp
@@ -1654,6 +1723,11 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         urls = _dash_candidate_urls(track)
         if not urls:
             return Response("Not Found: track has no URL", status=404)
+        # Full SSRF check (allowlist + private-IP DNS reject, same bar as
+        # /proxy/video/) before touching any candidate edge.
+        urls = [u for u in urls if await _is_safe_dash_url_async(u)]
+        if not urls:
+            return Response("Forbidden: Invalid proxy target", status=403)
 
         creds = appconf["credential"]
         cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds.get("use_cred") else {}
@@ -1846,7 +1920,7 @@ class _DownloadJob:
         self.done_bytes = 0
         self.speed_bps = 0.0
         self.status_note = None  # transient user-facing note (e.g. retry backoff)
-        self.filename = f"{vid}_{idx}.mp4"
+        self.filename = _safe_download_filename(vid, idx, qual)
         self.tmpdir = None
         self.outpath = None
         self.error = None
@@ -1960,6 +2034,8 @@ async def create_download_job(vid: str, idx: int, qual: int) -> str:
     """Register a download job and launch its background worker. Returns job_id."""
     if not appconf["proxy"]["use_proxy"]:
         raise RuntimeError("Proxying is disabled")
+    if not _is_valid_vid(vid):
+        raise RuntimeError("invalid video ID")
     await _sweep_jobs()
     async with _jobs_lock:
         active_jobs = sum(job.state not in ("ready", "error", "cancelled") for job in _download_jobs.values())
@@ -2029,7 +2105,7 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     aurl = audio.get("base_url") or audio.get("baseUrl")
     if not vurl or not aurl:
         raise RuntimeError("track has no URL")
-    if not _is_safe_dash_url(vurl) or not _is_safe_dash_url(aurl):
+    if not await _is_safe_dash_url_async(vurl) or not await _is_safe_dash_url_async(aurl):
         raise RuntimeError("invalid CDN target")
 
     proxy_url = Network.get_proxy()
@@ -2043,7 +2119,7 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     job.outpath = outpath
     actual_qn = int(video.get("id") or max_qn)
     job.actual_qn = actual_qn
-    job.filename = f"{job.vid}_{job.idx}_p{actual_qn}.mp4"
+    job.filename = _safe_download_filename(job.vid, job.idx, actual_qn)
 
     vsize = await _peek_content_length(vurl, headers, proxy_url)
     job.throw_if_cancelled()
@@ -2114,14 +2190,14 @@ async def _run_durl_job(job: _DownloadJob):
     except _DurlResolveError as exc:
         raise RuntimeError(str(exc)) from None
     job.actual_qn = qn
-    if not _is_safe_dash_url(url):
+    if not await _is_safe_dash_url_async(url):
         raise RuntimeError("invalid CDN target")
 
     tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix=f"miku_dl_{job.job_id}_")
     job.tmpdir = tmpdir
     outpath = os.path.join(tmpdir, f"out{ext}")
     job.outpath = outpath
-    job.filename = f"{job.vid}_{job.idx}_p{qn}{ext}"
+    job.filename = _safe_download_filename(job.vid, job.idx, qn, ext)
 
     headers = await _build_dash_cdn_headers()
     proxy_url = Network.get_proxy()
@@ -2228,7 +2304,8 @@ async def download_file(job_id):
     resp = Response(generate())
     resp.headers["Content-Type"] = "video/mp4"
     resp.headers["Content-Length"] = str(size)
-    resp.headers["Content-Disposition"] = f'attachment; filename="{job.filename}"'
+    safe_name = _safe_download_filename(job.vid, job.idx, job.actual_qn or job.qual)
+    resp.headers["Content-Disposition"] = f'attachment; filename="{safe_name}"'
     resp.headers["X-Accel-Buffering"] = "no"
     return resp
 
