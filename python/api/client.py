@@ -596,7 +596,7 @@ class Api:
             else:
                 return resp.content
 
-        raise ResponseCodeException(-403, "Wbi 重试次数超过限制")
+        raise ResponseCodeException(-403, "WBI retry limit exceeded")
 
     def _process_response(self, resp, raw=False):
         if resp.status_code != 200:
@@ -606,7 +606,7 @@ class Api:
         try:
             resp_data = resp.json()
         except Exception:
-            raise NetworkException(resp.status_code, "JSON 解析失败")
+            raise NetworkException(resp.status_code, "JSON parsing failed")
         if not isinstance(resp_data, dict):
             return resp_data
         if raw:
@@ -614,9 +614,9 @@ class Api:
         if not self.ignore_code:
             code = resp_data.get("code")
             if code is None:
-                raise ResponseCodeException(-1, "API 返回数据未含 code 字段", resp_data)
+                raise ResponseCodeException(-1, "API response missing code field", resp_data)
             if code != 0:
-                msg = resp_data.get("msg") or resp_data.get("message") or "接口未返回错误信息"
+                msg = resp_data.get("msg") or resp_data.get("message") or "API returned no error message"
                 raise ResponseCodeException(code, msg, resp_data)
         real_data = resp_data
         if resp_data.get("data") is not None:

@@ -174,10 +174,10 @@ function initPreferences() {
   if (btnOpencc) {
     if (openccPref === "1") {
       btnOpencc.classList.add("is-on");
-      btnOpencc.innerText = "已开启";
+      btnOpencc.innerText = I18n.t("On");
     } else {
       btnOpencc.classList.remove("is-on");
-      btnOpencc.innerText = "已关闭";
+      btnOpencc.innerText = I18n.t("Off");
     }
   }
 
@@ -186,10 +186,10 @@ function initPreferences() {
   if (btnSearchOpencc) {
     if (searchOpenccPref === "1") {
       btnSearchOpencc.classList.add("is-on");
-      btnSearchOpencc.innerText = "已开启";
+      btnSearchOpencc.innerText = I18n.t("On");
     } else {
       btnSearchOpencc.classList.remove("is-on");
-      btnSearchOpencc.innerText = "已关闭";
+      btnSearchOpencc.innerText = I18n.t("Off");
     }
   }
 
@@ -210,5 +210,100 @@ if (document.readyState === "loading") {
 } else {
   initPreferences();
 }
+
+// Navbar language switcher: flag button toggles a quality-menu-styled
+// dropdown; picking a language POSTs to /set_lang (same CSRF pattern as
+// the theme toggle) and reloads. Works for both desktop and mobile menus.
+function toggleLangMenu(menu, show) {
+  if (!menu) return;
+  if (show) {
+    menu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
+    menu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
+  } else {
+    menu.classList.add("opacity-0", "pointer-events-none", "scale-95");
+    menu.classList.remove("opacity-100", "scale-100", "pointer-events-auto");
+  }
+}
+
+function closeAllLangMenus(except) {
+  document.querySelectorAll("#lang_menu, #mobile_lang_menu").forEach((m) => {
+    if (m !== except) toggleLangMenu(m, false);
+  });
+}
+
+async function setLanguage(lang) {
+  // Set cookie on client directly so it applies immediately
+  const secureFlag = location.protocol === "https:" ? "; Secure" : "";
+  document.cookie =
+    "lang=" + encodeURIComponent(lang) + "; path=/; max-age=" + 3600 * 24 * 30 + "; SameSite=Lax" + secureFlag;
+
+  const cleanUrl = () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("lang");
+      return url.toString();
+    } catch (e) {
+      return window.location.href;
+    }
+  };
+
+  const reloadClean = () => {
+    const target = cleanUrl();
+    if (target !== window.location.href) {
+      window.location.replace(target);
+    } else {
+      window.location.reload();
+    }
+  };
+
+  const csrfToken =
+    document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ||
+    document.querySelector('input[name="csrf_token"]')?.value;
+  if (!csrfToken) {
+    reloadClean();
+    return;
+  }
+  // Send POST /set_lang to keep server session/cookies in sync
+  helpers.xhr(
+    "POST",
+    "/set_lang",
+    {
+      payload: "lang=" + encodeURIComponent(lang) + "&csrf_token=" + encodeURIComponent(csrfToken),
+    },
+    {
+      on200: reloadClean,
+      onNon200: reloadClean,
+      onError: reloadClean,
+      onTimeout: reloadClean,
+    }
+  );
+}
+
+for (const [btnId, menuId] of [["lang_btn", "lang_menu"], ["mobile_lang_btn", "mobile_lang_menu"]]) {
+  const btn = document.getElementById(btnId);
+  const menu = document.getElementById(menuId);
+  if (btn && menu) {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const willShow = menu.classList.contains("opacity-0");
+      closeAllLangMenus(menu);
+      toggleLangMenu(menu, willShow);
+    });
+  }
+}
+
+document.querySelectorAll(".lang-option").forEach((opt) => {
+  opt.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeAllLangMenus(null);
+    setLanguage(opt.dataset.lang);
+  });
+});
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#lang_menu, #mobile_lang_menu, #lang_btn, #mobile_lang_btn")) {
+    closeAllLangMenus(null);
+  }
+});
 
 /* @license-end */

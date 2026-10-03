@@ -23,14 +23,20 @@
       }
 
       var available = Math.max(0, bufferedEnd - currentTime);
-      progressText.innerHTML =
-        "Buffering: " + available.toFixed(1) + "s / " + targetBuffer.toFixed(1) + "s";
+      // Technical readout: English format kept, label routed through I18n.t().
+      progressText.textContent = I18n.t("Buffering: %(available)s / %(target)s", {
+        available: available.toFixed(1) + "s",
+        target: targetBuffer.toFixed(1) + "s",
+      });
 
       if (available >= targetBuffer || (duration > 0 && bufferedEnd >= duration - 0.5)) {
         stopBuffering();
       }
     } else {
-      progressText.innerHTML = "Buffering: 0.0s / " + targetBuffer.toFixed(1) + "s";
+      progressText.textContent = I18n.t("Buffering: %(available)s / %(target)s", {
+        available: "0.0s",
+        target: targetBuffer.toFixed(1) + "s",
+      });
     }
   }
 

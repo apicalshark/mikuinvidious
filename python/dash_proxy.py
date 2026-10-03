@@ -276,7 +276,8 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None, cid=None) -> dict:
     Falls back to the PGC playurl endpoint (not wbi-signed) when the UGC path
     returns an error / empty dash, which happens for premium (PGC) content.
 
-    UGC detail endpoints fake-404 PGC-only BVs (``-404 啥都木有``) under
+    UGC detail endpoints fake-404 PGC-only BVs (``-404`` empty-result,
+    Bilibili's "啥都木有") under
     risk control; that must not veto the PGC path, which needs no UGC cid
     at all. Pass the known PGC ``cid`` (e.g. from season data) when
     available — it is used for the UGC attempt and PGC params alike.
@@ -1044,7 +1045,7 @@ async def _await_track_retry(attempt: int, cancel_event: asyncio.Event | None, n
     print(f"[DashProxy] track download cut, will resume (retry {attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES}): {exc}")
     delay = _TRACK_DOWNLOAD_RETRY_DELAYS[min(attempt, len(_TRACK_DOWNLOAD_RETRY_DELAYS) - 1)]
     if note_cb is not None:
-        note_cb(f"连接中断，{delay:g}秒后重试（第{attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES}次）…")
+        note_cb(f"Connection interrupted, retrying in {delay:g}s (attempt {attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES})…")
     if cancel_event is None:
         await asyncio.sleep(delay)
         return "retry"

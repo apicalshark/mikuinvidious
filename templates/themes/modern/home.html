@@ -1,21 +1,21 @@
 {% extends 'themes/modern/base.html' %}
 {% block head %}
-    <title>搜索 - MikuInvidious</title>
+    <title>{{ _('Search') }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
 {% endblock %}
 {% block content %}
     <div class="mb-10 p-8 bg-surface-variant/30 dark:bg-surface-variant/10 rounded-2xl shadow-sm backdrop-blur-sm">
         <h1 class="text-3xl font-bold mb-4 text-on-surface tracking-tight">
-            {{ '嘿，这里是 MikuInvidious！' }}<small class="text-lg font-normal text-on-surface-variant block sm:inline ml-0 sm:ml-3 opacity-80">{{ 'MikuInvidious 是自由的哔哩哔哩前端。' }}</small>
+            {{ _('Hey, this is MikuInvidious!') }}<small class="text-lg font-normal text-on-surface-variant block sm:inline ml-0 sm:ml-3 opacity-80">{{ _('MikuInvidious is a free Bilibili frontend.') }}</small>
         </h1>
         <div class="space-y-3 text-on-surface-variant/90 leading-relaxed">
             <p>
-                {{ '此為 MikuInvidious Fork，支持直接粘貼哔哩哔哩連結到搜索框。' }}
+                {{ _('This is a MikuInvidious fork that supports pasting Bilibili links directly into the search box.') }}
                 <p>
-                    {{ '要把哔哩哔哩链接转换成 MikuInvidious，你需要把' }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">www.bilibili.com</code> {{ '和' }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">b23.tv</code> {{ '替换成 MikuInvidious 实例的域名。' }}
+                    {{ _('To convert a Bilibili link to MikuInvidious, replace') }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">www.bilibili.com</code> {{ _('and') }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">b23.tv</code> {{ _('with this MikuInvidious instance’s domain.') }}
                 </p>
                 <p>
-                    {{ '个人空间需要把' }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">space.bilibili.com</code> {{ '后的数字粘贴到实例域名 +' }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">/space/</code> {{ '后面。' }}
+                    {{ _('For user spaces, paste the number after') }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">space.bilibili.com</code> {{ _('after the instance domain +') }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">/space/</code> {{ _('suffix.') }}
                 </p>
             </div>
         </div>
@@ -55,12 +55,12 @@
                                     <span dir="auto" class="font-medium">{{ v['author'] }}</span>
                                 </a>
                                 <div class="flex gap-1">
-                                    <a title="{{ '在哔哩哔哩上观看' }}"
+                                    <a title="{{ _('Watch on Bilibili') }}"
                                        href="https://{% if v['duration'] == 'LIVE' %}live{% else %}www{% endif %}.bilibili.com/{% if v['duration'] == 'LIVE' %}{% else %}video/{% endif %}{{ v['bvid'] }}"
                                        class="md3-icon-button-small">
                                         <i class="icon ion-logo-youtube"></i>
                                     </a>
-                                    <a title="{{ '音频模式' }}"
+                                    <a title="{{ _('Audio mode') }}"
                                        href="/video/{{ v['bvid'] }}?listen=1"
                                        class="md3-icon-button-small">
                                         <i class="icon ion-md-headset"></i>
@@ -69,7 +69,7 @@
                             </div>
                             <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
                                 <p dir="auto">{{ v['published']|date }}</p>
-                                <p dir="auto">{{ v['views']|intsep }} {{ '次播放' }}</p>
+                                <p dir="auto">{{ v['views']|intsep }} {{ _('views') }}</p>
                             </div>
                         </div>
                     </div>

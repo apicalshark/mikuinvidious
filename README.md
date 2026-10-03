@@ -13,6 +13,7 @@ This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xaca
 - **Live Streaming**: Stable proxying with heartbeats and real-time SSE chat.
 - **Content Discovery**: Proxied articles (cv/opus) and global search with filters.
 - **Privacy**: No-account browsing, IP masking via media proxying, and zero tracking.
+- **Languages**: UI in English, Simplified/Traditional Chinese, and Japanese (`?lang=`, cookie, or `Accept-Language`; switcher on `/preferences`). Upstream Bilibili content stays as-is.
 
 ## Quick Start (Docker)
 

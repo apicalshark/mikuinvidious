@@ -14,7 +14,7 @@ from rate_limit import RATE_LIMITS, rate_limit
 
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
 
-# 加載篩選器配置
+# Load filter configuration
 params_path = os.path.join(os.path.dirname(bangumi.__file__), "data", "bangumi_index_params.json")
 try:
     with open(params_path, encoding="utf-8") as f:
@@ -107,10 +107,10 @@ async def bangumi_view(ssid):
         return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
     try:
-        # 直接獲取元數據與劇集列表
+        # Fetch metadata and episode list directly
         meta_data = await asyncio.wait_for(b.get_meta(), timeout=10.0)
         if not meta_data:
-            raise Exception("B站未返回有效的番劇元數據")
+            raise Exception("Bilibili returned no valid bangumi metadata")
 
         meta = meta_data.get("media", {})
         raw_eps = []
@@ -118,7 +118,7 @@ async def bangumi_view(ssid):
         try:
             eps_data = await b.get_episode_list()
             if eps_data:
-                # 遍歷所有可能的劇集存放位置 (標準、合集、專欄)
+                # Iterate over all possible episode locations (standard, collections, extras)
                 raw_eps = eps_data.get("main_section", {}).get("episodes", [])
                 if not raw_eps:
                     for section in eps_data.get("section", []):
@@ -130,7 +130,7 @@ async def bangumi_view(ssid):
             raw_eps = meta.get("episodes", [])
 
         if not raw_eps and not meta:
-            raise Exception("B站返回了空的番劇數據，可能該內容已失效或受到地區限制。")
+            raise Exception("Bilibili returned empty bangumi data; the content may be removed or region-restricted.")
 
         episodes = []
         for ep_item in raw_eps:
@@ -149,9 +149,9 @@ async def bangumi_view(ssid):
         print(f"[Bangumi] Error fetching ssid {ssid}: {e}")
         return await shared.render_template_with_theme(
             "error.html",
-            status="番剧加载失败",
-            desc="后端服务器发送了无效的回复",
-            suggest="這通常是因為該內容在您所在的地區不可用，或已被 B 站下架。如持續發生請稍後再試。",
+            status="Bangumi load failed",
+            desc="Backend server sent an invalid response",
+            suggest="This content is usually unavailable in your region or has been removed by Bilibili. Please try again later.",
         )
 
     # Only cache healthy season payloads; region-blocked/removed titles
@@ -159,7 +159,7 @@ async def bangumi_view(ssid):
     if cache_ttl > 0 and isinstance(meta, dict) and meta:
         await shared.cache_set(cache_key, {"meta": meta, "episodes": episodes}, cache_ttl)
 
-    # 返回基礎頁面，Nyaa 搜尋移至前端 API
+    # Return the base page; Nyaa search moved to the frontend API
     html = await shared.render_template_with_theme(
         "bangumi_view.html",
         meta=meta,
@@ -277,9 +277,9 @@ async def bangumi_play(ep_id):
         print(f"[Bangumi] Play Error: {e}")
         return await shared.render_template_with_theme(
             "error.html",
-            status="番剧加载失败",
-            desc="无法加载番剧信息，请检查网络或稍后重试。",
-            suggest="请检查网络或稍后重试。",
+            status="Bangumi load failed",
+            desc="Failed to load bangumi info. Please check your network or try again later.",
+            suggest="Please check your network or try again later.",
         )
 
     return await shared.render_template_with_theme(
@@ -304,7 +304,7 @@ async def bangumi_nyaa_api(ssid):
     if not shared.appconf["site"]["nyaa_bangumi"]:
         return jsonify({"sidebar_html": "", "ep_torrents": {}})
 
-    # 1. 獲取標題
+    # 1. Get the title
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
     meta_data = await asyncio.wait_for(b.get_meta(), timeout=5.0)
     meta = meta_data.get("media", {}) if meta_data else {}
@@ -313,55 +313,55 @@ async def bangumi_nyaa_api(ssid):
     if not raw_title:
         return ""
 
-    # 2. 清理搜尋詞
+    # 2. Clean up the search query
     raw_title = meta.get("title", "")
-    # 移除括號內容 (如：僅限港澳台、第二季)
+    # Strip bracketed content (e.g. region-only tags, season suffixes)
     search_query = re.sub(r"[\(（].*?[\)）]", " ", raw_title)
-    # 移除特殊標點，保留空格
+    # Strip special punctuation, keep spaces
     search_query = re.sub(r"[^\u4e00-\u9fa5a-zA-Z0-9\s]", " ", search_query)
-    # 壓縮空格
+    # Collapse whitespace
     search_query = re.sub(r"\s+", " ", search_query).strip()
 
-    # 如果標題太長 (超過 30 個字)，嘗試只取前 30 個字作為關鍵詞以增加匹配率
+    # If the title is too long (over 30 chars), truncate to the first 30 chars to improve match rate
     if len(search_query) > 30:
         simplified_query = search_query[:30].strip()
     else:
         simplified_query = search_query
 
-    # 構造繁簡版本
+    # Build Simplified/Traditional Chinese variants
     simplified_query = (
         f"({zhconv.convert(simplified_query, 'zh-hans')})|({zhconv.convert(simplified_query, 'zh-hant')})"
     )
     print(f"[Bangumi] Search Query: {simplified_query}")
 
-    # 構造帶有中文標籤的搜尋詞 (Nyaa 支援括號聯集搜尋)
-    # 加入常用的中文標籤和知名中文小組，確保回傳結果包含中文資源
+    # Build a query with Chinese tags (Nyaa supports parenthesized union search)
+    # Add common Chinese tags and well-known Chinese sub groups to ensure Chinese results
     cn_tags = "(CHT|CHS|繁|简|BIG5|喵萌|VCB|LoliHouse|JasinChen|Raws)"
     final_query = f"{simplified_query} {cn_tags}"
 
-    # 3. 執行搜尋
-    # 第一次嘗試：簡化標題 + 中文標籤 + 信任資源
+    # 3. Run the search
+    # First attempt: simplified title + Chinese tags + trusted-only results
     torrents = await search_nyaa(final_query, trusted_only=True, max_pages=3)
     is_fallback = False
 
     if not torrents:
-        # 第二次嘗試：放寬到非信任資源 (很多字幕組不是 Trusted)
+        # Second attempt: include untrusted results (many sub groups are not Trusted)
         torrents = await search_nyaa(final_query, trusted_only=False, max_pages=3)
         is_fallback = True
 
     if not torrents and simplified_query != search_query:
-        # 第三次嘗試：完整標題 (不加標籤，最後的保底)
+        # Third attempt: full title without tags (last-resort fallback)
         torrents = await search_nyaa(search_query, trusted_only=False, max_pages=3)
 
-    # 4. 分類與過濾邏輯
+    # 4. Classification and filtering logic
     def is_chinese_resource(title):
-        # 1. 如果包含中文字符，極大機率是中文資源
+        # 1. Titles containing CJK characters are very likely Chinese resources
         if re.search(r"[\u4e00-\u9fa5]", title):
             return True
-        # 2. 檢查常見的中文標籤
+        # 2. Check common Chinese tags
         if re.search(r"CHT|CHS|繁|简|BIG5|GB|CHT&CHS|CHS&CHT", title, re.I):
             return True
-        # 3. 知名中文小組或關鍵字
+        # 3. Well-known Chinese sub groups or keywords
         chinese_keywords = [
             "喵萌",
             "VCB",
@@ -382,8 +382,8 @@ async def bangumi_nyaa_api(ssid):
         for kw in chinese_keywords:
             if kw.lower() in title.lower():
                 return True
-        # 4. 排除明確標註了其他語言但沒寫中文的資源 (如 Erai-raws 的多國語言包)
-        # 如果標題包含 [POR-BR], [SPA-LA], [RUS] 等但沒通過上述檢查，則視為非中文
+        # 4. Exclude resources explicitly tagged as other languages with no Chinese (e.g. Erai-raws multi-language packs)
+        # Titles containing [POR-BR], [SPA-LA], [RUS], etc. that failed the checks above count as non-Chinese
         if re.search(r"\[POR-BR\]|\[SPA-LA\]|\[RUS\]|\[FRA\]|\[GER\]", title, re.I):
             return False
 
@@ -423,7 +423,7 @@ async def bangumi_nyaa_api(ssid):
     ep_torrents = {}
     collection_torrents = []
     for t in torrents:
-        # 過濾非中文資源
+        # Filter out non-Chinese resources
         if not is_chinese_resource(t.title):
             continue
 
@@ -442,7 +442,7 @@ async def bangumi_nyaa_api(ssid):
         is_fallback=is_fallback,
     )
 
-    # 格式化 ep_torrents 以便 JSON 序列化 (Torrent 對象轉為 dict)
+    # Format ep_torrents for JSON serialization (Torrent objects to dicts)
     serializable_ep_torrents = {}
     for ep_num, torrents in ep_torrents.items():
         serializable_ep_torrents[ep_num] = [

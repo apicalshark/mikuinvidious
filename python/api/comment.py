@@ -105,11 +105,11 @@ async def _fetch(url: str, params: dict, cookies: dict) -> dict:
     try:
         data = resp.json()
     except Exception:
-        raise ResponseCodeException(-1, "JSON 解析失败") from None
+        raise ResponseCodeException(-1, "JSON parsing failed") from None
     if not isinstance(data, dict):
-        raise ResponseCodeException(-1, "API 返回数据非 JSON 对象")
+        raise ResponseCodeException(-1, "API response is not a JSON object")
     if data.get("code") != 0:
-        msg = data.get("msg") or data.get("message") or "接口未返回错误信息"
+        msg = data.get("msg") or data.get("message") or "API returned no error message"
         raise ResponseCodeException(data.get("code", -1), msg, data)
     return data.get("data") or {}
 
@@ -127,7 +127,7 @@ async def _ensure_numeric_oid(oid):
 
 async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credential=None, next_offset="") -> dict:
     if page_index <= 0:
-        raise ArgsException("page_index 必须大于或等于 1")
+        raise ArgsException("page_index must be greater than or equal to 1")
     type_value = type_.value if isinstance(type_, Enum) else type_
     order_value = order.value if isinstance(order, Enum) else order
     oid_numeric = await _ensure_numeric_oid(oid)
@@ -161,7 +161,7 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
                 raise
             last_exc = exc
     if data is None:
-        raise last_exc or ResponseCodeException(-1, "评论接口请求失败")
+        raise last_exc or ResponseCodeException(-1, "Comment API request failed")
 
     cursor = data.get("cursor") or {}
 

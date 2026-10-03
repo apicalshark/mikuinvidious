@@ -104,6 +104,12 @@ legal_region = 'CN'
 # The default theme for new visitors. Currently only 'modern' is officially supported.
 default_theme = 'modern'
 
+# Default UI locale when no ?lang=/cookie/Accept-Language match.
+# Supported: 'en', 'zh-CN', 'zh-TW', 'ja'. Also settable via DEFAULT_LOCALE env.
+default_locale = 'zh-CN'
+# Comma-separated allowlist advertised in /preferences (SUPPORTED_LOCALES env).
+# supported_locales = 'en,zh-CN,zh-TW,ja'
+
 [cache]
 # TTLs in minutes for page-data caches. Only healthy payloads are cached
 # (errors and transient empties are served live, never stored); each entry

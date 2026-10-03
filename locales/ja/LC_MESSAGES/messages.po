@@ -1,0 +1,765 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: MikuInvidious 0.1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ja\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: templates/macros.html:17
+msgid "Resolving video URL..."
+msgstr "動画URLを解決中..."
+
+#: templates/macros.html:68
+msgid "Resolution"
+msgstr "画質"
+
+#: templates/macros.html:86
+msgid "Click to play"
+msgstr "クリックして再生"
+
+#: templates/macros.html:87
+msgid "Browser blocked autoplay"
+msgstr "ブラウザが自動再生をブロックしました"
+
+#: templates/macros.html:98
+msgid "Volume"
+msgstr "音量"
+
+#: templates/macros.html:105
+msgid "LIVE"
+msgstr "ライブ"
+
+#: templates/macros.html:112
+msgid "Toggle danmaku"
+msgstr "弾幕の切り替え"
+
+#: templates/macros.html:116
+msgid "Switch resolution"
+msgstr "画質の切り替え"
+
+#: templates/themes/modern/author.html:37 templates/themes/modern/space.html:37
+msgid "This user has no bio yet."
+msgstr "このユーザーはまだ自己紹介を書いていません。"
+
+#: templates/themes/modern/author.html:45 templates/themes/modern/space.html:45
+msgid "Bilibili Space"
+msgstr "ビリビリのスペース"
+
+#: templates/themes/modern/author.html:50 templates/themes/modern/search.html:12 templates/themes/modern/search_article.html:12 templates/themes/modern/search_user.html:12 templates/themes/modern/space.html:62
+msgid "Videos"
+msgstr "動画"
+
+#: templates/themes/modern/author.html:57 templates/themes/modern/read.html:8 templates/themes/modern/search.html:16 templates/themes/modern/search_article.html:14 templates/themes/modern/search_user.html:14 templates/themes/modern/space.html:50
+msgid "Articles"
+msgstr "コラム"
+
+#: templates/themes/modern/author.html:96 templates/themes/modern/search_article.html:70
+msgid "reads"
+msgstr "回閲覧"
+
+#: templates/themes/modern/author.html:108 templates/themes/modern/bangumi_index.html:116 templates/themes/modern/search.html:105 templates/themes/modern/search_article.html:82 templates/themes/modern/search_user.html:56 templates/themes/modern/space.html:126 templates/themes/modern/zone.html:75
+msgid "Previous page"
+msgstr "前のページ"
+
+#: templates/themes/modern/author.html:114 templates/themes/modern/bangumi_index.html:121 templates/themes/modern/search.html:111 templates/themes/modern/search_article.html:88 templates/themes/modern/search_user.html:62 templates/themes/modern/space.html:132 templates/themes/modern/zone.html:81
+msgid "Next page"
+msgstr "次のページ"
+
+#: templates/themes/modern/author.html:121
+msgid "No articles yet"
+msgstr "まだコラムがありません"
+
+#: templates/themes/modern/bangumi_index.html:3
+msgid "Bangumi index"
+msgstr "番組インデックス"
+
+#: templates/themes/modern/bangumi_index.html:36
+msgid "Anime"
+msgstr "アニメ"
+
+#: templates/themes/modern/bangumi_index.html:36
+msgid "Chinese Original"
+msgstr "中国オリジナル"
+
+#: templates/themes/modern/bangumi_index.html:36
+msgid "Movies"
+msgstr "映画"
+
+#: templates/themes/modern/bangumi_index.html:36
+msgid "TV Series"
+msgstr "ドラマ"
+
+#: templates/themes/modern/bangumi_index.html:36
+msgid "Variety"
+msgstr "バラエティ"
+
+#: templates/themes/modern/bangumi_index.html:36
+msgid "Documentary"
+msgstr "ドキュメンタリー"
+
+#: templates/themes/modern/bangumi_index.html:65
+msgid "Sort"
+msgstr "並び替え"
+
+#: templates/themes/modern/bangumi_view.html:22
+msgid "points"
+msgstr "点"
+
+#: templates/themes/modern/bangumi_view.html:24
+msgid "No rating yet"
+msgstr "まだ評価がありません"
+
+#: templates/themes/modern/bangumi_view.html:29
+msgid "No synopsis yet"
+msgstr "あらすじがまだありません"
+
+#: templates/themes/modern/bangumi_view.html:39
+msgid "Episode list"
+msgstr "エピソード一覧"
+
+#: templates/themes/modern/bangumi_view.html:50
+msgid "Episode "
+msgstr "第"
+
+#: templates/themes/modern/bangumi_view.html:78
+msgid "Searching Nyaa..."
+msgstr "Nyaaを検索中..."
+
+#: templates/themes/modern/bangumi_view.html:136
+msgid "Failed to load Nyaa resources"
+msgstr "Nyaaリソースの読み込みに失敗"
+
+#: templates/themes/modern/base.html:350 templates/themes/modern/base.html:385
+msgid "Bangumi"
+msgstr "番組"
+
+#: templates/themes/modern/base.html:356 templates/themes/modern/base.html:391 templates/themes/modern/pref.html:2
+msgid "Preferences"
+msgstr "設定"
+
+#: templates/themes/modern/base.html:376
+msgid "Search for something?"
+msgstr "何か検索してみよう"
+
+#: templates/themes/modern/base.html:408
+msgid "Original source code"
+msgstr "オリジナルのソースコード"
+
+#: templates/themes/modern/base.html:410
+msgid "Modified source code"
+msgstr "修正後のソースコード"
+
+#: templates/themes/modern/base.html:413 templates/themes/modern/licenses.html:14
+msgid "Source code"
+msgstr "ソースコード"
+
+#: templates/themes/modern/base.html:419
+msgid "Documentation"
+msgstr "ドキュメント"
+
+#: templates/themes/modern/base.html:425
+msgid "Proudly released under AGPLv3"
+msgstr "AGPLv3の下で誇りを持って公開"
+
+#: templates/themes/modern/base.html:432
+msgid "View JavaScript licenses"
+msgstr "JavaScriptライセンスを見る"
+
+#: templates/themes/modern/base.html:437
+msgid "Privacy policy"
+msgstr "プライバシーポリシー"
+
+#: templates/themes/modern/base.html:444
+msgid "Donate"
+msgstr "寄付する"
+
+#: templates/themes/modern/base.html:446
+msgid "Version info unavailable :-("
+msgstr "バージョン情報は現在利用できません :-("
+
+#: templates/themes/modern/error.html:2
+msgid "Error"
+msgstr "エラー"
+
+#: templates/themes/modern/error.html:14
+msgid ""
+"Check your request. If you believe this is a site issue, contact the "
+"administrator. If you are the administrator, consider reporting it via "
+"the source code link below."
+msgstr "リクエストを確認してください。サイトの問題だと思われる場合は管理者に連絡してください。管理者の方は下のソースコードリンクから報告を検討してください。"
+
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:54
+msgid "Back to home"
+msgstr "ホームに戻る"
+
+#: templates/themes/modern/home.html:3 templates/themes/modern/search.html:3 templates/themes/modern/search_article.html:3 templates/themes/modern/search_user.html:3
+msgid "Search"
+msgstr "検索"
+
+#: templates/themes/modern/home.html:9
+msgid "Hey, this is MikuInvidious!"
+msgstr "やあ、ここはMikuInvidious！"
+
+#: templates/themes/modern/home.html:9
+msgid "MikuInvidious is a free Bilibili frontend."
+msgstr "MikuInvidiousは自由なビリビリフロントエンドです。"
+
+#: templates/themes/modern/home.html:13
+msgid ""
+"This is a MikuInvidious fork that supports pasting Bilibili links "
+"directly into the search box."
+msgstr "このMikuInvidiousフォークはBilibiliリンクを検索ボックスに直接貼り付けできます。"
+
+#: templates/themes/modern/home.html:15
+msgid "To convert a Bilibili link to MikuInvidious, replace"
+msgstr "BilibiliリンクをMikuInvidiousに変換するには、"
+
+#: templates/themes/modern/home.html:15
+msgid "and"
+msgstr "と"
+
+#: templates/themes/modern/home.html:15
+msgid "with this MikuInvidious instance’s domain."
+msgstr "をこのインスタンスのドメインに置き換えてください。"
+
+#: templates/themes/modern/home.html:18
+msgid "For user spaces, paste the number after"
+msgstr "ユーザースペースの場合、"
+
+#: templates/themes/modern/home.html:18
+msgid "after the instance domain +"
+msgstr "の後の数字を、インスタンスのドメイン +"
+
+#: templates/themes/modern/home.html:18
+msgid "suffix."
+msgstr "の後に貼り付けてください。"
+
+#: templates/themes/modern/home.html:58 templates/themes/modern/search.html:84 templates/themes/modern/space.html:100 templates/themes/modern/video.html:131 templates/themes/modern/video_listen.html:122 templates/themes/modern/zone.html:49
+msgid "Watch on Bilibili"
+msgstr "Bilibiliで見る"
+
+#: templates/themes/modern/home.html:63 templates/themes/modern/space.html:105 templates/themes/modern/video.html:68 templates/themes/modern/zone.html:54
+msgid "Audio mode"
+msgstr "オーディオモード"
+
+#: templates/themes/modern/home.html:72
+msgid "views"
+msgstr "回再生"
+
+#: templates/themes/modern/licenses.html:2
+msgid "JavaScript Licenses"
+msgstr "JavaScriptライセンス"
+
+#: templates/themes/modern/licenses.html:6
+msgid "JavaScript license information"
+msgstr "JavaScriptライセンス情報"
+
+#: templates/themes/modern/licenses.html:7
+msgid ""
+"License information for the free JavaScript software used on this site is"
+" listed below."
+msgstr "このサイトで使用されている自由なJavaScriptソフトウェアのライセンス情報は以下の通りです。"
+
+#: templates/themes/modern/licenses.html:12
+msgid "Script file"
+msgstr "スクリプトファイル"
+
+#: templates/themes/modern/licenses.html:13
+msgid "License"
+msgstr "ライセンス"
+
+#: templates/themes/modern/pref.html:9
+msgid "Personalization settings"
+msgstr "個人設定"
+
+#: templates/themes/modern/pref.html:13
+msgid "Traditional Chinese conversion"
+msgstr "繁体字変換"
+
+#: templates/themes/modern/pref.html:14
+msgid "Convert content to Traditional Chinese with OpenCC"
+msgstr "OpenCCで簡体字を繁体字に変換する"
+
+#: templates/themes/modern/components/meta_part.html:18 templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29 templates/themes/modern/video.html:457 templates/themes/modern/video_listen.html:277
+msgid "Loading..."
+msgstr "読み込み中..."
+
+#: templates/themes/modern/pref.html:24
+msgid "Auto-convert search to Simplified Chinese"
+msgstr "検索を簡体字に自動変換"
+
+#: templates/themes/modern/pref.html:25
+msgid "Automatically convert keywords to Simplified Chinese when searching"
+msgstr "検索時にキーワードを自動で簡体字に変換する"
+
+#: templates/themes/modern/pref.html:36
+msgid "Language"
+msgstr "言語"
+
+#: templates/themes/modern/pref.html:37
+msgid "Choose the interface language"
+msgstr "インターフェース言語を選択"
+
+#: templates/themes/modern/pref.html:44
+msgid "Simplified Chinese"
+msgstr "簡体字中国語"
+
+#: templates/themes/modern/pref.html:45
+msgid "Traditional Chinese"
+msgstr "繁体字中国語"
+
+#: templates/themes/modern/pref.html:46
+msgid "Japanese"
+msgstr "日本語"
+
+#: templates/themes/modern/pref.html:48
+msgid "Save language"
+msgstr "言語を保存"
+
+#: templates/themes/modern/read.html:5
+msgid "Illustrations"
+msgstr "イラスト"
+
+#: templates/themes/modern/search.html:10 templates/themes/modern/search_article.html:10 templates/themes/modern/search_user.html:10
+msgid "Search category:"
+msgstr "検索カテゴリ:"
+
+#: templates/themes/modern/search.html:14
+msgid "Live"
+msgstr "ライブ"
+
+#: templates/themes/modern/search.html:18 templates/themes/modern/search_article.html:16 templates/themes/modern/search_user.html:16
+msgid "Creators"
+msgstr "投稿者"
+
+#: templates/themes/modern/search.html:22 templates/themes/modern/search_article.html:20 templates/themes/modern/search_user.html:20
+msgid "Sort by:"
+msgstr "並び替え:"
+
+#: templates/themes/modern/search.html:23 templates/themes/modern/search_article.html:21
+msgid "Comprehensive"
+msgstr "総合"
+
+#: templates/themes/modern/search.html:23 templates/themes/modern/search_article.html:21
+msgid "Most clicks"
+msgstr "再生数が多い順"
+
+#: templates/themes/modern/search.html:23 templates/themes/modern/search_article.html:21
+msgid "Newest"
+msgstr "新着順"
+
+#: templates/themes/modern/search.html:23
+msgid "Most danmaku"
+msgstr "弾幕が多い順"
+
+#: templates/themes/modern/search.html:23
+msgid "Most favorites"
+msgstr "お気に入りが多い順"
+
+#: templates/themes/modern/search.html:23 templates/themes/modern/search_article.html:21
+msgid "Most comments"
+msgstr "コメントが多い順"
+
+#: templates/themes/modern/search.html:36
+msgid "No results found"
+msgstr "関連する結果が見つかりません"
+
+#: templates/themes/modern/search.html:37 templates/themes/modern/search_article.html:34 templates/themes/modern/search_user.html:34
+msgid "Try another keyword?"
+msgstr "別のキーワードで試してみてください"
+
+#: templates/themes/modern/search.html:54
+msgid "watching"
+msgstr "人が視聴中"
+
+#: templates/themes/modern/search.html:93
+msgid "popularity"
+msgstr "人気"
+
+#: templates/themes/modern/search.html:93 templates/themes/modern/space.html:114 templates/themes/modern/zone.html:63
+msgid "plays"
+msgstr "回再生"
+
+#: templates/themes/modern/search_article.html:21
+msgid "Most likes"
+msgstr "いいねが多い順"
+
+#: templates/themes/modern/search_article.html:33
+msgid "No articles found"
+msgstr "関連するコラムが見つかりません"
+
+#: templates/themes/modern/search_user.html:21
+msgid "Most fans"
+msgstr "フォロワーが多い順"
+
+#: templates/themes/modern/search_user.html:21
+msgid "Highest level"
+msgstr "レベルが高い順"
+
+#: templates/themes/modern/search_user.html:33
+msgid "No users found"
+msgstr "関連するユーザーが見つかりません"
+
+#: templates/themes/modern/space.html:55
+msgid "RSS Feed"
+msgstr "RSSフィード"
+
+#: templates/themes/modern/video.html:87 templates/themes/modern/video.html:88
+msgid "Online"
+msgstr "オンライン"
+
+#: templates/themes/modern/video.html:87
+msgid "Views"
+msgstr "再生数"
+
+#: templates/themes/modern/video.html:91
+msgid "Likes"
+msgstr "いいね"
+
+#: templates/themes/modern/video.html:94
+msgid "Coins"
+msgstr "コイン"
+
+#: templates/themes/modern/video.html:97
+msgid "Favorites"
+msgstr "お気に入り"
+
+#: templates/themes/modern/video.html:100
+msgid "Share"
+msgstr "共有"
+
+#: templates/themes/modern/video.html:154
+msgid "Download"
+msgstr "ダウンロード"
+
+#: templates/themes/modern/components/meta_part.html:6 templates/themes/modern/video.html:174 templates/themes/modern/video.html:442 templates/themes/modern/video_listen.html:153
+msgid "Comments"
+msgstr "コメント"
+
+#: templates/themes/modern/video.html:203
+msgid "Loading comments..."
+msgstr "コメントを読み込み中..."
+
+#: templates/themes/modern/video.html:222 templates/themes/modern/video.html:225
+msgid "Live chat"
+msgstr "ライブチャット"
+
+#: templates/themes/modern/video.html:233
+msgid "Connecting to chat..."
+msgstr "チャットに接続中..."
+
+#: templates/themes/modern/video.html:306 templates/themes/modern/video_listen.html:198
+msgid "Episodes"
+msgstr "エピソード"
+
+#: templates/themes/modern/video.html:312 templates/themes/modern/video_listen.html:204
+msgid "Autoplay next"
+msgstr "自動連続再生"
+
+#: templates/themes/modern/video.html:341 templates/themes/modern/video_listen.html:232
+msgid "Recommended"
+msgstr "おすすめ動画"
+
+#: templates/themes/modern/video.html:361 templates/themes/modern/video_listen.html:251
+msgid "Play"
+msgstr "再生"
+
+#: templates/themes/modern/video.html:442
+msgid "Failed to load comments, please try again later"
+msgstr "コメントの読み込みに失敗しました。後でもう一度お試しください"
+
+#: templates/themes/modern/video.html:489 templates/themes/modern/video_listen.html:309
+msgid "Load failed"
+msgstr "読み込み失敗"
+
+#: templates/themes/modern/video_listen.html:69
+msgid "Video mode"
+msgstr "ビデオモード"
+
+#: templates/themes/modern/video_listen.html:137
+msgid "Download audio"
+msgstr "音声をダウンロード"
+
+#: templates/themes/modern/components/comment_items.html:25 templates/themes/modern/video_listen.html:178
+#, python-format
+msgid "%(count)s reply"
+msgid_plural "%(count)s replies"
+msgstr[0] "%(count)s 件の返信"
+
+#: templates/themes/modern/components/meta_part.html:14 templates/themes/modern/video_listen.html:187
+msgid "No comments yet or failed to load"
+msgstr "まだコメントがないか読み込みに失敗しました"
+
+#: templates/themes/modern/zone.html:3
+msgid "Zone"
+msgstr "ゾーン"
+
+#: templates/themes/modern/components/meta_part.html:12
+msgid "Comments are closed by the uploader."
+msgstr "投稿者がコメントを閉じています。"
+
+#: templates/themes/modern/components/nyaa_part.html:6
+msgid "Nyaa resources"
+msgstr "Nyaaリソース"
+
+#: templates/themes/modern/components/nyaa_part.html:8
+msgid "Expanded search scope"
+msgstr "検索範囲を拡大しました"
+
+#: templates/themes/modern/components/nyaa_part.html:17 templates/themes/modern/components/nyaa_sidebar.html:4
+msgid "Collection resources"
+msgstr "コレクションリソース"
+
+#: templates/themes/modern/components/nyaa_part.html:48
+msgid "Resources for episode "
+msgstr "エピソード"
+
+#: templates/themes/modern/components/nyaa_part.html:50
+msgid "resources"
+msgstr "件のリソース"
+
+#: templates/themes/modern/components/nyaa_part.html:77
+msgid "No related resources found on Nyaa"
+msgstr "Nyaaに関連リソースが見つかりません"
+
+#: templates/themes/modern/components/nyaa_sidebar.html:8
+msgid "Nyaa"
+msgstr "Nyaa"
+
+#: templates/themes/modern/components/nyaa_sidebar.html:12
+msgid "Trusted only"
+msgstr "信頼済みのみ"
+
+#: templates/themes/modern/components/nyaa_sidebar.html:19
+msgid "Keywords:"
+msgstr "キーワード:"
+
+#: templates/themes/modern/components/nyaa_sidebar.html:37
+msgid "Magnet"
+msgstr "Magnet"
+
+#: templates/themes/modern/components/nyaa_sidebar.html:45
+msgid "No collection resources found"
+msgstr "コレクションリソースが見つかりません"
+
+msgid "Auto"
+msgstr "自動"
+
+#, python-format
+msgid "Auto (%(height)sp)"
+msgstr "自動 (%(height)sp)"
+
+#, python-format
+msgid "Buffering: %(available)s / %(target)s"
+msgstr "バッファリング中：%(available)s / %(target)s"
+
+msgid "Cancel"
+msgstr "キャンセル"
+
+msgid "Cancelled"
+msgstr "キャンセルしました"
+
+msgid "Close"
+msgstr "閉じる"
+
+msgid "Creating download task..."
+msgstr "ダウンロードタスクを作成中..."
+
+msgid "Done, download started in browser"
+msgstr "完了、ブラウザでダウンロードを開始しました"
+
+msgid "Download failed"
+msgstr "ダウンロード失敗"
+
+#, python-format
+msgid "Download failed: %(error)s"
+msgstr "ダウンロード失敗：%(error)s"
+
+msgid "Download progress"
+msgstr "ダウンロード進捗"
+
+msgid "Download video"
+msgstr "動画をダウンロード"
+
+#, python-format
+msgid "Downloading %(percent)s% · %(bytes)s"
+msgstr "ダウンロード中 %(percent)s% · %(bytes)s"
+
+#, python-format
+msgid "Downloading %(percent)s% · %(bytes)s · %(speed)s"
+msgstr "ダウンロード中 %(percent)s% · %(bytes)s · %(speed)s"
+
+#, python-format
+msgid "Downloading... %(bytes)s"
+msgstr "ダウンロード中... %(bytes)s"
+
+#, python-format
+msgid "Downloading... %(bytes)s · %(speed)s"
+msgstr "ダウンロード中... %(bytes)s · %(speed)s"
+
+msgid "If the download does not start automatically, click here to retry"
+msgstr "ダウンロードが自動で始まらない場合は、ここをクリックして再試行してください"
+
+msgid "Live stream has ended"
+msgstr "ライブ配信が終了しました"
+
+#, python-format
+msgid "Loaded %(count)s, click to load more"
+msgstr "%(count)s 件読み込み済み、クリックでさらに読み込む"
+
+msgid "Lost connection to the server, please retry"
+msgstr "サーバーとの接続が切れました。再試行してください"
+
+msgid "Muxing... (merging audio and video, please wait)"
+msgstr "多重化中...（音声と映像を結合しています。しばらくお待ちください）"
+
+msgid "Nyaa Magnet Resources"
+msgstr "Nyaa Magnet リソース"
+
+msgid "Off"
+msgstr "オフ"
+
+msgid "On"
+msgstr "オン"
+
+msgid "Preparing download..."
+msgstr "ダウンロードを準備中..."
+
+msgid "Preparing..."
+msgstr "準備中..."
+
+msgid "Queued... (server download slots are limited)"
+msgstr "キュー待ち...（サーバーの同時ダウンロード数に限りがあります）"
+
+msgid "Requested quality unavailable, switched to highest available quality"
+msgstr "（選択した画質は利用できないため、最高の利用可能な画質に切り替えました）"
+
+msgid "Resolving video info..."
+msgstr "動画情報を解決中..."
+
+msgid "Stream ended"
+msgstr "配信が終了しました"
+
+msgid "Task expired, please download again"
+msgstr "タスクの有効期限が切れました。再度ダウンロードしてください"
+
+msgid "Article does not exist or parse error"
+msgstr "記事が存在しないか解析エラーです"
+
+msgid "Article not found"
+msgstr "記事が見つかりません"
+
+msgid "Audio mode load failed"
+msgstr "オーディオモードの読み込みに失敗しました"
+
+msgid "Backend server sent an invalid response"
+msgstr "バックエンドサーバーが無効な応答を送信しました"
+
+msgid "Bad request"
+msgstr "不正なリクエスト"
+
+msgid "Bangumi load failed"
+msgstr "番組の読み込みに失敗しました"
+
+msgid "Bilibili returned empty result (-404)"
+msgstr "Bilibiliが空の結果を返しました (-404)"
+
+msgid "Failed to fetch the live list. Please try again later."
+msgstr "ライブ一覧の取得に失敗しました。後でもう一度お試しください。"
+
+msgid "Failed to fetch this user's profile. Please try again later."
+msgstr "このユーザーのプロフィールを取得できませんでした。後でもう一度お試しください。"
+
+msgid "Failed to load bangumi info. Please check your network or try again later."
+msgstr "番組情報の読み込みに失敗しました。ネットワークを確認するか、後でもう一度お試しください。"
+
+msgid "Failed to load the live room. Please check your network or try again later."
+msgstr "ライブルームの読み込みに失敗しました。ネットワークを確認するか、後でもう一度お試しください。"
+
+msgid "Failed to resolve the redirect target."
+msgstr "リダイレクト先を解決できませんでした。"
+
+msgid "Failed to resolve the short link. Please check your network connection or proxy settings."
+msgstr "短縮リンクを解決できませんでした。ネットワーク接続またはプロキシ設定を確認してください。"
+
+msgid "Internal server error. Please try again later or contact the administrator."
+msgstr "サーバー内部エラーです。後でもう一度お試しいただくか、管理者に連絡してください。"
+
+msgid "Invalid request parameters. Please check and try again."
+msgstr "リクエストパラメータが無効です。確認して再試行してください。"
+
+msgid "Live list load failed"
+msgstr "ライブ一覧の読み込みに失敗しました"
+
+msgid "Live load failed"
+msgstr "ライブの読み込みに失敗しました"
+
+msgid "Network error"
+msgstr "ネットワークエラー"
+
+msgid "No search keyword provided."
+msgstr "検索キーワードが指定されていません。"
+
+msgid "No songs found"
+msgstr "曲が見つかりません"
+
+msgid "Page not found (404)"
+msgstr "ページが見つかりません (404)"
+
+msgid "Parse error"
+msgstr "解析エラー"
+
+msgid "Playlist empty"
+msgstr "プレイリストが空です"
+
+msgid "Please check the URL."
+msgstr "URLを確認してください。"
+
+msgid "Please check your network connection or proxy settings."
+msgstr "ネットワーク接続またはプロキシ設定を確認してください。"
+
+msgid "Please check your network or try again later."
+msgstr "ネットワークを確認するか、後でもう一度お試しください。"
+
+msgid "Please check your request and try again."
+msgstr "リクエストを確認して再試行してください。"
+
+msgid "Please enter a search keyword and try again."
+msgstr "検索キーワードを入力して再試行してください。"
+
+msgid "Please try refreshing the page, or check the server network connection."
+msgstr "ページを更新するか、サーバーのネットワーク接続を確認してください。"
+
+msgid "Search failed"
+msgstr "検索に失敗しました"
+
+msgid "Server error"
+msgstr "サーバーエラー"
+
+msgid "Space load failed"
+msgstr "スペースの読み込みに失敗しました"
+
+msgid "The article you requested most likely does not exist. Please check your request."
+msgstr "リクエストされた記事は存在しない可能性が高いです。リクエストを確認してください。"
+
+msgid "The requested page does not exist."
+msgstr "リクエストされたページは存在しません。"
+
+msgid "The requested resource does not exist."
+msgstr "リクエストされたリソースは存在しません。"
+
+msgid "This content is usually unavailable in your region or has been removed by Bilibili. Please try again later."
+msgstr "このコンテンツは通常、お住まいの地域では利用できないか、Bilibiliにより削除されています。後でもう一度お試しください。"
+
+msgid "This content may be region-restricted or removed."
+msgstr "このコンテンツは地域制限されているか削除された可能性があります。"
+
+msgid "This video may have been deleted, is under review, or is region-restricted."
+msgstr "この動画は削除されたか、審査中であるか、地域制限されている可能性があります。"
+
+msgid "Video load failed"
+msgstr "動画の読み込みエラー"
+
+msgid "You have no browsing history yet."
+msgstr "まだ閲覧履歴がありません。"

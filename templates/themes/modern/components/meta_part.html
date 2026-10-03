@@ -3,19 +3,19 @@
     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm mb-6">
         <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
             <i class="icon ion-ios-chatbubbles"></i>
-            {{ '评论' }} ({{ vcomments['page']['count'] }})
+            {{ _('Comments') }} ({{ vcomments['page']['count'] }})
         </h3>
         <div class="space-y-6" id="comments-list">
             {% if vcomments['replies'] %}
                 {% include "themes/modern/components/comment_items.html" %}
             {% elif comments_closed %}
-                <p class="text-center text-on-surface-variant py-8">{{ 'Comments are closed by the uploader.' }}</p>
+                <p class="text-center text-on-surface-variant py-8">{{ _('Comments are closed by the uploader.') }}</p>
             {% else %}
-                <p class="text-center text-on-surface-variant py-8">{{ '暂无评论或评论加载失败' }}</p>
+                <p class="text-center text-on-surface-variant py-8">{{ _('No comments yet or failed to load') }}</p>
             {% endif %}
         </div>
         <div id="comments-load-more" class="hidden text-center py-4">
-            <span class="text-sm text-on-surface-variant/70"><i class="icon ion-ios-loading animate-spin"></i> 加载中...</span>
+            <span class="text-sm text-on-surface-variant/70"><i class="icon ion-ios-loading animate-spin"></i> {{ _('Loading...') }}</span>
         </div>
         <div id="comments-scroll-spy" class="h-px"></div>
     </div>

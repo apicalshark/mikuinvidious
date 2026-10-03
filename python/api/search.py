@@ -58,15 +58,15 @@ def _debug(*args):
 
 class SearchObjectType(Enum):
     """
-    搜索对象。
-    + VIDEO : 视频
-    + BANGUMI : 番剧
-    + FT : 影视
-    + LIVE : 直播
-    + ARTICLE : 专栏
-    + TOPIC : 话题
-    + USER : 用户
-    + LIVEUSER : 直播间用户
+    Search object.
+    + VIDEO : video
+    + BANGUMI : bangumi
+    + FT : film & TV
+    + LIVE : live
+    + ARTICLE : article
+    + TOPIC : topic
+    + USER : user
+    + LIVEUSER : live room user
     """
 
     VIDEO = "video"
@@ -82,14 +82,14 @@ class SearchObjectType(Enum):
 
 class OrderVideo(Enum):
     """
-    视频搜索类型
-    + TOTALRANK : 综合排序
-    + CLICK : 最多点击
-    + PUBDATE : 最新发布
-    + DM : 最多弹幕
-    + STOW : 最多收藏
-    + SCORES : 最多评论
-    Ps: Api 中 的 order_sort 字段决定顺序还是倒序
+    Video search order
+    + TOTALRANK : comprehensive
+    + CLICK : most clicks
+    + PUBDATE : latest published
+    + DM : most danmaku
+    + STOW : most favorites
+    + SCORES : most comments
+    Ps: the order_sort field in the API determines ascending vs descending
     """
 
     TOTALRANK = "totalrank"
@@ -102,9 +102,9 @@ class OrderVideo(Enum):
 
 class OrderLiveRoom(Enum):
     """
-    直播间搜索类型
-    + NEWLIVE 最新开播
-    + ONLINE 综合排序
+    Live room search order
+    + NEWLIVE latest streams
+    + ONLINE comprehensive
     """
 
     NEWLIVE = "live_time"
@@ -113,12 +113,12 @@ class OrderLiveRoom(Enum):
 
 class OrderArticle(Enum):
     """
-    文章的排序类型
-    + TOTALRANK : 综合排序
-    + CLICK : 最多点击
-    + PUBDATE : 最新发布
-    + ATTENTION : 最多喜欢
-    + SCORES : 最多评论
+    Article sort order
+    + TOTALRANK : comprehensive
+    + CLICK : most clicks
+    + PUBDATE : latest published
+    + ATTENTION : most likes
+    + SCORES : most comments
     """
 
     TOTALRANK = "totalrank"
@@ -130,9 +130,9 @@ class OrderArticle(Enum):
 
 class OrderUser(Enum):
     """
-    搜索用户的排序类型
-    + FANS : 按照粉丝数量排序
-    + LEVEL : 按照等级排序
+    User search sort order
+    + FANS : sort by follower count
+    + LEVEL : sort by level
     """
 
     FANS = "fans"
@@ -141,12 +141,12 @@ class OrderUser(Enum):
 
 class OrderCheese(Enum):
     """
-    课程搜索排序类型
+    Course search sort order
 
-    + RECOMMEND: 综合
-    + SELL     : 销量最高
-    + NEW      : 最新上架
-    + CHEEP    : 售价最低
+    + RECOMMEND: comprehensive
+    + SELL     : best selling
+    + NEW      : newest
+    + CHEEP    : lowest price
     """
 
     RECOMMEND = -1
@@ -157,10 +157,10 @@ class OrderCheese(Enum):
 
 class CategoryTypePhoto(Enum):
     """
-    相册分类
-    + All 全部
-    + DrawFriend 画友
-    + PhotoFriend 摄影
+    Photo category
+    + All: all
+    + DrawFriend: illustrators
+    + PhotoFriend: photography
     """
 
     All = 0
@@ -170,15 +170,15 @@ class CategoryTypePhoto(Enum):
 
 class CategoryTypeArticle(Enum):
     """
-    文章分类
-    + All 全部
-    + Anime 动画
-    + Game 游戏
-    + TV 电视
-    + Life 生活
-    + Hobby 兴趣
-    + LightNovel 轻小说
-    + Technology 科技
+    Article category
+    + All: all
+    + Anime: anime
+    + Game: gaming
+    + TV: TV
+    + Life: life
+    + Hobby: hobbies
+    + LightNovel: light novels
+    + Technology: technology
     """
 
     All = 0
@@ -226,11 +226,11 @@ async def _fetch(url: str, params: dict) -> dict:
     try:
         data = resp.json()
     except Exception:
-        raise ResponseCodeException(-1, "JSON 解析失败") from None
+        raise ResponseCodeException(-1, "JSON parsing failed") from None
     if not isinstance(data, dict):
-        raise ResponseCodeException(-1, "API 返回数据非 JSON 对象")
+        raise ResponseCodeException(-1, "API response is not a JSON object")
     if data.get("code") != 0:
-        msg = data.get("msg") or data.get("message") or "接口未返回错误信息"
+        msg = data.get("msg") or data.get("message") or "API returned no error message"
         raise ResponseCodeException(data.get("code", -1), msg, data)
     if data.get("data") is not None:
         return data["data"]
@@ -262,7 +262,7 @@ async def _wbi_get(url: str, params: dict, wbi: bool = True) -> dict:
                 recalculate_wbi()
                 continue
             raise
-    raise ResponseCodeException(-403, "Wbi 重试次数超过限制")
+    raise ResponseCodeException(-403, "WBI retry limit exceeded")
 
 
 def _to_timestamps(time_start: str, time_end: str):
@@ -280,15 +280,15 @@ def _to_timestamps(time_start: str, time_end: str):
 
 async def search(keyword: str, page: int = 1) -> dict:
     """
-    只指定关键字在 web 进行搜索，返回未经处理的字典
+    Search on web with only a keyword, returning the raw dict
 
     Args:
-        keyword (str): 搜索关键词
+        keyword (str): search keyword
 
-        page    (int): 页码. Defaults to 1.
+        page    (int): page number. Defaults to 1.
 
     Returns:
-        dict: 调用 API 返回的结果
+        dict: raw result returned by the API
     """
     params = {"keyword": keyword, "page": page}
     return await _wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/all/v2", params, wbi=True)
@@ -308,32 +308,32 @@ async def search_by_type(  # noqa: C901 - faithful port of upstream param logic
     page_size: int = 42,
 ) -> dict:
     """
-    指定分区，类型，视频长度等参数进行搜索，返回未经处理的字典
+    Search with zone, type, video duration and other filters, returning the raw dict
 
-    类型：视频(video)、番剧(media_bangumi)、影视(media_ft)、直播(live)、直播用户(liveuser)、
-    专栏(article)、话题(topic)、用户(bili_user)
+    Types: video, bangumi (media_bangumi), film & TV (media_ft), live, live room user (live_user),
+    article, topic, user (bili_user)
 
     Args:
-        keyword          (str): 搜索关键词
-        search_type      (SearchObjectType | None, optional): 搜索类型
-        order_type       (OrderUser | OrderLiveRoom | OrderArticle | OrderVideo | None, optional): 排序  # noqa: E501
-        time_range       (int, optional): 指定时间，自动转换到指定区间，只在视频类型下生效  # noqa: E501
-        video_zone_type  (int | None, optional): 话题类型，指定 tid (可使用 video_zone 模块查询)
-        order_sort       (int | None, optional): 用户粉丝数/等级排序 默认为0 由高到低：0 由低到高：1
-        category_id      (CategoryTypeArticle | CategoryTypePhoto | int | None, optional): 专栏/相簿筛选  # noqa: E501
-        time_start       (str, optional): 指定开始时间，与结束时间搭配使用，格式为："YYYY-MM-DD"
-        time_end         (str, optional): 指定结束时间，与开始时间搭配使用，格式为："YYYY-MM-DD"
-        page             (int, optional): 页码
-        page_size        (int, optional): 每一页的数据大小
+        keyword          (str): search keyword
+        search_type      (SearchObjectType | None, optional): search type
+        order_type       (OrderUser | OrderLiveRoom | OrderArticle | OrderVideo | None, optional): sort order  # noqa: E501
+        time_range       (int, optional): duration filter in minutes, auto-mapped to a range bucket, video search only  # noqa: E501
+        video_zone_type  (int | None, optional): zone filter, tid value (see video_zone module)
+        order_sort       (int | None, optional): user sort direction, 0 descending (default), 1 ascending
+        category_id      (CategoryTypeArticle | CategoryTypePhoto | int | None, optional): article/photo category filter  # noqa: E501
+        time_start       (str, optional): start date filter, use with time_end, format: "YYYY-MM-DD"
+        time_end         (str, optional): end date filter, use with time_start, format: "YYYY-MM-DD"
+        page             (int, optional): page number
+        page_size        (int, optional): items per page
 
     Returns:
-        dict: 调用 API 返回的结果
+        dict: raw result returned by the API
     """
     params = {"keyword": keyword, "page": page, "page_size": page_size}
     if search_type:
         params["search_type"] = search_type.value
     else:
-        raise ArgsException("缺少 search_type")
+        raise ArgsException("Missing search_type")
         # params["search_type"] = SearchObjectType.VIDEO.value
     # category_id
     if search_type.value == SearchObjectType.ARTICLE.value or search_type.value == SearchObjectType.PHOTO.value:
@@ -379,33 +379,33 @@ async def search_by_type(  # noqa: C901 - faithful port of upstream param logic
 
 async def get_default_search_keyword() -> dict:
     """
-    获取默认的搜索内容
+    Get the default search keyword
 
     Returns:
-        dict: 调用 API 返回的结果
+        dict: raw result returned by the API
     """
     return await _wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/default", {}, wbi=True)
 
 
 async def get_hot_search_keywords() -> dict:
     """
-    获取热搜
+    Get hot search keywords
 
     Returns:
-        dict: 调用 API 返回的结果
+        dict: raw result returned by the API
     """
     return await _fetch("https://s.search.bilibili.com/main/hotword", {})
 
 
 async def get_suggest_keywords(keyword: str) -> list[str]:
     """
-    通过一些文字输入获取搜索建议。类似搜索词的联想。
+    Get search suggestions for a partial keyword, like query autocompletion.
 
     Args:
-        keyword(str): 搜索关键词
+        keyword(str): search keyword
 
     Returns:
-        List[str]: 关键词列表
+        List[str]: suggested keyword list
     """
     keywords = []
     res = await _fetch("https://s.search.bilibili.com/main/suggest", {"term": keyword})
@@ -416,32 +416,32 @@ async def get_suggest_keywords(keyword: str) -> list[str]:
 
 async def search_games(keyword: str) -> dict:
     """
-    搜索游戏特用函数
+    Dedicated game search
 
     Args:
-        keyword (str): 搜索关键词
+        keyword (str): search keyword
 
     Returns:
-        dict: 调用 API 返回的结果
+        dict: raw result returned by the API
     """
     return await _fetch("https://line1-h5-pc-api.biligame.com/game/wiki/search", {"keyword": keyword})
 
 
 async def search_manga(keyword: str, page_num: int = 1, page_size: int = 9, credential: Credential = None):
     """
-    搜索漫画特用函数
+    Dedicated manga search
 
     Args:
-        keyword   (str): 搜索关键词
+        keyword   (str): search keyword
 
-        page_num  (int): 页码. Defaults to 1.
+        page_num  (int): page number. Defaults to 1.
 
-        page_size (int): 每一页的数据大小. Defaults to 9.
+        page_size (int): items per page. Defaults to 9.
 
-        credential (Credential): 凭据类. Defaults to None.
+        credential (Credential): credential. Defaults to None.
 
     Returns:
-        dict: 调用 API 返回的结果
+        dict: raw result returned by the API
     """
     data = {"key_word": keyword, "page_num": page_num, "page_size": page_size}
     async with _creq.AsyncSession(proxy=request_settings.get_proxy() or None) as session:
@@ -465,19 +465,19 @@ async def search_cheese(
     order: OrderCheese = OrderCheese.RECOMMEND,
 ):
     """
-    搜索课程特用函数
+    Dedicated course search
 
     Args:
-        keyword   (str)        : 搜索关键词
+        keyword   (str)        : search keyword
 
-        page_num  (int)        : 页码. Defaults to 1.
+        page_num  (int)        : page number. Defaults to 1.
 
-        page_size (int)        : 每一页的数据大小. Defaults to 30.
+        page_size (int)        : items per page. Defaults to 30.
 
-        order     (OrderCheese): 排序方式. Defaults to OrderCheese.RECOMMEND
+        order     (OrderCheese): sort order. Defaults to OrderCheese.RECOMMEND
 
     Returns:
-        dict: 调用 API 返回的结果
+        dict: raw result returned by the API
     """
     params = {
         "word": keyword,

@@ -65,7 +65,7 @@
                         </h1>
                         {% if not is_live %}
                             <a id='avswitch'
-                               title="{{ 'Audio mode' }}"
+                               title="{{ _('Audio mode') }}"
                                href="/video/{{ vid }}?listen=1{{ '&ato=1' if ato else '' }}"
                                class="md3-icon-button">
                                 <i class="icon ion-md-headset"></i>
@@ -84,20 +84,20 @@
                     <!-- Stats Bar -->
                     <div class="flex flex-wrap gap-4 md:gap-6 text-sm text-on-surface-variant pb-4">
                         <div class="flex items-center gap-1.5"
-                             title="{{ '在线人数' if is_live else '播放量' }}">
-                            <i class="icon ion-ios-eye text-lg"></i> {{ vinfo['stat']['view']|intsep }} {{ '在线' if is_live else '' }}
+                             title="{{ _('Online') if is_live else _('Views') }}">
+                             <i class="icon ion-ios-eye text-lg"></i> {{ vinfo['stat']['view']|intsep }} {{ _('Online') if is_live else '' }}
                         </div>
                         {% if not is_live %}
-                            <div class="flex items-center gap-1.5" title="{{ '点赞' }}">
+                            <div class="flex items-center gap-1.5" title="{{ _('Likes') }}">
                                 <i class="icon ion-ios-thumbs-up text-lg"></i> {{ vinfo['stat']['like']|intsep }}
                             </div>
-                            <div class="flex items-center gap-1.5" title="{{ '硬币' }}">
+                            <div class="flex items-center gap-1.5" title="{{ _('Coins') }}">
                                 <i class="icon ion-logo-bitcoin text-lg"></i> {{ vinfo['stat']['coin']|intsep }}
                             </div>
-                            <div class="flex items-center gap-1.5" title="{{ '收藏' }}">
+                            <div class="flex items-center gap-1.5" title="{{ _('Favorites') }}">
                                 <i class="icon ion-ios-bookmark text-lg"></i> {{ vinfo['stat']['favorite']|intsep }}
                             </div>
-                            <div class="flex items-center gap-1.5" title="{{ '分享' }}">
+                            <div class="flex items-center gap-1.5" title="{{ _('Share') }}">
                                 <i class="icon ion-md-share text-lg"></i> {{ vinfo['stat']['share']|intsep }}
                             </div>
                         {% endif %}
@@ -128,7 +128,7 @@
                                target="_blank"
                                class="md3-button md3-button-tonal">
                                 <i class="icon ion-logo-youtube"></i>
-                                <span class="hidden sm:inline">哔哩哔哩</span>
+                                <span class="hidden sm:inline">{{ _('Watch on Bilibili') }}</span>
                             </a>
 
                             {% if site_allow_download and not is_live %}
@@ -151,7 +151,7 @@
                                             disabled
                                             class="md3-button md3-button-filled">
                                         <i class="icon ion-md-download"></i>
-                                        <span>下载</span>
+                                        <span>{{ _('Download') }}</span>
                                     </button>
                                 </form>
                             {% endif %}
@@ -171,7 +171,7 @@
                     <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm">
                         <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
                             <i class="icon ion-ios-chatbubbles"></i>
-                            {{ '评论' }} ({{ vcomments['page']['count'] }})
+                            {{ _('Comments') }} ({{ vcomments['page']['count'] }})
                         </h3>
 
                         <div class="space-y-6">
@@ -200,7 +200,7 @@
                             {% else %}
                                 <div class="flex flex-col items-center justify-center py-8 space-y-4">
                                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                                    <p class="text-on-surface-variant">{{ '正在加载评论...' }}</p>
+                                    <p class="text-on-surface-variant">{{ _('Loading comments...') }}</p>
                                 </div>
                             {% endif %}
                         </div>
@@ -219,10 +219,10 @@
                 <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl shadow-sm flex flex-col h-[80svh] border-[3px] border-[#fb7299] sticky top-6 overflow-hidden z-10">
                     <!-- Header: shrink-0 added so it doesn't collapse -->
                     <div class="shrink-0 p-3 border-b border-[#fb7299]/30 flex items-center justify-between bg-surface dark:bg-black/10"
-                         title="{{ '实时聊天' }}">
+                         title="{{ _('Live chat') }}">
                         <h3 class="font-bold text-on-surface flex items-center gap-2 uppercase text-base tracking-wider">
                             <i class="icon ion-md-chatbubbles text-[#fb7299]"></i>
-                            {{ '实时聊天' }}
+                            {{ _('Live chat') }}
                         </h3>
                         <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
                     </div>
@@ -230,7 +230,7 @@
                     <div id="live-chat-container"
                          class="flex-grow overflow-y-auto p-2 text-[13px] leading-relaxed custom-scrollbar bg-black/5 break-words break-all">
                         <!-- Messages append here -->
-                        <p class="text-on-surface-variant/50 text-center py-4 italic">{{ '正在连接到聊天室...' }}</p>
+                        <p class="text-on-surface-variant/50 text-center py-4 italic">{{ _('Connecting to chat...') }}</p>
                     </div>
                 </div>
                 <script nonce="{{ csp_nonce }}">
@@ -303,13 +303,13 @@
             {% if vset|length > 1 and not is_live %}
                 <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="font-bold text-on-surface">{{ '选集' }} ({{ vset|length }})</h3>
+                        <h3 class="font-bold text-on-surface">{{ _('Episodes') }} ({{ vset|length }})</h3>
                         <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary transition-colors">
                             <input name="continue"
                                    id="continue"
                                    type="checkbox"
                                    class="accent-primary rounded" />
-                            {{ '自动连播' }}
+                            {{ _('Autoplay next') }}
                         </label>
                     </div>
                     <div class="max-h-[60vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
@@ -338,7 +338,7 @@
 
             <!-- Recommendations -->
             <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
-                <h3 class="font-bold text-on-surface mb-4">{{ '推荐视频' }}</h3>
+                <h3 class="font-bold text-on-surface mb-4">{{ _('Recommended') }}</h3>
                 <div class="space-y-4">
                     {% for rv in vrelated %}
                         {% set rv_link = '/bangumi/play/' + rv['bvid'] if rv['bvid'].startswith('ep') else '/video/' + rv['bvid'] %}
@@ -358,7 +358,7 @@
                                     <span>{{ rv['owner']['name'] }}</span>
                                 </div>
                                 <div class="flex items-center gap-2 text-xs text-on-surface-variant/70">
-                                    <span>{{ rv['stat']['view']|intsep }} {{ '播放' }}</span>
+                                    <span>{{ rv['stat']['view']|intsep }} {{ _('Play') }}</span>
                                 </div>
                             </div>
                         </a>
@@ -400,6 +400,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
+            const MSG_LOADED_MORE = {{ _('Loaded %(count)s, click to load more')|tojson }};
             // Floating download dialog (progress + cancel) instead of a blank tab.
             const dlForm = document.getElementById('download-form');
             if (dlForm && window.MikuDownload) window.MikuDownload.attach(dlForm);
@@ -439,7 +440,7 @@
                         console.error('[comments] fetch failed:', err);
                         const container = document.getElementById('comments-loader-container');
                         if (container) {
-                            container.innerHTML = '<div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm"><h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2"><i class="icon ion-ios-chatbubbles"></i> 评论</h3><p class="text-center text-on-surface-variant py-8">评论加载失败，请稍后再试</p></div>';
+                            container.innerHTML = '<div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm"><h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2"><i class="icon ion-ios-chatbubbles"></i> {{ _('Comments') }}</h3><p class="text-center text-on-surface-variant py-8">{{ _('Failed to load comments, please try again later') }}</p></div>';
                         }
                     });
 
@@ -454,7 +455,7 @@
                     if (slot.classList.contains('hidden')) { slot.classList.remove('hidden'); return; }
                     if (slot.dataset.loaded) { slot.classList.add('hidden'); return; }
 
-                    btn.querySelector('span').textContent = '加载中...';
+                    btn.querySelector('span').textContent = {{ _('Loading...')|tojson }};
                     slot.dataset.loading = '1';
                     const page = slot.dataset.nextPage || '1';
                     fetch(`/api/component/comments/${vid}/${root}?page=${encodeURIComponent(page)}`, { headers })
@@ -479,12 +480,17 @@
                             slot.dataset.loadedCount = String(loadedCount);
                             slot.dataset.nextPage = String(Number(pageEl.dataset.page) + 1);
                             if (isEnd) slot.dataset.loaded = '1';
+                            // Reply-count labels via the JS catalog (window.I18N):
+                            // singular/plural reuse the existing ngettext PO entries,
+                            // MSG_LOADED_MORE is a tojson-rendered _() const above.
                             btn.querySelector('span').textContent = isEnd
-                                ? btn.dataset.count + ' 条回复'
-                                : `已加载 ${loadedCount} 条，点击加载更多`;
+                                ? (Number(btn.dataset.count) === 1
+                                    ? I18n.t('%(count)s reply', {count: btn.dataset.count})
+                                    : I18n.t('%(count)s replies', {count: btn.dataset.count}))
+                                : MSG_LOADED_MORE.split('%(count)s').join(String(loadedCount));
                         })
                         .catch(() => {
-                            btn.querySelector('span').textContent = '加载失败';
+                            btn.querySelector('span').textContent = {{ _('Load failed')|tojson }};
                         })
                         .finally(() => {
                             delete slot.dataset.loading;

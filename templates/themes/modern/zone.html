@@ -1,6 +1,6 @@
 {% extends 'themes/modern/base.html' %}
 {% block head %}
-    <title>分区 - MikuInvidious</title>
+    <title>{{ _('Zone') }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
 {% endblock %}
 {% block content %}
@@ -46,12 +46,12 @@
                                 <span dir="auto" class="font-medium">{{ v['author'] }}</span>
                             </a>
                             <div class="flex gap-3">
-                                <a title="在哔哩哔哩上观看"
+                                <a title="{{ _('Watch on Bilibili') }}"
                                    href="https://www.bilibili.com/video/{{ v['bvid'] }}"
                                    class="text-on-surface-variant/70 hover:text-red-500 transition-colors">
                                     <i class="icon ion-logo-youtube text-lg"></i>
                                 </a>
-                                <a title="音频模式"
+                                <a title="{{ _('Audio mode') }}"
                                    href="/video/{{ v['bvid'] }}?listen=1"
                                    class="text-on-surface-variant/70 hover:text-primary transition-colors">
                                     <i class="icon ion-md-headset text-lg"></i>
@@ -60,7 +60,7 @@
                         </div>
                         <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
                             <p dir="auto">{{ v['pubdate']|date }}</p>
-                            <p dir="auto">{{ v['stat']['view']|intsep }} 次播放</p>
+                            <p dir="auto">{{ v['stat']['view']|intsep }} {{ _('plays') }}</p>
                         </div>
                     </div>
                 </div>
@@ -72,13 +72,13 @@
         {% if info['page']['num'] > 1 %}
             <a href="/vv/{{ info['archives'][0]['tid'] }}?i={{ info['page']['num']-1 }}"
                class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
-                <i class="icon ion-ios-arrow-back"></i> 上一页
+                <i class="icon ion-ios-arrow-back"></i> {{ _('Previous page') }}
             </a>
         {% endif %}
         {% if (info['page']['num']+1)*(info['page']['size']) < info['page']['count'] %}
             <a href="/vv/{{ info['archives'][0]['tid'] }}?i={{ info['page']['num']+1 }}"
                class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
-                下一页 <i class="icon ion-ios-arrow-forward"></i>
+                {{ _('Next page') }} <i class="icon ion-ios-arrow-forward"></i>
             </a>
         {% endif %}
     </div>

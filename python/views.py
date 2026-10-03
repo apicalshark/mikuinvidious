@@ -210,7 +210,7 @@ async def search_view():
     i = request.args.get("i") or 1
     if not q:
         return await render_template_with_theme(
-            "error.html", status="无法搜索", desc="没有发送搜索关键字。", sg="请设置搜索关键字后重试。"
+            "error.html", status="Search failed", desc="No search keyword provided.", suggest="Please enter a search keyword and try again."
         ), 400
 
     # URL Jump logic
@@ -407,9 +407,9 @@ async def space_view(mid):
     if not isinstance(uinfo, dict) or not uinfo:
         return await render_template_with_theme(
             "error.html",
-            status="空间加载失败",
-            desc="无法获取该用户的信息，请稍后重试。",
-            suggest="请检查网络连接或代理设置。",
+            status="Space load failed",
+            desc="Failed to fetch this user's profile. Please try again later.",
+            suggest="Please check your network connection or proxy settings.",
         ), 500
     if not isinstance(uvids, dict):
         uvids = {}
@@ -609,7 +609,7 @@ async def read_view(cid):
             and data.get("arinfo")
             and isinstance(data.get("content"), str)
             and data.get("content")
-            and "无法解析文章内容" not in data.get("content")
+            and "Failed to parse article content" not in data.get("content")
         ):
             html = await render_template_with_theme(
                 "read.html",
@@ -642,8 +642,8 @@ async def read_view(cid):
         try:
             parsed = article_to_html(body)
         except Exception:
-            parsed = "<p>无法解析文章内容。</p>"
-        if want_format is not None or "无法解析文章内容" not in parsed:
+            parsed = "<p>Failed to parse article content.</p>"
+        if want_format is not None or "Failed to parse article content" not in parsed:
             text, content = body, parsed
             break
         await asyncio.sleep(0.4 * (attempt + 1))
@@ -651,9 +651,9 @@ async def read_view(cid):
     if text is None:
         return await render_template_with_theme(
             "error.html",
-            status="没有找到文章" if last_status == 404 else "服务器错误",
-            desc="后端服务器发送了无效的回复",
-            suggest="这很可能说明您访问的文章不存在，请检查您的请求。" if last_status == 404 else None,
+            status="Article not found" if last_status == 404 else "Server error",
+            desc="Backend server sent an invalid response",
+            suggest="The article you requested most likely does not exist. Please check your request." if last_status == 404 else None,
         ), (404 if last_status == 404 else 502)
 
     if want_format is not None:
@@ -689,7 +689,7 @@ async def read_view(cid):
             and arinfo
             and isinstance(content, str)
             and content
-            and "无法解析文章内容" not in content
+            and "Failed to parse article content" not in content
         ):
             await cache_set(cache_key, {"arinfo": arinfo, "content": content}, cache_ttl)
         html = await render_template_with_theme(
@@ -704,9 +704,9 @@ async def read_view(cid):
         traceback.print_exc()
         return await render_template_with_theme(
             "error.html",
-            status="没有找到文章",
-            desc="文章不存在或解析错误",
-            sg="这很可能说明您访问的文章不存在，请检查您的请求。",
+            status="Article not found",
+            desc="Article does not exist or parse error",
+            suggest="The article you requested most likely does not exist. Please check your request.",
         ), 404
 
 
@@ -720,14 +720,14 @@ async def live_list_view():
             card = transformers.transform_live_card(item)
             if card:
                 rooms.append(card)
-        return await render_template_with_theme("home.html", videos=rooms, title="直播")
+        return await render_template_with_theme("home.html", videos=rooms, title="Live")
     except Exception as e:
         import traceback
 
         traceback.print_exc()
         print(f"[ERROR] Live list error: {e}")
         return await render_template_with_theme(
-            "error.html", status="直播列表加载失败", desc="无法获取直播列表，请稍后重试。"
+            "error.html", status="Live list load failed", desc="Failed to fetch the live list. Please try again later."
         ), 500
 
 
@@ -837,7 +837,7 @@ async def live_room_view(room_id):
         _qn_node = (play_data.get("play_url") or {}) if isinstance(play_data, dict) else {}
         if not _qn_node.get("g_qn_desc") and isinstance(play_data, dict):
             _qn_node = (play_data.get("playurl_info") or {}).get("playurl") or {}
-        qn_list = _qn_node.get("g_qn_desc", []) or [{"qn": 0, "desc": "默认"}]
+        qn_list = _qn_node.get("g_qn_desc", []) or [{"qn": 0, "desc": "Default"}]
 
         # Reuse the initial (qn=10000) response for the default quality instead
         # of refetching it: Bilibili -400s rapid parallel getRoomPlayInfo calls
@@ -852,7 +852,7 @@ async def live_room_view(room_id):
             await appredis.setex(f"miku_live_{room_id}", 1800, _default_url)
             await appredis.setex(f"miku_live_{room_id}_{_default_qn}", 1800, _default_url)
             _default_desc = next(
-                (d.get("desc", "默认") for d in qn_list if d.get("qn") == _default_qn), "默认"
+                (d.get("desc", "Default") for d in qn_list if d.get("qn") == _default_qn), "Default"
             )
             supported_src.append(
                 {"quality": _default_qn, "new_description": _default_desc, "url": _default_url}
@@ -917,7 +917,7 @@ async def live_room_view(room_id):
                 if "durl" in fb_info and fb_info["durl"]:
                     u = fb_info["durl"][0]["url"]
                     await appredis.setex(f"miku_live_{room_id}", 1800, u)
-                    supported_src = [{"quality": "default", "new_description": "默认", "url": u}]
+                    supported_src = [{"quality": "default", "new_description": "Default", "url": u}]
             except Exception:
                 pass
 
@@ -952,7 +952,7 @@ async def live_room_view(room_id):
         traceback.print_exc()
         print(f"[ERROR] Live room error: {e}")
         return await render_template_with_theme(
-            "error.html", status="直播加载失败", desc="无法加载直播间，请检查网络或稍后重试。"
+            "error.html", status="Live load failed", desc="Failed to load the live room. Please check your network or try again later."
         ), 500
 
 
@@ -990,11 +990,11 @@ async def video_listen_view(vid, idx=0):
         return_exceptions=True,
     )
 
-    # 核心數據檢查
+    # Core data check
     if isinstance(results[0], Exception) or results[0] is None:
-        err_msg = str(results[0]) if results[0] else "B站返回了空的數據 (可能受到地區限制)"
+        err_msg = str(results[0]) if results[0] else "Bilibili returned empty data (possibly region-restricted)"
         return await render_template_with_theme(
-            "error.html", status="音频模式加载失败", desc=err_msg, suggest="該內容可能受到地區限制或已被下架。"
+            "error.html", status="Audio mode load failed", desc=err_msg, suggest="This content may be region-restricted or removed."
         ), 404
 
     def is_valid(res):
@@ -1376,26 +1376,26 @@ async def video_view(vid, idx=0):
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
-    # 檢查核心數據是否獲取成功
+    # Check that core data was fetched successfully
     if isinstance(results[0], Exception) or results[0] is None:
-        err_msg = str(results[0]) if results[0] else "B站返回了空的數據 (可能受到地區限制)"
+        err_msg = str(results[0]) if results[0] else "Bilibili returned empty data (possibly region-restricted)"
         print(f"[Video] Error fetching info for {vid}: {err_msg}")
-        # 如果是 404 或 啥都木有，顯示友好提示
+        # Show a friendly message for 404 / "啥都木有" (empty-result) responses
         if "啥都木有" in err_msg or "-404" in err_msg:
             return await render_template_with_theme(
                 "error.html",
-                status="无法加载视频",
-                desc="B站返回：啥都木有 (-404)",
-                suggest="該影片可能已被刪除、審核中，或是受到地區限制（僅限港澳台）。",
+                status="Video load failed",
+                desc="Bilibili returned empty result (-404)",
+                suggest="This video may have been deleted, is under review, or is region-restricted.",
             ), 404
         return await render_template_with_theme(
-            "error.html", status="视频加载出错", desc=err_msg, suggest="請嘗試刷新頁面，或檢查伺服器網路連接。"
+            "error.html", status="Video load failed", desc=err_msg, suggest="Please try refreshing the page, or check the server network connection."
         ), 500
 
     def is_valid(res):
         return res is not None and not isinstance(res, Exception)
 
-    vinfo = results[0]  # 此時 results[0] 肯定是有效的 vinfo 資料
+    vinfo = results[0]  # results[0] is guaranteed to be valid vinfo data at this point
     vtags = results[1] if is_valid(results[1]) else []
     vrelated = results[2] if is_valid(results[2]) else []
     vset = results[3] if is_valid(results[3]) else [{"page": 1, "part": vid}]
@@ -1561,7 +1561,7 @@ async def audio_list_view(amid, idx=0):
             cache_hit = True
     if cache_hit:
         if idx >= len(songs):
-            return await render_template_with_theme("error.html", status="歌单为空", desc="没有找到歌曲"), 404
+            return await render_template_with_theme("error.html", status="Playlist empty", desc="No songs found"), 404
         current_song = songs[idx]
         # Track info comes from cache; comments stay live so they never go stale.
         try:
@@ -1576,7 +1576,7 @@ async def audio_list_view(amid, idx=0):
         songs_res = await al.get_song_list()
         songs = songs_res.get("data", [])
         if not songs or idx >= len(songs):
-            return await render_template_with_theme("error.html", status="歌单为空", desc="没有找到歌曲"), 404
+            return await render_template_with_theme("error.html", status="Playlist empty", desc="No songs found"), 404
         current_song = songs[idx]
         auid = f"au{current_song['id']}"
         a = audio.Audio(current_song["id"], credential=appcred)
@@ -1653,11 +1653,11 @@ async def audio_list_view(amid, idx=0):
 async def history_view():
     hist_id = getattr(g, "hist_id", None)
     if not hist_id or getattr(g, "set_hist_cookie", False):
-        return await render_template_with_theme("home.html", videos=[], title="浏览历史", message="您还没有浏览历史。")
+        return await render_template_with_theme("home.html", videos=[], title="Browsing history", message="You have no browsing history yet.")
 
     bvids = await appredis.lrange(f"miku_hist_{hist_id}", 0, -1)
     if not bvids:
-        return await render_template_with_theme("home.html", videos=[], title="浏览历史", message="您还没有浏览历史。")
+        return await render_template_with_theme("home.html", videos=[], title="Browsing history", message="You have no browsing history yet.")
 
     async def get_v_info(bvid):
         try:
@@ -1674,4 +1674,4 @@ async def history_view():
             if card:
                 videos.append(card)
 
-    return await render_template_with_theme("home.html", videos=videos, title="浏览历史")
+    return await render_template_with_theme("home.html", videos=videos, title="Browsing history")

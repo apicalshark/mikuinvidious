@@ -34,7 +34,7 @@
                     <p class="text-sm font-mono text-on-surface-variant opacity-70">MID: {{ uinfo['mid'] }}</p>
                 </div>
                 <div class="bg-surface-variant/20 rounded-xl p-4 text-on-surface-variant text-sm  leading-relaxed max-w-3xl">
-                    {{ uinfo['sign'] or "这个人很懒，什么都没有写。" }}
+                    {{ uinfo['sign'] or _("This user has no bio yet.") }}
                 </div>
                 <!-- Actions -->
                 <div class="flex flex-wrap justify-center md:justify-start gap-3 pt-2">
@@ -42,19 +42,19 @@
                        target="_blank"
                        class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-[#FF6699] hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
                         <i class="icon ion-logo-youtube"></i>
-                        <span>哔哩哔哩空间</span>
+                        <span>{{ _('Bilibili Space') }}</span>
                     </a>
                     <a href="/space/{{ uinfo['mid'] }}"
                        class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-primary hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
                         <i class="icon ion-md-videocam"></i>
-                        <span>投稿视频</span>
+                        <span>{{ _('Videos') }}</span>
                     </a>
                 </div>
             </div>
         </div>
     </div>
     <div class="flex items-center gap-4 mb-6">
-        <h2 class="text-xl font-bold text-on-surface">专栏文章</h2>
+        <h2 class="text-xl font-bold text-on-surface">{{ _('Articles') }}</h2>
         {% if uarts['articles'] %}
             <span class="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary font-bold">{{ uarts['count'] }}</span>
         {% endif %}
@@ -93,7 +93,7 @@
                             </div>
                             <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
                                 <p dir="auto">{{ a['publish_time']|date }}</p>
-                                <p dir="auto">{{ a['stats']['view']|intsep }} 次阅读</p>
+                                <p dir="auto">{{ a['stats']['view']|intsep }} {{ _('reads') }}</p>
                             </div>
                         </div>
                     </div>
@@ -105,20 +105,20 @@
             {% if uarts['pn'] > 1 %}
                 <a href="/author/{{ uinfo['mid'] }}?i={{ uarts['pn'] - 1 }}"
                    class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
-                    <i class="icon ion-ios-arrow-back"></i> 上一页
+                    <i class="icon ion-ios-arrow-back"></i> {{ _('Previous page') }}
                 </a>
             {% endif %}
             {% if (uarts['pn']+1)*(uarts['ps']) < uarts['count'] %}
                 <a href="/author/{{ uinfo['mid'] }}?i={{ uarts['pn'] + 1 }}"
                    class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
-                    下一页 <i class="icon ion-ios-arrow-forward"></i>
+                    {{ _('Next page') }} <i class="icon ion-ios-arrow-forward"></i>
                 </a>
             {% endif %}
         </div>
     {% else %}
         <div class="flex flex-col items-center justify-center py-20 bg-surface-variant/10 rounded-2xl border-2 border-dashed border-surface-variant/30">
             <i class="icon ion-ios-paper text-6xl text-on-surface-variant/50 mb-4"></i>
-            <h3 class="text-xl font-bold text-on-surface-variant">暂无专栏文章</h3>
+            <h3 class="text-xl font-bold text-on-surface-variant">{{ _('No articles yet') }}</h3>
         </div>
     {% endif %}
 {% endblock %}

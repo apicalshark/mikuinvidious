@@ -259,12 +259,16 @@ class LiveStreamManager {
       overlay = document.createElement("div");
       overlay.id = "stream-ended-overlay";
       overlay.className = "absolute inset-0 flex items-center justify-center bg-black/80 z-10";
+      // Texts assigned via textContent below through I18n.t() so translated
+      // strings with quotes cannot break this markup.
       overlay.innerHTML = `
         <div class="text-center text-white">
-          <div class="text-xl font-semibold mb-2">直播已结束</div>
-          <div class="text-sm text-white/70">Live stream has ended</div>
+          <div class="text-xl font-semibold mb-2"></div>
+          <div class="text-sm text-white/70"></div>
         </div>
       `;
+      overlay.querySelector(".text-xl").textContent = I18n.t("Stream ended");
+      overlay.querySelector(".text-sm").textContent = I18n.t("Live stream has ended");
       const container = this.video.parentElement;
       if (container) {
         if (window.getComputedStyle(container).position === "static") {
@@ -1125,7 +1129,7 @@ function setupLivePlayer(video, list, label) {
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
         if (hls.autoLevelEnabled) {
           const level = hls.levels[data.level];
-          if (label) label.innerText = `自动 (${level.height}p)`;
+          if (label) label.innerText = I18n.t("Auto (%(height)sp)", { height: level.height });
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -1148,11 +1152,11 @@ function updateVodHlsQualityMenu(hls, list, label) {
 
   // Auto option
   const autoBtn = createOption(
-    "自动",
+    I18n.t("Auto"),
     -1,
     () => {
       hls.currentLevel = -1;
-      if (label) label.innerText = "自动";
+      if (label) label.innerText = I18n.t("Auto");
     },
     list
   );
@@ -1183,11 +1187,11 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
   if (isHls && hls) {
     // HLS Quality Logic
     const autoBtn = createOption(
-      "自动",
+      I18n.t("Auto"),
       -1,
       () => {
         hls.currentLevel = -1;
-        if (label) label.innerText = "自动";
+        if (label) label.innerText = I18n.t("Auto");
       },
       list
     );

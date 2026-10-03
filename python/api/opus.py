@@ -44,5 +44,5 @@ class Opus:
         }
         info = await Api(**api, credential=self.credential).update_params(**params).result
         if info.get("fallback"):
-            raise ArgsException("传入的 opus_id 不正确")
+            raise ArgsException("Invalid opus_id provided")
         return info

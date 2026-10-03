@@ -21,8 +21,9 @@ from shared import app
 
 
 # Convert a timestamp to a humand readable date format.
+# NOTE: locale-aware formatting comes later; ISO-like default keeps PO msgids stable.
 @app.template_filter("date")
-def _jinja2_filter_datetime(ts, fmt="%Y年%m月%d日 %H点%m分"):
+def _jinja2_filter_datetime(ts, fmt="%Y-%m-%d %H:%M"):
     return datetime.fromtimestamp(ts).strftime(fmt)
 
 

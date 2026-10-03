@@ -19,7 +19,7 @@ import re
 import secrets
 import sys
 from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import filters  # noqa: F401
 import res  # noqa: F401
@@ -66,8 +66,16 @@ async def shutdown_cleanup():
 
 @app.before_request
 async def setup_request():
-    """Generate CSP nonce and initialize history ID."""
+    """Generate CSP nonce, resolve locale, and initialize history ID."""
     g.csp_nonce = secrets.token_urlsafe(16)
+
+    from i18n import normalize_locale
+    from shared import detect_locale
+
+    g.locale = detect_locale()
+    # Persist explicit ?lang= overrides so navigation keeps the choice.
+    query_lang = normalize_locale(request.args.get("lang"))
+    g.set_lang_cookie = query_lang if query_lang and query_lang != request.cookies.get("lang") else None
 
     hist_id = request.cookies.get("hist_id")
     if not hist_id or not re.match(r"^[a-f0-9]{16}$", hist_id):
@@ -80,8 +88,8 @@ async def setup_request():
 
 @app.context_processor
 def inject_csp_nonce():
-    """Make CSP nonce available to all templates."""
-    return {"csp_nonce": getattr(g, "csp_nonce", "")}
+    """Make CSP nonce and locale available to all templates."""
+    return {"csp_nonce": getattr(g, "csp_nonce", ""), "locale": getattr(g, "locale", "en")}
 
 
 @app.after_request
@@ -91,6 +99,10 @@ async def set_hist_id(response):
         response.set_cookie(
             "hist_id", g.hist_id, max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure
         )
+    lang = getattr(g, "set_lang_cookie", None)
+    if lang:
+        is_secure = request.is_secure or request.headers.get("X-Forwarded-Proto") == "https"
+        response.set_cookie("lang", lang, path="/", max_age=3600 * 24 * 30, samesite="Lax", secure=is_secure)
     return response
 
 
@@ -178,6 +190,32 @@ async def toggle_theme_api():
     return resp
 
 
+@app.route("/set_lang", methods=["POST"])
+@csrf_protect()
+@rate_limit(**RATE_LIMITS["normal"])
+async def set_lang_api():
+    """Persist UI locale choice (mirrors /toggle_theme cookie pattern)."""
+    from i18n import SUPPORTED_LOCALES, normalize_locale
+
+    form = await request.form
+    raw = form.get("lang") or request.args.get("lang") or ""
+    lang = normalize_locale(raw)
+    if lang not in SUPPORTED_LOCALES:
+        return Response("Unsupported language", status=400)
+    print(f"[I18n] Setting language to {lang}")
+    redirect_to = request.headers.get("Referer") or "/preferences"
+    if redirect_to:
+        parsed = urlparse(redirect_to)
+        q = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if k != "lang"]
+        clean_query = urlencode(q)
+        redirect_to = urlunparse(parsed._replace(query=clean_query))
+    resp = redirect(redirect_to)
+    forwarded = request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower()
+    is_secure = request.is_secure or forwarded == "https"
+    resp.set_cookie("lang", lang, path="/", max_age=3600 * 24 * 30, samesite="Lax", secure=is_secure)
+    return resp
+
+
 ##########################################
 # Additional features
 ##########################################
@@ -203,20 +241,23 @@ async def b32tv_redirect(b32tvid):
                 msg = e.get("message", "Unknown error")
                 code = e.get("code", req.status_code)
             except Exception:
-                msg = "未找到页面" if req.status_code == 404 else "未知错误"
+                msg = "Page not found" if req.status_code == 404 else "Unknown error"
                 code = req.status_code
 
             return await render_template_with_theme(
                 "error.html",
                 status=msg,
-                desc="您请求的资源不存在。" if code == 404 else msg,
-                suggest="请检查您的请求并重试。",
+                desc="The requested resource does not exist." if code == 404 else msg,
+                suggest="Please check your request and try again.",
             ), abs(code)
 
         location = req.headers.get("Location")
         if not location:
             return await render_template_with_theme(
-                "error.html", status="解析错误", desc="无法获取重定向地址。", suggest="请检查网址是否正确。"
+                "error.html",
+                status="Parse error",
+                desc="Failed to resolve the redirect target.",
+                suggest="Please check the URL.",
             ), 500
 
         url = urlparse(location)
@@ -237,9 +278,9 @@ async def b32tv_redirect(b32tvid):
         print(f"[Redirect] Error redirecting b23.tv/{b32tvid}: {e}")
         return await render_template_with_theme(
             "error.html",
-            status="网络错误",
-            desc="无法解析短链接，请检查网络连接或代理设置。",
-            suggest="请检查您的网络连接或代理设置。",
+            status="Network error",
+            desc="Failed to resolve the short link. Please check your network connection or proxy settings.",
+            suggest="Please check your network connection or proxy settings.",
         ), 500
     finally:
         if req:
@@ -320,28 +361,37 @@ async def robots_txt():
 @app.errorhandler(404)
 async def not_found_error(e):
     return await render_template_with_theme(
-        "error.html", status="未找到页面 (404)", desc="您请求的页面不存在。", suggest="请检查 URL 是否正确。"
+        "error.html",
+        status="Page not found (404)",
+        desc="The requested page does not exist.",
+        suggest="Please check the URL.",
     ), 404
 
 
 @app.errorhandler(exceptions.ArgsException)
 async def args_exception_view(e):
     # Sanitize argument error - don't expose internal details
-    return await render_template_with_theme("error.html", status="请求错误", desc="请求参数无效，请检查后重试。"), 400
+    return await render_template_with_theme(
+        "error.html", status="Bad request", desc="Invalid request parameters. Please check and try again."
+    ), 400
 
 
 @app.errorhandler(exceptions.ResponseCodeException)
 async def resp_exception_view(e):
     suggest = None
     if e.code == -404:
-        suggest = "这很可能说明您访问的视频/文章不存在，请检查您的请求。如果您认为这是站点的问题，请联系网站管理员。"
+        suggest = (
+            "The video/article you requested most likely does not exist. "
+            "Please check your request. If you believe this is a site issue, "
+            "please contact the administrator."
+        )
 
     # Sanitize error message - never expose raw backend response
     if appconf["site"]["site_show_unsafe_error_response"]:
         # Only show sanitized message even in debug mode
-        desc = f"后端错误: {e.msg}"
+        desc = f"Backend error: {e.msg}"
     else:
-        desc = "后端服务器发送了无效的回复。"
+        desc = "Backend server sent an invalid response."
 
     return await render_template_with_theme(
         "error.html",
@@ -361,5 +411,5 @@ async def general_exception_view(e):
     print(f"[ERROR] {error_msg}")
     # Never expose internal error details to users
     return await render_template_with_theme(
-        "error.html", status="服务器错误", desc="服务器内部错误，请稍后重试或联系管理员。"
+        "error.html", status="Server error", desc="Internal server error. Please try again later or contact the administrator."
     ), 500

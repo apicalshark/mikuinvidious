@@ -30,7 +30,7 @@ __all__ = ["User", "VideoOrder", "ArticleOrder"]
 
 
 class VideoOrder(Enum):
-    """投稿排序方式。"""
+    """Video submission sort order."""
 
     PUBDATE = "pubdate"
     CLICK = "click"
@@ -38,7 +38,7 @@ class VideoOrder(Enum):
 
 
 class ArticleOrder(Enum):
-    """专栏排序方式。"""
+    """Article sort order."""
 
     PUBDATE = "publish_time"
     FAVORITE = "favorite"
@@ -53,13 +53,13 @@ class User:
             except (TypeError, ValueError):
                 pass
             if uid <= 0:
-                raise ArgsException("uid 不能小于或等于 0")
+                raise ArgsException("uid must be greater than 0")
             self.uid = uid
         elif name is not None:
             self.name = name
             self.uid = None
         else:
-            raise ArgsException("uid 和 name 必须提供一个")
+            raise ArgsException("One of uid and name must be provided")
         self.credential = credential if credential is not None else Credential()
 
     async def get_user_info(self) -> dict:
