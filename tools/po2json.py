@@ -110,8 +110,9 @@ def main() -> int:
             if not json_path.exists():
                 stale.append(str(po))
                 continue
-            po_mtime = po.stat().st_mtime
-            if json_path.stat().st_mtime < po_mtime:
+            with open(json_path, encoding="utf-8") as f:
+                compiled = json.load(f)
+            if compiled != msgs:
                 stale.append(str(po))
             continue
         # JSON catalog sorted for stable diffs; header excluded by parser.
