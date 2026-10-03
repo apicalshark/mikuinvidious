@@ -47,7 +47,7 @@ def bv2av(x: str) -> int:
         or not re.fullmatch(r"BV[a-zA-Z0-9]{10}", x)
         or any(char not in _itable for char in x[3:])
     ):
-        raise ArgsException("bvid 提供错误，必须是以 BV 开头的纯字母和数字组成的 12 位字符串（大小写敏感）。")
+        raise ArgsException("Invalid bvid: must be a 12-character case-sensitive string starting with BV, containing only letters and digits.")
     arr = list(x)
     arr[3], arr[9] = arr[9], arr[3]
     arr[4], arr[7] = arr[7], arr[4]
@@ -60,7 +60,7 @@ def bv2av(x: str) -> int:
 
 def av2bv(x: int) -> str:
     if x <= 0:
-        raise ArgsException("aid 不能小于或等于 0。")
+        raise ArgsException("aid must be greater than 0.")
     tmp = (_MAX_AID | x) ^ _XOR_CODE
     r = list("BV1000000000")
     idx = len(r) - 1
@@ -142,13 +142,13 @@ class Video:
         elif aid is not None:
             self.set_aid(aid)
         else:
-            raise ArgsException("请至少提供 bvid 和 aid 中的其中一个参数。")
+            raise ArgsException("Provide at least one of bvid and aid.")
         self.credential = credential if credential is not None else Credential()
         self._info = None
 
     def set_bvid(self, bvid: str) -> None:
         if not re.search(r"^BV[a-zA-Z0-9]{10}$", bvid):
-            raise ArgsException("bvid 提供错误，必须是以 BV 开头的纯字母和数字组成的 12 位字符串（大小写敏感）。")
+            raise ArgsException("Invalid bvid: must be a 12-character case-sensitive string starting with BV, containing only letters and digits.")
         self._bvid = bvid
         self._aid = bv2av(bvid)
 
@@ -158,7 +158,7 @@ class Video:
         except (TypeError, ValueError):
             pass
         if aid <= 0:
-            raise ArgsException("aid 不能小于或等于 0。")
+            raise ArgsException("aid must be greater than 0.")
         self._aid = aid
         self._bvid = av2bv(aid)
 
@@ -188,7 +188,7 @@ class Video:
     async def get_tags(self, page_index=0, cid=None) -> list:
         if cid is None:
             if page_index is None:
-                raise ArgsException("page_index 和 cid 至少提供一个。")
+                raise ArgsException("Provide at least one of page_index and cid.")
             cid = await self.get_cid(page_index=page_index)
         api = {
             "url": "https://api.bilibili.com/x/web-interface/view/detail/tag",
@@ -218,13 +218,13 @@ class Video:
 
     async def _get_cid_by_index(self, page_index: int) -> int:
         if page_index < 0:
-            raise ArgsException("分 p 号必须大于或等于 0。")
+            raise ArgsException("Page index must be greater than or equal to 0.")
         info = await self._get_info_cached()
         pages = info.get("pages") or []
         if not pages:
-            raise ArgsException("视频信息中不存在分 p 数据。")
+            raise ArgsException("No part data in video info.")
         if len(pages) <= page_index:
-            raise ArgsException("不存在该分 p。")
+            raise ArgsException("Part does not exist.")
         return pages[page_index]["cid"]
 
     async def get_cid(self, page_index: int) -> int:
@@ -267,7 +267,7 @@ class Video:
         """Fetch play URL info (returns the ``data`` node)."""
         if cid is None:
             if page_index is None:
-                raise ArgsException("page_index 和 cid 至少提供一个。")
+                raise ArgsException("Provide at least one of page_index and cid.")
             cid = await self._get_cid_by_index(page_index)
         params = {
             "qn": "127",
@@ -307,7 +307,7 @@ class Video:
         """
         if cid is None:
             if page_index is None:
-                raise ArgsException("page_index 和 cid 至少提供一个。")
+                raise ArgsException("Provide at least one of page_index and cid.")
             cid = await self._get_cid_by_index(page_index)
         params = {
             "qn": str(qn),
@@ -343,7 +343,7 @@ class Video:
         """
         if cid is None:
             if page_index is None:
-                raise ArgsException("page_index 和 cid 至少提供一个。")
+                raise ArgsException("Provide at least one of page_index and cid.")
             cid = await self._get_cid_by_index(page_index)
         params = {
             "aid": self._aid,
@@ -367,7 +367,7 @@ class Video:
         """Fetch raw danmaku XML (deflate-compressed, decoded to str)."""
         if cid is None:
             if page_index is None:
-                raise ArgsException("page_index 和 cid 至少提供一个。")
+                raise ArgsException("Provide at least one of page_index and cid.")
             cid = await self._get_cid_by_index(page_index)
         client = await get_bili_client()
         resp = await client.get(

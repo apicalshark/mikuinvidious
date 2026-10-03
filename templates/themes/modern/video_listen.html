@@ -49,7 +49,7 @@
                              class="w-full h-full object-cover" />
                         <div id="audio-buffering"
                              class="absolute inset-0 bg-black/70 flex items-center justify-center text-white hidden">
-                            <div id="audio-progress-text" class="text-sm font-bold">Buffering: 0.0s / 15.0s</div>
+                            <div id="audio-progress-text" class="text-sm font-bold">{{ _('Buffering: %(available)s / %(target)s') % {'available': '0.0s', 'target': '15.0s'} }}</div>
                         </div>
                     </div>
                     <audio controls
@@ -66,7 +66,7 @@
                             {{ vinfo['title'] }}
                         </h1>
                         <a id='avswitch'
-                           title="Video mode"
+                           title="{{ _('Video mode') }}"
                            href="/video/{{ vid }}?listen=0{{ '&ato=1' if ato else '' }}"
                            class="flex-shrink-0 p-2 text-on-surface-variant hover:text-primary bg-surface-variant/30 hover:bg-surface-variant/50 rounded-full transition-all">
                             <i class="icon ion-md-videocam text-xl"></i>
@@ -119,7 +119,7 @@
                                target="_blank"
                                class="px-4 py-2 rounded-lg bg-surface-variant/30 text-on-surface hover:bg-[#FF6699] hover:text-white transition-all text-sm font-medium flex items-center gap-2">
                                 <i class="icon ion-logo-youtube"></i>
-                                <span class="hidden sm:inline">哔哩哔哩</span>
+                                <span class="hidden sm:inline">{{ _('Watch on Bilibili') }}</span>
                             </a>
                             {% if site_allow_download %}
                                 <form id="download-form"
@@ -134,7 +134,7 @@
                                     <input type="hidden" name="qual" value="0" />
                                     <button type="submit"
                                             class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-all text-sm font-medium shadow-md hover:shadow-lg flex items-center gap-2">
-                                        <i class="icon ion-md-download"></i> 下载音频
+                                        <i class="icon ion-md-download"></i> {{ _('Download audio') }}
                                     </button>
                                 </form>
                             {% endif %}
@@ -150,7 +150,7 @@
             <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm">
                 <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
                     <i class="icon ion-ios-chatbubbles"></i>
-                    评论 ({{ vcomments['page']['count'] }})
+                    {{ _('Comments') }} ({{ vcomments['page']['count'] }})
                 </h3>
                 <div class="space-y-6" id="comments-list">
                     {% if vcomments['replies'] %}
@@ -175,7 +175,7 @@
                                         {% if rcount > 0 %}
                                             <button class="sub-comment-toggle flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
                                                     data-vid="{{ vid }}" data-root="{{ rep['rpid'] }}" data-count="{{ rcount }}">
-                                                <i class="icon ion-ios-chatboxes"></i> <span>{{ rcount }} 条回复</span>
+                                                <i class="icon ion-ios-chatboxes"></i> <span>{{ ngettext('%(count)s reply', '%(count)s replies', rcount) % {'count': rcount} }}</span>
                                             </button>
                                         {% endif %}
                                     </div>
@@ -184,7 +184,7 @@
                             </div>
                         {% endfor %}
                     {% else %}
-                        <p class="text-center text-on-surface-variant py-8">暂无评论或评论加载失败</p>
+                        <p class="text-center text-on-surface-variant py-8">{{ _('No comments yet or failed to load') }}</p>
                     {% endif %}
                 </div>
             </div>
@@ -195,13 +195,13 @@
             {% if vset|length > 1 %}
                 <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="font-bold text-on-surface">选集 ({{ vset|length }})</h3>
+                        <h3 class="font-bold text-on-surface">{{ _('Episodes') }} ({{ vset|length }})</h3>
                         <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary transition-colors">
                             <input name="continue"
                                    id="continue"
                                    type="checkbox"
                                    class="accent-primary rounded" />
-                            自动连播
+                             {{ _('Autoplay next') }}
                         </label>
                     </div>
                     <div class="max-h-[60vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
@@ -229,7 +229,7 @@
             {% endif %}
             <!-- Recommendations -->
             <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
-                <h3 class="font-bold text-on-surface mb-4">推荐视频</h3>
+                <h3 class="font-bold text-on-surface mb-4">{{ _('Recommended') }}</h3>
                 <div class="space-y-4">
                     {% for rv in vrelated %}
                         <a href="/video/{{ rv['bvid'] }}?listen=1"
@@ -248,7 +248,7 @@
                                     <span>{{ rv['owner']['name'] }}</span>
                                 </div>
                                 <div class="flex items-center gap-2 text-xs text-on-surface-variant/70">
-                                    <span>{{ rv['stat']['view']|intsep }} 播放</span>
+                                    <span>{{ rv['stat']['view']|intsep }} {{ _('Play') }}</span>
                                 </div>
                             </div>
                         </a>
@@ -260,6 +260,7 @@
     <script src="/static/themes/modern/js/audioplayer.js"></script>
     <script src="/static/themes/modern/js/download.js"></script>
     <script nonce="{{ csp_nonce }}">
+        var MSG_LOADED_MORE = {{ _('Loaded %(count)s, click to load more')|tojson }};
         document.addEventListener('DOMContentLoaded', function() {
             const dlForm = document.getElementById('download-form');
             if (dlForm && window.MikuDownload) window.MikuDownload.attach(dlForm);
@@ -274,7 +275,7 @@
             if (slot.classList.contains('hidden')) { slot.classList.remove('hidden'); return; }
             if (slot.dataset.loaded) { slot.classList.add('hidden'); return; }
 
-            btn.querySelector('span').textContent = '加载中...';
+            btn.querySelector('span').textContent = {{ _('Loading...')|tojson }};
             slot.dataset.loading = '1';
             const page = slot.dataset.nextPage || '1';
             fetch('/api/component/comments/' + vid + '/' + root + '?page=' + encodeURIComponent(page))
@@ -299,12 +300,17 @@
                     slot.dataset.loadedCount = String(loadedCount);
                     slot.dataset.nextPage = String(Number(pageEl.dataset.page) + 1);
                     if (isEnd) slot.dataset.loaded = '1';
+                    // Reply-count labels via the JS catalog (window.I18N):
+                    // singular/plural reuse the existing ngettext PO entries,
+                    // MSG_LOADED_MORE is a tojson-rendered _() const above.
                     btn.querySelector('span').textContent = isEnd
-                        ? btn.dataset.count + ' 条回复'
-                        : '已加载 ' + loadedCount + ' 条，点击加载更多';
+                        ? (Number(btn.dataset.count) === 1
+                            ? I18n.t('%(count)s reply', {count: btn.dataset.count})
+                            : I18n.t('%(count)s replies', {count: btn.dataset.count}))
+                        : MSG_LOADED_MORE.split('%(count)s').join(String(loadedCount));
                 })
                 .catch(function() {
-                    btn.querySelector('span').textContent = '加载失败';
+                    btn.querySelector('span').textContent = {{ _('Load failed')|tojson }};
                 })
                 .finally(function() {
                     delete slot.dataset.loading;

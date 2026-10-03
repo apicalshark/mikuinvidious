@@ -35,11 +35,11 @@ API = {
             "method": "GET",
             "verify": False,
             "params": {
-                "order": "int: 排序字段",
-                "sort": "int: 排序方式",
-                "page": "int: 页数",
-                "season_type": "番剧类型",
-                "pagesize": "int: 每页数量",
+                "order": "int: sort field",
+                "sort": "int: sort order",
+                "page": "int: page number",
+                "season_type": "bangumi type",
+                "pagesize": "int: items per page",
                 "type": "int: unknown",
             },
         },
@@ -47,19 +47,19 @@ API = {
             "url": "https://api.bilibili.com/pgc/review/user",
             "method": "GET",
             "verify": False,
-            "params": {"media_id": "int: 番剧的 media_id(URL 中的/mdxxxx)"},
+            "params": {"media_id": "int: bangumi media_id (the /mdxxxx in URL)"},
         },
         "episodes_list": {
             "url": "https://api.bilibili.com/pgc/web/season/section",
             "method": "GET",
             "verify": False,
-            "params": {"season_id": "int: 番剧的 season_id"},
+            "params": {"season_id": "int: bangumi season_id"},
         },
         "collective_info": {
             "url": "https://api.bilibili.com/pgc/view/web/simple/season",
             "method": "GET",
             "verify": False,
-            "params": {"season_id": "int: B 站每个剧集会对应一个唯一 ID"},
+            "params": {"season_id": "int: unique ID for each season on Bilibili"},
         },
     }
 }
@@ -110,5 +110,5 @@ _data_dir = os.path.join(os.path.dirname(__file__), "data")
 
 
 async def get_self_media_list(pn=1, ps=24, credential=None):
-    """返回用户追番列表（本模块未完整实现，预留）。"""
+    """Return the user's bangumi follow list (not fully implemented in this module, placeholder)."""
     return {"list": [], "pn": pn, "ps": ps}

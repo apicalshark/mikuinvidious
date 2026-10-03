@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="{{ 'dark' if dark_mode else '' }}">
+<html lang="{{ locale }}" class="{{ 'dark' if dark_mode else '' }}">
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -174,6 +174,12 @@
                 font-size: 24px;
             }
 
+            .md3-icon-button svg {
+                width: 24px;
+                height: 24px;
+                fill: currentColor;
+            }
+
             .md3-icon-button-small {
                 width: 32px;
                 height: 32px;
@@ -336,6 +342,7 @@
         <link rel="stylesheet" href="/static/themes/modern/css/ionicons.min.css" />
         <script src="/static/themes/modern/js/_helpers.js"></script>
         <script src="/static/opencc-js/opencc.js"></script>
+        <script nonce="{{ csp_nonce }}">window.I18N={locale:"{{ locale }}",msgs:{{ i18n_catalog | tojson }}};</script>
     </head>
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
         <span style="display:none" id="dark_mode_pref">{{ 'dark' if dark_mode else 'light' }}</span>
@@ -351,13 +358,31 @@
                         <button id="mobile_search_btn" class="md3-icon-button">
                             <i class="icon ion-ios-search"></i>
                         </button>
-                        <a title="{{ '番剧' }}" href="/bangumi" class="md3-icon-button">
+                        <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button">
                             <i class="icon ion-ios-film"></i>
                         </a>
                         <a id="toggle_theme_mobile" href="javascript:void(0)" class="md3-icon-button">
                             <i class="icon ion-ios-moon"></i>
                         </a>
-                        <a title="{{ '偏好设置' }}" href="/preferences" class="md3-icon-button">
+                        <div class="relative">
+                            <button id="mobile_lang_btn" title="{{ _('Language') }}" class="md3-icon-button" aria-haspopup="true">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-translate" viewBox="0 0 16 16" aria-hidden="true">
+                                    <path d="M4.545 6.714 4.11 8H3l1.862-5h1.284L8 8H6.833l-.435-1.286zm1.634-.736L5.5 3.956h-.049l-.679 2.022z"/>
+                                    <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31"/>
+                                </svg>
+                            </button>
+                            <div id="mobile_lang_menu"
+                                 class="absolute right-0 top-full mt-2 opacity-0 pointer-events-none scale-95 transition-all origin-top-right z-50 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
+                                <div class="flex flex-col gap-1">
+                                    {% for lang_code, lang_label in locale_choices %}
+                                    <button data-lang="{{ lang_code }}" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
+                                        <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
+                                    </button>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                        <a title="{{ _('Preferences') }}" href="/preferences" class="md3-icon-button">
                             <i class="icon ion-ios-cog"></i>
                         </a>
                     </div>
@@ -377,7 +402,7 @@
                                    autocapitalize="none"
                                    spellcheck="false"
                                    name="q"
-                                   placeholder="{{ '想要搜索点什么？' }}"
+                                   placeholder="{{ _('Search for something?') }}"
                                    class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface text-on-surface focus:outline-none focus:opacity-90 transition-all shadow-sm placeholder-on-surface-variant/80 border-none appearance-none"
                                    {% if q %}value="{{ q }}"{% endif %} />
                         </div>
@@ -386,13 +411,31 @@
 
                 <!-- Desktop Action Buttons (Hidden on mobile) -->
                 <div class="hidden md:flex items-center gap-1 md:gap-2 user-field">
-                    <a title="{{ '番剧' }}" href="/bangumi" class="md3-icon-button">
+                    <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button">
                         <i class="icon ion-ios-film"></i>
                     </a>
                     <a id="toggle_theme" href="javascript:void(0)" class="md3-icon-button">
                         <i class="icon ion-ios-moon"></i>
                     </a>
-                    <a title="{{ '偏好設置' }}" href="/preferences" class="md3-icon-button">
+                    <div class="relative">
+                        <button id="lang_btn" title="{{ _('Language') }}" class="md3-icon-button" aria-haspopup="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-translate" viewBox="0 0 16 16" aria-hidden="true">
+                                <path d="M4.545 6.714 4.11 8H3l1.862-5h1.284L8 8H6.833l-.435-1.286zm1.634-.736L5.5 3.956h-.049l-.679 2.022z"/>
+                                <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31"/>
+                            </svg>
+                        </button>
+                        <div id="lang_menu"
+                             class="absolute right-0 top-full mt-2 opacity-0 pointer-events-none scale-95 transition-all origin-top-right z-50 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
+                            <div class="flex flex-col gap-1">
+                                {% for lang_code, lang_label in locale_choices %}
+                                <button data-lang="{{ lang_code }}" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
+                                    <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <a title="{{ _('Preferences') }}" href="/preferences" class="md3-icon-button">
                         <i class="icon ion-ios-cog"></i>
                     </a>
                 </div>
@@ -409,45 +452,45 @@
                             <i class="icon ion-logo-github text-xl"></i>
                             {% if site_modified_source_code_url %}
                                 <a href="https://0xacab.org/johnxina/mikuinvidious"
-                                   class="hover:text-primary transition-colors font-medium">{{ '原始项目源代码' }}</a> /
+                                   class="hover:text-primary transition-colors font-medium">{{ _('Original source code') }}</a> /
                                 <a href="{{ site_modified_source_code_url }}"
-                                   class="hover:text-primary transition-colors font-medium">{{ '修改後的源代码' }}</a>
+                                   class="hover:text-primary transition-colors font-medium">{{ _('Modified source code') }}</a>
                             {% else %}
                                 <a href="https://0xacab.org/johnxina/mikuinvidious"
-                                   class="hover:text-primary transition-colors font-medium">{{ '源代码' }}</a>
+                                   class="hover:text-primary transition-colors font-medium">{{ _('Source code') }}</a>
                             {% endif %}
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-paper text-xl"></i>
                             <a href="https://mi.resrv.org/"
-                               class="hover:text-primary transition-colors font-medium">{{ '文档' }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _('Documentation') }}</a>
                         </div>
                     </div>
                     <div class="flex flex-col gap-4">
                         <div>
                             <a href="https://0xacab.org/johnxina/mikuinvidious/-/blob/no-masters/LICENSE"
-                               class="hover:text-primary transition-colors font-medium">{{ '自豪地以 AGPLv3 釋出' }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _('Proudly released under AGPLv3') }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-logo-javascript text-xl"></i>
                             <a rel="jslicense"
                                href="/licenses"
                                rel="jslicense"
-                               class="hover:text-primary transition-colors font-medium">{{ '查看 JavaScript 許可證' }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _('View JavaScript licenses') }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-paper text-xl"></i>
                             <a href="/privacy"
-                               class="hover:text-primary transition-colors font-medium">{{ '隱私條款' }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _('Privacy policy') }}</a>
                         </div>
                     </div>
                     <div class="flex flex-col gap-4">
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-wallet text-xl"></i>
                             <a href="https://mi.resrv.org/docs/donate"
-                               class="hover:text-primary transition-colors font-medium">{{ '贊助我們' }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _('Donate') }}</a>
                         </div>
-                        <span class="opacity-70">{{ '版本信息當前不可用 :-(' }}</span>
+                        <span class="opacity-70">{{ _('Version info unavailable :-(') }}</span>
                     </div>
                 </div>
             </footer>

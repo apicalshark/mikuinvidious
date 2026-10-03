@@ -109,27 +109,27 @@ class Credential:
 
     def raise_for_no_sessdata(self):
         if not self.has_sessdata():
-            raise ArgsException("未提供 sessdata 参数")
+            raise ArgsException("Missing sessdata parameter")
 
     def raise_for_no_bili_jct(self):
         if not self.has_bili_jct():
-            raise ArgsException("未提供 bili_jct 参数")
+            raise ArgsException("Missing bili_jct parameter")
 
     def raise_for_no_buvid3(self):
         if not self.has_buvid3():
-            raise ArgsException("未提供 buvid3 参数")
+            raise ArgsException("Missing buvid3 parameter")
 
     def raise_for_no_buvid4(self):
         if not self.has_buvid4():
-            raise ArgsException("未提供 buvid4 参数")
+            raise ArgsException("Missing buvid4 parameter")
 
     def raise_for_no_dedeuserid(self):
         if not self.has_dedeuserid():
-            raise ArgsException("未提供 DedeUserID 参数")
+            raise ArgsException("Missing DedeUserID parameter")
 
     def raise_for_no_ac_time_value(self):
         if not self.has_ac_time_value():
-            raise ArgsException("未提供 ac_time_value 参数")
+            raise ArgsException("Missing ac_time_value parameter")
 
     @staticmethod
     def from_cookies(cookies: dict = None) -> "Credential":
@@ -166,7 +166,7 @@ class Credential:
         )
         data = resp.json()
         if data.get("code") != 0:
-            raise ArgsException("检查 cookies 是否过期的请求失败")
+            raise ArgsException("Failed to check whether cookies are expired")
         return data["data"]["refresh"]
 
     async def refresh(self) -> None:
@@ -179,7 +179,7 @@ class Credential:
             from Crypto.Hash import SHA256
             from Crypto.PublicKey import RSA
         except ImportError:
-            raise RuntimeError("Cookie 刷新需要安装 pycryptodome：uv add pycryptodome")
+            raise RuntimeError("Cookie refresh requires pycryptodome: uv add pycryptodome")
 
         import binascii
         import time
@@ -212,11 +212,11 @@ class Credential:
             headers=HEADERS,
         )
         if resp.status_code != 200:
-            raise RuntimeError("获取刷新 Cookies 的 csrf 失败")
+            raise RuntimeError("Failed to get CSRF for cookie refresh")
         try:
             refresh_csrf = re.findall('<div id="1-name">(.+?)</div>', resp.text)[0]
         except IndexError:
-            raise RuntimeError("correspondPath 过期或错误")
+            raise RuntimeError("correspondPath expired or invalid")
 
         # 2. Refresh cookies
         data = {
@@ -234,10 +234,10 @@ class Credential:
             headers=HEADERS,
         )
         if resp.status_code != 200:
-            raise RuntimeError("刷新 Cookies 失败")
+            raise RuntimeError("Failed to refresh cookies")
         body = resp.json()
         if body.get("code") != 0:
-            raise RuntimeError("刷新 Cookies 失败")
+            raise RuntimeError("Failed to refresh cookies")
         new_credential = Credential(
             sessdata=resp.cookies["SESSDATA"],
             bili_jct=resp.cookies["bili_jct"],

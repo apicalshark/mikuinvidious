@@ -23,7 +23,7 @@ exceptions this project actually uses.
 class ApiException(Exception):
     """Base exception for all Bilibili API errors."""
 
-    def __init__(self, msg: str = "出现了错误，但是未说明具体原因。"):
+    def __init__(self, msg: str = "An error occurred without a specific reason."):
         super().__init__(msg)
         self.msg = msg
 
@@ -49,7 +49,7 @@ class ResponseCodeException(ApiException):
         self.raw = raw
 
     def __str__(self):
-        return f"接口返回错误代码：{self.code}，信息：{self.msg}。\n{self.raw}"
+        return f"API returned error code: {self.code}, message: {self.msg}.\n{self.raw}"
 
 
 class NetworkException(ApiException):
@@ -61,7 +61,7 @@ class NetworkException(ApiException):
         self.msg = msg
 
     def __str__(self):
-        return f"网络错误：HTTP 状态码 {self.code}"
+        return f"Network error: HTTP status code {self.code}"
 
 
 class CookiesRefreshException(ApiException):

@@ -326,7 +326,7 @@ def article_to_html(article_text):
             except Exception as e:
                 print(f"Error parsing opus INITIAL_STATE: {e}")
                 pass
-        return "<p>无法解析文章内容。</p>"
+        return "<p>Failed to parse article content.</p>"
 
     article_body.attrs = {}
     article_body["id"] = "main-article"
@@ -606,4 +606,4 @@ def av2bv(x):
             r[s[i]] = table[x // 58**i % 58]
         return "".join(r)
     except ValueError:
-        raise ArgsException("avid 提供错误，必须是以 av 开头的数字组成的字符串。") from None
+        raise ArgsException("Invalid avid: must be a numeric string starting with av.") from None

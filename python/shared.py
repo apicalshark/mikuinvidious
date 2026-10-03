@@ -231,7 +231,11 @@ appconf = {
         "debug": os.environ.get("QUART_DEBUG", "false").lower() == "true",
         "monitor_fd": os.environ.get("MONITOR_FD", "false").lower() == "true",
     },
-    "display": {"default_theme": "modern"},
+    "display": {
+        "default_theme": "modern",
+        "default_locale": os.environ.get("DEFAULT_LOCALE", "zh-CN"),
+        "supported_locales": os.environ.get("SUPPORTED_LOCALES", "en,zh-CN,zh-TW,ja"),
+    },
     "live": {
         # Server-side live format policy: FLV first, HLS master as fallback.
         # Set LIVE_PREFER_HLS=true to reverse it (HLS first, FLV fallback).
@@ -295,6 +299,12 @@ if os.path.exists("config.toml"):
     deep_update(appconf, toml.load("config.toml"))
 elif os.path.exists("../config.toml"):
     deep_update(appconf, toml.load("../config.toml"))
+
+# Install the locale allowlist now that config is merged, so locale resolution,
+# /set_lang validation and the template language menus all read the same list.
+from i18n import set_supported_locales  # noqa: E402
+
+set_supported_locales(appconf["display"].get("supported_locales"))
 
 # Connect to our nice redis database.
 redis_url = appconf["redis"]["redis_url"] or os.environ.get("REDIS_URL")
@@ -459,16 +469,48 @@ def detect_theme():
     return theme
 
 
+def detect_locale():
+    """Resolve UI locale: ?lang= > lang cookie > Accept-Language > default."""
+    from i18n import detect_locale as _detect
+
+    return _detect(
+        request.args.get("lang"),
+        request.cookies.get("lang"),
+        request.headers.get("Accept-Language"),
+        appconf["display"].get("default_locale", "en"),
+    )
+
+
 async def render_template_with_theme(fp, **kwargs):
-    """Render a template with theming support."""
+    """Render a template with theming and locale support."""
+    from i18n import get_json_catalog, gettext_msg, ngettext_msg
+
     t = detect_theme()
+    locale = detect_locale()
+    _ = lambda s: gettext_msg(locale, s)  # noqa: E731
 
     dark_theme = request.cookies.get("dark-theme") == "1"
+
+    # Backend UI-string translation at the single render choke point so all
+    # error pages (and `message` notices) translate without touching every
+    # view call site (call sites stay English canonical msgids). `title` is
+    # intentionally excluded (often dynamic, e.g. video titles). gettext
+    # returns unknown msgids unchanged, so dynamic strings with variable
+    # suffixes (e.g. f"Backend error: {e.msg}") pass through safely.
+    for key in ("status", "desc", "suggest", "message"):
+        val = kwargs.get(key)
+        if isinstance(val, str):
+            kwargs[key] = gettext_msg(locale, val)
 
     return await render_template(
         f"themes/{t}/{fp}",
         dark_mode=dark_theme,
         proxy_status=appconf["proxy"],
+        locale=locale,
+        _=_,
+        gettext=lambda s: gettext_msg(locale, s),
+        ngettext=lambda s, p, n: ngettext_msg(locale, s, p, n),
+        i18n_catalog=get_json_catalog(locale),
         **appconf["site"],
         **kwargs,
     )

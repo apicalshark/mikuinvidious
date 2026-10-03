@@ -66,16 +66,16 @@ async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 7)
             print(f"[Nyaa] Page {page_num} fetch error: {e}")
             return None
 
-    # 1. 先抓取第一頁以探測總頁數
+    # 1. Fetch the first page to detect the total page count
     first_page_html = await fetch_html(1)
     if not first_page_html:
         return []
 
     doc_first = pq(first_page_html)
 
-    # 解析總頁數
-    # Nyaa 的分頁器通常在 <ul class="pagination"> 裡
-    # 我們找最後一個不是 "»" 且是數字的按鈕
+    # Parse the total page count
+    # Nyaa's paginator usually lives in <ul class="pagination">
+    # Find the last button that is numeric (not "»")
     total_pages = 1
     pagination = doc_first("ul.pagination li a")
     page_nums = []
@@ -86,10 +86,10 @@ async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 7)
     if page_nums:
         total_pages = max(page_nums)
 
-    # 限制最大抓取頁數，避免對 Nyaa 造成負擔或被封 IP
+    # Cap the page count to avoid overloading Nyaa or getting IP-banned
     target_pages = min(total_pages, max_pages)
 
-    # 2. 如果有更多頁面，並行抓取剩下的
+    # 2. Fetch any remaining pages concurrently
     pages_content = [first_page_html]
     if target_pages > 1:
         remaining_pages = await asyncio.gather(*(fetch_html(p) for p in range(2, target_pages + 1)))
@@ -131,7 +131,7 @@ async def search_nyaa(query: str, trusted_only: bool = True, max_pages: int = 7)
                 )
             )
 
-    # 根據 ID 去重
+    # Deduplicate by ID
     unique_results = []
     seen_ids = set()
     for res in all_results:

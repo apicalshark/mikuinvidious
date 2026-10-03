@@ -1,22 +1,22 @@
 <div class="flex items-center justify-between mb-6">
     <h2 class="text-2xl font-bold flex items-center gap-2">
         <i class="icon ion-ios-albums text-primary"></i>
-        {{ '合集資源' }}
+        {{ _('Collection resources') }}
     </h2>
     {% if is_fallback %}
         <span class="px-2 py-1 bg-amber-500/10 text-amber-500 text-[10px] font-bold rounded-lg">
-            {{ 'Nyaa' }}
+            {{ _('Nyaa') }}
         </span>
     {% else %}
         <span class="px-2 py-1 bg-green-500/10 text-green-500 text-[10px] font-bold rounded-lg">
-            {{ '已過濾信任' }}
+            {{ _('Trusted only') }}
         </span>
     {% endif %}
 </div>
 
 <div class="mb-4 px-3 py-2 bg-surface-variant/20 rounded-xl text-[11px] text-on-surface-variant flex items-center gap-2">
     <i class="icon ion-ios-search opacity-50"></i>
-    <span class="opacity-70">{{ '關鍵詞：' }}</span>
+    <span class="opacity-70">{{ _('Keywords:') }}</span>
     <span class="font-mono font-medium">{{ search_query }}</span>
 </div>
 
@@ -34,7 +34,7 @@
                 </div>
                 <div class="flex gap-2">
                     <a href="{{ t.magnet_url }}" class="flex-grow py-2 bg-primary/10 hover:bg-primary text-primary hover:text-white rounded-lg text-[11px] font-bold text-center transition-all">
-                        <i class="icon ion-md-magnet mr-1"></i> {{ 'Magnet' }}
+                        <i class="icon ion-md-magnet mr-1"></i> {{ _('Magnet') }}
                     </a>
                 </div>
             </div>
@@ -42,7 +42,7 @@
     {% else %}
         <div class="text-center py-12 text-on-surface-variant opacity-50">
             <i class="icon ion-ios-search text-4xl mb-2 block"></i>
-            <p>{{ '未找到合集資源' }}</p>
+            <p>{{ _('No collection resources found') }}</p>
         </div>
     {% endif %}
 </div>

@@ -110,11 +110,11 @@ async def _fetch(url: str, params: dict) -> dict:
     try:
         data = resp.json()
     except Exception:
-        raise ResponseCodeException(-1, "JSON 解析失败") from None
+        raise ResponseCodeException(-1, "JSON parsing failed") from None
     if not isinstance(data, dict):
-        raise ResponseCodeException(-1, "API 返回数据非 JSON 对象")
+        raise ResponseCodeException(-1, "API response is not a JSON object")
     if data.get("code") != 0:
-        msg = data.get("msg") or data.get("message") or "接口未返回错误信息"
+        msg = data.get("msg") or data.get("message") or "API returned no error message"
         raise ResponseCodeException(data.get("code", -1), msg, data)
     if data.get("data") is not None:
         return data["data"]
@@ -140,7 +140,7 @@ async def _wbi_get(url: str, params: dict, wbi: bool = True) -> dict:
                 recalculate_wbi()
                 continue
             raise
-    raise ResponseCodeException(-403, "Wbi 重试次数超过限制")
+    raise ResponseCodeException(-403, "WBI retry limit exceeded")
 
 
 class LiveRoom:
@@ -210,7 +210,7 @@ class LiveRoom:
                 except (TypeError, ValueError):
                     room = None
         if not room:
-            raise ResponseCodeException(-1, "无法获取直播间信息")
+            raise ResponseCodeException(-1, "Failed to get live room info")
         return room
 
     async def get_room_play_url(self, screen_resolution=ScreenResolution.ORIGINAL) -> dict:
@@ -378,7 +378,7 @@ class LiveDanmaku:
             await self._cleanup()
 
         if not ok and self._ws is None:
-            self.err_reason = self.err_reason or "无法连接直播弹幕服务器"
+            self.err_reason = self.err_reason or "Unable to connect to live danmaku server"
 
     async def _recv_loop(self) -> None:
         while True:

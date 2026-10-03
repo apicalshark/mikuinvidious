@@ -269,4 +269,33 @@ window.helpers = window.helpers || {
   })(),
 };
 
+// Minimal gettext-style lookup against the server-injected catalog
+// (templates/themes/modern/base.html: window.I18N = {locale, msgs} flat
+// {msgid: msgstr} from PO via tools/po2json.py). Reads window.I18N lazily
+// at call time, so script order (this file loads BEFORE the injection)
+// does not matter. Empty/missing msgstr falls back to the English msgid.
+// No external deps. NOTE: window.I18n (helper) and window.I18N (catalog)
+// are intentionally different globals — do not merge them.
+window.I18n = window.I18n || {
+  /**
+   * @param {String} msgid - English source string (must match PO msgid)
+   * @param {Object} [vars] - {name: value} for %(name)s / {name} placeholders
+   * @returns {String} translated + substituted string, or msgid fallback
+   */
+  t: function (msgid, vars) {
+    var catalog = (window.I18N && window.I18N.msgs) || {};
+    var s = Object.prototype.hasOwnProperty.call(catalog, msgid)
+      ? catalog[msgid]
+      : msgid;
+    if (s === "" || s === null || s === undefined) s = msgid;
+    if (vars) {
+      Object.keys(vars).forEach(function (k) {
+        var v = String(vars[k]);
+        s = s.split("%(" + k + ")s").join(v).split("{" + k + "}").join(v);
+      });
+    }
+    return s;
+  },
+};
+
 /* @license-end */

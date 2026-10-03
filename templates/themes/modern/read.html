@@ -2,10 +2,10 @@
 {% block head %}
     {% if is_opus %}
         <link rel="alternate" href="https://www.bilibili.com/opus/{{ cid }}" />
-        <title>{{ arinfo['title'] }} - {{ '图文' }} - MikuInvidious</title>
+        <title>{{ arinfo['title'] }} - {{ _('Illustrations') }} - MikuInvidious</title>
     {% else %}
         <link rel="alternate" href="https://www.bilibili.com/read/{{ cid }}" />
-        <title>{{ arinfo['title'] }} - {{ '专栏' }} - MikuInvidious</title>
+        <title>{{ arinfo['title'] }} - {{ _('Articles') }} - MikuInvidious</title>
     {% endif %}
     <meta name="referrer" content="never" />
 {% endblock %}

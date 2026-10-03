@@ -45,26 +45,29 @@
     var backdrop = document.createElement("div");
     backdrop.id = "miku-dl-backdrop";
     backdrop.className = "fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 p-4";
+    // NOTE: user-visible texts are assigned via textContent below through
+    // I18n.t() so translated strings with quotes cannot break this markup.
     backdrop.innerHTML =
-      '<div class="w-full max-w-md rounded-2xl bg-surface text-on-surface p-6 shadow-2xl" role="dialog" aria-modal="true" aria-label="下载进度" tabindex="-1">' +
+      '<div class="w-full max-w-md rounded-2xl bg-surface text-on-surface p-6 shadow-2xl" role="dialog" aria-modal="true" tabindex="-1">' +
       '<div class="flex items-start justify-between gap-4">' +
-      '<h3 class="text-lg font-bold flex items-center gap-2"><i class="icon ion-md-download"></i>下载视频</h3>' +
-      '<button id="miku-dl-close" class="text-on-surface-variant hover:text-on-surface text-xl leading-none px-1" aria-label="关闭">&times;</button>' +
+      '<h3 class="text-lg font-bold flex items-center gap-2"><i class="icon ion-md-download"></i><span id="miku-dl-title"></span></h3>' +
+      '<button id="miku-dl-close" class="text-on-surface-variant hover:text-on-surface text-xl leading-none px-1">&times;</button>' +
       "</div>" +
       '<p id="miku-dl-file" class="mt-1 text-sm text-on-surface-variant truncate"></p>' +
       '<div class="mt-4 h-2.5 rounded-full bg-surface-variant/40 overflow-hidden">' +
       '<div id="miku-dl-bar" class="h-full w-0 rounded-full bg-primary transition-[width] duration-300"></div>' +
       "</div>" +
-      '<p id="miku-dl-status" class="mt-3 text-sm text-on-surface-variant">准备中…</p>' +
-      '<a id="miku-dl-retry" class="mt-1 hidden text-sm text-primary underline" href="#">如果下载没有自动开始，点击这里重试</a>' +
+      '<p id="miku-dl-status" class="mt-3 text-sm text-on-surface-variant"></p>' +
+      '<a id="miku-dl-retry" class="mt-1 hidden text-sm text-primary underline" href="#"></a>' +
       '<div class="mt-5 flex justify-end gap-2">' +
-      '<button id="miku-dl-cancel" class="md3-button md3-button-tonal">取消下载</button>' +
-      '<button id="miku-dl-ok" class="md3-button md3-button-filled hidden">关闭</button>' +
+      '<button id="miku-dl-cancel" class="md3-button md3-button-tonal"></button>' +
+      '<button id="miku-dl-ok" class="md3-button md3-button-filled hidden"></button>' +
       "</div></div>";
     document.body.appendChild(backdrop);
     var refs = {
       backdrop: backdrop,
       dialog: backdrop.querySelector('[role="dialog"]'),
+      title: backdrop.querySelector("#miku-dl-title"),
       file: backdrop.querySelector("#miku-dl-file"),
       bar: backdrop.querySelector("#miku-dl-bar"),
       status: backdrop.querySelector("#miku-dl-status"),
@@ -74,6 +77,15 @@
       close: backdrop.querySelector("#miku-dl-close"),
       previousFocus: null,
     };
+    refs.dialog.setAttribute("aria-label", I18n.t("Download progress"));
+    refs.title.textContent = I18n.t("Download video");
+    refs.close.setAttribute("aria-label", I18n.t("Close"));
+    refs.status.textContent = I18n.t("Preparing...");
+    refs.retry.textContent = I18n.t(
+      "If the download does not start automatically, click here to retry"
+    );
+    refs.cancel.textContent = I18n.t("Cancel");
+    refs.ok.textContent = I18n.t("Close");
     refs.close.addEventListener("click", onCloseButton);
     refs.ok.addEventListener("click", hideDialog);
     refs.cancel.addEventListener("click", onCancelButton);
@@ -154,10 +166,10 @@
     var d = ensureDialog();
     var label = "";
     if (st.state === "queued") {
-      label = "排队中…（服务器同时下载数有限）";
+      label = I18n.t("Queued... (server download slots are limited)");
       setBar(null);
     } else if (st.state === "resolving") {
-      label = "解析视频信息…";
+      label = I18n.t("Resolving video info...");
       setBar(null);
     } else if (st.state === "downloading") {
       var speed = fmtSpeed(st.speed_bps);
@@ -168,23 +180,36 @@
         label = st.note + " " + bytes;
         setBar(st.percent !== null && st.percent !== undefined ? st.percent : null);
       } else if (st.percent !== null && st.percent !== undefined) {
-        label = "下载中 " + st.percent + "% · " + bytes + (speed ? " · " + speed : "");
+        label = speed
+          ? I18n.t("Downloading %(percent)s% · %(bytes)s · %(speed)s", {
+              percent: st.percent,
+              bytes: bytes,
+              speed: speed,
+            })
+          : I18n.t("Downloading %(percent)s% · %(bytes)s", {
+              percent: st.percent,
+              bytes: bytes,
+            });
         setBar(st.percent);
       } else {
-        label = "下载中… " + bytes + (speed ? " · " + speed : "");
+        label = speed
+          ? I18n.t("Downloading... %(bytes)s · %(speed)s", { bytes: bytes, speed: speed })
+          : I18n.t("Downloading... %(bytes)s", { bytes: bytes });
         setBar(null);
       }
     } else if (st.state === "muxing") {
-      label = "混流中…（合并音视频，请稍候）";
+      label = I18n.t("Muxing... (merging audio and video, please wait)");
       setBar(null);
     } else if (st.state === "ready") {
-      label = "完成，浏览器已开始下载";
+      label = I18n.t("Done, download started in browser");
       setBar(100);
     } else if (st.state === "cancelled") {
-      label = "已取消";
+      label = I18n.t("Cancelled");
       setBar(0);
     } else if (st.state === "error") {
-      label = "下载失败" + (st.error ? "：" + st.error : "");
+      label = st.error
+        ? I18n.t("Download failed: %(error)s", { error: st.error })
+        : I18n.t("Download failed");
       setBar(0);
     }
     d.status.textContent = label;
@@ -198,7 +223,8 @@
         st.state === "downloading" ||
         st.state === "muxing")
     ) {
-      d.status.textContent += "（所选清晰度不可用，已切换为最高可用清晰度）";
+      d.status.textContent +=
+        " (" + I18n.t("Requested quality unavailable, switched to highest available quality") + ")";
     }
     var terminal = st.state === "ready" || st.state === "error" || st.state === "cancelled";
     d.cancel.classList.toggle("hidden", terminal);
@@ -229,7 +255,7 @@
       if (active !== current || active.jobId !== jobId) return;
       if (resp.status === 404) {
         current.terminal = true;
-        render({ state: "error", error: "任务已过期，请重新下载" });
+        render({ state: "error", error: I18n.t("Task expired, please download again") });
         return;
       }
       if (!resp.ok) throw new Error("HTTP " + resp.status);
@@ -259,7 +285,7 @@
       current.failures += 1;
       if (current.failures >= MAX_POLL_FAILURES) {
         current.terminal = true;
-        render({ state: "error", error: "与服务器失去连接，请重试" });
+        render({ state: "error", error: I18n.t("Lost connection to the server, please retry") });
         return;
       }
     }
@@ -355,11 +381,11 @@
     if (isNaN(requestedQn)) requestedQn = 0;
 
     showDialog();
-    d.file.textContent = qualText || "准备下载…";
+    d.file.textContent = qualText || I18n.t("Preparing download...");
     d.retry.classList.add("hidden");
     d.cancel.classList.remove("hidden");
     d.ok.classList.add("hidden");
-    d.status.textContent = "正在创建下载任务…";
+    d.status.textContent = I18n.t("Creating download task...");
     setBar(null);
 
     var jobId;

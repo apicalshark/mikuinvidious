@@ -1,24 +1,24 @@
 {% extends 'themes/modern/base.html' %}
 {% block head %}
-    <title>搜索 - MikuInvidious</title>
+    <title>{{ _('Search') }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
 {% endblock %}
 {% block content %}
     <div class="mb-6 space-y-4">
         <!-- Search Type Tabs -->
         <div class="flex flex-wrap gap-2">
-            <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">搜索类别：</span>
+            <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">{{ _('Search category:') }}</span>
             <a href="/search?q={{ q }}&t=video"
-               class="px-4 py-1.5 rounded-full bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface text-sm font-medium transition-colors active:scale-95">视频</a>
+               class="px-4 py-1.5 rounded-full bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface text-sm font-medium transition-colors active:scale-95">{{ _('Videos') }}</a>
             <a href="/search?q={{ q }}&t=article"
-               class="px-4 py-1.5 rounded-full bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface text-sm font-medium transition-colors active:scale-95">专栏</a>
+               class="px-4 py-1.5 rounded-full bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface text-sm font-medium transition-colors active:scale-95">{{ _('Articles') }}</a>
             <a href="/search?q={{ q }}&t=user"
-               class="px-4 py-1.5 rounded-full bg-primary text-on-primary text-sm font-medium shadow-sm transition-transform active:scale-95">UP主</a>
+               class="px-4 py-1.5 rounded-full bg-primary text-on-primary text-sm font-medium shadow-sm transition-transform active:scale-95">{{ _('Creators') }}</a>
         </div>
         <!-- Sort Tabs -->
         <div class="flex flex-wrap gap-2">
-            <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">排序方式：</span>
-            {% set sort_opts = [('fans', '最多粉丝'), ('level', '最高等级')] %}
+            <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">{{ _('Sort by:') }}</span>
+            {% set sort_opts = [('fans', _('Most fans')), ('level', _('Highest level'))] %}
             {% for key, label in sort_opts %}
                 <a href="/search?q={{ q }}&t=user&sort={{ key }}"
                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors {{ 'bg-secondary text-on-secondary' if sort == key or (not sort and key == 'fans') else 'bg-surface-variant/20 text-on-surface-variant hover:bg-surface-variant/40' }}">
@@ -30,8 +30,8 @@
     {% if sinfo['numResults'] == 0 %}
         <div class="flex flex-col items-center justify-center py-20 bg-surface-variant/10 rounded-2xl border-2 border-dashed border-surface-variant/30">
             <i class="icon ion-ios-people text-6xl text-on-surface-variant/50 mb-4"></i>
-            <h3 class="text-xl font-bold text-on-surface-variant">没有搜索到相关用户</h3>
-            <p class="text-on-surface-variant/70 mt-2">换个关键词试试？</p>
+            <h3 class="text-xl font-bold text-on-surface-variant">{{ _('No users found') }}</h3>
+            <p class="text-on-surface-variant/70 mt-2">{{ _('Try another keyword?') }}</p>
         </div>
     {% else %}
         <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
@@ -53,13 +53,13 @@
             {% if sinfo['page'] > 1 %}
                 <a href="/search?q={{ q }}&i={{ sinfo['page']-1 }}&t=user&sort={{ sort or 'fans' }}"
                    class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
-                    <i class="icon ion-ios-arrow-back"></i> 上一页
+                    <i class="icon ion-ios-arrow-back"></i> {{ _('Previous page') }}
                 </a>
             {% endif %}
             {% if sinfo['numPages'] > sinfo['page'] %}
                 <a href="/search?q={{ q }}&i={{ sinfo['page']+1 }}&t=user&sort={{ sort or 'fans' }}"
                    class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
-                    下一页 <i class="icon ion-ios-arrow-forward"></i>
+                    {{ _('Next page') }} <i class="icon ion-ios-arrow-forward"></i>
                 </a>
             {% endif %}
         </div>
