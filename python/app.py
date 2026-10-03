@@ -293,7 +293,12 @@ async def dl_redirect():
 
 @app.route("/favicon.ico")
 async def favicon():
-    return "", 204
+    return await send_from_directory(app.static_folder, "favicon.ico")
+
+
+@app.route("/site.webmanifest")
+async def webmanifest():
+    return await send_from_directory(app.static_folder, "site.webmanifest")
 
 
 @app.route("/preferences")
