@@ -369,18 +369,11 @@
                             <div id="mobile_lang_menu"
                                  class="absolute right-0 top-full mt-2 opacity-0 pointer-events-none scale-95 transition-all origin-top-right z-50 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
                                 <div class="flex flex-col gap-1">
-                                    <button data-lang="en" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == 'en' %} active{% endif %}">
-                                        <span>English</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
+                                    {% for lang_code, lang_label in locale_choices %}
+                                    <button data-lang="{{ lang_code }}" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
+                                        <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
                                     </button>
-                                    <button data-lang="zh-CN" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == 'zh-CN' %} active{% endif %}">
-                                        <span>简体中文</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
-                                    </button>
-                                    <button data-lang="zh-TW" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == 'zh-TW' %} active{% endif %}">
-                                        <span>繁體中文</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
-                                    </button>
-                                    <button data-lang="ja" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == 'ja' %} active{% endif %}">
-                                        <span>日本語</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
-                                    </button>
+                                    {% endfor %}
                                 </div>
                             </div>
                         </div>
@@ -429,18 +422,11 @@
                         <div id="lang_menu"
                              class="absolute right-0 top-full mt-2 opacity-0 pointer-events-none scale-95 transition-all origin-top-right z-50 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
                             <div class="flex flex-col gap-1">
-                                <button data-lang="en" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == 'en' %} active{% endif %}">
-                                    <span>English</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
+                                {% for lang_code, lang_label in locale_choices %}
+                                <button data-lang="{{ lang_code }}" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
+                                    <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
                                 </button>
-                                <button data-lang="zh-CN" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == 'zh-CN' %} active{% endif %}">
-                                    <span>简体中文</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
-                                </button>
-                                <button data-lang="zh-TW" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == 'zh-TW' %} active{% endif %}">
-                                    <span>繁體中文</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
-                                </button>
-                                <button data-lang="ja" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == 'ja' %} active{% endif %}">
-                                    <span>日本語</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
-                                </button>
+                                {% endfor %}
                             </div>
                         </div>
                     </div>

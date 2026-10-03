@@ -69,12 +69,13 @@ async def setup_request():
     """Generate CSP nonce, resolve locale, and initialize history ID."""
     g.csp_nonce = secrets.token_urlsafe(16)
 
-    from i18n import normalize_locale
+    from i18n import normalize_supported
     from shared import detect_locale
 
     g.locale = detect_locale()
-    # Persist explicit ?lang= overrides so navigation keeps the choice.
-    query_lang = normalize_locale(request.args.get("lang"))
+    # Persist explicit ?lang= overrides so navigation keeps the choice. Only
+    # offer locales this instance serves, never an arbitrary ?lang= value.
+    query_lang = normalize_supported(request.args.get("lang"))
     g.set_lang_cookie = query_lang if query_lang and query_lang != request.cookies.get("lang") else None
 
     hist_id = request.cookies.get("hist_id")
@@ -89,7 +90,14 @@ async def setup_request():
 @app.context_processor
 def inject_csp_nonce():
     """Make CSP nonce and locale available to all templates."""
-    return {"csp_nonce": getattr(g, "csp_nonce", ""), "locale": getattr(g, "locale", "en")}
+    from i18n import locale_choices
+
+    return {
+        "csp_nonce": getattr(g, "csp_nonce", ""),
+        "locale": getattr(g, "locale", "en"),
+        # Language menus render from the configured allowlist, not a hardcoded list.
+        "locale_choices": locale_choices(),
+    }
 
 
 @app.after_request
@@ -195,12 +203,12 @@ async def toggle_theme_api():
 @rate_limit(**RATE_LIMITS["normal"])
 async def set_lang_api():
     """Persist UI locale choice (mirrors /toggle_theme cookie pattern)."""
-    from i18n import SUPPORTED_LOCALES, normalize_locale
+    from i18n import normalize_supported
 
     form = await request.form
     raw = form.get("lang") or request.args.get("lang") or ""
-    lang = normalize_locale(raw)
-    if lang not in SUPPORTED_LOCALES:
+    lang = normalize_supported(raw)
+    if lang is None:
         return Response("Unsupported language", status=400)
     print(f"[I18n] Setting language to {lang}")
     redirect_to = request.headers.get("Referer") or "/preferences"

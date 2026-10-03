@@ -300,6 +300,12 @@ if os.path.exists("config.toml"):
 elif os.path.exists("../config.toml"):
     deep_update(appconf, toml.load("../config.toml"))
 
+# Install the locale allowlist now that config is merged, so locale resolution,
+# /set_lang validation and the template language menus all read the same list.
+from i18n import set_supported_locales  # noqa: E402
+
+set_supported_locales(appconf["display"].get("supported_locales"))
+
 # Connect to our nice redis database.
 redis_url = appconf["redis"]["redis_url"] or os.environ.get("REDIS_URL")
 if redis_url:

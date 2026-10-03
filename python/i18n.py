@@ -31,8 +31,16 @@ import os
 
 LOCALES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "locales")
 
-# Canonical BCP-47 tags served to the browser.
-SUPPORTED_LOCALES = ("en", "zh-CN", "zh-TW", "ja")
+# Endonyms shown in the language menus (a locale is named in its own language,
+# so these are display labels, not translatable strings).
+LOCALE_LABELS = {
+    "en": "English",
+    "zh-CN": "简体中文",
+    "zh-TW": "繁體中文",
+    "ja": "日本語",
+}
+# Fallback spec when no allowlist is configured.
+DEFAULT_SUPPORTED_LOCALES = "en,zh-CN,zh-TW,ja"
 # Filesystem directory names used by locales (BCP-47 with underscore).
 _LOCALE_TO_DIR = {
     "en": "en",
@@ -43,6 +51,41 @@ _LOCALE_TO_DIR = {
 }
 
 _JSON_CACHE: dict[str, dict[str, str]] = {}
+
+# Parsed + normalized allowlist of selectable locales, in configured order.
+# Installed once by set_supported_locales() (env at import, then the merged
+# config.toml value from shared) and read through supported_locales() so every
+# consumer — resolution, /set_lang validation, template menus — shares one list.
+_SUPPORTED: tuple[str, ...] = ()
+
+
+def parse_supported_locales(raw: str | None) -> tuple[str, ...]:
+    """Parse a comma-separated locale spec into canonical tags (deduped, ordered)."""
+    if not raw:
+        return ()
+    out: list[str] = []
+    for part in raw.split(","):
+        canonical = normalize_locale(part)
+        if canonical is not None and canonical not in out:
+            out.append(canonical)
+    return tuple(out)
+
+
+def set_supported_locales(raw: str | None) -> tuple[str, ...]:
+    """Install the allowlist from a raw spec; unparsable specs fall back to "en"."""
+    global _SUPPORTED
+    _SUPPORTED = parse_supported_locales(raw) or ("en",)
+    return _SUPPORTED
+
+
+def supported_locales() -> tuple[str, ...]:
+    """Return the canonical locales that may be selected."""
+    return _SUPPORTED
+
+
+def locale_choices() -> list[tuple[str, str]]:
+    """Return ``(tag, label)`` pairs for the language menus, in allowlist order."""
+    return [(locale, LOCALE_LABELS.get(locale, locale)) for locale in _SUPPORTED]
 
 
 def normalize_locale(value: str | None) -> str | None:
@@ -70,6 +113,18 @@ def normalize_locale(value: str | None) -> str | None:
     return None
 
 
+def normalize_supported(value: str | None) -> str | None:
+    """Normalize a raw locale string and enforce the allowlist.
+
+    Returns None when the input normalizes to nothing or to a locale the
+    instance does not offer, so callers never fall through to an unmanaged tag.
+    """
+    canonical = normalize_locale(value)
+    if canonical is not None and canonical in _SUPPORTED:
+        return canonical
+    return None
+
+
 def parse_accept_language(header: str | None) -> str | None:
     """Pick the best supported locale from an Accept-Language header."""
     if not header:
@@ -86,7 +141,7 @@ def parse_accept_language(header: str | None) -> str | None:
                 q = float(part.split("q=")[-1].split(";")[0].strip())
             except ValueError:
                 q = 0.0
-        norm = normalize_locale(lang)
+        norm = normalize_supported(lang)
         if norm is not None:
             candidates.append((q, norm))
     if not candidates:
@@ -96,17 +151,23 @@ def parse_accept_language(header: str | None) -> str | None:
 
 
 def detect_locale(query_lang: str | None, cookie_lang: str | None, accept_header: str | None, default: str) -> str:
-    """Resolve locale with priority: ?lang= > cookie > Accept-Language > default."""
+    """Resolve locale with priority: ?lang= > cookie > Accept-Language > default.
+
+    Every candidate must clear the allowlist; a locale the instance does not
+    offer is ignored rather than honoured (it falls through to the next source).
+    """
     for candidate in (
-        normalize_locale(query_lang) if query_lang else None,
-        normalize_locale(cookie_lang) if cookie_lang else None,
+        normalize_supported(query_lang) if query_lang else None,
+        normalize_supported(cookie_lang) if cookie_lang else None,
     ):
         if candidate is not None:
             return candidate
     parsed = parse_accept_language(accept_header)
     if parsed is not None:
         return parsed
-    return normalize_locale(default) or "en"
+    # The configured default may be outside the allowlist; fall back to the
+    # first offered locale so a render never lands on an unmanaged tag.
+    return normalize_supported(default) or (_SUPPORTED[0] if _SUPPORTED else "en")
 
 
 def _locale_dir(locale: str) -> str:
@@ -126,7 +187,7 @@ def ngettext_msg(locale: str, singular: str, plural: str, n: int) -> str:
 
     English picks by n, CJK locales use the single translated form (or plural lookup) for every n.
     """
-    canonical = normalize_locale(locale) or "en"
+    canonical = normalize_supported(locale) or "en"
     if canonical == "en":
         return singular if n == 1 else plural
     catalog = get_json_catalog(canonical)
@@ -141,7 +202,7 @@ def ngettext_msg(locale: str, singular: str, plural: str, n: int) -> str:
 
 def get_json_catalog(locale: str) -> dict[str, str]:
     """Return the lightweight JSON catalog for JS (cached, English fallback)."""
-    canonical = normalize_locale(locale) or "en"
+    canonical = normalize_supported(locale) or "en"
     if canonical in _JSON_CACHE:
         return _JSON_CACHE[canonical]
     path = os.path.join(LOCALES_DIR, _locale_dir(canonical), "LC_MESSAGES", "messages.json")
@@ -153,3 +214,9 @@ def get_json_catalog(locale: str) -> dict[str, str]:
         catalog = {}
     _JSON_CACHE[canonical] = catalog
     return catalog
+
+
+# Seed the allowlist from the environment so this module is usable standalone;
+# shared re-installs it from the merged appconf (config.toml wins) once the
+# config has been loaded.
+set_supported_locales(os.environ.get("SUPPORTED_LOCALES") or DEFAULT_SUPPORTED_LOCALES)
