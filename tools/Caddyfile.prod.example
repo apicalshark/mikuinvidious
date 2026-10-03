@@ -1,0 +1,42 @@
+{
+    # Disable HTTP/3 (QUIC) due to range request / 206 Partial Content issues on media proxies
+    servers {
+        protocols h1 h2
+    }
+}
+
+PROD_DOMAIN {
+    tls YOURMAIL@MAIL.MAIL {
+        ca CERT_PROVIDER_URL
+        eab xxxxx yyyyyyyy
+        curves x25519mlkem768 x25519 secp256r1
+        key_type p384
+    }
+
+    # Set root for static files
+    root * /usr/share/caddy
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+    # Serve static files directly via Caddy (bypasses Anubis and Python)
+    handle /static/* {
+        header X-Content-Type-Options "nosniff"
+	header X-Frame-Options "DENY"
+	header Referrer-Policy "strict-origin-when-cross-origin"
+	header Cache-Control "public, max-age=86400"
+	file_server
+    }
+
+    # Gzip compress everything EXCEPT media streams
+    @notProxy not path /proxy/*
+    encode @notProxy gzip
+
+    # Route everything else through Anubis for bot mitigation
+    handle {
+        reverse_proxy anubis:PORT {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+}
