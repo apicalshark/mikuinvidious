@@ -8,7 +8,7 @@ msgstr ""
 
 #: templates/macros.html:17
 msgid "Resolving video URL..."
-msgstr "正在解析影片地址..."
+msgstr "正在解析影片網址..."
 
 #: templates/macros.html:68
 msgid "Resolution"
@@ -20,7 +20,7 @@ msgstr "點擊以開始播放"
 
 #: templates/macros.html:87
 msgid "Browser blocked autoplay"
-msgstr "瀏覽器已阻止自動播放"
+msgstr "瀏覽器已封鎖自動播放"
 
 #: templates/macros.html:98
 msgid "Volume"
@@ -87,7 +87,7 @@ msgstr "下一頁"
 
 #: templates/themes/modern/author.html:121
 msgid "No articles yet"
-msgstr "暫無專欄文章"
+msgstr "尚無專欄文章"
 
 #: templates/themes/modern/bangumi_index.html:3
 msgid "Bangumi index"
@@ -127,11 +127,11 @@ msgstr "分"
 
 #: templates/themes/modern/bangumi_view.html:24
 msgid "No rating yet"
-msgstr "暫無評分"
+msgstr "尚無評分"
 
 #: templates/themes/modern/bangumi_view.html:29
 msgid "No synopsis yet"
-msgstr "暫無簡介"
+msgstr "尚無簡介"
 
 #: templates/themes/modern/bangumi_view.html:39
 msgid "Episode list"
@@ -156,7 +156,7 @@ msgstr "番劇"
 #: templates/themes/modern/base.html:385 templates/themes/modern/base.html:438
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:9
 msgid "Preferences"
-msgstr "偏好設置"
+msgstr "偏好設定"
 
 #: templates/themes/modern/base.html:405
 msgid "Search for something?"
@@ -164,40 +164,40 @@ msgstr "想要搜尋點什麼？"
 
 #: templates/themes/modern/base.html:455
 msgid "Original source code"
-msgstr "原始項目源代碼"
+msgstr "原始專案程式碼"
 
 #: templates/themes/modern/base.html:457
 msgid "Modified source code"
-msgstr "修改後的源代碼"
+msgstr "修改後的程式碼"
 
 #: templates/themes/modern/base.html:460
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
-msgstr "源代碼"
+msgstr "程式碼"
 
 #: templates/themes/modern/base.html:466
 msgid "Documentation"
-msgstr "文檔"
+msgstr "文件"
 
 #: templates/themes/modern/base.html:472
 msgid "Proudly released under AGPLv3"
-msgstr "自豪地以 AGPLv3 釋出"
+msgstr "以 AGPLv3 釋出為榮"
 
 #: templates/themes/modern/base.html:479
 msgid "View JavaScript licenses"
-msgstr "查看 JavaScript 許可證"
+msgstr "檢視 JavaScript 授權"
 
 #: templates/themes/modern/base.html:484
 msgid "Privacy policy"
-msgstr "隱私條款"
+msgstr "隱私權政策"
 
 #: templates/themes/modern/base.html:491
 msgid "Donate"
-msgstr "贊助我們"
+msgstr "贊助"
 
 #: templates/themes/modern/base.html:493
 msgid "Version info unavailable :-("
-msgstr "版本信息當前不可用 :-("
+msgstr "目前無法取得版本資訊 :-("
 
 #: templates/themes/modern/error.html:2
 msgid "Error"
@@ -208,7 +208,7 @@ msgid ""
 "Check your request. If you believe this is a site issue, contact the "
 "administrator. If you are the administrator, consider reporting it via "
 "the source code link below."
-msgstr "請檢查您的請求。如果您認為這是網站問題，請聯繫管理員。如果您是管理員，請考慮通過下面的源代碼連結回報。"
+msgstr "請檢查您的請求。如果您認為這是網站問題，請聯繫管理員。如果您是管理員，請考慮透過下面的程式碼連結回報。"
 
 #: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:38
 msgid "Back to home"
@@ -232,7 +232,7 @@ msgstr "MikuInvidious 是自由的嗶哩嗶哩前端。"
 msgid ""
 "This is a MikuInvidious fork that supports pasting Bilibili links "
 "directly into the search box."
-msgstr "此為 MikuInvidious Fork，支援將嗶哩嗶哩連結直接貼到搜尋框。"
+msgstr "此為 MikuInvidious 分支版本，支援將嗶哩嗶哩連結直接貼到搜尋框。"
 
 #: templates/themes/modern/home.html:15
 msgid "To convert a Bilibili link to MikuInvidious, replace"
@@ -244,19 +244,19 @@ msgstr "和"
 
 #: templates/themes/modern/home.html:15
 msgid "with this MikuInvidious instance’s domain."
-msgstr "替換成此實例的域名。"
+msgstr "取代為此 MikuInvidious 實例的網域。"
 
 #: templates/themes/modern/home.html:18
 msgid "For user spaces, paste the number after"
-msgstr "個人空間需要把"
+msgstr "個人空間則將"
 
 #: templates/themes/modern/home.html:18
 msgid "after the instance domain +"
-msgstr "後的數字貼到實例域名 +"
+msgstr "之後的數字接在實例網域 +"
 
 #: templates/themes/modern/home.html:18
 msgid "suffix."
-msgstr "後面。"
+msgstr "後綴。"
 
 #: templates/themes/modern/home.html:58 templates/themes/modern/search.html:84
 #: templates/themes/modern/space.html:100
@@ -269,33 +269,33 @@ msgstr "在嗶哩嗶哩上觀看"
 #: templates/themes/modern/home.html:63 templates/themes/modern/space.html:105
 #: templates/themes/modern/video.html:68 templates/themes/modern/zone.html:54
 msgid "Audio mode"
-msgstr "音頻模式"
+msgstr "音訊模式"
 
 #: templates/themes/modern/home.html:72
 msgid "views"
-msgstr "次播放"
+msgstr "播放次數"
 
 #: templates/themes/modern/licenses.html:2
 msgid "JavaScript Licenses"
-msgstr "JavaScript 許可證信息"
+msgstr "JavaScript 授權資訊"
 
 #: templates/themes/modern/licenses.html:6
 msgid "JavaScript license information"
-msgstr "JavaScript 許可證信息"
+msgstr "JavaScript 授權資訊"
 
 #: templates/themes/modern/licenses.html:7
 msgid ""
 "License information for the free JavaScript software used on this site is"
 " listed below."
-msgstr "本站使用的自由 JavaScript 軟件許可信息如下。"
+msgstr "本站所使用的自由 JavaScript 軟體授權資訊如下。"
 
 #: templates/themes/modern/licenses.html:12
 msgid "Script file"
-msgstr "腳本文件"
+msgstr "腳本檔案"
 
 #: templates/themes/modern/licenses.html:13
 msgid "License"
-msgstr "許可證"
+msgstr "授權"
 
 #: templates/themes/modern/pref.html:13
 msgid "Traditional Chinese conversion"
@@ -314,7 +314,7 @@ msgstr "載入中..."
 
 #: templates/themes/modern/pref.html:24
 msgid "Auto-convert search to Simplified Chinese"
-msgstr "搜尋自動轉簡體"
+msgstr "自動轉換為簡體中文"
 
 #: templates/themes/modern/pref.html:25
 msgid "Automatically convert keywords to Simplified Chinese when searching"
@@ -326,7 +326,7 @@ msgstr "語言"
 
 #: templates/themes/modern/read.html:5
 msgid "Illustrations"
-msgstr "圖文"
+msgstr "圖片"
 
 #: templates/themes/modern/search.html:10
 #: templates/themes/modern/search_article.html:10
@@ -358,7 +358,7 @@ msgstr "綜合排序"
 #: templates/themes/modern/search.html:23
 #: templates/themes/modern/search_article.html:21
 msgid "Most clicks"
-msgstr "最多點擊"
+msgstr "最多點閱"
 
 #: templates/themes/modern/search.html:23
 #: templates/themes/modern/search_article.html:21
@@ -380,13 +380,13 @@ msgstr "最多評論"
 
 #: templates/themes/modern/search.html:36
 msgid "No results found"
-msgstr "沒有搜尋到相關內容"
+msgstr "找不到相關內容"
 
 #: templates/themes/modern/search.html:37
 #: templates/themes/modern/search_article.html:34
 #: templates/themes/modern/search_user.html:34
 msgid "Try another keyword?"
-msgstr "換個關鍵詞試試？"
+msgstr "換個關鍵字試試？"
 
 #: templates/themes/modern/search.html:54
 msgid "watching"
@@ -399,15 +399,15 @@ msgstr "人氣"
 #: templates/themes/modern/search.html:93
 #: templates/themes/modern/space.html:114 templates/themes/modern/zone.html:63
 msgid "plays"
-msgstr "次播放"
+msgstr "播放次數"
 
 #: templates/themes/modern/search_article.html:21
 msgid "Most likes"
-msgstr "最多喜歡"
+msgstr "最多按讚"
 
 #: templates/themes/modern/search_article.html:33
 msgid "No articles found"
-msgstr "沒有搜尋到相關專欄"
+msgstr "找不到相關專欄"
 
 #: templates/themes/modern/search_user.html:21
 msgid "Most fans"
@@ -419,7 +419,7 @@ msgstr "最高等級"
 
 #: templates/themes/modern/search_user.html:33
 msgid "No users found"
-msgstr "沒有搜尋到相關用戶"
+msgstr "找不到相關使用者"
 
 #: templates/themes/modern/space.html:55
 msgid "RSS Feed"
@@ -427,15 +427,15 @@ msgstr "RSS 訂閱"
 
 #: templates/themes/modern/video.html:87 templates/themes/modern/video.html:88
 msgid "Online"
-msgstr "在線"
+msgstr "線上"
 
 #: templates/themes/modern/video.html:87
 msgid "Views"
-msgstr "播放量"
+msgstr "觀看次數"
 
 #: templates/themes/modern/video.html:91
 msgid "Likes"
-msgstr "點讚"
+msgstr "按讚"
 
 #: templates/themes/modern/video.html:94
 msgid "Coins"
@@ -467,11 +467,11 @@ msgstr "正在載入評論..."
 #: templates/themes/modern/video.html:222
 #: templates/themes/modern/video.html:225
 msgid "Live chat"
-msgstr "實時聊天"
+msgstr "即時聊天"
 
 #: templates/themes/modern/video.html:233
 msgid "Connecting to chat..."
-msgstr "正在連接到聊天室..."
+msgstr "正在連線至聊天室..."
 
 #: templates/themes/modern/video.html:306
 #: templates/themes/modern/video_listen.html:198
@@ -508,19 +508,19 @@ msgstr "影片模式"
 
 #: templates/themes/modern/video_listen.html:137
 msgid "Download audio"
-msgstr "下載音頻"
+msgstr "下載音訊"
 
 #: templates/themes/modern/components/comment_items.html:25
 #: templates/themes/modern/video_listen.html:178
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
-msgstr[0] "%(count)s 條回覆"
+msgstr[0] "%(count)s 則回覆"
 
 #: templates/themes/modern/components/meta_part.html:14
 #: templates/themes/modern/video_listen.html:187
 msgid "No comments yet or failed to load"
-msgstr "暫無評論或評論載入失敗"
+msgstr "尚無評論或評論載入失敗"
 
 #: templates/themes/modern/zone.html:3
 msgid "Zone"
@@ -536,12 +536,12 @@ msgstr "Nyaa 資源"
 
 #: templates/themes/modern/components/nyaa_part.html:8
 msgid "Expanded search scope"
-msgstr "已擴展搜尋範圍"
+msgstr "已擴大搜尋範圍"
 
 #: templates/themes/modern/components/nyaa_part.html:17
 #: templates/themes/modern/components/nyaa_sidebar.html:4
 msgid "Collection resources"
-msgstr "合集資源"
+msgstr "合輯資源"
 
 #: templates/themes/modern/components/nyaa_part.html:48
 msgid "Resources for episode "
@@ -553,7 +553,7 @@ msgstr "個資源"
 
 #: templates/themes/modern/components/nyaa_part.html:77
 msgid "No related resources found on Nyaa"
-msgstr "未在 Nyaa 找到相關資源"
+msgstr "在 Nyaa 上找不到相關資源"
 
 #: templates/themes/modern/components/nyaa_sidebar.html:8
 msgid "Nyaa"
@@ -561,11 +561,11 @@ msgstr "Nyaa"
 
 #: templates/themes/modern/components/nyaa_sidebar.html:12
 msgid "Trusted only"
-msgstr "已過濾信任"
+msgstr "僅顯示信任來源"
 
 #: templates/themes/modern/components/nyaa_sidebar.html:19
 msgid "Keywords:"
-msgstr "關鍵詞："
+msgstr "關鍵字："
 
 #: templates/themes/modern/components/nyaa_sidebar.html:37
 msgid "Magnet"
@@ -573,7 +573,7 @@ msgstr "磁力連結"
 
 #: templates/themes/modern/components/nyaa_sidebar.html:45
 msgid "No collection resources found"
-msgstr "未找到合集資源"
+msgstr "找不到合輯資源"
 
 #: static/themes/modern/js/player.js:1155
 #: static/themes/modern/js/player.js:1159
@@ -654,7 +654,7 @@ msgstr "下載中... %(bytes)s · %(speed)s"
 
 #: static/themes/modern/js/download.js:84
 msgid "If the download does not start automatically, click here to retry"
-msgstr "如果下載沒有自動開始，點擊這裡重試"
+msgstr "若下載沒有自動開始，請點擊這裡重試"
 
 #: static/themes/modern/js/player.js:271
 msgid "Live stream has ended"
@@ -664,19 +664,19 @@ msgstr "直播已結束"
 #: templates/themes/modern/video_listen.html:263
 #, python-format
 msgid "Loaded %(count)s, click to load more"
-msgstr "已載入 %(count)s 條，點擊載入更多"
+msgstr "已載入 %(count)s 則，點擊載入更多"
 
 #: static/themes/modern/js/download.js:288
 msgid "Lost connection to the server, please retry"
-msgstr "與伺服器失去連接，請重試"
+msgstr "與伺服器連線中斷，請重試"
 
 #: static/themes/modern/js/download.js:201
 msgid "Muxing... (merging audio and video, please wait)"
-msgstr "混流中...（合併音視頻，請稍候）"
+msgstr "混流中...（正在合併音訊與視訊，請稍候）"
 
 #: templates/themes/modern/bangumi_view.html:88
 msgid "Nyaa Magnet Resources"
-msgstr "Nyaa Magnet 資源"
+msgstr "Nyaa 磁力資源"
 
 #: static/themes/modern/js/themes.js:180 static/themes/modern/js/themes.js:192
 msgid "Off"
@@ -700,7 +700,7 @@ msgstr "排隊中...（伺服器同時下載數有限）"
 
 #: static/themes/modern/js/download.js:227
 msgid "Requested quality unavailable, switched to highest available quality"
-msgstr "（所選清晰度不可用，已切換為最高可用清晰度）"
+msgstr "（所選畫質不可用，已切換為最高可用畫質）"
 
 #: static/themes/modern/js/download.js:172
 msgid "Resolving video info..."
@@ -720,15 +720,15 @@ msgstr "文章不存在或解析錯誤"
 
 #: python/i18n_strings.py:31
 msgid "Article not found"
-msgstr "沒有找到文章"
+msgstr "找不到文章"
 
 #: python/i18n_strings.py:32
 msgid "Audio mode load failed"
-msgstr "音頻模式載入失敗"
+msgstr "音訊模式載入失敗"
 
 #: python/i18n_strings.py:33
 msgid "Backend server sent an invalid response"
-msgstr "後端伺服器發送了無效的回覆"
+msgstr "後端伺服器傳回無效的回應"
 
 #: python/i18n_strings.py:34
 msgid "Bad request"
@@ -740,15 +740,15 @@ msgstr "番劇載入失敗"
 
 #: python/i18n_strings.py:36
 msgid "Bilibili returned empty result (-404)"
-msgstr "B站返回空結果 (-404)"
+msgstr "嗶哩嗶哩回傳空結果 (-404)"
 
 #: python/i18n_strings.py:37
 msgid "Failed to fetch the live list. Please try again later."
-msgstr "無法獲取直播列表，請稍後重試。"
+msgstr "無法取得直播列表，請稍後再試。"
 
 #: python/i18n_strings.py:38
 msgid "Failed to fetch this user's profile. Please try again later."
-msgstr "無法獲取該用戶的資訊，請稍後重試。"
+msgstr "無法取得這位使用者的資料，請稍後再試。"
 
 #: python/i18n_strings.py:39
 msgid "Failed to load bangumi info. Please check your network or try again later."
@@ -760,11 +760,11 @@ msgstr "無法載入直播間，請檢查網路或稍後重試。"
 
 #: python/i18n_strings.py:41
 msgid "Failed to resolve the redirect target."
-msgstr "無法獲取重定向地址。"
+msgstr "無法取得重新導向網址。"
 
 #: python/i18n_strings.py:42
 msgid "Failed to resolve the short link. Please check your network connection or proxy settings."
-msgstr "無法解析短連結，請檢查網路連接或代理設置。"
+msgstr "無法解析短網址，請檢查網路連線或代理設定。"
 
 #: python/i18n_strings.py:43
 msgid "Internal server error. Please try again later or contact the administrator."
@@ -788,15 +788,15 @@ msgstr "網路錯誤"
 
 #: python/i18n_strings.py:48
 msgid "No search keyword provided."
-msgstr "沒有發送搜尋關鍵字。"
+msgstr "尚未輸入搜尋關鍵字。"
 
 #: python/i18n_strings.py:49
 msgid "No songs found"
-msgstr "沒有找到歌曲"
+msgstr "找不到歌曲"
 
 #: python/i18n_strings.py:50
 msgid "Page not found (404)"
-msgstr "未找到頁面 (404)"
+msgstr "找不到頁面 (404)"
 
 #: python/i18n_strings.py:51
 msgid "Parse error"
@@ -812,7 +812,7 @@ msgstr "請檢查 URL 是否正確。"
 
 #: python/i18n_strings.py:54
 msgid "Please check your network connection or proxy settings."
-msgstr "請檢查網路連接或代理設置。"
+msgstr "請檢查網路連線或代理設定。"
 
 #: python/i18n_strings.py:55
 msgid "Please check your network or try again later."
@@ -824,15 +824,15 @@ msgstr "請檢查您的請求並重試。"
 
 #: python/i18n_strings.py:57
 msgid "Please enter a search keyword and try again."
-msgstr "請設置搜尋關鍵字後重試。"
+msgstr "請輸入搜尋關鍵字後重試。"
 
 #: python/i18n_strings.py:58
 msgid "Please try refreshing the page, or check the server network connection."
-msgstr "請嘗試刷新頁面，或檢查伺服器網路連接。"
+msgstr "請重新整理頁面，或檢查伺服器網路連線。"
 
 #: python/i18n_strings.py:59
 msgid "Search failed"
-msgstr "無法搜尋"
+msgstr "搜尋失敗"
 
 #: python/i18n_strings.py:60
 msgid "Server error"
@@ -844,7 +844,7 @@ msgstr "空間載入失敗"
 
 #: python/i18n_strings.py:62
 msgid "The article you requested most likely does not exist. Please check your request."
-msgstr "這很可能說明您訪問的文章不存在，請檢查您的請求。"
+msgstr "您要查看的文章很可能不存在，請檢查您的請求。"
 
 #: python/i18n_strings.py:63
 msgid "The requested page does not exist."
@@ -856,7 +856,7 @@ msgstr "您請求的資源不存在。"
 
 #: python/i18n_strings.py:66
 msgid "This content is usually unavailable in your region or has been removed by Bilibili. Please try again later."
-msgstr "這通常是因為該內容在您所在的地區不可用，或已被 B 站下架。如持續發生請稍後再試。"
+msgstr "這通常表示該內容在您所在的地區無法觀看，或已從嗶哩嗶哩下架，請稍後再試。"
 
 #: python/i18n_strings.py:69
 msgid "This content may be region-restricted or removed."
@@ -868,11 +868,11 @@ msgstr "該影片可能已被刪除、審核中，或是受到地區限制。"
 
 #: python/i18n_strings.py:71
 msgid "Video load failed"
-msgstr "影片載入出錯"
+msgstr "影片載入失敗"
 
 #: python/i18n_strings.py:72
 msgid "You have no browsing history yet."
-msgstr "您還沒有瀏覽歷史。"
+msgstr "尚無瀏覽紀錄。"
 
 #~ #: templates/themes/modern/pref.html:9
 #~ msgid "Personalization settings"
