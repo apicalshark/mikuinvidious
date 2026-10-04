@@ -1,6 +1,7 @@
 {
-  "%(count)s replies": "%(count)s replies",
-  "%(count)s reply": "%(count)s 条回复",
+  "%(count)s reply": [
+    "%(count)s 条回复"
+  ],
   "Anime": "番剧",
   "Article does not exist or parse error": "文章不存在或解析错误",
   "Article not found": "没有找到文章",
@@ -26,7 +27,6 @@
   "Cancelled": "已取消",
   "Check your request. If you believe this is a site issue, contact the administrator. If you are the administrator, consider reporting it via the source code link below.": "请检查您的请求。如果您认为这是网站问题，请联系管理员。如果您是管理员，请考虑通过下方源代码链接反馈。",
   "Chinese Original": "国创",
-  "Choose the interface language": "选择界面语言",
   "Click to play": "点击以开始播放",
   "Close": "关闭",
   "Coins": "硬币",
@@ -73,7 +73,6 @@
   "Illustrations": "图文",
   "Internal server error. Please try again later or contact the administrator.": "服务器内部错误，请稍后重试或联系管理员。",
   "Invalid request parameters. Please check and try again.": "请求参数无效，请检查后重试。",
-  "Japanese": "日语",
   "JavaScript Licenses": "JavaScript 许可证",
   "JavaScript license information": "JavaScript 许可证信息",
   "Keywords:": "关键词：",
@@ -126,7 +125,6 @@
   "Original source code": "原始项目源代码",
   "Page not found (404)": "未找到页面 (404)",
   "Parse error": "解析错误",
-  "Personalization settings": "个性化设置",
   "Play": "播放",
   "Playlist empty": "歌单为空",
   "Please check the URL.": "请检查 URL 是否正确。",
@@ -149,7 +147,6 @@
   "Resolving video URL...": "正在解析视频地址...",
   "Resolving video info...": "解析视频信息...",
   "Resources for episode ": "第",
-  "Save language": "保存语言",
   "Script file": "脚本文件",
   "Search": "搜索",
   "Search category:": "搜索类别：",
@@ -158,7 +155,6 @@
   "Searching Nyaa...": "正在从 Nyaa 搜索资源...",
   "Server error": "服务器错误",
   "Share": "分享",
-  "Simplified Chinese": "简体中文",
   "Sort": "排序",
   "Sort by:": "排序方式：",
   "Source code": "源代码",
@@ -177,7 +173,6 @@
   "This video may have been deleted, is under review, or is region-restricted.": "该影片可能已被删除、审核中，或是受到地区限制。",
   "To convert a Bilibili link to MikuInvidious, replace": "要把哔哩哔哩链接转换成 MikuInvidious 链接，请把",
   "Toggle danmaku": "切换弹幕",
-  "Traditional Chinese": "繁体中文",
   "Traditional Chinese conversion": "繁体中文转换",
   "Trusted only": "已过滤信任",
   "Try another keyword?": "换个关键词试试？",
@@ -192,6 +187,12 @@
   "Watch on Bilibili": "在哔哩哔哩上观看",
   "You have no browsing history yet.": "您还没有浏览历史。",
   "Zone": "分区",
+  "__plural": {
+    "nplurals": 1,
+    "order": [
+      "other"
+    ]
+  },
   "after the instance domain +": "后的数字粘贴到实例域名 +",
   "and": "和",
   "plays": "次播放",

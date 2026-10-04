@@ -14,9 +14,16 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 """Locale detection + JSON catalog helpers.
 
-Source of truth is PO files under ``locales/<lang>/LC_MESSAGES/messages.po``.
+Source of truth is PO files under ``locales/<lang>/LC_MESSAGES/messages.po``
+(``<lang>`` is BCP-47 with underscores, e.g. ``zh_CN`` for ``zh-CN``).
 At build time ``tools/po2json.py`` compiles them to:
 - ``messages.json`` (lightweight catalog used for server-side templates and client JS)
+
+Adding a locale is just: create
+``locales/<lang>/LC_MESSAGES/messages.po`` (copy ``locales/messages.pot``),
+translate it, run ``npm run build:i18n``. No code changes needed — supported
+locales are auto-discovered from that directory, and menu labels fall back to
+Babel's endonym when no explicit override exists below.
 
 Locale resolution order: ``?lang=`` > ``lang`` cookie > ``Accept-Language`` >
 ``[display] default_locale``. Proxied upstream content (video titles,
@@ -31,17 +38,22 @@ import os
 
 LOCALES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "locales")
 
-# Endonyms shown in the language menus (a locale is named in its own language,
-# so these are display labels, not translatable strings).
+# Explicit endonym overrides shown in the language menus (a locale is named in
+# its own language, so these are display labels, not translatable strings).
+# Locales without an entry here fall back to Babel's endonym
+# (``Locale.get_display_name``), then to the raw tag.
 LOCALE_LABELS = {
     "en": "English",
     "zh-CN": "简体中文",
     "zh-TW": "繁體中文",
     "ja": "日本語",
 }
-# Fallback spec when no allowlist is configured.
+# Legacy fallback spec; kept for backwards compatibility. When no allowlist is
+# configured (env/config unset), supported locales are auto-discovered from
+# ``locales/*/LC_MESSAGES/messages.po`` instead.
 DEFAULT_SUPPORTED_LOCALES = "en,zh-CN,zh-TW,ja"
-# Filesystem directory names used by locales (BCP-47 with underscore).
+# Legacy directory overrides for locale dirs that do not follow the default
+# ``tag.replace("-", "_")`` mapping. New locales never need an entry here.
 _LOCALE_TO_DIR = {
     "en": "en",
     "zh-cn": "zh_CN",
@@ -50,13 +62,86 @@ _LOCALE_TO_DIR = {
     "zh": "zh_CN",
 }
 
-_JSON_CACHE: dict[str, dict[str, str]] = {}
+_JSON_CACHE: dict[str, dict] = {}
+# Locales without plural forms: the single translated form is used for every n.
+_CJK_BASES = frozenset({"zh", "ja", "ko"})
 
 # Parsed + normalized allowlist of selectable locales, in configured order.
 # Installed once by set_supported_locales() (env at import, then the merged
 # config.toml value from shared) and read through supported_locales() so every
 # consumer — resolution, /set_lang validation, template menus — shares one list.
 _SUPPORTED: tuple[str, ...] = ()
+
+
+def _canonicalize_tag(value: str) -> str | None:
+    """Canonicalize a raw locale string to BCP-47 form (no allowlist check).
+
+    ``fr_fr.UTF-8`` -> ``fr-FR``, ``ZH-cn`` -> ``zh-CN``, ``en`` -> ``en``.
+    Returns None for empty input.
+    """
+    v = value.strip().replace("_", "-")
+    # Strip charset suffixes like "zh-CN.UTF-8".
+    v = v.split(".")[0].strip()
+    if not v:
+        return None
+    parts = [p for p in v.split("-") if p]
+    if not parts:
+        return None
+    out = [parts[0].lower()]
+    for p in parts[1:]:
+        if len(p) == 2:
+            out.append(p.upper())
+        elif len(p) == 4:
+            out.append(p.title())
+        else:
+            out.append(p.lower())
+    return "-".join(out)
+
+
+def _dir_to_tag(dirname: str) -> str | None:
+    """Convert a ``locales/`` directory name to its canonical tag."""
+    return _canonicalize_tag(dirname.replace("_", "-"))
+
+
+def discover_available_locales() -> tuple[str, ...]:
+    """List canonical locale tags found under ``locales/*/LC_MESSAGES/``.
+
+    A locale counts when its directory holds a ``messages.po`` or a compiled
+    ``messages.json``. Sorted for deterministic menus; the configured
+    allowlist (when set) controls the final order instead.
+    """
+    found: list[str] = []
+    try:
+        entries = sorted(os.listdir(LOCALES_DIR))
+    except OSError:
+        return ()
+    for name in entries:
+        if name.startswith((".", "_")):
+            continue
+        lc_dir = os.path.join(LOCALES_DIR, name, "LC_MESSAGES")
+        try:
+            has_po = os.path.isfile(os.path.join(lc_dir, "messages.po"))
+            has_json = os.path.isfile(os.path.join(lc_dir, "messages.json"))
+        except OSError:
+            continue
+        if not (has_po or has_json):
+            continue
+        tag = _dir_to_tag(name)
+        if tag is not None and tag not in found:
+            found.append(tag)
+    return tuple(found)
+
+
+def _display_label(locale: str) -> str:
+    """Endonym for a locale: explicit override, else Babel, else raw tag."""
+    if locale in LOCALE_LABELS:
+        return LOCALE_LABELS[locale]
+    try:
+        from babel import Locale
+
+        return Locale.parse(locale.replace("-", "_")).get_display_name(locale)
+    except Exception:
+        return LOCALE_LABELS.get(locale.lower(), locale)
 
 
 def parse_supported_locales(raw: str | None) -> tuple[str, ...]:
@@ -72,9 +157,13 @@ def parse_supported_locales(raw: str | None) -> tuple[str, ...]:
 
 
 def set_supported_locales(raw: str | None) -> tuple[str, ...]:
-    """Install the allowlist from a raw spec; unparsable specs fall back to "en"."""
+    """Install the allowlist.
+
+    An explicit spec (env/config) wins; an empty/unset spec auto-discovers
+    from ``locales/``; with neither, fall back to ``("en",)``.
+    """
     global _SUPPORTED
-    _SUPPORTED = parse_supported_locales(raw) or ("en",)
+    _SUPPORTED = parse_supported_locales(raw) or discover_available_locales() or ("en",)
     return _SUPPORTED
 
 
@@ -85,44 +174,54 @@ def supported_locales() -> tuple[str, ...]:
 
 def locale_choices() -> list[tuple[str, str]]:
     """Return ``(tag, label)`` pairs for the language menus, in allowlist order."""
-    return [(locale, LOCALE_LABELS.get(locale, locale)) for locale in _SUPPORTED]
+    return [(locale, _display_label(locale)) for locale in _SUPPORTED]
 
 
 def normalize_locale(value: str | None) -> str | None:
-    """Normalize a raw locale string to a canonical supported tag."""
+    """Normalize a raw locale string to canonical BCP-47 (no allowlist check)."""
     if not value:
         return None
-    v = value.strip().replace("_", "-").lower()
-    # Strip charset suffixes like "zh-CN.UTF-8".
-    v = v.split(".")[0]
-    # Exact match first (covers zh-cn, zh-tw).
-    if v in _LOCALE_TO_DIR:
-        canonical = {"en": "en", "zh-cn": "zh-CN", "zh-tw": "zh-TW", "ja": "ja", "zh": "zh-CN"}[v]
-        return canonical
-    # Bare language fallback: "en-*" -> "en", "ja-*" -> "ja".
-    base = v.split("-")[0]
-    if base == "en":
-        return "en"
-    if base == "ja":
-        return "ja"
-    if base == "zh":
-        # Traditional variants default to zh-TW, everything else to zh-CN.
-        if any(t in v for t in ("hant", "hk", "tw", "mo")):
-            return "zh-TW"
+    canonical = _canonicalize_tag(value)
+    if canonical is None:
+        return None
+    # Bare "zh" defaults to Simplified, mirroring historical behaviour.
+    if canonical.lower() == "zh":
         return "zh-CN"
-    return None
+    return canonical
+
+
+def _base_candidates(base: str) -> list[str]:
+    """Supported locales sharing a base language subtag, in allowlist order."""
+    base = base.lower()
+    return [loc for loc in _SUPPORTED if loc.split("-")[0].lower() == base]
 
 
 def normalize_supported(value: str | None) -> str | None:
     """Normalize a raw locale string and enforce the allowlist.
 
-    Returns None when the input normalizes to nothing or to a locale the
-    instance does not offer, so callers never fall through to an unmanaged tag.
+    Exact match first; then base-language fallback (``fr-FR`` -> ``fr``,
+    ``en-US`` -> ``en``); Chinese Traditional/Simplified heuristics pick
+    ``zh-TW`` vs ``zh-CN`` when the exact variant is not offered. Returns None
+    when nothing matches, so callers fall through to the next locale source.
     """
     canonical = normalize_locale(value)
-    if canonical is not None and canonical in _SUPPORTED:
+    if canonical is None:
+        return None
+    if canonical in _SUPPORTED:
         return canonical
-    return None
+    base = canonical.split("-")[0]
+    candidates = _base_candidates(base)
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+    if base.lower() == "zh":
+        # Prefer Traditional for Hant/HK/TW/MO requests, Simplified otherwise.
+        want_trad = any(t in canonical.lower() for t in ("hant", "hk", "tw", "mo"))
+        prefer = "zh-TW" if want_trad else "zh-CN"
+        if prefer in candidates:
+            return prefer
+    return candidates[0]
 
 
 def parse_accept_language(header: str | None) -> str | None:
@@ -171,7 +270,21 @@ def detect_locale(query_lang: str | None, cookie_lang: str | None, accept_header
 
 
 def _locale_dir(locale: str) -> str:
-    return _LOCALE_TO_DIR.get(locale.lower(), "en")
+    key = locale.strip().replace("_", "-").lower()
+    if key in _LOCALE_TO_DIR:
+        return _LOCALE_TO_DIR[key]
+    canonical = normalize_locale(locale) or "en"
+    return canonical.replace("-", "_")
+
+
+def _plural_tag(locale: str, n: int) -> str:
+    """CLDR plural category for n in a locale (Babel; safe fallback)."""
+    try:
+        from babel import Locale
+
+        return Locale.parse(locale.replace("-", "_")).plural_form(n)
+    except Exception:
+        return "one" if n == 1 else "other"
 
 
 def gettext_msg(locale: str, msgid: str) -> str:
@@ -179,29 +292,53 @@ def gettext_msg(locale: str, msgid: str) -> str:
     if not msgid:
         return ""
     catalog = get_json_catalog(locale)
-    return catalog.get(msgid) or msgid
+    val = catalog.get(msgid)
+    if isinstance(val, list):
+        return val[0] or msgid
+    if isinstance(val, str):
+        return val or msgid
+    return msgid
 
 
 def ngettext_msg(locale: str, singular: str, plural: str, n: int) -> str:
     """Plural-aware translation (falls back to English singular/plural).
 
-    English picks by n, CJK locales use the single translated form (or plural lookup) for every n.
+    Plural entries in the catalog carry every ``msgstr[]`` form; the right one
+    is picked via the catalog's CLDR category order (built by
+    ``tools/po2json.py``), so three-form locales (uk, ru, pl, ...) resolve
+    exactly. Locales without plural data keep the legacy behaviour (CJK-style
+    locales use the single translated form for every n, others pick by n).
     """
     canonical = normalize_supported(locale) or "en"
-    if canonical == "en":
-        return singular if n == 1 else plural
     catalog = get_json_catalog(canonical)
-    single = catalog.get(singular)
-    if single and single != singular:
-        return single
+    val = catalog.get(singular)
+    if isinstance(val, list) and val:
+        order = catalog.get("__plural", {}).get("order", ["one", "other"])
+        tag = _plural_tag(canonical, n)
+        idx = order.index(tag) if tag in order else (0 if n == 1 else len(val) - 1)
+        idx = max(0, min(idx, len(val) - 1))
+        return val[idx] or val[0] or (singular if n == 1 else plural)
+    if canonical.split("-")[0].lower() in _CJK_BASES:
+        single = catalog.get(singular)
+        if isinstance(single, str) and single and single != singular:
+            return single
+        multi = catalog.get(plural)
+        if isinstance(multi, str) and multi and multi != plural:
+            return multi
+        return singular if n == 1 else plural
+    if n == 1:
+        single = catalog.get(singular)
+        return single if isinstance(single, str) and single else singular
     multi = catalog.get(plural)
-    if multi and multi != plural:
-        return multi
-    return singular if n == 1 else plural
+    return multi if isinstance(multi, str) and multi else plural
 
 
-def get_json_catalog(locale: str) -> dict[str, str]:
-    """Return the lightweight JSON catalog for JS (cached, English fallback)."""
+def get_json_catalog(locale: str) -> dict:
+    """Return the lightweight JSON catalog for JS (cached, English fallback).
+
+    Values are usually strings; plural entries are form arrays under the
+    singular msgid, plus a ``__plural`` metadata entry (see tools/po2json.py).
+    """
     canonical = normalize_supported(locale) or "en"
     if canonical in _JSON_CACHE:
         return _JSON_CACHE[canonical]
@@ -218,5 +355,5 @@ def get_json_catalog(locale: str) -> dict[str, str]:
 
 # Seed the allowlist from the environment so this module is usable standalone;
 # shared re-installs it from the merged appconf (config.toml wins) once the
-# config has been loaded.
-set_supported_locales(os.environ.get("SUPPORTED_LOCALES") or DEFAULT_SUPPORTED_LOCALES)
+# config has been loaded. Unset/empty means auto-discover from locales/.
+set_supported_locales(os.environ.get("SUPPORTED_LOCALES") or None)

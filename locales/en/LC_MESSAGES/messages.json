@@ -1,1 +1,9 @@
-{}
+{
+  "__plural": {
+    "nplurals": 2,
+    "order": [
+      "one",
+      "other"
+    ]
+  }
+}

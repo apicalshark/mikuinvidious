@@ -1,233 +1,222 @@
-# Translations template for PROJECT.
-# Copyright (C) 2026 ORGANIZATION
-# This file is distributed under the same license as the PROJECT project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
-#
-#, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: PROJECT VERSION\n"
-"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-04 19:21+0800\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
+"Project-Id-Version: MikuInvidious 0.1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.18.0\n"
+"Language: de\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #: python/i18n_strings.py:30
 msgid "Article does not exist or parse error"
-msgstr ""
+msgstr "Artikel existiert nicht oder Parserfehler"
 
 #: python/i18n_strings.py:31
 msgid "Article not found"
-msgstr ""
+msgstr "Artikel nicht gefunden"
 
 #: python/i18n_strings.py:32
 msgid "Audio mode load failed"
-msgstr ""
+msgstr "Audiomodus konnte nicht geladen werden"
 
 #: python/i18n_strings.py:33
 msgid "Backend server sent an invalid response"
-msgstr ""
+msgstr "Backend-Server hat eine ungültige Antwort gesendet"
 
 #: python/i18n_strings.py:34
 msgid "Bad request"
-msgstr ""
+msgstr "Ungültige Anfrage"
 
 #: python/i18n_strings.py:35
 msgid "Bangumi load failed"
-msgstr ""
+msgstr "Bangumi konnte nicht geladen werden"
 
 #: python/i18n_strings.py:36
 msgid "Bilibili returned empty result (-404)"
-msgstr ""
+msgstr "Bilibili hat ein leeres Ergebnis zurückgegeben (-404)"
 
 #: python/i18n_strings.py:37
 msgid "Failed to fetch the live list. Please try again later."
-msgstr ""
+msgstr "Livliste konnte nicht abgerufen werden. Bitte versuche es später erneut."
 
 #: python/i18n_strings.py:38
 msgid "Failed to fetch this user's profile. Please try again later."
-msgstr ""
+msgstr "Profil dieses Benutzers konnte nicht abgerufen werden. Bitte versuche es später erneut."
 
 #: python/i18n_strings.py:39
 msgid "Failed to load bangumi info. Please check your network or try again later."
-msgstr ""
+msgstr "Bangumi-Info konnte nicht geladen werden. Bitte prüfe dein Netzwerk oder versuche es später erneut."
 
 #: python/i18n_strings.py:40
 msgid ""
 "Failed to load the live room. Please check your network or try again "
 "later."
-msgstr ""
+msgstr "Liveraum konnte nicht geladen werden. Bitte prüfe dein Netzwerk oder versuche es später erneut."
 
 #: python/i18n_strings.py:41
 msgid "Failed to resolve the redirect target."
-msgstr ""
+msgstr "Weiterleitungsziel konnte nicht aufgelöst werden."
 
 #: python/i18n_strings.py:42
 msgid ""
 "Failed to resolve the short link. Please check your network connection or"
 " proxy settings."
-msgstr ""
+msgstr "Kurzlink konnte nicht aufgelöst werden. Bitte prüfe deine Netzwerkverbindung oder Proxy-Einstellungen."
 
 #: python/i18n_strings.py:43
 msgid ""
 "Internal server error. Please try again later or contact the "
 "administrator."
-msgstr ""
+msgstr "Interner Serverfehler. Bitte versuche es später erneut oder wende dich an den Administrator."
 
 #: python/i18n_strings.py:44
 msgid "Invalid request parameters. Please check and try again."
-msgstr ""
+msgstr "Ungültige Anfrageparameter. Bitte prüfe sie und versuche es erneut."
 
 #: python/i18n_strings.py:45
 msgid "Live list load failed"
-msgstr ""
+msgstr "Livliste konnte nicht geladen werden"
 
 #: python/i18n_strings.py:46
 msgid "Live load failed"
-msgstr ""
+msgstr "Live konnte nicht geladen werden"
 
 #: python/i18n_strings.py:47
 msgid "Network error"
-msgstr ""
+msgstr "Netzwerkfehler"
 
 #: python/i18n_strings.py:48
 msgid "No search keyword provided."
-msgstr ""
+msgstr "Kein Suchbegriff angegeben."
 
 #: python/i18n_strings.py:49
 msgid "No songs found"
-msgstr ""
+msgstr "Keine Lieder gefunden"
 
 #: python/i18n_strings.py:50
 msgid "Page not found (404)"
-msgstr ""
+msgstr "Seite nicht gefunden (404)"
 
 #: python/i18n_strings.py:51
 msgid "Parse error"
-msgstr ""
+msgstr "Parserfehler"
 
 #: python/i18n_strings.py:52
 msgid "Playlist empty"
-msgstr ""
+msgstr "Wiedergabeliste leer"
 
 #: python/i18n_strings.py:53
 msgid "Please check the URL."
-msgstr ""
+msgstr "Bitte prüfe die URL."
 
 #: python/i18n_strings.py:54
 msgid "Please check your network connection or proxy settings."
-msgstr ""
+msgstr "Bitte prüfe deine Netzwerkverbindung oder Proxy-Einstellungen."
 
 #: python/i18n_strings.py:55
 msgid "Please check your network or try again later."
-msgstr ""
+msgstr "Bitte prüfe dein Netzwerk oder versuche es später erneut."
 
 #: python/i18n_strings.py:56
 msgid "Please check your request and try again."
-msgstr ""
+msgstr "Bitte prüfe deine Anfrage und versuche es erneut."
 
 #: python/i18n_strings.py:57
 msgid "Please enter a search keyword and try again."
-msgstr ""
+msgstr "Bitte gib einen Suchbegriff ein und versuche es erneut."
 
 #: python/i18n_strings.py:58
 msgid "Please try refreshing the page, or check the server network connection."
-msgstr ""
+msgstr "Bitte aktualisiere die Seite oder prüfe die Netzwerkverbindung des Servers."
 
 #: python/i18n_strings.py:59
 msgid "Search failed"
-msgstr ""
+msgstr "Suche fehlgeschlagen"
 
 #: python/i18n_strings.py:60
 msgid "Server error"
-msgstr ""
+msgstr "Serverfehler"
 
 #: python/i18n_strings.py:61
 msgid "Space load failed"
-msgstr ""
+msgstr "Space konnte nicht geladen werden"
 
 #: python/i18n_strings.py:62
 msgid ""
 "The article you requested most likely does not exist. Please check your "
 "request."
-msgstr ""
+msgstr "Der angeforderte Artikel existiert höchstwahrscheinlich nicht. Bitte prüfe deine Anfrage."
 
 #: python/i18n_strings.py:63
 msgid "The requested page does not exist."
-msgstr ""
+msgstr "Die angeforderte Seite existiert nicht."
 
 #: python/i18n_strings.py:64
 msgid "The requested resource does not exist."
-msgstr ""
+msgstr "Die angeforderte Ressource existiert nicht."
 
 #: python/i18n_strings.py:66
 msgid ""
 "This content is usually unavailable in your region or has been removed by"
 " Bilibili. Please try again later."
-msgstr ""
+msgstr "Dieser Inhalt ist in deiner Region meist nicht verfügbar oder wurde von Bilibili entfernt. Bitte versuche es später erneut."
 
 #: python/i18n_strings.py:69
 msgid "This content may be region-restricted or removed."
-msgstr ""
+msgstr "Dieser Inhalt ist möglicherweise regional gesperrt oder entfernt."
 
 #: python/i18n_strings.py:70
 msgid ""
 "This video may have been deleted, is under review, or is region-"
 "restricted."
-msgstr ""
+msgstr "Dieses Video wurde möglicherweise gelöscht, wird geprüft oder ist regional gesperrt."
 
 #: python/i18n_strings.py:71
 msgid "Video load failed"
-msgstr ""
+msgstr "Video konnte nicht geladen werden"
 
 #: python/i18n_strings.py:72
 msgid "You have no browsing history yet."
-msgstr ""
+msgstr "Du hast noch keinen Browserverlauf."
 
 #: templates/macros.html:17
 msgid "Resolving video URL..."
-msgstr ""
+msgstr "Video-URL wird aufgelöst …"
 
 #: templates/macros.html:68
 msgid "Resolution"
-msgstr ""
+msgstr "Auflösung"
 
 #: templates/macros.html:86
 msgid "Click to play"
-msgstr ""
+msgstr "Klicken zum Abspielen"
 
 #: templates/macros.html:87
 msgid "Browser blocked autoplay"
-msgstr ""
+msgstr "Browser hat Autoplay blockiert"
 
 #: templates/macros.html:98
 msgid "Volume"
-msgstr ""
+msgstr "Lautstärke"
 
 #: templates/macros.html:105
 msgid "LIVE"
-msgstr ""
+msgstr "LIVE"
 
 #: templates/macros.html:112
 msgid "Toggle danmaku"
-msgstr ""
+msgstr "Danmaku umschalten"
 
 #: templates/macros.html:116
 msgid "Switch resolution"
-msgstr ""
+msgstr "Auflösung wechseln"
 
 #: templates/themes/modern/author.html:37 templates/themes/modern/space.html:37
 msgid "This user has no bio yet."
-msgstr ""
+msgstr "Dieser Benutzer hat noch keine Bio."
 
 #: templates/themes/modern/author.html:45 templates/themes/modern/space.html:45
 msgid "Bilibili Space"
-msgstr ""
+msgstr "Bilibili-Space"
 
 #: templates/themes/modern/author.html:50
 #: templates/themes/modern/search.html:12
@@ -235,7 +224,7 @@ msgstr ""
 #: templates/themes/modern/search_user.html:12
 #: templates/themes/modern/space.html:62
 msgid "Videos"
-msgstr ""
+msgstr "Videos"
 
 #: templates/themes/modern/author.html:57 templates/themes/modern/read.html:8
 #: templates/themes/modern/search.html:16
@@ -243,12 +232,12 @@ msgstr ""
 #: templates/themes/modern/search_user.html:14
 #: templates/themes/modern/space.html:50
 msgid "Articles"
-msgstr ""
+msgstr "Artikel"
 
 #: templates/themes/modern/author.html:96
 #: templates/themes/modern/search_article.html:70
 msgid "reads"
-msgstr ""
+msgstr "Aufrufe"
 
 #: templates/themes/modern/author.html:108
 #: templates/themes/modern/bangumi_index.html:116
@@ -257,7 +246,7 @@ msgstr ""
 #: templates/themes/modern/search_user.html:56
 #: templates/themes/modern/space.html:126 templates/themes/modern/zone.html:75
 msgid "Previous page"
-msgstr ""
+msgstr "Vorherige Seite"
 
 #: templates/themes/modern/author.html:114
 #: templates/themes/modern/bangumi_index.html:121
@@ -266,188 +255,188 @@ msgstr ""
 #: templates/themes/modern/search_user.html:62
 #: templates/themes/modern/space.html:132 templates/themes/modern/zone.html:81
 msgid "Next page"
-msgstr ""
+msgstr "Nächste Seite"
 
 #: templates/themes/modern/author.html:121
 msgid "No articles yet"
-msgstr ""
+msgstr "Noch keine Artikel"
 
 #: templates/themes/modern/bangumi_index.html:3
 msgid "Bangumi index"
-msgstr ""
+msgstr "Bangumi-Verzeichnis"
 
 #: templates/themes/modern/bangumi_index.html:36
 msgid "Anime"
-msgstr ""
+msgstr "Anime"
 
 #: templates/themes/modern/bangumi_index.html:36
 msgid "Chinese Original"
-msgstr ""
+msgstr "Chinesische Originale"
 
 #: templates/themes/modern/bangumi_index.html:36
 msgid "Movies"
-msgstr ""
+msgstr "Filme"
 
 #: templates/themes/modern/bangumi_index.html:36
 msgid "TV Series"
-msgstr ""
+msgstr "Serien"
 
 #: templates/themes/modern/bangumi_index.html:36
 msgid "Variety"
-msgstr ""
+msgstr "Variety"
 
 #: templates/themes/modern/bangumi_index.html:36
 msgid "Documentary"
-msgstr ""
+msgstr "Dokumentationen"
 
 #: templates/themes/modern/bangumi_index.html:65
 msgid "Sort"
-msgstr ""
+msgstr "Sortierung"
 
 #: templates/themes/modern/bangumi_view.html:22
 msgid "points"
-msgstr ""
+msgstr "Punkte"
 
 #: templates/themes/modern/bangumi_view.html:24
 msgid "No rating yet"
-msgstr ""
+msgstr "Noch keine Bewertung"
 
 #: templates/themes/modern/bangumi_view.html:29
 msgid "No synopsis yet"
-msgstr ""
+msgstr "Noch keine Inhaltsangabe"
 
 #: templates/themes/modern/bangumi_view.html:39
 msgid "Episode list"
-msgstr ""
+msgstr "Episodenliste"
 
 #: templates/themes/modern/bangumi_view.html:50
 msgid "Episode "
-msgstr ""
+msgstr "Episode "
 
 #: templates/themes/modern/bangumi_view.html:78
 msgid "Searching Nyaa..."
-msgstr ""
+msgstr "Suche auf Nyaa …"
 
 #: templates/themes/modern/bangumi_view.html:88
 msgid "Nyaa Magnet Resources"
-msgstr ""
+msgstr "Nyaa-Magnetressourcen"
 
 #: templates/themes/modern/bangumi_view.html:137
 msgid "Failed to load Nyaa resources"
-msgstr ""
+msgstr "Nyaa-Ressourcen konnten nicht geladen werden"
 
 #: templates/themes/modern/base.html:361 templates/themes/modern/base.html:414
 msgid "Bangumi"
-msgstr ""
+msgstr "Bangumi"
 
 #: templates/themes/modern/base.html:368 templates/themes/modern/base.html:421
 msgid "Language"
-msgstr ""
+msgstr "Sprache"
 
 #: templates/themes/modern/base.html:385 templates/themes/modern/base.html:438
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:9
 msgid "Preferences"
-msgstr ""
+msgstr "Einstellungen"
 
 #: templates/themes/modern/base.html:405
 msgid "Search for something?"
-msgstr ""
+msgstr "Nach etwas suchen?"
 
 #: templates/themes/modern/base.html:455
 msgid "Original source code"
-msgstr ""
+msgstr "Originaler Quellcode"
 
 #: templates/themes/modern/base.html:457
 msgid "Modified source code"
-msgstr ""
+msgstr "Geänderter Quellcode"
 
 #: templates/themes/modern/base.html:460
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
-msgstr ""
+msgstr "Quellcode"
 
 #: templates/themes/modern/base.html:466
 msgid "Documentation"
-msgstr ""
+msgstr "Dokumentation"
 
 #: templates/themes/modern/base.html:472
 msgid "Proudly released under AGPLv3"
-msgstr ""
+msgstr "Stolz unter AGPLv3 veröffentlicht"
 
 #: templates/themes/modern/base.html:479
 msgid "View JavaScript licenses"
-msgstr ""
+msgstr "JavaScript-Lizenzen ansehen"
 
 #: templates/themes/modern/base.html:484
 msgid "Privacy policy"
-msgstr ""
+msgstr "Datenschutzerklärung"
 
 #: templates/themes/modern/base.html:491
 msgid "Donate"
-msgstr ""
+msgstr "Spenden"
 
 #: templates/themes/modern/base.html:493
 msgid "Version info unavailable :-("
-msgstr ""
+msgstr "Versionsinfo nicht verfügbar :-("
 
 #: templates/themes/modern/error.html:2
 msgid "Error"
-msgstr ""
+msgstr "Fehler"
 
 #: templates/themes/modern/error.html:14
 msgid ""
 "Check your request. If you believe this is a site issue, contact the "
 "administrator. If you are the administrator, consider reporting it via "
 "the source code link below."
-msgstr ""
+msgstr "Prüfe deine Anfrage. Wenn du meinst, dass es ein Websiteproblem ist, wende dich an den Administrator. Wenn du der Administrator bist, melde es über den Quellcode-Link unten."
 
 #: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:38
 msgid "Back to home"
-msgstr ""
+msgstr "Zurück zur Startseite"
 
 #: templates/themes/modern/home.html:3 templates/themes/modern/search.html:3
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
 msgid "Search"
-msgstr ""
+msgstr "Suche"
 
 #: templates/themes/modern/home.html:9
 msgid "Hey, this is MikuInvidious!"
-msgstr ""
+msgstr "Hey, das ist MikuInvidious!"
 
 #: templates/themes/modern/home.html:9
 msgid "MikuInvidious is a free Bilibili frontend."
-msgstr ""
+msgstr "MikuInvidious ist ein freies Bilibili-Frontend."
 
 #: templates/themes/modern/home.html:13
 msgid ""
 "This is a MikuInvidious fork that supports pasting Bilibili links "
 "directly into the search box."
-msgstr ""
+msgstr "Dieser MikuInvidious-Fork unterstützt das direkte Einfügen von Bilibili-Links in das Suchfeld."
 
 #: templates/themes/modern/home.html:15
 msgid "To convert a Bilibili link to MikuInvidious, replace"
-msgstr ""
+msgstr "Um einen Bilibili-Link in MikuInvidious umzuwandeln, ersetze"
 
 #: templates/themes/modern/home.html:15
 msgid "and"
-msgstr ""
+msgstr "und"
 
 #: templates/themes/modern/home.html:15
 msgid "with this MikuInvidious instance’s domain."
-msgstr ""
+msgstr "durch die Domain dieser MikuInvidious-Instanz."
 
 #: templates/themes/modern/home.html:18
 msgid "For user spaces, paste the number after"
-msgstr ""
+msgstr "Für Benutzerspaces füge die Zahl nach"
 
 #: templates/themes/modern/home.html:18
 msgid "after the instance domain +"
-msgstr ""
+msgstr "nach der Instanz-Domain +"
 
 #: templates/themes/modern/home.html:18
 msgid "suffix."
-msgstr ""
+msgstr "Suffix ein."
 
 #: templates/themes/modern/home.html:58 templates/themes/modern/search.html:84
 #: templates/themes/modern/space.html:100
@@ -455,446 +444,445 @@ msgstr ""
 #: templates/themes/modern/video_listen.html:122
 #: templates/themes/modern/zone.html:49
 msgid "Watch on Bilibili"
-msgstr ""
+msgstr "Auf Bilibili ansehen"
 
 #: templates/themes/modern/home.html:63 templates/themes/modern/space.html:105
 #: templates/themes/modern/video.html:68 templates/themes/modern/zone.html:54
 msgid "Audio mode"
-msgstr ""
+msgstr "Audiomodus"
 
 #: templates/themes/modern/home.html:72
 msgid "views"
-msgstr ""
+msgstr "Aufrufe"
 
 #: templates/themes/modern/licenses.html:2
 msgid "JavaScript Licenses"
-msgstr ""
+msgstr "JavaScript-Lizenzen"
 
 #: templates/themes/modern/licenses.html:6
 msgid "JavaScript license information"
-msgstr ""
+msgstr "JavaScript-Lizenzinformationen"
 
 #: templates/themes/modern/licenses.html:7
 msgid ""
 "License information for the free JavaScript software used on this site is"
 " listed below."
-msgstr ""
+msgstr "Lizenzinformationen für die auf dieser Seite verwendete freie JavaScript-Software findest du unten."
 
 #: templates/themes/modern/licenses.html:12
 msgid "Script file"
-msgstr ""
+msgstr "Skriptdatei"
 
 #: templates/themes/modern/licenses.html:13
 msgid "License"
-msgstr ""
+msgstr "Lizenz"
 
 #: templates/themes/modern/pref.html:13
 msgid "Traditional Chinese conversion"
-msgstr ""
+msgstr "Umwandlung in traditionelles Chinesisch"
 
 #: templates/themes/modern/pref.html:14
 msgid "Convert content to Traditional Chinese with OpenCC"
-msgstr ""
+msgstr "Inhalte mit OpenCC in traditionelles Chinesisch umwandeln"
 
 #: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
 #: templates/themes/modern/video.html:458
 #: templates/themes/modern/video_listen.html:278
 msgid "Loading..."
-msgstr ""
+msgstr "Wird geladen …"
 
 #: templates/themes/modern/pref.html:24
 msgid "Auto-convert search to Simplified Chinese"
-msgstr ""
+msgstr "Suche automatisch in vereinfachtes Chinesisch umwandeln"
 
 #: templates/themes/modern/pref.html:25
 msgid "Automatically convert keywords to Simplified Chinese when searching"
-msgstr ""
+msgstr "Suchbegriffe bei der Suche automatisch in vereinfachtes Chinesisch umwandeln"
 
 #: templates/themes/modern/read.html:5
 msgid "Illustrations"
-msgstr ""
+msgstr "Illustrationen"
 
 #: templates/themes/modern/search.html:10
 #: templates/themes/modern/search_article.html:10
 #: templates/themes/modern/search_user.html:10
 msgid "Search category:"
-msgstr ""
+msgstr "Suchkategorie:"
 
 #: templates/themes/modern/search.html:14
 msgid "Live"
-msgstr ""
+msgstr "Live"
 
 #: templates/themes/modern/search.html:18
 #: templates/themes/modern/search_article.html:16
 #: templates/themes/modern/search_user.html:16
 msgid "Creators"
-msgstr ""
+msgstr "Ersteller"
 
 #: templates/themes/modern/search.html:22
 #: templates/themes/modern/search_article.html:20
 #: templates/themes/modern/search_user.html:20
 msgid "Sort by:"
-msgstr ""
+msgstr "Sortieren nach:"
 
 #: templates/themes/modern/search.html:23
 #: templates/themes/modern/search_article.html:21
 msgid "Comprehensive"
-msgstr ""
+msgstr "Umfassend"
 
 #: templates/themes/modern/search.html:23
 #: templates/themes/modern/search_article.html:21
 msgid "Most clicks"
-msgstr ""
+msgstr "Meiste Klicks"
 
 #: templates/themes/modern/search.html:23
 #: templates/themes/modern/search_article.html:21
 msgid "Newest"
-msgstr ""
+msgstr "Neueste"
 
 #: templates/themes/modern/search.html:23
 msgid "Most danmaku"
-msgstr ""
+msgstr "Meiste Danmaku"
 
 #: templates/themes/modern/search.html:23
 msgid "Most favorites"
-msgstr ""
+msgstr "Meiste Favoriten"
 
 #: templates/themes/modern/search.html:23
 #: templates/themes/modern/search_article.html:21
 msgid "Most comments"
-msgstr ""
+msgstr "Meiste Kommentare"
 
 #: templates/themes/modern/search.html:36
 msgid "No results found"
-msgstr ""
+msgstr "Keine Ergebnisse gefunden"
 
 #: templates/themes/modern/search.html:37
 #: templates/themes/modern/search_article.html:34
 #: templates/themes/modern/search_user.html:34
 msgid "Try another keyword?"
-msgstr ""
+msgstr "Anderen Suchbegriff versuchen?"
 
 #: templates/themes/modern/search.html:54
 msgid "watching"
-msgstr ""
+msgstr "Zuschauer"
 
 #: templates/themes/modern/search.html:93
 msgid "popularity"
-msgstr ""
+msgstr "Popularität"
 
 #: templates/themes/modern/search.html:93
 #: templates/themes/modern/space.html:114 templates/themes/modern/zone.html:63
 msgid "plays"
-msgstr ""
+msgstr "Aufrufe"
 
 #: templates/themes/modern/search_article.html:21
 msgid "Most likes"
-msgstr ""
+msgstr "Meiste Likes"
 
 #: templates/themes/modern/search_article.html:33
 msgid "No articles found"
-msgstr ""
+msgstr "Keine Artikel gefunden"
 
 #: templates/themes/modern/search_user.html:21
 msgid "Most fans"
-msgstr ""
+msgstr "Meiste Fans"
 
 #: templates/themes/modern/search_user.html:21
 msgid "Highest level"
-msgstr ""
+msgstr "Höchstes Level"
 
 #: templates/themes/modern/search_user.html:33
 msgid "No users found"
-msgstr ""
+msgstr "Keine Benutzer gefunden"
 
 #: templates/themes/modern/space.html:55
 msgid "RSS Feed"
-msgstr ""
+msgstr "RSS-Feed"
 
 #: templates/themes/modern/video.html:87 templates/themes/modern/video.html:88
 msgid "Online"
-msgstr ""
+msgstr "Online"
 
 #: templates/themes/modern/video.html:87
 msgid "Views"
-msgstr ""
+msgstr "Aufrufe"
 
 #: templates/themes/modern/video.html:91
 msgid "Likes"
-msgstr ""
+msgstr "Likes"
 
 #: templates/themes/modern/video.html:94
 msgid "Coins"
-msgstr ""
+msgstr "Coins"
 
 #: templates/themes/modern/video.html:97
 msgid "Favorites"
-msgstr ""
+msgstr "Favoriten"
 
 #: templates/themes/modern/video.html:100
 msgid "Share"
-msgstr ""
+msgstr "Teilen"
 
 #: templates/themes/modern/video.html:154
 msgid "Download"
-msgstr ""
+msgstr "Herunterladen"
 
 #: templates/themes/modern/components/meta_part.html:6
 #: templates/themes/modern/video.html:174
 #: templates/themes/modern/video.html:443
 #: templates/themes/modern/video_listen.html:153
 msgid "Comments"
-msgstr ""
+msgstr "Kommentare"
 
 #: templates/themes/modern/video.html:203
 msgid "Loading comments..."
-msgstr ""
+msgstr "Kommentare werden geladen …"
 
 #: templates/themes/modern/video.html:222
 #: templates/themes/modern/video.html:225
 msgid "Live chat"
-msgstr ""
+msgstr "Livechat"
 
 #: templates/themes/modern/video.html:233
 msgid "Connecting to chat..."
-msgstr ""
+msgstr "Verbinde mit Chat …"
 
 #: templates/themes/modern/video.html:306
 #: templates/themes/modern/video_listen.html:198
 msgid "Episodes"
-msgstr ""
+msgstr "Episoden"
 
 #: templates/themes/modern/video.html:312
 #: templates/themes/modern/video_listen.html:204
 msgid "Autoplay next"
-msgstr ""
+msgstr "Nächste automatisch abspielen"
 
 #: templates/themes/modern/video.html:341
 #: templates/themes/modern/video_listen.html:232
 msgid "Recommended"
-msgstr ""
+msgstr "Empfohlen"
 
 #: templates/themes/modern/video.html:361
 #: templates/themes/modern/video_listen.html:251
 msgid "Play"
-msgstr ""
+msgstr "Abspielen"
 
 #: templates/themes/modern/video.html:403
 #: templates/themes/modern/video_listen.html:263
 #, python-format
 msgid "Loaded %(count)s, click to load more"
-msgstr ""
+msgstr "%(count)s geladen, klicken für mehr"
 
 #: templates/themes/modern/video.html:443
 msgid "Failed to load comments, please try again later"
-msgstr ""
+msgstr "Kommentare konnten nicht geladen werden, bitte versuche es später erneut"
 
 #: templates/themes/modern/video.html:496
 #: templates/themes/modern/video_listen.html:316
 msgid "Load failed"
-msgstr ""
+msgstr "Laden fehlgeschlagen"
 
 #: static/themes/modern/js/audioplayer.js:29
 #: static/themes/modern/js/audioplayer.js:38
 #: templates/themes/modern/video_listen.html:52
 #, python-format
 msgid "Buffering: %(available)s / %(target)s"
-msgstr ""
+msgstr "Puffern: %(available)s / %(target)s"
 
 #: templates/themes/modern/video_listen.html:69
 msgid "Video mode"
-msgstr ""
+msgstr "Videomodus"
 
 #: templates/themes/modern/video_listen.html:137
 msgid "Download audio"
-msgstr ""
+msgstr "Audio herunterladen"
 
 #: templates/themes/modern/components/comment_items.html:25
 #: templates/themes/modern/video_listen.html:178
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
-msgstr[0] ""
-msgstr[1] ""
+msgstr[0] "%(count)s Antwort"
+msgstr[1] "%(count)s Antworten"
 
 #: templates/themes/modern/components/meta_part.html:14
 #: templates/themes/modern/video_listen.html:187
 msgid "No comments yet or failed to load"
-msgstr ""
+msgstr "Noch keine Kommentare oder Laden fehlgeschlagen"
 
 #: templates/themes/modern/zone.html:3
 msgid "Zone"
-msgstr ""
+msgstr "Zone"
 
 #: templates/themes/modern/components/meta_part.html:12
 msgid "Comments are closed by the uploader."
-msgstr ""
+msgstr "Kommentare wurden vom Uploader deaktiviert."
 
 #: templates/themes/modern/components/nyaa_part.html:6
 msgid "Nyaa resources"
-msgstr ""
+msgstr "Nyaa-Ressourcen"
 
 #: templates/themes/modern/components/nyaa_part.html:8
 msgid "Expanded search scope"
-msgstr ""
+msgstr "Erweiterter Suchbereich"
 
 #: templates/themes/modern/components/nyaa_part.html:17
 #: templates/themes/modern/components/nyaa_sidebar.html:4
 msgid "Collection resources"
-msgstr ""
+msgstr "Sammlungsressourcen"
 
 #: templates/themes/modern/components/nyaa_part.html:48
 msgid "Resources for episode "
-msgstr ""
+msgstr "Ressourcen für Episode "
 
 #: templates/themes/modern/components/nyaa_part.html:50
 msgid "resources"
-msgstr ""
+msgstr "Ressourcen"
 
 #: templates/themes/modern/components/nyaa_part.html:77
 msgid "No related resources found on Nyaa"
-msgstr ""
+msgstr "Keine zugehörigen Ressourcen auf Nyaa gefunden"
 
 #: templates/themes/modern/components/nyaa_sidebar.html:8
 msgid "Nyaa"
-msgstr ""
+msgstr "Nyaa"
 
 #: templates/themes/modern/components/nyaa_sidebar.html:12
 msgid "Trusted only"
-msgstr ""
+msgstr "Nur vertrauenswürdige"
 
 #: templates/themes/modern/components/nyaa_sidebar.html:19
 msgid "Keywords:"
-msgstr ""
+msgstr "Schlüsselwörter:"
 
 #: templates/themes/modern/components/nyaa_sidebar.html:37
 msgid "Magnet"
-msgstr ""
+msgstr "Magnet"
 
 #: templates/themes/modern/components/nyaa_sidebar.html:45
 msgid "No collection resources found"
-msgstr ""
+msgstr "Keine Sammlungsressourcen gefunden"
 
 #: static/themes/modern/js/download.js:80
 msgid "Download progress"
-msgstr ""
+msgstr "Downloadfortschritt"
 
 #: static/themes/modern/js/download.js:81
 msgid "Download video"
-msgstr ""
+msgstr "Video herunterladen"
 
 #: static/themes/modern/js/download.js:82
 #: static/themes/modern/js/download.js:88
 msgid "Close"
-msgstr ""
+msgstr "Schließen"
 
 #: static/themes/modern/js/download.js:83
 msgid "Preparing..."
-msgstr ""
+msgstr "Wird vorbereitet …"
 
 #: static/themes/modern/js/download.js:84
 msgid "If the download does not start automatically, click here to retry"
-msgstr ""
+msgstr "Wenn der Download nicht automatisch startet, klicke hier zum Wiederholen"
 
 #: static/themes/modern/js/download.js:87
 msgid "Cancel"
-msgstr ""
+msgstr "Abbrechen"
 
 #: static/themes/modern/js/download.js:169
 msgid "Queued... (server download slots are limited)"
-msgstr ""
+msgstr "In Warteschlange … (Downloadslots des Servers sind begrenzt)"
 
 #: static/themes/modern/js/download.js:172
 msgid "Resolving video info..."
-msgstr ""
+msgstr "Videoinfo wird aufgelöst …"
 
 #: static/themes/modern/js/download.js:184
 #, python-format
 msgid "Downloading %(percent)s% · %(bytes)s · %(speed)s"
-msgstr ""
+msgstr "Wird heruntergeladen: %(percent)s % · %(bytes)s · %(speed)s"
 
 #: static/themes/modern/js/download.js:189
 #, python-format
 msgid "Downloading %(percent)s% · %(bytes)s"
-msgstr ""
+msgstr "Wird heruntergeladen: %(percent)s % · %(bytes)s"
 
 #: static/themes/modern/js/download.js:196
 #, python-format
 msgid "Downloading... %(bytes)s · %(speed)s"
-msgstr ""
+msgstr "Wird heruntergeladen … %(bytes)s · %(speed)s"
 
 #: static/themes/modern/js/download.js:197
 #, python-format
 msgid "Downloading... %(bytes)s"
-msgstr ""
+msgstr "Wird heruntergeladen … %(bytes)s"
 
 #: static/themes/modern/js/download.js:201
 msgid "Muxing... (merging audio and video, please wait)"
-msgstr ""
+msgstr "Wird gemuxt … (Audio und Video werden zusammengeführt, bitte warten)"
 
 #: static/themes/modern/js/download.js:204
 msgid "Done, download started in browser"
-msgstr ""
+msgstr "Fertig, Download im Browser gestartet"
 
 #: static/themes/modern/js/download.js:207
 msgid "Cancelled"
-msgstr ""
+msgstr "Abgebrochen"
 
 #: static/themes/modern/js/download.js:211
 #, python-format
 msgid "Download failed: %(error)s"
-msgstr ""
+msgstr "Download fehlgeschlagen: %(error)s"
 
 #: static/themes/modern/js/download.js:212
 msgid "Download failed"
-msgstr ""
+msgstr "Download fehlgeschlagen"
 
 #: static/themes/modern/js/download.js:227
 msgid "Requested quality unavailable, switched to highest available quality"
-msgstr ""
+msgstr "Gewünschte Qualität nicht verfügbar, zur höchsten verfügbaren Qualität gewechselt"
 
 #: static/themes/modern/js/download.js:258
 msgid "Task expired, please download again"
-msgstr ""
+msgstr "Aufgabe abgelaufen, bitte erneut herunterladen"
 
 #: static/themes/modern/js/download.js:288
 msgid "Lost connection to the server, please retry"
-msgstr ""
+msgstr "Verbindung zum Server verloren, bitte erneut versuchen"
 
 #: static/themes/modern/js/download.js:384
 msgid "Preparing download..."
-msgstr ""
+msgstr "Download wird vorbereitet …"
 
 #: static/themes/modern/js/download.js:388
 msgid "Creating download task..."
-msgstr ""
+msgstr "Downloadaufgabe wird erstellt …"
 
 #: static/themes/modern/js/player.js:270
 msgid "Stream ended"
-msgstr ""
+msgstr "Stream beendet"
 
 #: static/themes/modern/js/player.js:271
 msgid "Live stream has ended"
-msgstr ""
+msgstr "Livestream beendet"
 
 #: static/themes/modern/js/player.js:1132
 #, python-format
 msgid "Auto (%(height)sp)"
-msgstr ""
+msgstr "Auto (%(height)sp)"
 
 #: static/themes/modern/js/player.js:1155
 #: static/themes/modern/js/player.js:1159
 #: static/themes/modern/js/player.js:1190
 #: static/themes/modern/js/player.js:1194
 msgid "Auto"
-msgstr ""
+msgstr "Auto"
 
 #: static/themes/modern/js/themes.js:177 static/themes/modern/js/themes.js:189
 msgid "On"
-msgstr ""
+msgstr "An"
 
 #: static/themes/modern/js/themes.js:180 static/themes/modern/js/themes.js:192
 msgid "Off"
-msgstr ""
-
+msgstr "Aus"

@@ -1,6 +1,7 @@
 {
-  "%(count)s replies": "%(count)s replies",
-  "%(count)s reply": "%(count)s 件の返信",
+  "%(count)s reply": [
+    "%(count)s 件の返信"
+  ],
   "Anime": "アニメ",
   "Article does not exist or parse error": "記事が存在しないか解析エラーです",
   "Article not found": "記事が見つかりません",
@@ -26,7 +27,6 @@
   "Cancelled": "キャンセルしました",
   "Check your request. If you believe this is a site issue, contact the administrator. If you are the administrator, consider reporting it via the source code link below.": "リクエストを確認してください。サイトの問題だと思われる場合は管理者に連絡してください。管理者の方は下のソースコードリンクから報告を検討してください。",
   "Chinese Original": "中国オリジナル",
-  "Choose the interface language": "インターフェース言語を選択",
   "Click to play": "クリックして再生",
   "Close": "閉じる",
   "Coins": "コイン",
@@ -73,7 +73,6 @@
   "Illustrations": "イラスト",
   "Internal server error. Please try again later or contact the administrator.": "サーバー内部エラーです。後でもう一度お試しいただくか、管理者に連絡してください。",
   "Invalid request parameters. Please check and try again.": "リクエストパラメータが無効です。確認して再試行してください。",
-  "Japanese": "日本語",
   "JavaScript Licenses": "JavaScriptライセンス",
   "JavaScript license information": "JavaScriptライセンス情報",
   "Keywords:": "キーワード:",
@@ -126,7 +125,6 @@
   "Original source code": "オリジナルのソースコード",
   "Page not found (404)": "ページが見つかりません (404)",
   "Parse error": "解析エラー",
-  "Personalization settings": "個人設定",
   "Play": "再生",
   "Playlist empty": "プレイリストが空です",
   "Please check the URL.": "URLを確認してください。",
@@ -149,7 +147,6 @@
   "Resolving video URL...": "動画URLを解決中...",
   "Resolving video info...": "動画情報を解決中...",
   "Resources for episode ": "エピソード",
-  "Save language": "言語を保存",
   "Script file": "スクリプトファイル",
   "Search": "検索",
   "Search category:": "検索カテゴリ:",
@@ -158,7 +155,6 @@
   "Searching Nyaa...": "Nyaaを検索中...",
   "Server error": "サーバーエラー",
   "Share": "共有",
-  "Simplified Chinese": "簡体字中国語",
   "Sort": "並び替え",
   "Sort by:": "並び替え:",
   "Source code": "ソースコード",
@@ -177,7 +173,6 @@
   "This video may have been deleted, is under review, or is region-restricted.": "この動画は削除されたか、審査中であるか、地域制限されている可能性があります。",
   "To convert a Bilibili link to MikuInvidious, replace": "BilibiliリンクをMikuInvidiousに変換するには、",
   "Toggle danmaku": "弾幕の切り替え",
-  "Traditional Chinese": "繁体字中国語",
   "Traditional Chinese conversion": "繁体字変換",
   "Trusted only": "信頼済みのみ",
   "Try another keyword?": "別のキーワードで試してみてください",
@@ -192,6 +187,12 @@
   "Watch on Bilibili": "Bilibiliで見る",
   "You have no browsing history yet.": "まだ閲覧履歴がありません。",
   "Zone": "ゾーン",
+  "__plural": {
+    "nplurals": 1,
+    "order": [
+      "other"
+    ]
+  },
   "after the instance domain +": "の後の数字を、インスタンスのドメイン +",
   "and": "と",
   "plays": "回再生",

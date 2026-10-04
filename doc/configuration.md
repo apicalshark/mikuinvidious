@@ -37,10 +37,12 @@ Settings related to the user interface and themes.
 | Key | Environment Variable | Default | Description |
 | --- | --- | --- | --- |
 | `default_theme` | (None) | `modern` | The default theme to use for new visitors. |
-| `default_locale` | `DEFAULT_LOCALE` | `zh-CN` | Default UI locale when no `?lang=` / cookie / `Accept-Language` match. One of `en`, `zh-CN`, `zh-TW`, `ja`. |
-| `supported_locales` | `SUPPORTED_LOCALES` | `en,zh-CN,zh-TW,ja` | Comma-separated allowlist of supported locales. |
+| `default_locale` | `DEFAULT_LOCALE` | `zh-CN` | Default UI locale when no `?lang=` / cookie / `Accept-Language` match. Any locale under `locales/*/LC_MESSAGES`. |
+| `supported_locales` | `SUPPORTED_LOCALES` | (auto-discover) | Optional comma-separated allowlist of locales. Unset = offer every locale found under `locales/`. |
 
-Locale resolution order is `?lang=` > `lang` cookie > `Accept-Language` header > `default_locale`. When switching languages via the UI or `POST /set_lang` (same CSRF/cookie pattern as `/toggle_theme`), the choice is persisted to the `lang` cookie (30 days) and any `?lang=` parameter is cleaned from the URL so page URLs remain clean. Upstream content (video titles, comments, danmaku, Bilibili filter vocab, Nyaa titles) is never translated — only UI chrome. Translation sources are `locales/*/LC_MESSAGES/messages.po` (committed to git along with the built `messages.pot`/`.mo`/`.json`); after editing templates/JS strings or `.po` files, run `npm run build:i18n` to re-extract and recompile, and `npm run check:i18n` to verify freshness.
+Locale order: `?lang=` > `lang` cookie > `Accept-Language` > `default_locale`. Only UI chrome is translated, never video titles/comments/danmaku. Strings live in `locales/*/LC_MESSAGES/messages.po`; after editing, run `npm run build:i18n` (re-extracts, syncs, recompiles), `npm run check:i18n` to verify.
+
+**New language?** Copy `locales/messages.pot` to `locales/<tag>/LC_MESSAGES/messages.po` (e.g. `pt_BR`), set `Language`/`Plural-Forms`, translate, build, open a PR. Partial translations fall back to English; no code changes needed.
 
 ---
 

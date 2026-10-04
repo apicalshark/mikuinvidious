@@ -481,12 +481,15 @@
                             slot.dataset.nextPage = String(Number(pageEl.dataset.page) + 1);
                             if (isEnd) slot.dataset.loaded = '1';
                             // Reply-count labels via the JS catalog (window.I18N):
-                            // singular/plural reuse the existing ngettext PO entries,
+                            // I18n.n() picks the right plural form per locale (the
+                            // typeof guard covers browsers with a cached old helper).
                             // MSG_LOADED_MORE is a tojson-rendered _() const above.
                             btn.querySelector('span').textContent = isEnd
-                                ? (Number(btn.dataset.count) === 1
-                                    ? I18n.t('%(count)s reply', {count: btn.dataset.count})
-                                    : I18n.t('%(count)s replies', {count: btn.dataset.count}))
+                                ? (typeof I18n.n === 'function'
+                                    ? I18n.n('%(count)s reply', '%(count)s replies', Number(btn.dataset.count), {count: btn.dataset.count})
+                                    : (Number(btn.dataset.count) === 1
+                                        ? I18n.t('%(count)s reply', {count: btn.dataset.count})
+                                        : I18n.t('%(count)s replies', {count: btn.dataset.count})))
                                 : MSG_LOADED_MORE.split('%(count)s').join(String(loadedCount));
                         })
                         .catch(() => {

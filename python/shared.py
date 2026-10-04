@@ -234,7 +234,8 @@ appconf = {
     "display": {
         "default_theme": "modern",
         "default_locale": os.environ.get("DEFAULT_LOCALE", "zh-CN"),
-        "supported_locales": os.environ.get("SUPPORTED_LOCALES", "en,zh-CN,zh-TW,ja"),
+        # Unset/empty means auto-discover from locales/*/LC_MESSAGES.
+        "supported_locales": os.environ.get("SUPPORTED_LOCALES"),
     },
     "live": {
         # Server-side live format policy: FLV first, HLS master as fallback.
