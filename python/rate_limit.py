@@ -30,7 +30,7 @@ def _trusted_networks():
         try:
             nets.append(ipaddress.ip_network(raw, strict=False))
         except ValueError:
-            print(f"[RateLimit] Ignoring invalid TRUSTED_PROXIES entry: {raw!r}")
+            print("[RateLimit] Ignoring invalid TRUSTED_PROXIES entry")
     return nets
 
 
