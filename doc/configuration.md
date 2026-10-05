@@ -122,6 +122,18 @@ All page caches emit `X-Cache: HIT` / `MISS` response headers (absent when cachi
 
 ---
 
+## `[rate_limit]`
+Per-IP sliding-window rate limiting (Redis-backed). Disabled by default.
+
+| Key | Env var | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master switch. |
+| `trusted_proxies` | `TRUSTED_PROXIES` | `""` | Extra IPs/CIDRs whose proxy headers are trusted. |
+
+Proxy headers are only honored from loopback/private peers or listed proxies; otherwise the TCP peer is used.
+
+---
+
 ## `[quart]`
 This section can be used to pass any specific configuration options directly to the Quart framework (e.g., `TEMPLATES_AUTO_RELOAD = true`). These are advanced settings.
 
