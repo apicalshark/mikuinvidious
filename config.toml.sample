@@ -139,3 +139,7 @@ host = 'localhost'
 port = 6379
 # username = ''
 # password = ''
+
+[rate_limit]
+enabled = false
+# trusted_proxies = '172.18.0.0/16'

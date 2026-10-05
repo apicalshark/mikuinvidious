@@ -13,11 +13,58 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
+import ipaddress
 import time
 from functools import wraps
 
 from quart import Response, request
 from shared import appconf, appredis
+
+
+def _trusted_networks():
+    nets = []
+    for raw in (appconf["rate_limit"].get("trusted_proxies") or "").split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            nets.append(ipaddress.ip_network(raw, strict=False))
+        except ValueError:
+            print(f"[RateLimit] Ignoring invalid TRUSTED_PROXIES entry: {raw!r}")
+    return nets
+
+
+def _peer_is_trusted_proxy(peer: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    if addr.is_loopback or addr.is_private:
+        return True
+    try:
+        return any(addr in net for net in _trusted_networks())
+    except TypeError:
+        # IPv4 peer vs IPv6 network (or vice versa) never matches.
+        return False
+
+
+def get_client_ip(req=None) -> str:
+    req = req or request
+    peer = req.remote_addr or ""
+    if _peer_is_trusted_proxy(peer):
+        candidates = [req.headers.get("X-Real-IP", ""), *req.headers.get("X-Forwarded-For", "").split(",")]
+        for raw in candidates:
+            candidate = raw.strip()
+            if not candidate:
+                continue
+            try:
+                return str(ipaddress.ip_address(candidate))
+            except ValueError:
+                continue
+    try:
+        return str(ipaddress.ip_address(peer))
+    except ValueError:
+        return "127.0.0.1"
 
 
 class RateLimiter:
@@ -106,14 +153,7 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
             if key_func:
                 key = await key_func(request)
             else:
-                # Default: IP + endpoint
-                ip = (
-                    request.headers.get("X-Real-IP")
-                    or request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
-                    or request.remote_addr
-                    or "127.0.0.1"
-                )
-                key = f"{ip}:{request.path}"
+                key = f"{get_client_ip(request)}:{request.path}"
 
             limiter = get_rate_limiter()
             allowed, info = await limiter.is_allowed(key, limit, window)

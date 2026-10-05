@@ -278,6 +278,7 @@ appconf = {
     },
     "rate_limit": {
         "enabled": os.environ.get("RATE_LIMIT_ENABLED", "false").lower() == "true",
+        "trusted_proxies": os.environ.get("TRUSTED_PROXIES", ""),
     },
     "cache": {
         # TTLs in minutes for page-data caches. Each route stores its upstream
