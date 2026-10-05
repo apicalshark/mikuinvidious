@@ -347,7 +347,9 @@ async def favicon():
 
 @app.route("/site.webmanifest")
 async def webmanifest():
-    return await send_from_directory(app.static_folder, "site.webmanifest")
+    return await send_from_directory(
+        app.static_folder, "site.webmanifest", mimetype="application/manifest+json", cache_timeout=86400
+    )
 
 
 @app.route("/preferences")

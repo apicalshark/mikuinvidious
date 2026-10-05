@@ -15,7 +15,8 @@ var STORAGE_KEY_THEME = "dark_mode";
 var THEME_DARK = "dark";
 var THEME_LIGHT = "light";
 
-function handleThemeToggle() {
+function handleThemeToggle(e) {
+  if (e) e.preventDefault();
   const isDarkTheme = helpers.storage.get(STORAGE_KEY_THEME) === THEME_DARK;
   const newTheme = isDarkTheme ? THEME_LIGHT : THEME_DARK;
   setTheme(newTheme);

@@ -15,7 +15,12 @@
     handle /static/* {
         file_server
     }
-    
+    handle /site.webmanifest {
+        root * /usr/share/caddy/static
+        header Content-Type "application/manifest+json"
+        file_server
+    }
+        
     @notProxy not path /proxy/*
     encode @notProxy gzip
 
