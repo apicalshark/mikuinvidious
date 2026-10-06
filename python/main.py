@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import os
 import sys
 
 # Import app to ensure it's initialized and hooks are registered
@@ -22,13 +21,6 @@ from granian import Granian
 from granian.constants import Interfaces, Loops, TaskImpl
 from granian.http import HTTP1Settings, HTTP2Settings
 from shared import appconf
-
-
-def _int_env(name, default):
-    try:
-        return max(1, int(os.environ.get(name, default)))
-    except (TypeError, ValueError):
-        return default
 
 
 def main():
@@ -41,14 +33,15 @@ def main():
 
     # Granian handles the event loop (uvloop) and ASGI interface natively.
     # We use the string target "app:app" to allow potential multi-worker support.
-    # NOTE: download jobs live in process memory (dash_proxy), so workers > 1
-    # requires sticky sessions; default stays 1, override via GRANIAN_WORKERS.
-    workers = 1 if debug_mode else _int_env("GRANIAN_WORKERS", 1)
+    # NOTE: download jobs live in process memory (dash_proxy._download_jobs),
+    # so workers must stay 1 — without sticky sessions, status/cancel/file
+    # requests land on a worker that never saw the job (404/409). Revisit
+    # only with shared job storage or guaranteed worker affinity.
     server = Granian(
         "app:app",
         address=host,
         port=port,
-        workers=workers,
+        workers=1,
         interface=Interfaces.ASGI,
         loop=Loops.uvloop,
         task_impl=TaskImpl.asyncio,

@@ -219,14 +219,41 @@ function initPreferences() {
   if (searchOpenccPref === "1") {
     const searchForm = document.querySelector('form[action="/search"]');
     if (searchForm) {
-      ensureOpenCC().then(function () {
-        if (!window.OpenCC) return;
-        const searchBox = document.getElementById("searchbox");
-        const s2sConverter = OpenCC.Converter({ from: "tw", to: "cn" });
-        searchForm.addEventListener("submit", function () {
-          searchBox.value = s2sConverter(searchBox.value);
+      // Kick off the lazy load immediately, but register the handler NOW so
+      // a submit during the load still converts instead of bypassing.
+      var openccReady = ensureOpenCC().catch(function () { return null; });
+      var s2sConverter = null;
+      openccReady.then(function (OC) {
+        if (OC) s2sConverter = OC.Converter({ from: "tw", to: "cn" });
+      });
+      var resubmitting = false;
+      var submitHeld = false;
+      searchForm.addEventListener("submit", function (e) {
+        if (resubmitting) return; // second pass after deferred conversion
+        if (s2sConverter) {
+          var sb = document.getElementById("searchbox");
+          sb.value = s2sConverter(sb.value);
+          return;
+        }
+        // Library still loading: hold this submit, convert on arrival, then
+        // resubmit once. Extra submits while held are dropped (one navigation).
+        e.preventDefault();
+        if (submitHeld) return;
+        submitHeld = true;
+        openccReady.then(function () {
+          resubmitting = true;
+          try {
+            if (s2sConverter) {
+              var sb2 = document.getElementById("searchbox");
+              sb2.value = s2sConverter(sb2.value);
+            }
+            searchForm.requestSubmit();
+          } finally {
+            resubmitting = false;
+            submitHeld = false;
+          }
         });
-      }).catch(function () {});
+      });
     }
   }
 }

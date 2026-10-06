@@ -39,9 +39,13 @@ _inflight: dict[str, list] = {}
 _lock = asyncio.Lock()
 
 
-async def _settle(hostname: str, ok: bool, payload):
-    async with _lock:
-        entry = _inflight.pop(hostname, None)
+def _settle(hostname: str, ok: bool, payload):
+    """Settle joiners of *hostname*; synchronous so it also runs under cancellation.
+
+    The pop needs no lock: asyncio is single-threaded, so dict mutation is
+    atomic — the lock only serializes the check-and-register sequence above.
+    """
+    entry = _inflight.pop(hostname, None)
     if entry is not None:
         fut, waiters = entry
         if waiters and not fut.done():
@@ -73,17 +77,34 @@ async def resolve_host(hostname: str):
             owner = False
 
     if not owner:
-        return await fut
+        # Shield: a cancelled joiner must not cancel the shared future for
+        # the remaining joiners (Task.cancel propagates to the awaited fut).
+        try:
+            return await asyncio.shield(fut)
+        except asyncio.CancelledError:
+            # No longer waiting: stop counting so a later failure doesn't
+            # set an exception nobody observes. Best-effort — the entry may
+            # already be settled and popped.
+            entry = _inflight.get(hostname)
+            if entry is not None and entry[0] is fut and entry[1] > 0:
+                entry[1] -= 1
+            raise
 
     try:
         infos = await asyncio.to_thread(socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except asyncio.CancelledError:
+        # A disconnected client cancels the owner: settle joiners with a
+        # retryable error (their guards treat it as a failed lookup) instead
+        # of leaving them blocked on a dead future forever.
+        _settle(hostname, False, RuntimeError("dns lookup cancelled"))
+        raise
     except Exception as e:
-        await _settle(hostname, False, e)
+        _settle(hostname, False, e)
         raise
 
     async with _lock:
         _cache[hostname] = (time.monotonic(), infos)
-    await _settle(hostname, True, infos)
+    _settle(hostname, True, infos)
     return infos
 
 

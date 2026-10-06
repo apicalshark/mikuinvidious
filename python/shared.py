@@ -399,14 +399,44 @@ async def cache_set(key, payload, ttl_seconds):
 
 
 class SimpleCache:
-    # Per-key in-flight futures so concurrent cache misses coalesce behind
-    # a single upstream render instead of stampeding (thundering herd).
+    # Per-key in-flight renders: [future, waiter_count]. Concurrent cache
+    # misses coalesce behind a single upstream render instead of stampeding
+    # (thundering herd). The future is settled only while joiners remain, so
+    # unobserved failures never log "exception was never retrieved".
     _inflight: dict = {}
+
+    @staticmethod
+    def _settle(cache_key, fut, ok, payload):
+        """Settle joiners of *cache_key* iff *fut* is still the live entry."""
+        entry = SimpleCache._inflight.get(cache_key)
+        if entry is not None and entry[0] is fut:
+            del SimpleCache._inflight[cache_key]
+            if entry[1] and not fut.done():
+                if ok:
+                    fut.set_result(payload)
+                else:
+                    fut.set_exception(payload)
+
+    @staticmethod
+    def _join(cache_key):
+        """Register on the in-flight render for *cache_key*; returns (future, is_owner).
+
+        No await runs between lookup and registration, so this is atomic on
+        one event loop and exactly one task becomes the owner.
+        """
+        entry = SimpleCache._inflight.get(cache_key)
+        if entry is None:
+            entry = [asyncio.get_running_loop().create_future(), 0]
+            SimpleCache._inflight[cache_key] = entry
+            return entry[0], True
+        entry[1] += 1
+        return entry[0], False
 
     def cached(self, timeout=300, key_prefix="view/%s"):
         def decorator(f):
             @functools.wraps(f)
             async def decorated_function(*args, **kwargs):
+                """Serve cached HTML or render once per key across concurrent misses."""
                 # Avoid caching during POST or when arguments exist in some cases
                 # But for simplicity, we use the full path as the key
                 cache_key = key_prefix % request.full_path
@@ -417,17 +447,18 @@ class SimpleCache:
                     return cached_val
 
                 # Coalesce concurrent misses on the same key.
-                fut = SimpleCache._inflight.get(cache_key)
-                if fut is None:
-                    loop = asyncio.get_running_loop()
-                    fut = loop.create_future()
-                    SimpleCache._inflight[cache_key] = fut
-                    owner = True
-                else:
-                    owner = False
+                fut, owner = SimpleCache._join(cache_key)
 
                 if not owner:
-                    return await fut
+                    # Shield: a cancelled joiner must not cancel the shared
+                    # future for the remaining joiners.
+                    try:
+                        return await asyncio.shield(fut)
+                    except asyncio.CancelledError:
+                        cur = SimpleCache._inflight.get(cache_key)
+                        if cur is not None and cur[0] is fut and cur[1] > 0:
+                            cur[1] -= 1
+                        raise
 
                 try:
                     # Otherwise, call the function and cache the result
@@ -437,15 +468,17 @@ class SimpleCache:
                     if isinstance(response, str):
                         await appredis.setex(cache_key, timeout, response)
 
-                    if not fut.done():
-                        fut.set_result(response)
+                    SimpleCache._settle(cache_key, fut, True, response)
                     return response
-                except Exception as e:
-                    if not fut.done():
-                        fut.set_exception(e)
+                except asyncio.CancelledError:
+                    # A cancelled owner must not strand joiners: hand them a
+                    # retryable error (their next request re-renders) and let
+                    # the cancellation propagate.
+                    SimpleCache._settle(cache_key, fut, False, RuntimeError("cached render cancelled"))
                     raise
-                finally:
-                    SimpleCache._inflight.pop(cache_key, None)
+                except Exception as e:
+                    SimpleCache._settle(cache_key, fut, False, e)
+                    raise
 
             return decorated_function
 
