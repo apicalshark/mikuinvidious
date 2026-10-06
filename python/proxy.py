@@ -78,14 +78,14 @@ async def is_safe_proxy_url(url: str) -> bool:
         if not any(hostname == d.lstrip(".") or hostname.endswith(d) for d in allowed_domains):
             return False
 
-        # Resolve and check IP
-        # Resolve and check IP (both IPv4 and IPv6)
+        # Resolve and check IP (both IPv4 and IPv6). Hostname lookups are
+        # cached (dns_cache, 120s TTL) — uncached edges cost up to ~1s.
         import socket
 
+        from dns_cache import resolve_host
+
         try:
-            addr_infos = await asyncio.to_thread(
-                socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
-            )
+            addr_infos = await resolve_host(hostname)
             for family, _, _, _, sockaddr in addr_infos:
                 ip = sockaddr[0]
                 ip_obj = ipaddress.ip_address(ip)
@@ -122,7 +122,11 @@ async def render_proxy_pic(req_path):
         client = await Network.get_async_client()
         try:
             req = client.build_request("GET", url, headers=headers)
-            resp = await client.send(req, follow_redirects=True)
+            # Stream the body: the old code buffered the entire origin image
+            # (resp.content) per request, so 50 concurrent image_limiter slots
+            # could hold 50 full images in memory. Headers are validated
+            # before a single body byte is proxied.
+            resp = await client.send(req, stream=True, follow_redirects=True)
 
             content_type = resp.headers.get("content-type", "").lower().split(";")[0].strip()
             # Bilibili's image CDN sometimes returns a bare extension
@@ -150,13 +154,24 @@ async def render_proxy_pic(req_path):
             ]
             if not any(content_type.startswith(t) for t in allowed_image_types):
                 print(f"[Proxy] Invalid Content-Type for image: {content_type}")
+                await resp.aclose()
                 return Response("Forbidden: Invalid content type", status=403)
 
+            async def _stream_body():
+                try:
+                    async for chunk in resp.aiter_bytes(65536):
+                        yield chunk
+                finally:
+                    await resp.aclose()
+
             proxy_resp = Response(
-                resp.content,
+                _stream_body(),
                 status=resp.status_code,
                 content_type=content_type,
             )
+            upstream_length = resp.headers.get("content-length")
+            if upstream_length and upstream_length.isdigit():
+                proxy_resp.headers["Content-Length"] = upstream_length
             proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
             return proxy_resp
         except Exception as e:
@@ -445,6 +460,11 @@ async def proxy_live_disconnect():
     from csrf import validate_csrf_token
 
     token = request.headers.get("X-CSRF-Token") or request.args.get("csrf_token")
+    if not token and request.mimetype == "application/x-www-form-urlencoded":
+        # Unload beacons (sendBeacon) can't set headers, so player.js puts
+        # the token in a form-urlencoded body instead of the query string
+        # (keeps per-session tokens out of access logs).
+        token = (await request.form).get("csrf_token")
     if not await validate_csrf_token(token):
         return Response("CSRF token validation failed", status=403)
 
@@ -461,8 +481,22 @@ async def proxy_live_disconnect():
     if url:
         if isinstance(url, bytes):
             url = url.decode()
-        if url in live_manager.streams:
-            live_manager.streams[url].remove_client(client_id, reason="Client Ping")
+        stream = live_manager.streams.get(url)
+        # Only short-circuit when this generation actually owns the cid;
+        # otherwise fall through to the scan (a no-op remove would mask a
+        # stale slot on a rotated generation as success).
+        if stream is not None and client_id in stream.clients:
+            stream.remove_client(client_id, reason="Client Ping")
+            return Response("OK", status=200)
+
+    # Fallback: the redis key is overwritten with a freshly-signed play URL
+    # on every page load, so a delayed beacon can name a cid whose stream
+    # generation no longer matches redis. cids are 128-bit random, hence
+    # globally unique — scan for the owning stream directly instead of
+    # leaving the stale slot to the grace-period reaper.
+    for stream in list(live_manager.streams.values()):
+        if client_id in stream.clients:
+            stream.remove_client(client_id, reason="Client Ping (stale generation)")
             return Response("OK", status=200)
 
     return Response("Stream not found", status=404)

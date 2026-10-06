@@ -340,8 +340,7 @@
             }
         </style>
         <link rel="stylesheet" href="/static/themes/modern/css/ionicons.min.css" />
-        <script src="/static/themes/modern/js/_helpers.js"></script>
-        <script src="/static/opencc-js/opencc.js"></script>
+        <script defer src="/static/themes/modern/js/_helpers.js"></script>
         <script nonce="{{ csp_nonce }}">window.I18N={locale:"{{ locale }}",msgs:{{ i18n_catalog | tojson }}};</script>
     </head>
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
@@ -495,7 +494,7 @@
                 </div>
             </footer>
         </div>
-        <script src="/static/themes/modern/js/themes.js"></script>
+        <script defer src="/static/themes/modern/js/themes.js"></script>
         {% block lowerbody %}{% endblock %}
     </body>
 </html>

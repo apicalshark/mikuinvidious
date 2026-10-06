@@ -370,17 +370,19 @@
     </div>
 
     {% if is_live and live_format == 'hls' %}
-    <script src="/static/vjs/hls.min.js"></script>
+    <script defer src="/static/vjs/hls.min.js"></script>
     {% elif is_live %}
-    <script src="/static/vjs/mpegts.js"></script>
+    <script defer src="/static/vjs/mpegts.js"></script>
     {% endif %}
-    <script src="/static/vjs/dash.min.js"></script>
-    <script src="/static/vjs/media-chrome.js"></script>
+    {% if not is_live %}
+    <script defer src="/static/vjs/dash.min.js"></script>
+    {% endif %}
+    <script defer src="/static/vjs/media-chrome.js"></script>
 
-    <script src="/static/danmakujs/danmaku.min.js"></script>
+    <script defer src="/static/danmakujs/danmaku.min.js"></script>
 
-    <script src="/static/themes/modern/js/player.js"></script>
-    <script src="/static/themes/modern/js/download.js"></script>
+    <script defer src="/static/themes/modern/js/player.js"></script>
+    <script defer src="/static/themes/modern/js/download.js"></script>
 
     <script nonce="{{ csp_nonce }}">
         function updateDownloadDropdown() {

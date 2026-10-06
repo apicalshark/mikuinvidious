@@ -1320,10 +1320,12 @@ async def video_view(vid, idx=0):
         hist_id = getattr(g, "hist_id", None)
         if hist_id:
             hist_key = f"miku_hist_{hist_id}"
-            await appredis.lrem(hist_key, 0, vid)
-            await appredis.lpush(hist_key, vid)
-            await appredis.ltrim(hist_key, 0, 49)
-            await appredis.expire(hist_key, 3600 * 24 * 30)
+            pipe = appredis.pipeline(transaction=False)
+            pipe.lrem(hist_key, 0, vid)
+            pipe.lpush(hist_key, vid)
+            pipe.ltrim(hist_key, 0, 49)
+            pipe.expire(hist_key, 3600 * 24 * 30)
+            await pipe.execute()
     except Exception:
         pass
 

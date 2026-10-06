@@ -144,12 +144,12 @@ async def _is_safe_dash_url_async(url: str) -> bool:
     if not _is_safe_dash_url(url):
         return False
     try:
+        from dns_cache import resolve_host
+
         hostname = urlparse(url).hostname
         if not hostname:
             return False
-        addr_infos = await asyncio.to_thread(
-            socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
-        )
+        addr_infos = await resolve_host(hostname)
         for _, _, _, _, sockaddr in addr_infos:
             ip_obj = ipaddress.ip_address(sockaddr[0])
             if (
@@ -269,8 +269,21 @@ def _paywall_short_circuit(exc: Exception, ep_id) -> dict | None:
     return None
 
 
+# In-flight DASH playurl fetches, keyed (bvid, idx, ep_id, cid). The video
+# page fires a background precache AND the player partial fetches the same
+# playurl ~immediately after; without coalescing every first view costs two
+# upstream playurl calls (double risk-control exposure). Entries live only
+# for the fetch duration — result caching stays in Redis (miku_dash_*).
+_dash_fetch_inflight: dict[tuple, list] = {}
+_dash_fetch_lock = asyncio.Lock()
+
+
 async def video_get_dash_for_qn(vi, idx, ep_id=None, cid=None) -> dict:
     """Fetch canonical DASH play info, returning a ``{"dash":..., "durl":..., "support_formats":...}`` dict.
+
+    Concurrent identical fetches coalesce behind one upstream call
+    (singleflight). Cancellation-safe: a timed-out owner settles waiters
+    with a retryable error instead of leaving them hanging.
 
     Uses :meth:`api.video.Video.get_dash_playurl` (wbi-signed UGC endpoint).
     Falls back to the PGC playurl endpoint (not wbi-signed) when the UGC path
@@ -282,6 +295,55 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None, cid=None) -> dict:
     at all. Pass the known PGC ``cid`` (e.g. from season data) when
     available — it is used for the UGC attempt and PGC params alike.
     """
+    get_bvid = getattr(vi, "get_bvid", None)
+    bvid = get_bvid() if callable(get_bvid) else vi
+    key = (bvid, idx, ep_id, cid)
+
+    fut, owner = await _dash_fetch_join(key)
+    if not owner:
+        return await fut
+
+    try:
+        data = await _video_get_dash_for_qn_uncached(vi, idx, ep_id=ep_id, cid=cid)
+    except asyncio.CancelledError:
+        # wait_for timeouts on the owner must not hang joiners: hand them a
+        # plain error (their own except-Exception paths degrade to the
+        # progressive fallback) and let the cancellation propagate.
+        _dash_fetch_settle(key, ok=False, payload=RuntimeError("dash playurl fetch cancelled"))
+        raise
+    except Exception as e:
+        _dash_fetch_settle(key, ok=False, payload=e)
+        raise
+    _dash_fetch_settle(key, ok=True, payload=data)
+    return data
+
+
+async def _dash_fetch_join(key: tuple):
+    """Register on the in-flight fetch for *key*; returns (future, is_owner)."""
+    async with _dash_fetch_lock:
+        entry = _dash_fetch_inflight.get(key)
+        if entry is None:
+            fut = asyncio.get_running_loop().create_future()
+            _dash_fetch_inflight[key] = [fut, 0]
+            return fut, True
+        entry[1] += 1
+        return entry[0], False
+
+
+def _dash_fetch_settle(key: tuple, ok: bool, payload):
+    """Settle joiners of *key*; no-op when nobody joined (avoids unretrieved-exception noise)."""
+    entry = _dash_fetch_inflight.pop(key, None)
+    if entry is not None:
+        fut, waiters = entry
+        if waiters and not fut.done():
+            if ok:
+                fut.set_result(payload)
+            else:
+                fut.set_exception(payload)
+
+
+async def _video_get_dash_for_qn_uncached(vi, idx, ep_id=None, cid=None) -> dict:
+    """Single upstream DASH play-info fetch (see :func:`video_get_dash_for_qn`)."""
     from api import video
 
     v = vi if isinstance(vi, video.Video) else video.Video(bvid=vi, credential=appcred)
@@ -1354,7 +1416,8 @@ async def proxy_download(vid, idx, qual):
     aurl = audio.get("base_url") or audio.get("baseUrl")
     if not vurl or not aurl:
         return Response("Not Found: track has no URL", status=404)
-    if not await _is_safe_dash_url_async(vurl) or not await _is_safe_dash_url_async(aurl):
+    v_ok, a_ok = await asyncio.gather(_is_safe_dash_url_async(vurl), _is_safe_dash_url_async(aurl))
+    if not v_ok or not a_ok:
         return Response("Forbidden: Invalid proxy target", status=403)
 
     proxy_url = Network.get_proxy()
@@ -1720,8 +1783,10 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         if not urls:
             return Response("Not Found: track has no URL", status=404)
         # Full SSRF check (allowlist + private-IP DNS reject, same bar as
-        # /proxy/video/) before touching any candidate edge.
-        urls = [u for u in urls if await _is_safe_dash_url_async(u)]
+        # /proxy/video/) before touching any candidate edge. Checked
+        # concurrently: sequential awaits cost one DNS RTT per candidate.
+        verdicts = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls))
+        urls = [u for u, ok in zip(urls, verdicts, strict=False) if ok]
         if not urls:
             return Response("Forbidden: Invalid proxy target", status=403)
 
@@ -2099,7 +2164,8 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     aurl = audio.get("base_url") or audio.get("baseUrl")
     if not vurl or not aurl:
         raise RuntimeError("track has no URL")
-    if not await _is_safe_dash_url_async(vurl) or not await _is_safe_dash_url_async(aurl):
+    v_ok, a_ok = await asyncio.gather(_is_safe_dash_url_async(vurl), _is_safe_dash_url_async(aurl))
+    if not v_ok or not a_ok:
         raise RuntimeError("invalid CDN target")
 
     proxy_url = Network.get_proxy()

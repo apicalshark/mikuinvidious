@@ -46,7 +46,21 @@ class LiveStreamManager {
         const vqn = match[2] || "default";
         const pingParams = new URLSearchParams({ room_id: roomId, vqn: vqn, cid: this.clientId });
         const pingUrl = `/proxy/live/disconnect?${pingParams.toString()}`;
-        navigator.sendBeacon(pingUrl);
+        // sendBeacon can't set headers, so the CSRF token goes in the body
+        // (form-urlencoded Blob keeps it out of access logs). Without it the
+        // ping 403s and the slot lingers until the grace-period reaper.
+        const csrfToken =
+          document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") || "";
+        if (csrfToken) {
+          navigator.sendBeacon(
+            pingUrl,
+            new Blob([new URLSearchParams({ csrf_token: csrfToken }).toString()], {
+              type: "application/x-www-form-urlencoded",
+            })
+          );
+        } else {
+          navigator.sendBeacon(pingUrl);
+        }
       }
     };
     window.addEventListener("pagehide", this._pingHandler);

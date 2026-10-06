@@ -90,8 +90,10 @@ class TicketManager:
         try:
             real_ttl = int(expiry_ts) - now
             if real_ttl > 0:
-                await appredis.setex("miku_bili_ticket", real_ttl, ticket)
-                await appredis.setex("miku_bili_ticket_expiry", real_ttl, str(expiry_ts))
+                pipe = appredis.pipeline(transaction=False)
+                pipe.setex("miku_bili_ticket", real_ttl, ticket)
+                pipe.setex("miku_bili_ticket_expiry", real_ttl, str(expiry_ts))
+                await pipe.execute()
         except Exception as e:
             print(f"[Ticket] Error caching ticket in Redis: {e}")
         return ticket, expiry_ts
@@ -107,8 +109,7 @@ class TicketManager:
 
                 # Check Redis cache (a miss/degraded Redis falls through to fetch)
                 try:
-                    cached_ticket = await appredis.get("miku_bili_ticket")
-                    cached_expiry = await appredis.get("miku_bili_ticket_expiry")
+                    cached_ticket, cached_expiry = await appredis.mget("miku_bili_ticket", "miku_bili_ticket_expiry")
                 except Exception:
                     cached_ticket, cached_expiry = None, None
                 if cached_ticket and cached_expiry and now < int(cached_expiry) - 60:
@@ -166,7 +167,7 @@ class Network:
                         trust_env=False,
                         http2=False,
                         timeout=httpx.Timeout(None, connect=15.0, pool=30.0, read=30.0),
-                        limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
+                        limits=httpx.Limits(max_connections=100, max_keepalive_connections=30),
                         follow_redirects=False,
                     )
         return cls._async_client
@@ -398,6 +399,10 @@ async def cache_set(key, payload, ttl_seconds):
 
 
 class SimpleCache:
+    # Per-key in-flight futures so concurrent cache misses coalesce behind
+    # a single upstream render instead of stampeding (thundering herd).
+    _inflight: dict = {}
+
     def cached(self, timeout=300, key_prefix="view/%s"):
         def decorator(f):
             @functools.wraps(f)
@@ -411,14 +416,36 @@ class SimpleCache:
                 if cached_val:
                     return cached_val
 
-                # Otherwise, call the function and cache the result
-                response = await f(*args, **kwargs)
+                # Coalesce concurrent misses on the same key.
+                fut = SimpleCache._inflight.get(cache_key)
+                if fut is None:
+                    loop = asyncio.get_running_loop()
+                    fut = loop.create_future()
+                    SimpleCache._inflight[cache_key] = fut
+                    owner = True
+                else:
+                    owner = False
 
-                # Only cache if it's a successful string response (rendered template)
-                if isinstance(response, str):
-                    await appredis.setex(cache_key, timeout, response)
+                if not owner:
+                    return await fut
 
-                return response
+                try:
+                    # Otherwise, call the function and cache the result
+                    response = await f(*args, **kwargs)
+
+                    # Only cache if it's a successful string response (rendered template)
+                    if isinstance(response, str):
+                        await appredis.setex(cache_key, timeout, response)
+
+                    if not fut.done():
+                        fut.set_result(response)
+                    return response
+                except Exception as e:
+                    if not fut.done():
+                        fut.set_exception(e)
+                    raise
+                finally:
+                    SimpleCache._inflight.pop(cache_key, None)
 
             return decorated_function
 
