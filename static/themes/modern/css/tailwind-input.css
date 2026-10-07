@@ -1,3 +1,44 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss" source(none);
+
+@plugin "@tailwindcss/typography";
+
+/* Restore v3 behavior: pointer cursor on buttons (v4 preflight dropped it) */
+@layer base {
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+}
+
+/* v3 `darkMode: "class"` -> v4 selector-based variant */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Explicit content sources (v4 also auto-detects files not in .gitignore).
+   Paths are relative to this CSS file. */
+@source "../../../../templates/themes/modern/**/*.html";
+@source "../../../../templates/macros.html";
+@source "../js/**/*.js";
+
+@theme {
+  --color-primary: var(--md-sys-color-primary);
+  --color-on-primary: var(--md-sys-color-on-primary);
+  --color-primary-container: var(--md-sys-color-primary-container);
+  --color-on-primary-container: var(--md-sys-color-on-primary-container);
+  --color-secondary: var(--md-sys-color-secondary);
+  --color-on-secondary: var(--md-sys-color-on-secondary);
+  --color-secondary-container: var(--md-sys-color-secondary-container);
+  --color-on-secondary-container: var(--md-sys-color-on-secondary-container);
+  --color-background: var(--md-sys-color-background);
+  --color-on-background: var(--md-sys-color-on-background);
+  --color-surface: var(--md-sys-color-surface);
+  --color-on-surface: var(--md-sys-color-on-surface);
+  --color-surface-variant: var(--md-sys-color-surface-variant);
+  --color-on-surface-variant: var(--md-sys-color-on-surface-variant);
+  --color-outline: var(--md-sys-color-outline);
+  --color-sakura: #fb7299;
+  --color-sakura-dark: #e75480;
+
+  --font-sans:
+    "BlinkMacSystemFont", "-apple-system", "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
+    "Fira Sans", "Droid Sans", "Helvetica Neue", "Helvetica", "Arial", sans-serif;
+}

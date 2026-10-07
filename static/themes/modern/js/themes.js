@@ -104,6 +104,21 @@ addEventListener("storage", function (e) {
   if (e.key === STORAGE_KEY_THEME) setTheme(helpers.storage.get(STORAGE_KEY_THEME));
 });
 
+var _openccPromise = null;
+function ensureOpenCC() {
+  if (window.OpenCC) return Promise.resolve(window.OpenCC);
+  if (_openccPromise) return _openccPromise;
+  _openccPromise = new Promise(function (resolve, reject) {
+    var s = document.createElement("script");
+    s.src = "/static/opencc-js/opencc.js";
+    s.defer = true;
+    s.onload = function () { resolve(window.OpenCC); };
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  return _openccPromise;
+}
+
 // Set preferences on page load
 function initPreferences() {
   const dark_mode_pref_el = document.getElementById("dark_mode_pref");
@@ -115,9 +130,16 @@ function initPreferences() {
     }
   }
 
-  const openccPref = helpers.storage.get("opencc") || getCookie("opencc");
+  const openccPref = (typeof helpers !== "undefined" && helpers.storage.get("opencc")) || getCookie("opencc");
 
   if (openccPref === "1") {
+    ensureOpenCC().then(function () {
+      if (!window.OpenCC) return;
+      initOpenccConvert();
+    }).catch(function () {});
+  }
+
+  function initOpenccConvert() {
     const converter = OpenCC.Converter({ from: "cn", to: "twp" });
 
     const convertNode = (node) => {
@@ -197,10 +219,44 @@ function initPreferences() {
   if (searchOpenccPref === "1") {
     const searchForm = document.querySelector('form[action="/search"]');
     if (searchForm) {
-      const searchBox = document.getElementById("searchbox");
-      const s2sConverter = OpenCC.Converter({ from: "tw", to: "cn" });
-      searchForm.addEventListener("submit", function () {
-        searchBox.value = s2sConverter(searchBox.value);
+      // Kick off the lazy load immediately, but register the handler NOW so
+      // a submit during the load still converts instead of bypassing.
+      var openccReady = ensureOpenCC().catch(function () { return null; });
+      var s2sConverter = null;
+      openccReady.then(function (OC) {
+        if (OC) s2sConverter = OC.Converter({ from: "tw", to: "cn" });
+      });
+      var resubmitting = false;
+      var submitHeld = false;
+      searchForm.addEventListener("submit", function (e) {
+        if (resubmitting) return; // second pass after deferred conversion
+        if (s2sConverter) {
+          var sb = document.getElementById("searchbox");
+          sb.value = s2sConverter(sb.value);
+          return;
+        }
+        // Library still loading: hold this submit, convert on arrival, then
+        // resubmit once. Extra submits while held are dropped (one navigation).
+        e.preventDefault();
+        if (submitHeld) return;
+        submitHeld = true;
+        openccReady.then(function () {
+          resubmitting = true;
+          try {
+            if (s2sConverter) {
+              var sb2 = document.getElementById("searchbox");
+              sb2.value = s2sConverter(sb2.value);
+            }
+            if (typeof searchForm.requestSubmit === "function") {
+              searchForm.requestSubmit();
+            } else {
+              searchForm.submit();
+            }
+          } finally {
+            resubmitting = false;
+            submitHeld = false;
+          }
+        });
       });
     }
   }

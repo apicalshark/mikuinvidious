@@ -34,9 +34,9 @@ PROD_DOMAIN {
         file_server
     }
 
-    # Gzip compress everything EXCEPT media streams
+    # Compress everything EXCEPT media streams (zstd preferred, gzip fallback)
     @notProxy not path /proxy/*
-    encode @notProxy gzip
+    encode @notProxy zstd gzip
 
     # Route everything else through Anubis for bot mitigation
     handle {

@@ -2,6 +2,8 @@ node_modules
 __pycache__
 static/danmakujs
 static/vjs
+# Tailwind build artifact (minified output of `npm run build:css`; never reformat)
+static/themes/modern/css/main.css
 .git
 *.min.js
 *.min.css

@@ -1,10 +1,15 @@
 /* Modern Player Styles for MikuInvidious */
 
 media-controller {
-  --media-primary-color: #ff9fba;
+  --media-primary-color: var(--md-sys-color-on-primary-container);
   --media-range-track-active-background: var(--media-primary-color);
   --media-range-thumb-background: var(--media-primary-color);
-  --media-button-icon-color: #ff9fba;
+  --media-button-icon-color: var(--media-primary-color);
+  /* Pin the native icon box: the vendored `width: var(--media-button-icon-width)`
+     has no fallback, leaving icon sizing to an intrinsic-ratio path that
+     collapses in our stack. rem keeps it unit-clean (1.5rem = stock 24px). */
+  --media-button-icon-width: 1.5rem;
+  --media-button-icon-height: 1.5rem;
   /* --media-time-range-buffered-color: rgba(255, 177, 218, 0.4); */
   /* --media-control-hover-background: rgba(255, 177, 218, 0.1); */
   background: #000;
@@ -87,8 +92,8 @@ media-controller[media-user-inactive] #danmaku-container {
   appearance: none;
   background-color: var(--media-control-background, rgba(20, 20, 30, 0.7));
   border: none;
-  height: 100%;
-  padding: 0 10px;
+  align-self: stretch;
+  padding: 0 0.625rem;
   color: var(--media-button-icon-color);
   cursor: pointer;
   display: flex;

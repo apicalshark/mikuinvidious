@@ -3,13 +3,13 @@
      data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"></div>
 {% for rep in vcomments['replies'] %}
     <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
-        <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
+        <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
             <img loading="lazy"
                  class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
                  src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
                  alt="" />
         </a>
-        <div class="flex-grow space-y-1">
+        <div class="grow space-y-1">
             <div class="flex items-baseline justify-between">
                 <a href="/space/{{ rep['member']['mid'] }}"
                    class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>

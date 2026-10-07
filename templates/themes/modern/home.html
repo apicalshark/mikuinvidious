@@ -4,7 +4,7 @@
     <meta name="referrer" content="never" />
 {% endblock %}
 {% block content %}
-    <div class="mb-10 p-8 bg-surface-variant/30 dark:bg-surface-variant/10 rounded-2xl shadow-sm backdrop-blur-sm">
+    <div class="mb-10 p-8 bg-surface dark:bg-background rounded-2xl shadow-xs backdrop-blur-xs">
         <h1 class="text-3xl font-bold mb-4 text-on-surface tracking-tight">
             {{ _('Hey, this is MikuInvidious!') }}<small class="text-lg font-normal text-on-surface-variant block sm:inline ml-0 sm:ml-3 opacity-80">{{ _('MikuInvidious is a free Bilibili frontend.') }}</small>
         </h1>
@@ -19,7 +19,7 @@
                 </p>
             </div>
         </div>
-        <hr class="my-10 border-none h-px bg-gradient-to-r from-transparent via-surface-variant/30 to-transparent" />
+        <hr class="my-10 border-none h-px bg-linear-to-r from-transparent via-surface-variant/30 to-transparent" />
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {% for v in videos %}
                 <div class="group bg-surface dark:bg-surface-variant/20 rounded-2xl overflow-hidden hover:bg-surface-variant/30 flex flex-col transition-all duration-300 hover:shadow-[0_0_20px_rgba(156,65,116,0.15)] dark:hover:shadow-[0_0_20px_rgba(255,177,218,0.1)] hover:-translate-y-1">
@@ -30,14 +30,14 @@
                              class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                              src="{{ (v['pic'] + "@320w_180h.webp" if v['duration'] == 'LIVE' else v['pic'] + "@320w")|pic }}"
                              alt="" />
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                         </div>
-                        <p class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg font-medium shadow-sm">
+                        <p class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg font-medium shadow-xs">
                             {{ v['duration'] }}
                         </p>
                     </a>
                     <!-- Content -->
-                    <div class="p-4 flex flex-col flex-grow">
+                    <div class="p-4 flex flex-col grow">
                         <a href="{% if v['duration'] == 'LIVE' %}/live/{{ v['room_id'] }}{% else %}/video/{{ v['bvid'] }}{% endif %}"
                            class="block mb-3">
                             <p dir="auto"

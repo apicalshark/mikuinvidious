@@ -33,10 +33,15 @@ def main():
 
     # Granian handles the event loop (uvloop) and ASGI interface natively.
     # We use the string target "app:app" to allow potential multi-worker support.
+    # NOTE: download jobs live in process memory (dash_proxy._download_jobs),
+    # so workers must stay 1 — without sticky sessions, status/cancel/file
+    # requests land on a worker that never saw the job (404/409). Revisit
+    # only with shared job storage or guaranteed worker affinity.
     server = Granian(
         "app:app",
         address=host,
         port=port,
+        workers=1,
         interface=Interfaces.ASGI,
         loop=Loops.uvloop,
         task_impl=TaskImpl.asyncio,

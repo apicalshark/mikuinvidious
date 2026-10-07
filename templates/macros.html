@@ -72,15 +72,15 @@
         <!-- Volume Menu Layer -->
         <div id="volume-menu"
              class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-left z-50 p-2 rounded-xl shadow-2xl border border-white/10 bg-[#181818] pointer-events-auto flex items-center min-w-[160px]">
-            <media-mute-button media-controller="miku-player" class="bg-transparent hover:bg-white/10 rounded-lg transition-colors scale-90"></media-mute-button>
-            <media-volume-range class="flex-grow mr-2" media-controller="miku-player"></media-volume-range>
+            <media-mute-button media-controller="miku-player" class="bg-transparent hover:bg-white/10 rounded-lg transition-colors scale-90 w-11 p-2.5"></media-mute-button>
+            <media-volume-range class="grow mr-2" media-controller="miku-player"></media-volume-range>
         </div>
         <media-loading-indicator slot="centered-chrome" no-auto-hide class="w-16 h-12 z-20"></media-loading-indicator>
         <!-- Autoplay Unlock Overlay -->
         <div id="autoplay-overlay"
-             class="absolute inset-0 z-[40] flex items-center justify-center bg-black/40 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
+             class="absolute inset-0 z-[40] flex items-center justify-center bg-black/40 backdrop-blur-xs opacity-0 pointer-events-none transition-opacity duration-300">
             <button id="autoplay-unlock-btn"
-                    class="md3-button md3-button-filled !h-14 !px-8 !rounded-2xl shadow-2xl">
+                    class="md3-button md3-button-filled h-14! px-8! rounded-2xl! shadow-2xl">
                 <i class="icon ion-md-play text-xl"></i>
                 <div class="text-left">
                     <p class="font-bold text-sm leading-tight">{{ _('Click to play') }}</p>
@@ -90,34 +90,34 @@
         </div>
         <!-- Control Bar -->
         <media-control-bar class="w-full z-30">
-            <media-play-button></media-play-button>
+            <media-play-button class="w-11 p-2.5"></media-play-button>
             {% if not is_live %}
-                <media-seek-backward-button seekoffset="5"></media-seek-backward-button>
-                <media-seek-forward-button seekoffset="5"></media-seek-forward-button>
+                <media-seek-backward-button seekoffset="5" class="w-11 p-2.5"></media-seek-backward-button>
+                <media-seek-forward-button seekoffset="5" class="w-11 p-2.5"></media-seek-forward-button>
             {% endif %}
-            <button id="volume-btn" title="{{ _('Volume') }}" class="miku-control-btn">
+            <button id="volume-btn" title="{{ _('Volume') }}" class="miku-control-btn w-11">
                 <i class="icon ion-md-volume-high"></i>
             </button>
             {% if is_live %}
                 <!-- Live Indicator -->
-                <div class="miku-control-btn gap-2 pointer-events-none flex-grow">
+                <div class="miku-control-btn gap-2 pointer-events-none grow">
                     <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-[#FFB1DA]">{{ _('LIVE') }}</span>
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-on-primary-container">{{ _('LIVE') }}</span>
                 </div>
             {% else %}
                 <media-time-range></media-time-range>
                 <media-time-display showduration class="text-xs"></media-time-display>
             {% endif %}
             <!-- Custom buttons -->
-            <button id="danmaku-toggle" title="{{ _('Toggle danmaku') }}" class="miku-control-btn">
+            <button id="danmaku-toggle" title="{{ _('Toggle danmaku') }}" class="miku-control-btn w-11">
                 <i class="icon ion-md-easel"></i>
             </button>
-            {% if not is_live and subtitles %}<media-captions-button></media-captions-button>{% endif %}
-            <button id="quality-btn" title="{{ _('Switch resolution') }}" class="miku-control-btn px-2">
+            {% if not is_live and subtitles %}<media-captions-button class="w-11 p-2.5"></media-captions-button>{% endif %}
+            <button id="quality-btn" title="{{ _('Switch resolution') }}" class="miku-control-btn w-11">
                 <i class="icon ion-md-settings"></i>
             </button>
-            {% if not is_live %}<media-playback-rate-button></media-playback-rate-button>{% endif %}
-            <media-fullscreen-button></media-fullscreen-button>
+            {% if not is_live %}<media-playback-rate-button class="w-11 p-2.5"></media-playback-rate-button>{% endif %}
+            <media-fullscreen-button class="w-11 p-2.5"></media-fullscreen-button>
         </media-control-bar>
         </media-controller>
         <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }}; window.is_dash = {{ 'true' if is_dash else 'false' }}; window.dash_url = {{ dash_url | tojson }};</script>

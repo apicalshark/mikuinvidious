@@ -12,7 +12,7 @@
 {% block content %}
     <div class="max-w-4xl mx-auto">
         <!-- Article Header -->
-        <div class="bg-surface dark:bg-surface-variant/20 rounded-t-3xl p-8 md:p-12 pb-6 space-y-6 shadow-sm  mb-px">
+        <div class="bg-surface dark:bg-surface-variant/20 rounded-t-3xl p-8 md:p-12 pb-6 space-y-6 shadow-xs  mb-px">
             <h1 class="text-3xl md:text-4xl font-bold text-on-surface leading-tight tracking-tight">{{ arinfo['title'] }}</h1>
             <div class="flex flex-wrap items-center justify-between gap-6 border-b border-surface-variant/20 pb-6">
                 <a href="/space/{{ arinfo['author']['mid'] }}"
@@ -45,7 +45,7 @@
             </div>
         </div>
         <!-- Article Content -->
-        <div class="bg-surface dark:bg-surface-variant/10 rounded-b-3xl p-8 md:p-12 shadow-sm ">
+        <div class="bg-surface dark:bg-surface-variant/10 rounded-b-3xl p-8 md:p-12 shadow-xs ">
             <article class="prose prose-lg dark:prose-invert max-w-none prose-headings:font-bold prose-headings:text-on-surface prose-p:text-on-surface-variant prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-img:rounded-xl prose-img:shadow-md prose-img:mx-auto prose-blockquote:border-l-primary prose-blockquote:bg-surface-variant/10 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg ">
                 {{ article_content|safe }}
             </article>

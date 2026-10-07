@@ -5,13 +5,13 @@
     {% if sub_comments['replies'] %}
         {% for rep in sub_comments['replies'] %}
             <div class="flex gap-3 group" data-rpid="{{ rep['rpid'] }}">
-                <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
+                <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
                     <img loading="lazy"
                          class="w-7 h-7 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
                          src="{{ (rep['member']['avatar'] + '@32w_32h.webp')|pic }}"
                          alt="" />
                 </a>
-                <div class="flex-grow space-y-0.5">
+                <div class="grow space-y-0.5">
                     <div class="flex items-baseline gap-2">
                         <a href="/space/{{ rep['member']['mid'] }}"
                            class="font-semibold text-xs text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>

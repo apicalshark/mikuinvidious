@@ -209,6 +209,7 @@ class LiveStream:
 
                         # Process & Broadcast
                         self.metrics["bytes_received"] += len(chunk)
+                        self.metrics["chunks_received"] += 1
                         self.metrics["last_chunk_time"] = time.time()
                         self._parse_flv_tags(chunk)
                         self.chunk_buffer.append(chunk)
