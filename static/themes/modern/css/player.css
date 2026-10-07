@@ -1,7 +1,9 @@
 /* Modern Player Styles for MikuInvidious */
 
 media-controller {
-  --media-primary-color: var(--md-sys-color-on-primary-container);
+  /* Player chrome sticks to dark-mode styling in both page themes: the
+     player surface is always black, so accents stay sakura. */
+  --media-primary-color: var(--color-sakura-light, #ff9fba);
   --media-range-track-active-background: var(--media-primary-color);
   --media-range-thumb-background: var(--media-primary-color);
   --media-button-icon-color: var(--media-primary-color);

@@ -36,6 +36,7 @@
   --color-on-surface-variant: var(--md-sys-color-on-surface-variant);
   --color-outline: var(--md-sys-color-outline);
   --color-sakura: #fb7299;
+  --color-sakura-light: #ff9fba;
   --color-sakura-dark: #e75480;
 
   --font-sans:
