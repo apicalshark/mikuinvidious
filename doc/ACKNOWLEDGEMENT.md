@@ -6,6 +6,7 @@ MikuInvidious relies on the collective wisdom and reverse-engineering efforts of
 
 - **[SocialSisterYi/bilibili-API-collect](https://github.com/SocialSisterYi/bilibili-API-collect)**: The foundational resource for Bilibili API documentation. Although the original repository has been archived, its legacy continues to power almost all third-party Bilibili tools.
 - **[warterbili/-bilibili-](https://github.com/warterbili/-bilibili-)**: For providing comprehensive reverse-engineering records, Frida scripts, and deep insights into the `x-bili-ticket` mechanism, gRPC protocols, and App-specific signing algorithms.
+- **[InfinityLoop1308/PipePipe](https://github.com/InfinityLoop1308/PipePipe)**: An open-source Android app to browse YouTube, NicoNico and BiliBili freely — a NewPipe fork with Bilibili support, SponsorBlock, danmaku/live chats, and a privacy-first, no-account-needed experience that shares our goals. MikuInvidious is essentially a Python web version of PipePipe's Bilibili experience.
 
 ## Libraries & Tools
 
