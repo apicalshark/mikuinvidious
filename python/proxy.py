@@ -169,9 +169,9 @@ async def render_proxy_pic(req_path):
                 status=resp.status_code,
                 content_type=content_type,
             )
-            upstream_length = resp.headers.get("content-length")
-            if upstream_length and upstream_length.isdigit():
-                proxy_resp.headers["Content-Length"] = upstream_length
+            # Do not forward upstream Content-Length: _stream_body() yields
+            # decoded bytes via aiter_bytes() (gzip/deflate/br transparently
+            # decompressed), so the encoded length can disagree with bytes sent.
             proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
             return proxy_resp
         except Exception as e:
