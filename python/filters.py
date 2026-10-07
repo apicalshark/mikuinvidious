@@ -24,19 +24,33 @@ from shared import app
 # NOTE: locale-aware formatting comes later; ISO-like default keeps PO msgids stable.
 @app.template_filter("date")
 def _jinja2_filter_datetime(ts, fmt="%Y-%m-%d %H:%M"):
-    return datetime.fromtimestamp(ts).strftime(fmt)
+    # Live rooms (offline / risk-controlled) and other endpoints can yield
+    # None/0/"" for timestamps. Never 500 the page on a bad date — render
+    # an empty string instead (e.g. /live/1838245893 with no live_start_time).
+    if ts is None or ts == "" or ts == 0:
+        return ""
+    try:
+        return datetime.fromtimestamp(float(ts)).strftime(fmt)
+    except (ValueError, TypeError, OverflowError, OSError):
+        return ""
 
 
 # Convert a integer to the one with separator like 1,000,000.
 @app.template_filter("intsep")
 def _jinja2_filter_intsep(i):
-    return f"{int(i):,}"
+    try:
+        return f"{int(i):,}"
+    except (ValueError, TypeError):
+        return "0"
 
 
 # Convert a duration in seconds to human readable duration.
 @app.template_filter("secdur")
 def __jinja2_filter_secdur(delta_t):
-    return str(timedelta(seconds=int(delta_t)))
+    try:
+        return str(timedelta(seconds=int(delta_t)))
+    except (ValueError, TypeError):
+        return "0:00:00"
 
 
 # Convert a url of a photo asset to MikuInvidious proxy url.

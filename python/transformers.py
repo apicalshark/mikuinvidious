@@ -19,6 +19,24 @@ import html
 import re
 
 
+def strip_search_highlight(text):
+    """Remove Bilibili search keyword highlight tags.
+
+    The search API wraps matched keywords in ``<em class="keyword">…</em>``,
+    with quote/attribute variants seen in the wild (single quotes, extra
+    attrs). Exact-string replaces miss those and the raw tag leaks into
+    cards (e.g. live search for 原神 showing ``<em class="keyword">原神</em>``).
+    Strip any ``<em …>`` / ``</em>`` robustly; non-strings pass through as "".
+    """
+    if text is None:
+        return ""
+    if not isinstance(text, str):
+        text = str(text)
+    if not text:
+        return ""
+    return re.sub(r"</?em[^>]*>", "", text)
+
+
 def format_description(raw_desc):
     """Escapes HTML and formats newlines into paragraphs/breaks."""
     if not raw_desc:
@@ -49,14 +67,26 @@ def transform_video_card(data):
 
         return {
             "bvid": bvid,
-            "title": data.get("title", "").replace('<em class="keyword">', "").replace("</em>", ""),
+            "title": strip_search_highlight(data.get("title", "")),
             "pic": data.get("pic", "") or data.get("cover", ""),
             "duration": format_duration(data.get("duration") or data.get("length")),
-            "author": data.get("owner", {}).get("name") or data.get("author") or data.get("upname", "Unknown"),
+            "author": strip_search_highlight(data.get("owner", {}).get("name") or data.get("author") or data.get("upname", "Unknown")),
             "author_id": data.get("owner", {}).get("mid") or data.get("mid") or data.get("upmid", 0),
             "views": data.get("stat", {}).get("view") or data.get("play") or 0,
             "danmaku": data.get("stat", {}).get("danmaku") or data.get("video_review") or 0,
             "published": data.get("pubdate") or data.get("created") or 0,
+            # Category label (mirrors live cards' area_name) + raw tag list
+            # from the video search API (`typename` e.g. 手机游戏, `tag` is a
+            # comma-separated string e.g. "原神,二次元,...").
+            "typename": strip_search_highlight(data.get("typename") or data.get("tname") or ""),
+            "tags": [
+                t
+                for t in (
+                    strip_search_highlight(x.strip())
+                    for x in str(data.get("tag") or "").split(",")
+                )
+                if t
+            ],
         }
     except Exception:
         return None
@@ -101,13 +131,13 @@ def transform_live_card(data):
     try:
         # Normalize keys
         room_id = data.get("roomid") or data.get("room_id")
-        title = data.get("title", "").replace('<em class="keyword">', "").replace("</em>", "")
+        title = strip_search_highlight(data.get("title", ""))
         pic = data.get("cover") or data.get("user_cover") or data.get("system_cover")
-        uname = data.get("uname") or data.get("name")
+        uname = strip_search_highlight(data.get("uname") or data.get("name") or "")
         face = data.get("face") or data.get("uface")
         uid = data.get("uid") or data.get("mid")
         online = data.get("online") or data.get("watched_show", {}).get("num") or 0
-        area_name = data.get("area_name") or data.get("cate_name")
+        area_name = strip_search_highlight(data.get("area_name") or data.get("cate_name") or "")
 
         return {
             "bvid": room_id,  # Compatibility with home.html
@@ -144,6 +174,13 @@ def transform_live_room(data):
     raw_desc = room_info.get("description", "") or ""
 
     face = base_info.get("face") or data.get("face") or room_info.get("face") or ""
+    # live_start_time / live_time may be None (offline room), 0, or a
+    # numeric string — normalize to int/None so the `date` filter never 500s.
+    _raw_start = room_info.get("live_start_time") or room_info.get("live_time")
+    try:
+        start_time = int(_raw_start) if _raw_start else None
+    except (ValueError, TypeError):
+        start_time = None
     pic = (
         room_info.get("cover")
         or room_info.get("cover_from_user")
@@ -164,7 +201,7 @@ def transform_live_room(data):
         "area_name": room_info.get("area_name"),
         "parent_area_name": room_info.get("parent_area_name"),
         "live_status": room_info.get("live_status"),  # 1: Live, 0: Offline
-        "start_time": room_info.get("live_start_time") or room_info.get("live_time"),
+        "start_time": start_time,
         "uname": base_info.get("uname") or room_info.get("uname"),
         "face": face,
         "uid": room_info.get("uid"),
@@ -174,7 +211,7 @@ def transform_live_room(data):
 def transform_article_card(data):
     """Standardizes article objects for grid displays."""
     try:
-        title = data.get("title", "").replace('<em class="keyword">', "").replace("</em>", "")
+        title = strip_search_highlight(data.get("title", ""))
         return {
             "id": data.get("id"),
             "title": title,
@@ -191,7 +228,7 @@ def transform_article_card(data):
 def transform_user_card(data):
     """Standardizes user search results."""
     try:
-        uname = data.get("uname", "").replace('<em class="keyword">', "").replace("</em>", "")
+        uname = strip_search_highlight(data.get("uname", ""))
         return {
             "mid": data.get("mid"),
             "uname": uname,

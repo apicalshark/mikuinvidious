@@ -18,9 +18,7 @@
 {% block content %}
     <!-- Profile Header -->
     <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-10 mb-8 shadow-xs relative overflow-hidden ">
-        <!-- Decorative Background/Pattern could go here -->
-        <div class="absolute top-0 left-0 w-full h-32 bg-linear-to-r from-primary/10 to-secondary/10"></div>
-        <div class="relative flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 pt-10 md:pt-4">
+        <div class="relative flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
             <!-- Avatar -->
             <div class="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface shadow-md overflow-hidden shrink-0 bg-surface">
                 <img src="{{ (uinfo['face'] + "@160w_160h.webp")|pic }}"
@@ -33,7 +31,7 @@
                     <h1 class="text-3xl font-bold text-on-surface">{{ uinfo['name'] }}</h1>
                     <p class="text-sm font-mono text-on-surface-variant opacity-70">MID: {{ uinfo['mid'] }}</p>
                 </div>
-                <div class="bg-surface-variant/20 rounded-xl p-4 text-on-surface-variant text-sm  leading-relaxed max-w-3xl">
+                <div class="text-on-surface-variant text-sm leading-relaxed max-w-3xl">
                     {{ uinfo['sign'] or _("This user has no bio yet.") }}
                 </div>
                 <!-- Actions -->

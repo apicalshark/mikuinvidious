@@ -55,6 +55,8 @@
                         </p>
                         {% if is_live %}
                             <span class="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded animate-pulse">LIVE</span>
+                        {% elif v.get('typename') %}
+                            <span class="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-1.5 py-0.5 rounded">{{ v['typename'] }}</span>
                         {% endif %}
                     </a>
                     <!-- Content -->

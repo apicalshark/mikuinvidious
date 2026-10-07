@@ -101,10 +101,16 @@
                                 <i class="icon ion-md-share text-lg"></i> {{ vinfo['stat']['share']|intsep }}
                             </div>
                         {% endif %}
-                        <div class="ml-auto flex items-center gap-1.5">
+                        <div class="ml-auto flex flex-wrap items-center justify-end gap-1.5">
                             <i class="icon ion-ios-pricetag"></i>
                             <a href="/vv/{{ vinfo['tid'] }}"
                                class="hover:text-primary transition-colors">{{ vinfo['tname'] }}</a>
+                            {% for t in (vtags|default([]))[:10] %}
+                                {% if t.get('tag_name') %}
+                                    <a href="/search?q={{ t['tag_name']|urlencode }}"
+                                       class="px-2 py-0.5 rounded-full bg-surface-variant/30 text-xs text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors">{{ t['tag_name'] }}</a>
+                                {% endif %}
+                            {% endfor %}
                         </div>
                     </div>
 
