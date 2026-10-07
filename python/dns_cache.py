@@ -13,17 +13,16 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-"""Tiny TTL cache for ``getaddrinfo`` used by the SSRF guards.
+"""Tiny TTL cache for ``getaddrinfo`` used by the DASH SSRF guard.
 
-Both ``proxy.is_safe_proxy_url`` and ``dash_proxy._is_safe_dash_url_async``
-resolve the target hostname on *every* request just to reject private IPs.
+``dash_proxy._is_safe_dash_url_async`` resolves target hostnames to reject private IPs.
 Uncached lookups cost 50ms-1s (measured ~1s for some ``*.bilivideo.com``
 edges) and run on the DASH critical path once per candidate URL.
 
-Caching does not weaken the guard: the check was already time-of-check
-versus httpx's own time-of-use resolution, and entries expire after
-``DNS_CACHE_TTL`` seconds (default 120s). Concurrent misses for the same
-hostname coalesce behind one lookup (singleflight).
+Entries expire after ``DNS_CACHE_TTL`` seconds (default 120s). Concurrent
+misses for the same hostname coalesce behind one lookup (singleflight).
+``proxy.is_safe_proxy_url`` bypasses this cache so each approval checks a
+fresh resolution. Neither path pins the connection to the checked address.
 """
 
 import asyncio

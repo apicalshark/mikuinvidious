@@ -247,7 +247,11 @@ function initPreferences() {
               var sb2 = document.getElementById("searchbox");
               sb2.value = s2sConverter(sb2.value);
             }
-            searchForm.requestSubmit();
+            if (typeof searchForm.requestSubmit === "function") {
+              searchForm.requestSubmit();
+            } else {
+              searchForm.submit();
+            }
           } finally {
             resubmitting = false;
             submitHeld = false;

@@ -78,14 +78,14 @@ async def is_safe_proxy_url(url: str) -> bool:
         if not any(hostname == d.lstrip(".") or hostname.endswith(d) for d in allowed_domains):
             return False
 
-        # Resolve and check IP (both IPv4 and IPv6). Hostname lookups are
-        # cached (dns_cache, 120s TTL) — uncached edges cost up to ~1s.
+        # Resolve afresh for each approval so stale cache entries cannot hide
+        # a change to private addresses. Check both IPv4 and IPv6.
         import socket
 
-        from dns_cache import resolve_host
-
         try:
-            addr_infos = await resolve_host(hostname)
+            addr_infos = await asyncio.to_thread(
+                socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
+            )
             for family, _, _, _, sockaddr in addr_infos:
                 ip = sockaddr[0]
                 ip_obj = ipaddress.ip_address(ip)
