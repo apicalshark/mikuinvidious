@@ -5,14 +5,14 @@
 {% block content %}
     <div class="flex flex-col md:flex-row gap-8 mb-12">
         <!-- Cover -->
-        <div class="w-full md:w-64 flex-shrink-0">
+        <div class="w-full md:w-64 shrink-0">
             <div class="aspect-[3/4] rounded-2xl overflow-hidden shadow-xl">
                 <img src="{{ meta['cover']|pic }}" class="w-full h-full object-cover" alt="{{ meta['title'] }}" fetchpriority="high" decoding="async" />
             </div>
         </div>
         
         <!-- Info -->
-        <div class="flex-grow">
+        <div class="grow">
             <h1 class="text-4xl font-bold text-on-surface mb-2">{{ meta['title'] }}</h1>
             <div class="flex flex-wrap gap-2 mb-6">
                 {% for area in meta['areas'] %}
@@ -43,15 +43,15 @@
                     <div class="group bg-surface-variant/10 hover:bg-surface-variant/20 rounded-xl transition-colors duration-300">
                         <!-- Header (Always Visible) -->
                         <div class="p-3 flex items-center gap-4 cursor-pointer">
-                            <a href="/bangumi/play/ep{{ ep['ep_id'] }}" class="md3-button md3-button-filled !h-9 !px-4 !min-w-[3.5rem] !rounded-lg !text-sm">
+                            <a href="/bangumi/play/ep{{ ep['ep_id'] }}" class="md3-button md3-button-filled h-9! px-4! min-w-[3.5rem]! rounded-lg! text-sm!">
                                 {{ ep['title'] }}
                             </a>
-                            <div class="min-w-0 flex-grow">
+                            <div class="min-w-0 grow">
                                 <p class="font-bold text-on-surface text-sm truncate">{{ ep['long_title'] or (_('Episode ') ~ ep['title']) }}</p>
                                 <p class="text-[9px] text-on-surface-variant opacity-50 uppercase tracking-tighter">BVID: {{ ep['bvid'] }}</p>
                             </div>
                             <!-- Nyaa Placeholder for this episode -->
-                            <div id="ep-nyaa-{{ ep['title'] }}" class="hidden ep-nyaa-container flex-shrink-0">
+                            <div id="ep-nyaa-{{ ep['title'] }}" class="hidden ep-nyaa-container shrink-0">
                                 <i class="icon ion-md-magnet text-primary animate-pulse"></i>
                             </div>
                         </div>
@@ -115,13 +115,13 @@
                                     <a href="${t.magnet}" 
                                        class="w-full p-2 bg-black/5 dark:bg-white/5 hover:bg-primary/10 text-on-surface rounded-lg text-[11px] transition-all flex items-center justify-between group/torrent text-left"
                                        title="${t.title}">
-                                        <span class="truncate pr-4 flex-grow opacity-80 group-hover/torrent:opacity-100"><i class="icon ion-md-magnet text-primary mr-1 opacity-70"></i>${t.title}</span>
-                                        <div class="flex-shrink-0 flex items-center gap-3">
+                                        <span class="truncate pr-4 grow opacity-80 group-hover/torrent:opacity-100"><i class="icon ion-md-magnet text-primary mr-1 opacity-70"></i>${t.title}</span>
+                                        <div class="shrink-0 flex items-center gap-3">
                                             <div class="flex gap-2 text-[9px] font-mono">
                                                 <span class="flex items-center gap-0.5 text-green-600/80 dark:text-green-400/80"><i class="icon ion-md-arrow-up"></i>${t.seeders}</span>
                                                 <span class="flex items-center gap-0.5 text-red-600/80 dark:text-red-400/80"><i class="icon ion-md-arrow-down"></i>${t.leechers}</span>
                                             </div>
-                                            <span class="flex-shrink-0 font-mono text-[10px] opacity-40 group-hover/torrent:opacity-100">${t.size}</span>
+                                            <span class="shrink-0 font-mono text-[10px] opacity-40 group-hover/torrent:opacity-100">${t.size}</span>
                                         </div>
                                     </a>`;
                             });

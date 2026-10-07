@@ -53,7 +53,7 @@
         <div class="lg:col-span-3 space-y-6">
 
             <!-- Player Card -->
-            <div class="bg-surface dark:bg-surface-variant/10 md:rounded-2xl rounded-none overflow-hidden shadow-sm">
+            <div class="bg-surface dark:bg-background md:rounded-2xl rounded-none overflow-hidden shadow-xs">
                 <!-- Player Wrapper: Force Dark Background -->
                 <div id="player-placeholder-wrapper">{{ video_player(vid, vinfo, idx, supported_src, is_live) }}</div>
 
@@ -168,7 +168,7 @@
             <!-- Comments -->
             {% if not is_live %}
                 <div id="comments-loader-container">
-                    <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm">
+                    <div class="bg-surface dark:bg-background rounded-2xl p-4 md:p-6 shadow-xs">
                         <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
                             <i class="icon ion-ios-chatbubbles"></i>
                             {{ _('Comments') }} ({{ vcomments['page']['count'] }})
@@ -178,13 +178,13 @@
                             {% if vcomments['replies'] %}
                                 {% for rep in vcomments['replies'] %}
                                     <div class="flex gap-4 group">
-                                        <a href="/space/{{ rep['member']['mid'] }}" class="flex-shrink-0">
+                                        <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
                                             <img loading="lazy"
                                                  class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
                                                  src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
                                                  alt="" />
                                         </a>
-                                        <div class="flex-grow space-y-1">
+                                        <div class="grow space-y-1">
                                             <div class="flex items-baseline justify-between">
                                                 <a href="/space/{{ rep['member']['mid'] }}"
                                                    class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
@@ -216,19 +216,19 @@
             {% if is_live %}
                 <!-- Live Chat Box -->
                 <!-- UPDATED: Fixed height (h-500px), shrink-0 header, break-words handling -->
-                <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl shadow-sm flex flex-col h-[80svh] border-[3px] border-[#fb7299] sticky top-6 overflow-hidden z-10">
+                <div class="bg-surface dark:bg-background rounded-2xl shadow-xs flex flex-col h-[80svh] border-[3px] border-primary sticky top-6 overflow-hidden z-10">
                     <!-- Header: shrink-0 added so it doesn't collapse -->
-                    <div class="shrink-0 p-3 border-b border-[#fb7299]/30 flex items-center justify-between bg-surface dark:bg-black/10"
+                    <div class="shrink-0 p-3 border-b border-primary/30 flex items-center justify-between bg-surface dark:bg-black/10"
                          title="{{ _('Live chat') }}">
                         <h3 class="font-bold text-on-surface flex items-center gap-2 uppercase text-base tracking-wider">
-                            <i class="icon ion-md-chatbubbles text-[#fb7299]"></i>
+                            <i class="icon ion-md-chatbubbles text-primary"></i>
                             {{ _('Live chat') }}
                         </h3>
                         <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
                     </div>
                     <!-- Messages Area: break-words break-all added -->
                     <div id="live-chat-container"
-                         class="flex-grow overflow-y-auto p-2 text-[13px] leading-relaxed custom-scrollbar bg-black/5 break-words break-all">
+                         class="grow overflow-y-auto p-2 text-[13px] leading-relaxed custom-scrollbar bg-black/5 break-words break-all">
                         <!-- Messages append here -->
                         <p class="text-on-surface-variant/50 text-center py-4 italic">{{ _('Connecting to chat...') }}</p>
                     </div>
@@ -301,7 +301,7 @@
 
             <!-- Playlist / Parts -->
             {% if vset|length > 1 and not is_live %}
-                <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
+                <div class="bg-surface dark:bg-background rounded-2xl p-4 shadow-xs">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="font-bold text-on-surface">{{ _('Episodes') }} ({{ vset|length }})</h3>
                         <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary transition-colors">
@@ -317,7 +317,7 @@
                             <a href="/video/{{ vid }}:{{ v['page']-1 }}"
                                class="flex gap-3 p-2 rounded-lg hover:bg-surface-variant/20 transition-colors {{ 'bg-primary/10' if idx == (v['page']-1) else '' }}">
                                 {% if v['first_frame'] %}
-                                    <div class="w-24 h-14 flex-shrink-0 relative rounded overflow-hidden">
+                                    <div class="w-24 h-14 shrink-0 relative rounded overflow-hidden">
                                         <img loading="lazy"
                                              class="w-full h-full object-cover"
                                              src="{{ "{}@320w".format(v['first_frame']) |pic }}"
@@ -325,7 +325,7 @@
                                         <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded">{{ v['duration']|secdur }}</span>
                                     </div>
                                 {% endif %}
-                                <div class="flex-grow min-w-0 flex flex-col justify-center">
+                                <div class="grow min-w-0 flex flex-col justify-center">
                                     <p class="text-sm font-medium text-on-surface truncate line-clamp-2 leading-tight {{ 'text-primary' if idx == (v['page']-1) else '' }}">
                                         P{{ v['page'] }} {{ v['part'] }}
                                     </p>
@@ -337,21 +337,21 @@
             {% endif %}
 
             <!-- Recommendations -->
-            <div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 shadow-sm">
+            <div class="bg-surface dark:bg-background rounded-2xl p-4 shadow-xs">
                 <h3 class="font-bold text-on-surface mb-4">{{ _('Recommended') }}</h3>
                 <div class="space-y-4">
                     {% for rv in vrelated %}
                         {% set rv_link = '/bangumi/play/' + rv['bvid'] if rv['bvid'].startswith('ep') else '/video/' + rv['bvid'] %}
                         <a href="{{ rv_link }}"
                            class="flex flex-col sm:flex-row gap-3 group">
-                            <div class="w-full sm:w-36 aspect-video flex-shrink-0 relative rounded-lg overflow-hidden">
+                            <div class="w-full sm:w-36 aspect-video shrink-0 relative rounded-lg overflow-hidden">
                                 <img loading="lazy"
                                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                      src="{{ "{}@320w".format(rv['pic']) |pic }}"
                                      alt="" />
-                                <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded shadow-sm">{{ rv['duration']|secdur }}</span>
+                                <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded shadow-xs">{{ rv['duration']|secdur }}</span>
                             </div>
-                            <div class="flex-grow min-w-0 py-0.5">
+                            <div class="grow min-w-0 py-0.5">
                                 <p class="text-sm font-bold text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors"
                                    title="{{ rv['title'] }}">{{ rv['title'] }}</p>
                                 <div class="mt-1 flex items-center gap-2 text-xs text-on-surface-variant">
@@ -442,7 +442,7 @@
                         console.error('[comments] fetch failed:', err);
                         const container = document.getElementById('comments-loader-container');
                         if (container) {
-                            container.innerHTML = '<div class="bg-surface dark:bg-surface-variant/10 rounded-2xl p-4 md:p-6 shadow-sm"><h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2"><i class="icon ion-ios-chatbubbles"></i> {{ _('Comments') }}</h3><p class="text-center text-on-surface-variant py-8">{{ _('Failed to load comments, please try again later') }}</p></div>';
+                            container.innerHTML = '<div class="bg-surface dark:bg-background rounded-2xl p-4 md:p-6 shadow-xs"><h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2"><i class="icon ion-ios-chatbubbles"></i> {{ _('Comments') }}</h3><p class="text-center text-on-surface-variant py-8">{{ _('Failed to load comments, please try again later') }}</p></div>';
                         }
                     });
 
@@ -452,7 +452,7 @@
                     if (!btn) return;
                     const vid = btn.dataset.vid;
                     const root = btn.dataset.root;
-                    const slot = btn.closest('.flex-grow').querySelector('.sub-comment-slot');
+                    const slot = btn.closest('.grow').querySelector('.sub-comment-slot');
                     if (!slot || slot.dataset.loading === '1') return;
                     if (slot.classList.contains('hidden')) { slot.classList.remove('hidden'); return; }
                     if (slot.dataset.loaded) { slot.classList.add('hidden'); return; }

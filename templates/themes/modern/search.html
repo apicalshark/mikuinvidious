@@ -9,13 +9,13 @@
         <div class="flex flex-wrap gap-2">
             <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">{{ _('Search category:') }}</span>
             <a href="/search?q={{ q }}&t=video"
-                class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'video' or not request.args.get('t') else 'md3-button-tonal' }}">{{ _('Videos') }}</a>
+                class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get("t") == 'video' or not request.args.get('t') else 'md3-button-tonal' }}">{{ _('Videos') }}</a>
             <a href="/search?q={{ q }}&t=live"
-                class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'live' else 'md3-button-tonal' }}">{{ _('Live') }}</a>
+                class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get("t") == 'live' else 'md3-button-tonal' }}">{{ _('Live') }}</a>
             <a href="/search?q={{ q }}&t=article"
-                class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'article' else 'md3-button-tonal' }}">{{ _('Articles') }}</a>
+                class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get("t") == 'article' else 'md3-button-tonal' }}">{{ _('Articles') }}</a>
             <a href="/search?q={{ q }}&t=user"
-                class="md3-button {{ 'md3-button-filled' if request.args.get("t") == 'user' else 'md3-button-tonal' }}">{{ _('Creators') }}</a>
+                class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get("t") == 'user' else 'md3-button-tonal' }}">{{ _('Creators') }}</a>
         </div>
         <!-- Sort Tabs -->
         <div class="flex flex-wrap gap-2">
@@ -23,7 +23,7 @@
             {% set sort_opts = [('rank', _('Comprehensive')), ('click', _('Most clicks')), ('pubdate', _('Newest')), ('dm', _('Most danmaku')), ('stow', _('Most favorites')), ('scores', _('Most comments'))] %}
             {% for key, label in sort_opts %}
                 <a href="/search?q={{ q }}&sort={{ key }}&t={{ request.args.get("t") or 'video' }}"
-                   class="md3-button {{ 'md3-button-filled !bg-secondary !text-on-secondary' if sort == key or (not sort and key == 'rank') else 'md3-button-tonal' }}">
+                   class="md3-button rounded-xl! {{ 'md3-button-filled' if sort == key or (not sort and key == 'rank') else 'md3-button-tonal' }}">
                     {{ label }}
                 </a>
             {% endfor %}
@@ -48,9 +48,9 @@
                              class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                              src="{{ (v['pic'] + "@320w_180h.webp" if is_live else v['pic'] + "@320w")|pic }}"
                              alt="" />
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                         </div>
-                        <p class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg font-medium shadow-sm">
+                        <p class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg font-medium shadow-xs">
                             {{ (v['online']|intsep ~ ' ' ~ _('watching')) if is_live else v['duration'] }}
                         </p>
                         {% if is_live %}
@@ -58,7 +58,7 @@
                         {% endif %}
                     </a>
                     <!-- Content -->
-                    <div class="p-4 flex flex-col flex-grow">
+                    <div class="p-4 flex flex-col grow">
                         <a href="{{ link }}" class="block mb-3">
                             <p dir="auto"
                                class="font-bold text-base text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors">
