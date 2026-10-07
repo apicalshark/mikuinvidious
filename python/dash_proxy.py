@@ -301,7 +301,7 @@ async def video_get_dash_for_qn(vi, idx, ep_id=None, cid=None) -> dict:
 
     fut, owner = await _dash_fetch_join(key)
     if not owner:
-        return await fut
+        return await asyncio.shield(fut)
 
     try:
         data = await _video_get_dash_for_qn_uncached(vi, idx, ep_id=ep_id, cid=cid)
