@@ -607,30 +607,35 @@ def _select_durl_results(results: list, play_data: dict | None) -> list:
 
     PGC durl endpoints answer every quality request with the same
     single-quality node (e.g. everything resolves to qn 32 wearing each
-    other's labels — seen live on bangumi ep98604). An entry resolved at its
-    own requested quality describes reality; otherwise keep the best file
-    the server actually served, relabeled from support_formats by ACTUAL
-    quality (request descriptions describe files we didn't get). Temp
+    other's labels — seen live on bangumi ep98604). When any request resolves
+    exactly, keep one entry per actual quality, preferring exact matches.
+    Otherwise keep only the best file served. Relabel mismatches from
+    support_formats by actual quality when available. Temp
     ``_requested_qn`` keys are stripped before returning.
     """
     results = [r for r in results if r]
-    exact = [r for r in results if r.get("quality") == r.get("_requested_qn")]
-    picked = exact
-    if not picked and results:
-        fmt_desc = {}
-        for f in ((play_data or {}).get("support_formats") or []):
-            try:
-                if f.get("quality") is not None and (
-                    f.get("new_description") or f.get("display_desc")
-                ):
-                    fmt_desc[int(f["quality"])] = f.get("new_description") or f.get("display_desc")
-            except (TypeError, ValueError):
-                continue
-        best = max(results, key=lambda r: r.get("quality", 0))
-        if fmt_desc.get(best.get("quality")):
-            best["new_description"] = fmt_desc[best["quality"]]
-        picked = [best]
+    fmt_desc = {}
+    for f in ((play_data or {}).get("support_formats") or []):
+        if not isinstance(f, dict) or f.get("quality") is None:
+            continue
+        try:
+            desc = f.get("new_description") or f.get("display_desc")
+            if desc:
+                fmt_desc[int(f["quality"])] = desc
+        except (TypeError, ValueError):
+            continue
+    if any(r.get("quality") == r.get("_requested_qn") for r in results):
+        by_quality = {}
+        for r in results:
+            quality = r.get("quality")
+            if quality not in by_quality or quality == r.get("_requested_qn"):
+                by_quality[quality] = r
+        picked = list(by_quality.values())
+    else:
+        picked = [max(results, key=lambda r: r.get("quality", 0))] if results else []
     for r in picked:
+        if r.get("quality") != r.get("_requested_qn") and fmt_desc.get(r.get("quality")):
+            r["new_description"] = fmt_desc[r["quality"]]
         r.pop("_requested_qn", None)
     return picked
 
@@ -683,10 +688,8 @@ async def fetch_durl_supported_src(
             return None
         # PGC durl endpoints answer every quality request with the same
         # single-quality node (e.g. everything resolves to qn 32 wearing
-        # each other's labels). Only an entry resolved at its own requested
-        # quality describes reality — drop the mismatches, else the menu
-        # lists the same file under four wrong names (e.g. 1080P labels on
-        # a 480P file, seen live on bangumi ep98604).
+        # each other's labels). Track the request so selection can prefer
+        # exact matches and relabel mismatches by the quality actually served.
         entry["_requested_qn"] = qn
         return entry
 

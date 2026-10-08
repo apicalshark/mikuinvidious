@@ -883,7 +883,7 @@ msgstr "切換主題"
 msgid ""
 "Video list temporarily unavailable — Bilibili rate-limited this instance."
 " Profile shown; videos should return in a few minutes."
-msgstr "影片列表暫時無法取得——Bilibili 已限制此站台的存取。個人空間仍有顯示；影片應於幾分鐘後恢復。"
+msgstr "影片列表暫時無法取得——Bilibili 已限制此站台的請求頻率。個人空間仍有顯示；影片應於幾分鐘後恢復。"
 
 #: templates/themes/modern/space.html:69
 msgid ""

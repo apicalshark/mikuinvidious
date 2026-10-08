@@ -421,6 +421,7 @@ async def space_view(mid):
                 except Exception:
                     uinfo = None
         degraded = degraded or bool(getattr(u, "_degraded", False))
+        load_failed = load_failed or bool(getattr(u, "_videos_load_failed", False))
         if use_cache:
             # Page-1 key expiry covers the longest (space/json) policy so a
             # divergent JSON TTL isn't cut short; deeper pages use their own.

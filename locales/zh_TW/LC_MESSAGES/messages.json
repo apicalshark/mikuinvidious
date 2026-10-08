@@ -186,7 +186,7 @@
   "Variety": "綜藝",
   "Version info unavailable :-(": "目前無法取得版本資訊 :-(",
   "Video list could not be loaded due to a network error. Profile shown; please retry shortly.": "因網路錯誤，無法載入影片列表。個人空間仍有顯示；請稍後再試。",
-  "Video list temporarily unavailable — Bilibili rate-limited this instance. Profile shown; videos should return in a few minutes.": "影片列表暫時無法取得——Bilibili 已限制此站台的存取。個人空間仍有顯示；影片應於幾分鐘後恢復。",
+  "Video list temporarily unavailable — Bilibili rate-limited this instance. Profile shown; videos should return in a few minutes.": "影片列表暫時無法取得——Bilibili 已限制此站台的請求頻率。個人空間仍有顯示；影片應於幾分鐘後恢復。",
   "Video load failed": "影片載入失敗",
   "Video mode": "影片模式",
   "Videos": "影片",

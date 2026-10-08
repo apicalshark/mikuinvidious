@@ -74,6 +74,8 @@ class User:
         # Views read it to tell "throttled, content missing" apart from a
         # genuinely empty channel. Per-request instances only — never cached.
         self._degraded = False
+        # Preserve swallowed video-fetch failures for the neutral empty state.
+        self._videos_load_failed = False
 
     async def get_user_info(self) -> dict:
         # Space endpoints are the most risk-controlled read surface (dm_img
@@ -129,6 +131,7 @@ class User:
         return {}
 
     async def get_videos(self, tid=0, pn=1, ps=30, keyword="", order=VideoOrder.PUBDATE) -> dict:
+        self._videos_load_failed = False
         if isinstance(order, VideoOrder):
             order = order.value
         try:
@@ -174,6 +177,8 @@ class User:
         except Exception as e:
             if is_risk_error(e):
                 self._degraded = True
+            else:
+                self._videos_load_failed = True
         # The /x/space/wbi/arc/search endpoint is frequently risk-controlled /
         # IP-blocked (HTTP 412 / -352) from datacenter IPs without the WARP
         # proxy. Fall back to the /x/series/recArchivesByKeywords endpoint used
@@ -193,7 +198,6 @@ class User:
             "verify": False,
         }
         data = {}
-        last_err = None
         for _ in range(2):
             # Fresh device fingerprint (dm_img_*) per attempt, mirroring PipePipe's
             # regenerate-device-on-risk-control retry strategy. Param names are
@@ -210,9 +214,10 @@ class User:
                 data = await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
                 break
             except Exception as e:
-                last_err = e
                 if is_risk_error(e):
                     self._degraded = True
+                else:
+                    self._videos_load_failed = True
         data = data if isinstance(data, dict) else {}
         archives = data.get("archives", []) if isinstance(data.get("archives"), list) else []
         vlist = []
