@@ -158,7 +158,6 @@ class CdnConnection:
     async def send_request(self):
         if not self._connected:
             raise CdnConnectError("Not connected")
-
         headers = {k.lower(): v for k, v in self._headers.items()}
         headers.setdefault("host", self._host)
         headers.setdefault("accept", "*/*")
@@ -171,6 +170,19 @@ class CdnConnection:
 
         self._writer.write(request)
         await asyncio.wait_for(self._writer.drain(), timeout=self._connect_timeout)
+
+    async def next_request(self, headers: dict) -> CdnResponse:
+        """Send another request on this keep-alive connection.
+
+        Only valid when the previous response body was fully consumed under
+        an exact Content-Length framing, leaving the socket precisely at the
+        next message boundary. If the server closed meanwhile, the send/read
+        raises (connect/protocol/timeout error) and the caller must fall back
+        to a fresh connection. Returns the new response headers.
+        """
+        self._headers = dict(headers)
+        await self.send_request()
+        return await self.read_response_headers()
 
     async def read_response_headers(self) -> CdnResponse:
         resp = CdnResponse()

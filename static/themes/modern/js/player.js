@@ -461,6 +461,14 @@ class DashPlayerManager {
     this.destroyed = false;
     this._errorHandler = null;
     this._userAudioChoice = false;
+    // Expired-signature recovery (mirrors the official player's
+    // expiry-stamped segment errors + prefetchPlayUrl): consecutive segment
+    // failures while playback position is frozen mean no rendition can serve
+    // (all share one URL expiry window), so re-init from a freshly-fetched
+    // manifest instead of leaving it to ABR.
+    this._segErrStreak = 0;
+    this._lastSegErrPos = 0;
+    this._lastFreshMpdAt = 0;
   }
 
   init() {
@@ -472,6 +480,7 @@ class DashPlayerManager {
       return;
     }
     this._userAudioChoice = false;
+    this._segErrStreak = 0;
 
     console.log("[DashManager] Initializing DASH:", this.mpdUrl);
     const absoluteUrl = new URL(this.mpdUrl, window.location.href).href;
@@ -528,13 +537,38 @@ class DashPlayerManager {
                 : undefined,
           }
         );
+        // ...unless failures are systematic: consecutive segment errors
+        // while playback position is frozen mean every rendition fails —
+        // all tracks share one signed-URL expiry window, so ABR cannot
+        // route around it. Recover with a freshly-fetched manifest, like
+        // the official player's expiry-stamped errors + prefetchPlayUrl.
+        // (Progress resets the streak, so isolated sick-edge fragments
+        // keep the cheap ABR-only path.)
+        const pos = this.video ? this.video.currentTime : 0;
+        if (pos > (this._lastSegErrPos || 0) + 1) this._segErrStreak = 0;
+        this._lastSegErrPos = pos;
+        this._segErrStreak = (this._segErrStreak || 0) + 1;
+        if (this._segErrStreak >= 3 && this._freshReconnectAllowed()) {
+          this._segErrStreak = 0;
+          this._lastFreshMpdAt = Date.now();
+          try {
+            const u = new URL(this.mpdUrl, window.location.href);
+            u.searchParams.set("fresh", "1");
+            this.mpdUrl = u.pathname + u.search + u.hash;
+          } catch (e) {
+            /* keep the current manifest URL */
+          }
+          console.warn(
+            "[DashManager] Persistent segment failures, re-initializing with fresh playurl"
+          );
+          this.reconnect();
+        }
         return;
       }
       console.warn("[DashManager] DASH error:", err.code, err.message);
       this.reconnect();
     };
     this.player.on(dashjs.MediaPlayer.events.ERROR, this._errorHandler);
-
     // Audio follows the official tier map (core.*.js: video <=480p -> 30216,
     // =720p -> 30232, >=1080p -> 30280; audio ABR stays off). Re-tiered on
     // every rendered video change, exactly like Bilibili's own player — the
@@ -563,6 +597,14 @@ class DashPlayerManager {
         showAutoplayOverlay(this.video);
       }
     });
+  }
+
+  _freshReconnectAllowed() {
+    // Cap fresh-manifest recovery (official player maxResumeTimes equivalent):
+    // at most one fresh playurl fetch per 10 minutes. Past that, failures are
+    // not expiry-shaped — keep ABR-only behavior instead of hammering the
+    // playurl endpoint (risk-control exposure).
+    return !this._lastFreshMpdAt || Date.now() - this._lastFreshMpdAt > 10 * 60 * 1000;
   }
 
   reconnect() {

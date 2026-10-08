@@ -231,6 +231,10 @@ appconf = {
         "secret_key": os.environ.get("QUART_SECRET_KEY"),
         "debug": os.environ.get("QUART_DEBUG", "false").lower() == "true",
         "monitor_fd": os.environ.get("MONITOR_FD", "false").lower() == "true",
+        # Granian per-request access log. Off by default: at one line per
+        # segment/image/status-poll it buries the real app logs.
+        # config.toml [server] access_log = true / SERVER_ACCESS_LOG=true to re-enable.
+        "access_log": os.environ.get("SERVER_ACCESS_LOG", "false").lower() == "true",
     },
     "display": {
         "default_theme": "modern",

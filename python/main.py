@@ -54,7 +54,10 @@ def main():
             keep_alive_interval=5,  # Send ping every 5s
             keep_alive_timeout=10,  # Timeout ping after 10s
         ),
-        log_access=True,
+        # Per-request access log (one line per segment/image/poll). Off by
+        # default via [server] access_log / SERVER_ACCESS_LOG — it buries the
+        # real [DashProxy]/[Init] app logs. Enable for traffic debugging.
+        log_access=appconf["server"]["access_log"],
     )
 
     sys.stderr.write(f"Starting MikuInvidious (Granian) on {host}:{port}\n")

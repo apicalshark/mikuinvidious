@@ -43,7 +43,7 @@ import tempfile
 import time
 import uuid
 from collections import deque
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import aiofiles
 import orjson
@@ -785,13 +785,24 @@ async def _load_dash_data(vid, idx) -> dict | None:
     Concurrent callers for the same video share one in-flight fetch
     (singleflight), and failed fetches are negative-cached briefly so a
     dead video does not stampede playurl on every manifest/track hit.
+
+    Cached entries whose signed CDN URLs have expired (see
+    :func:`_dash_data_urls_stale`, the server-side ``isUrlExpired``) are
+    dropped and re-fetched instead of serving known-dead URLs.
     """
     key = f"miku_dash_{vid}_{idx}"
     cached = await appredis.get(key)
     if cached:
         data = safe_json_loads(cached)
         if isinstance(data, dict):
-            return data
+            if _dash_data_urls_stale(data):
+                print(f"[DashProxy] cached playurl for {vid}:{idx} expired, refetching")
+                try:
+                    await appredis.delete(key)
+                except Exception:
+                    pass
+            else:
+                return data
     if await appredis.get(f"{key}:miss"):
         return None
     async with _dash_inflight_lock:
@@ -813,6 +824,83 @@ async def _load_dash_data(vid, idx) -> dict | None:
         if not fut.done():
             fut.set_result(result)
     return result
+
+
+async def _refresh_dash_data(vid, idx) -> dict | None:
+    """Drop cached (and negative-cached) dash JSON and re-fetch fresh upstream.
+
+    The official player's ``prefetchPlayUrl`` recovery: signed CDN URLs die
+    after ~2h, so retrying the same cached URL set can never succeed. All
+    mirrors of one playurl response share the same expiry window, which is
+    why mirror failover alone is not enough. Concurrent refreshers share one
+    upstream fetch via :func:`_load_dash_data` singleflight. Returns fresh
+    dash_data or None.
+    """
+    key = f"miku_dash_{vid}_{idx}"
+    try:
+        await appredis.delete(key)
+        await appredis.delete(f"{key}:miss")
+    except Exception:
+        pass
+    return await _load_dash_data(vid, idx)
+
+
+# Signature expiry params, in the official player's isUrlExpired check order
+# (core.*.js): expires | wsTime | txTime | um_deadline | deadline. The spell
+# varies by CDN edge, so all five must be tried.
+_EXPIRY_PARAM_NAMES = ("expires", "wsTime", "txTime", "um_deadline", "deadline")
+
+# Refresh playurl this far ahead of actual expiry: segments in flight when the
+# signature dies would 403 mid-body.
+_DASH_EXPIRY_SKEW = 60
+
+
+def _playurl_url_expiry(url: str | None) -> int | None:
+    """Unix expiry from a CDN URL's signature params, else None.
+
+    Server-side mirror of the player's ``isUrlExpired`` param chain. Unknown
+    schemes (no stamp found) return None and are never treated as stale.
+    """
+    if not url:
+        return None
+    try:
+        params = parse_qs(urlparse(url).query)
+    except Exception:
+        return None
+    for name in _EXPIRY_PARAM_NAMES:
+        for raw in params.get(name) or []:
+            try:
+                ts = int(str(raw).strip())
+            except (TypeError, ValueError):
+                continue
+            if ts > 0:
+                return ts
+    return None
+
+
+def _dash_data_urls_stale(dash_data: dict | None, skew: int = _DASH_EXPIRY_SKEW) -> bool:
+    """True when the cached tracks' signatures are (nearly) expired.
+
+    Uses the minimum stamp across playable tracks; all tracks of one playurl
+    response share the same signing window in practice. No stamp anywhere
+    means "unknown, assume fresh" — never nuke the cache on guesswork.
+    """
+    if not dash_data or not isinstance(dash_data, dict):
+        return False
+    dash = dash_data.get("dash") or {}
+    if not isinstance(dash, dict):
+        return False
+    best: int | None = None
+    for key in ("video", "audio"):
+        for t in _normalize_track_urls(dash.get(key)):
+            if not isinstance(t, dict):
+                continue
+            ts = _playurl_url_expiry(t.get("base_url") or t.get("baseUrl"))
+            if ts is not None and (best is None or ts < best):
+                best = ts
+    if best is None:
+        return False
+    return time.time() + skew > best
 
 
 def _lookup_track(dash_data, media_type: str, qn: int, cid: int) -> dict | None:
@@ -976,7 +1064,6 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
 # 1080p60, 4K...) requires login / season-vip. Keep downloads capped at 1080p.
 _FREE_DOWNLOAD_MAX_QN = 80
 _DOWNLOAD_TOO_LARGE = -2
-_download_limiter = asyncio.Semaphore(2)
 
 # Fallback per-track download size cap (MB) when the hoster did not configure one.
 _DEFAULT_MAX_DOWNLOAD_MB = 1024
@@ -1170,7 +1257,7 @@ async def _await_track_retry(attempt: int, cancel_event: asyncio.Event | None, n
 
 
 async def _download_track_to_file(
-    url: str,
+    url: str | list,
     headers: dict,
     proxy_url: str,
     dest: str,
@@ -1182,8 +1269,15 @@ async def _download_track_to_file(
 ) -> int:
     """Download a full track body to ``dest`` via CdnConnection, resuming on cuts.
 
+    ``url`` may be a single URL or a candidate mirror list (primary +
+    backups, see :func:`_dash_candidate_urls`). Each resume retry rotates to
+    the next mirror: individual CDN objects stall/cut on one edge while
+    siblings serve fine, and hammering the same sick edge is what used to
+    fail jobs after a couple of cuts.
+
     When upstream cuts the connection mid-body (reset / premature close /
-    read timeout), waits a few seconds and resumes from the downloaded offset
+    read timeout) or answers a resume with a transient status / offset
+    mismatch, waits a few seconds and resumes from the downloaded offset
     with a ``Range`` request, up to ``_TRACK_DOWNLOAD_MAX_RETRIES`` retries.
 
     Returns byte count, ``-1`` on error/oversize, or ``_DOWNLOAD_CANCELLED``
@@ -1192,18 +1286,27 @@ async def _download_track_to_file(
 
     ``max_bytes`` defaults to the hoster-configured per-track cap.
     """
+    if isinstance(url, (list, tuple)):
+        candidates = [u for u in url if isinstance(u, str) and u]
+    else:
+        candidates = [url] if isinstance(url, str) and url else []
+    if not candidates:
+        print("[DashProxy] track download error: no candidate URLs")
+        return -1
     if max_bytes is None:
         max_bytes = _max_download_track_bytes()
     total = 0
     attempt = 0
+    mirror_idx = 0
     file_obj = None
     try:
         while True:
             if cancel_event is not None and cancel_event.is_set():
                 return _DOWNLOAD_CANCELLED
+            current_url = candidates[mirror_idx % len(candidates)]
             try:
                 total, file_obj, outcome = await _fetch_track_attempt(
-                    url,
+                    current_url,
                     headers,
                     proxy_url,
                     dest,
@@ -1225,6 +1328,8 @@ async def _download_track_to_file(
                 decision = await _await_track_retry(attempt, cancel_event, note_cb, cause)
                 if decision == "retry":
                     attempt += 1
+                    # Rotate mirrors so the resume hits a different edge.
+                    mirror_idx += 1
                     continue
                 return _DOWNLOAD_CANCELLED if decision == "cancelled" else -1
             if note_cb is not None:
@@ -1241,23 +1346,29 @@ async def _download_track_to_file(
 
 
 def _validate_track_response(resp_headers, total: int, max_bytes: int) -> str:
-    """Classify a track GET response: 'ok', 'restart', or 'fatal'.
+    """Classify a track GET response: 'ok', 'restart', 'retry', or 'fatal'.
 
     'restart' means the server ignored our resume ``Range`` (HTTP 200) — the
-    caller must truncate and start over. 'fatal' (bad status, resume offset
-    mismatch, oversize) must not be retried.
+    caller must truncate and start over. 'retry' (transient HTTP status,
+    resume offset mismatch) must be retried, preferably on the next mirror.
+    'fatal' (oversize) must not be retried.
     """
     status = resp_headers.status_code
     if status not in (200, 206):
-        return "fatal"
+        print(
+            f"[DashProxy] track GET -> HTTP {status} "
+            f"(have {total} bytes, content-range={resp_headers.headers.get('content-range')}), will retry on next mirror"
+        )
+        return "retry"
     if total > 0:
         if status != 206:
             return "restart"
         if _parse_content_range_start(resp_headers.headers) != total:
             print(
-                f"[DashProxy] resume offset mismatch (have {total}, server {resp_headers.headers.get('content-range')})"
+                f"[DashProxy] resume offset mismatch (have {total}, server {resp_headers.headers.get('content-range')}), "
+                "will retry on next mirror"
             )
-            return "fatal"
+            return "retry"
         return "ok"
     cl_header = resp_headers.headers.get("content-length")
     if cl_header:
@@ -1286,7 +1397,9 @@ async def _fetch_track_attempt(
 
     ``outcome`` is 'done' (clean EOF), 'fatal' (do not retry), or 'cancelled'.
     Raises ``_TrackCut`` (carrying partial progress) or ``_RETRYABLE_TRACK_ERRORS``
-    on connection cuts so the caller can back off and resume.
+    on connection cuts so the caller can back off and resume. A 'retry'
+    validation (transient HTTP status / offset mismatch) raises
+    ``CdnProtocolError`` for the same resume path.
     """
     req_headers = dict(headers)
     if total > 0:
@@ -1294,7 +1407,14 @@ async def _fetch_track_attempt(
     conn, resp_headers = await _open_cdn_track(url, req_headers, proxy_url)
     try:
         action = _validate_track_response(resp_headers, total, max_bytes)
+        if action == "retry":
+            raise CdnProtocolError(f"CDN returned HTTP {resp_headers.status_code} for Range resume (have {total} bytes)")
         if action == "fatal":
+            print(
+                f"[DashProxy] track GET fatal: HTTP {resp_headers.status_code} "
+                f"(have {total} bytes, content-range={resp_headers.headers.get('content-range')}, "
+                f"content-length={resp_headers.headers.get('content-length')})"
+            )
             return total, file_obj, "fatal"
         if action == "restart":
             if file_obj is not None:
@@ -1463,12 +1583,15 @@ async def proxy_download(vid, idx, qual):
     video, audio = _pick_download_tracks(dash_data, max_qn)
     if not video or not audio:
         return Response("Not Found: no suitable DASH tracks", status=404)
-    vurl = video.get("base_url") or video.get("baseUrl")
-    aurl = audio.get("base_url") or audio.get("baseUrl")
-    if not vurl or not aurl:
+    vurls = _dash_candidate_urls(video)
+    aurls = _dash_candidate_urls(audio)
+    if not vurls or not aurls:
         return Response("Not Found: track has no URL", status=404)
-    v_ok, a_ok = await asyncio.gather(_is_safe_dash_url_async(vurl), _is_safe_dash_url_async(aurl))
-    if not v_ok or not a_ok:
+    v_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in vurls))
+    a_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in aurls))
+    vurls = [u for u, ok in zip(vurls, v_checks, strict=False) if ok]
+    aurls = [u for u, ok in zip(aurls, a_checks, strict=False) if ok]
+    if not vurls or not aurls:
         return Response("Forbidden: Invalid proxy target", status=403)
 
     proxy_url = Network.get_proxy()
@@ -1478,12 +1601,74 @@ async def proxy_download(vid, idx, qual):
     vpath = os.path.join(tmpdir, "video.m4s")
     apath = os.path.join(tmpdir, "audio.m4s")
     outpath = os.path.join(tmpdir, "out.mp4")
+    response_owns_cleanup = False
+    try:
+        vsize = await _peek_content_length(vurls, headers, proxy_url)
+        asize = await _peek_content_length(aurls, headers, proxy_url)
+    except RuntimeError as exc:
+        await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
+        return Response(str(exc), status=413)
+
+    try:
+        v_qn = int(video.get("id") or 0)
+    except (TypeError, ValueError):
+        v_qn = 0
+    try:
+        a_qn = int(audio.get("id") or 0)
+    except (TypeError, ValueError):
+        a_qn = 0
+
+    async def _refresh_legacy_track_urls(media_type: str, qn: int):
+        fresh = await _refresh_dash_data(vid, idx)
+        if not has_valid_dash_tracks(fresh):
+            return None
+        pick = _pick_download_tracks(fresh, max_qn)
+        track = pick[0] if media_type == "video" else pick[1]
+        if track is None:
+            return None
+        try:
+            if int(track.get("id") or -1) != qn:
+                return None
+        except (TypeError, ValueError):
+            return None
+        urls = _dash_candidate_urls(track)
+        checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls))
+        urls = [u for u, ok in zip(urls, checks, strict=False) if ok]
+        return urls or None
+
+    async def _refresh_legacy_video_urls():
+        return await _refresh_legacy_track_urls("video", v_qn)
+
+    async def _refresh_legacy_audio_urls():
+        return await _refresh_legacy_track_urls("audio", a_qn)
 
     try:
         async with _download_limiter:
-            if await _download_track_to_file(vurl, headers, proxy_url, vpath) < 0:
+            if (
+                await _download_track_file(
+                    vurls,
+                    headers,
+                    proxy_url,
+                    vpath,
+                    vsize,
+                    f"{vid}:{idx} video",
+                    refresh_cb=_refresh_legacy_video_urls,
+                )
+                < 0
+            ):
                 return Response("Upstream error (video track)", status=502)
-            if await _download_track_to_file(aurl, headers, proxy_url, apath) < 0:
+            if (
+                await _download_track_file(
+                    aurls,
+                    headers,
+                    proxy_url,
+                    apath,
+                    asize,
+                    f"{vid}:{idx} audio",
+                    refresh_cb=_refresh_legacy_audio_urls,
+                )
+                < 0
+            ):
                 return Response("Upstream error (audio track)", status=502)
             try:
                 await _mux_tracks(vpath, apath, outpath)
@@ -1518,9 +1703,9 @@ async def proxy_download(vid, idx, qual):
         return Response("Upstream error", status=502)
     finally:
         if not response_owns_cleanup:
-            if tmpdir is not None:
-                await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
-            _download_limiter.release()
+            await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
+        # NOTE: no manual _download_limiter.release() — the `async with` above
+        # already released it; a manual release would corrupt the semaphore.
 
 
 def _dash_candidate_urls(track: dict) -> list:
@@ -1598,7 +1783,17 @@ async def _refresh_dash_ticket(headers: dict) -> dict:
 
 
 class _DashUpstreamError(Exception):
-    """All candidate mirrors failed for a DASH track."""
+    """All candidate mirrors failed for a DASH track.
+
+    ``forbidden`` is True when at least one mirror answered 403/412/514
+    (signature/risk-control rejection — the URL set itself is likely dead,
+    not just a sick edge, so callers may try a fresh playurl instead of
+    merely another mirror).
+    """
+
+    def __init__(self, message="", *, forbidden=False):
+        super().__init__(message)
+        self.forbidden = forbidden
 
 
 _CONTENT_RANGE_RE = re.compile(r"bytes\s+(\d+)-(\d+)(?:/(\d+|\*))?")
@@ -1804,11 +1999,16 @@ async def _failover_dash_conn(
     if remaining is not None and remaining < 0:
         remaining = 0
     last_error: Exception | None = None
+    forbidden_seen = False
     while pending:
         try:
             conn, resp_headers, used, _, _ = await _fetch_dash_track(pending, headers, proxy_url, label)
         except _DashUpstreamError as exc:
             raise exc
+        if resp_headers.status_code in (403, 412, 514):
+            # Auth-level rejection (expired signature): remember it for the
+            # caller's refresh decision even if later failures differ.
+            forbidden_seen = True
         if yielded:
             status = resp_headers.status_code
             if status == 206:
@@ -1876,7 +2076,10 @@ async def _failover_dash_conn(
             continue
         pending.remove(used)
         return conn, used, resp_headers
-    raise _DashUpstreamError(f"all mirrors failed for {label}: {last_error}")
+    raise _DashUpstreamError(
+        f"all mirrors failed for {label}: {last_error}",
+        forbidden=forbidden_seen or getattr(last_error, "forbidden", False),
+    )
 
 
 async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str):
@@ -1894,6 +2097,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
     """
     ticket_refreshed = False
     last_error: Exception | None = None
+    forbidden_seen = False
     for url in urls:
         host = urlparse(url).hostname or url
         try:
@@ -1908,6 +2112,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
             continue
         if resp_headers.status_code in [403, 412, 514]:
             await conn.close()
+            forbidden_seen = True
             last_error = RuntimeError(f"CDN returned {resp_headers.status_code}")
             if not ticket_refreshed:
                 headers = await _refresh_dash_ticket(headers)
@@ -1924,7 +2129,523 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
         else:
             content_length, content_range = None, None
         return conn, resp_headers, url, content_length, content_range
-    raise _DashUpstreamError(f"all mirrors failed for {label}: {last_error}")
+    raise _DashUpstreamError(
+        f"all mirrors failed for {label}: {last_error}",
+        forbidden=forbidden_seen,
+    )
+
+
+async def _retry_proxy_with_fresh_playurl(vid, idx, media_type, qn, cid, old_urls, headers, proxy_url, label):
+    """One fresh-playurl retry for a 403-swept track (official player recovery).
+
+    Drops the cached playurl (whose signatures likely expired — all mirrors
+    of one response share the expiry window), re-fetches, and retries the
+    request on the new mirror set. Returns ``((conn, resp_headers, used_url,
+    content_length, content_range), urls)`` or None when there is nothing
+    usable to retry with. The caller owns ``conn.close()`` on success.
+
+    Never loops: at most one refresh per call, and a refresh that yields the
+    same expiry stamp as the dead set (the player's same-stamp dedup) is
+    declined — retrying identical signatures cannot succeed.
+    """
+    fresh_data = await _refresh_dash_data(vid, idx)
+    if not has_valid_dash_tracks(fresh_data):
+        return None
+    track = _lookup_track(fresh_data, media_type, qn, cid)
+    if not track:
+        return None
+    new_urls = _dash_candidate_urls(track)
+    verdicts = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in new_urls))
+    new_urls = [u for u, ok in zip(new_urls, verdicts, strict=False) if ok]
+    if not new_urls:
+        return None
+    old_stamp = _playurl_url_expiry(old_urls[0]) if old_urls else None
+    new_stamp = _playurl_url_expiry(new_urls[0])
+    if old_stamp is not None and new_stamp == old_stamp:
+        print(f"[DashProxy] {label} refresh returned same URL stamp ({new_stamp}), not retrying")
+        return None
+    print(f"[DashProxy] {label} refreshed playurl (stamp {old_stamp} -> {new_stamp}), retrying request")
+    try:
+        fetched = await _fetch_dash_track(new_urls, headers, proxy_url, label)
+    except _DashUpstreamError as exc:
+        print(f"[DashProxy] {label} fresh playurl also failed: {exc}")
+        return None
+    return fetched, new_urls
+
+
+# Player-style segmented download: fetch the track the way dash.js does.
+#
+# The player never GETs a whole track: it issues small Range requests
+# (sidx/init/media fragments, a few MB each) through ``proxy_dash``, each with
+# its own handshake deadline, mirror failover, and throughput watchdog, plus
+# up to 5 retries per fragment and ABR abandon of slow ones. The old
+# downloader did the opposite — one giant whole-file GET with no speed
+# watchdog, so a tarpit edge dribbling ~100 KB/s never tripped the 30s *idle*
+# read timeout and the job looked "stuck" for tens of minutes while the player
+# sailed past the same edge. This fetches sequential fixed-size segments with
+# the exact same machinery (``_failover_dash_conn`` + ``_yield_dash_body`` +
+# ``_ResumedDashConn``), writing them to ``dest`` instead of the HTTP
+# response, so a sick edge costs one segment — not the file.
+_DOWNLOAD_SEGMENT_SIZE = 32 * 1024 * 1024
+
+# Disk writes are batched to this size: per-64KB-chunk asyncio.to_thread hops
+# cost ~800 threadpool round-trips/sec at speed for zero benefit.
+_DOWNLOAD_WRITE_BATCH = 1024 * 1024
+
+
+# Relative slowdown trip: a segment averaging under this fraction of the best
+# rate seen (this track's completed segments, or this segment's own early
+# peak) is treated like a premature disconnect and failed over. The absolute
+# watchdog only catches sub-100KB/s tarpits; it lets an 8-25x collapse (e.g.
+# 3.4MB/s -> 400KB/s) trickle for minutes. Slower regimes stay under the
+# absolute watchdog's purview (see _relative_trip).
+_SLOW_REL_RATIO = 0.2
+_SLOW_REL_GRACE = 10.0
+_SLOW_REL_REGRACE = 5.0
+_SLOW_REL_WINDOW = 2.0
+
+
+def _relative_trip(
+    seg_done_bytes: int,
+    seg_el_s: float,
+    peak_bps: float,
+    rel_trips: int,
+    mirror_count: int,
+    since_switch_s: float,
+) -> str | None:
+    """Verdict for peak-relative slowdown. Returns a reason to trip, else None.
+
+    Pure function (unit-tested). Fires only on genuine decay: needs a
+    meaningful peak (whose 20% still exceeds the absolute floor, so uniformly
+    slow links are untouched), a warmed-up segment, a freshly-proven-slow
+    mirror, and remaininguntried mirrors (bounded probes per segment, then
+    patience — a single-edge track gets exactly one probe).
+    """
+    if rel_trips >= mirror_count:
+        return None
+    if seg_el_s <= _SLOW_REL_GRACE or since_switch_s <= _SLOW_REL_REGRACE:
+        return None
+    floor_bps = peak_bps * _SLOW_REL_RATIO
+    if floor_bps <= DASH_BODY_FLOOR_KBPS * 1024:
+        return None
+    if seg_el_s <= 0:
+        return None
+    avg_bps = seg_done_bytes / seg_el_s
+    if avg_bps < floor_bps:
+        return f"{avg_bps / 1024:.0f} KB/s < {_SLOW_REL_RATIO:.0%} of peak {peak_bps / 1024:.0f} KB/s"
+    return None
+
+
+def _has_exact_content_length(resp_headers, span_left: int) -> bool:
+    """True when a 206 response carries Content-Length equal to the wanted span.
+
+    Length-framed exact bodies are the only ones safe to (a) stream to a
+    known end — a close-delimited 206 on a reused keep-alive socket would hang
+    forever waiting for a close that never comes — and (b) keep alive
+    afterwards, since exact consumption leaves the socket precisely at the
+    next message boundary.
+    """
+    if resp_headers.status_code != 206:
+        return False
+    try:
+        return int(str((resp_headers.headers or {}).get("content-length") or "").strip()) == span_left
+    except (TypeError, ValueError):
+        return False
+
+
+async def _download_track_segmented(
+    urls,
+    headers: dict,
+    proxy_url: str,
+    dest: str,
+    total_size: int,
+    label: str,
+    max_bytes: int | None = None,
+    progress_cb=None,
+    cancel_event: asyncio.Event | None = None,
+    note_cb=None,
+    refresh_cb=None,
+    max_refreshes: int = 2,
+) -> int:
+    """Download a track as sequential player-sized Range segments to ``dest``.
+
+    Same per-request behaviour as ``proxy_dash`` (primary-first mirrors,
+    ``DASH_ATTEMPT_TIMEOUT`` handshakes, bili-ticket refresh, computable-length
+    gate, ``DASH_BODY_GRACE``/``DASH_BODY_FLOOR_KBPS`` watchdog, byte-exact
+    resume across mirrors), but appended to a file: mid-segment cuts and
+    slow-loris bodies fail over to the next mirror for the *remainder* of the
+    segment, and a fully exhausted mirror set backs off
+    (``_await_track_retry``) and retries the segment from the next mirror,
+    up to ``_TRACK_DOWNLOAD_MAX_RETRIES`` attempts per segment.
+
+    ``refresh_cb`` (``async () -> list | None``) fetches a fresh playurl and
+    returns replacement mirror URLs for the *same* track when the current
+    set is exhausted — all mirrors of one response share the expiry window,
+    so rotating them cannot fix dead signatures. Refresh fires only for dead
+    signatures (403-class sweep, or a provably-past URL stamp), never for
+    mere slowness. At most ``max_refreshes`` refreshes per track, and a
+    refresh returning the same URL stamp is declined (the official player's
+    same-stamp dedup): retrying identical signatures cannot succeed.
+
+    Returns the byte count, ``-1`` on error/oversize, or
+    ``_DOWNLOAD_CANCELLED`` when ``cancel_event`` is set.
+    """
+    if isinstance(urls, (list, tuple)):
+        candidates = [u for u in urls if isinstance(u, str) and u]
+    else:
+        candidates = [urls] if isinstance(urls, str) and urls else []
+    if not candidates:
+        print(f"[DashProxy] {label} segmented download error: no candidate URLs")
+        return -1
+    if max_bytes is None:
+        max_bytes = _max_download_track_bytes()
+    if total_size > max_bytes:
+        print(f"[DashProxy] {label} size {total_size} exceeds limit {max_bytes}")
+        return -1
+    file_obj = None
+    written = 0
+    seg_index = 0
+    refreshes_used = 0
+    last_stamp = _playurl_url_expiry(candidates[0])
+    pending_writes: list = []
+    pending_len = 0
+    keepalive = None  # (conn, url): fully-consumed length-framed connection, reusable
+    track_best_bps = 0.0  # best completed-segment (or early-window) rate this track
+    try:
+        file_obj = await asyncio.to_thread(open, dest, "wb")
+        while written < total_size:
+            if cancel_event is not None and cancel_event.is_set():
+                return _DOWNLOAD_CANCELLED
+            seg_start = written
+            seg_end = min(written + _DOWNLOAD_SEGMENT_SIZE - 1, total_size - 1)
+            span = seg_end - seg_start + 1
+            seg_label = f"{label} seg{seg_index}[{seg_start}-{seg_end}]"
+            orig_range = f"bytes={seg_start}-{seg_end}"
+            seg_headers = dict(headers)
+            seg_headers["range"] = orig_range
+            # Rotate the starting mirror per segment. Unlike the player (whose
+            # fragment requests are spaced seconds apart by the playback
+            # clock), this loop fires back-to-back at full speed; hammering
+            # one edge continuously invites per-edge throttling that reads as
+            # decaying download speed. Spreading segments across the stable
+            # mirrors keeps any single edge cool; M-CDN stays last-resort.
+            stable = [u for u in candidates if not _is_mcdn_url(u)] or candidates[:]
+            tail = [u for u in candidates if u not in stable]
+            rot = seg_index % len(stable)
+            order = stable[rot:] + stable[:rot] + tail
+            start_idx = 0
+            pending = order[:]
+            seg_done = 0
+            seg_attempt = 0
+            seg_host = "-"
+            seg_t0 = time.monotonic()
+            win_t0 = seg_t0
+            win_bytes = 0
+            win_best = 0.0
+            rel_trips = 0
+            last_switch_t = seg_t0
+            while seg_done < span:
+                if cancel_event is not None and cancel_event.is_set():
+                    return _DOWNLOAD_CANCELLED
+                if pending_len:
+                    # Disk must catch up to seg_done before any (re)fetch:
+                    # resume ranges are computed from seg_done, so buffered
+                    # bytes must be on disk first (abort paths skip this —
+                    # their partial files are deleted by the caller).
+                    batch = b"".join(pending_writes)
+                    pending_writes.clear()
+                    pending_len = 0
+                    await asyncio.to_thread(file_obj.write, batch)
+                conn = used = resp_headers = None
+                if keepalive is not None:
+                    # Kept-alive connection from the previous segment: no
+                    # handshake, no slow-start restart. Only banked after an
+                    # exactly-consumed length-framed body, so the socket is
+                    # precisely at the next boundary. Any trouble falls back
+                    # to full mirror failover below.
+                    ka_conn, ka_url = keepalive
+                    keepalive = None
+                    try:
+                        resp_headers = await ka_conn.next_request(seg_headers)
+                        conn, used = ka_conn, ka_url
+                    except (
+                        CdnConnectError,
+                        CdnProtocolError,
+                        CdnTimeoutError,
+                        OSError,
+                        TimeoutError,
+                        asyncio.TimeoutError,
+                    ) as exc:
+                        try:
+                            await ka_conn.close()
+                        except Exception:
+                            pass
+                        print(f"[DashProxy] {seg_label} keep-alive reuse failed ({exc}), failing over")
+                if conn is None:
+                    try:
+                        conn, used, resp_headers = await _failover_dash_conn(
+                            pending, seg_headers, proxy_url, seg_label, orig_range, seg_done, span
+                        )
+                    except _DashUpstreamError as exc:
+                        # Refresh means dead signatures, never "edge is slow": only
+                        # when mirrors actively reject auth (403-class sweep) or
+                        # the stamp is provably past. A tarpit exhaustion must
+                        # rotate/backoff instead — new signatures on the same sick
+                        # edge change nothing.
+                        provably_expired = last_stamp is not None and time.time() > last_stamp
+                        if (
+                            refresh_cb is not None
+                            and refreshes_used < max_refreshes
+                            and (exc.forbidden or provably_expired)
+                        ):
+                            if note_cb is not None:
+                                note_cb("Video links expired, refreshing…")
+                            try:
+                                new_urls = await refresh_cb()
+                            except Exception as refresh_exc:
+                                print(f"[DashProxy] {seg_label} playurl refresh failed: {refresh_exc}")
+                                new_urls = None
+                            if new_urls:
+                                new_stamp = _playurl_url_expiry(new_urls[0])
+                                if new_stamp != last_stamp:
+                                    print(
+                                        f"[DashProxy] {seg_label} refreshed playurl "
+                                        f"(stamp {last_stamp} -> {new_stamp}), resuming"
+                                    )
+                                    candidates = new_urls
+                                    last_stamp = new_stamp
+                                    refreshes_used += 1
+                                    seg_attempt = 0
+                                    rel_trips = 0
+                                    stable = [u for u in candidates if not _is_mcdn_url(u)] or candidates[:]
+                                    tail = [u for u in candidates if u not in stable]
+                                    order = stable + tail
+                                    start_idx = 0
+                                    pending = order[:]
+                                    if note_cb is not None:
+                                        note_cb(None)
+                                    continue
+                                print(
+                                    f"[DashProxy] {seg_label} refresh returned same URL stamp, "
+                                    "not retrying refresh"
+                                )
+                        decision = await _await_track_retry(seg_attempt, cancel_event, note_cb, exc)
+                        if decision == "retry":
+                            seg_attempt += 1
+                            start_idx = (start_idx + 1) % len(order)
+                            pending = order[start_idx:] + order[:start_idx]
+                            continue
+                        return _DOWNLOAD_CANCELLED if decision == "cancelled" else -1
+                seg_host = urlparse(used).hostname or "-"
+                last_switch_t = time.monotonic()
+                exact_206 = False
+                # Validate the mirror answered at the wanted offset. The
+                # resume path inside _failover_dash_conn already guarantees
+                # this for seg_done > 0; this covers the initial fetch, where
+                # an edge may ignore the Range (200) or answer off-offset.
+                want = seg_start + seg_done
+                span_left = span - seg_done
+                use_conn = conn
+                status = resp_headers.status_code
+                if status == 206:
+                    rs, re, _ = _parse_content_range_full(resp_headers.headers.get("content-range"))
+                    if rs == want:
+                        # Exact length framing is also what makes a response
+                        # keep-alive-safe (see _has_exact_content_length).
+                        if _has_exact_content_length(resp_headers, span_left):
+                            exact_206 = True
+                        else:
+                            print(
+                                f"[DashProxy] {seg_label} 206 without exact length, trying next mirror"
+                            )
+                            try:
+                                await conn.close()
+                            except Exception:
+                                pass
+                            continue
+                    elif rs is not None and re is not None and rs < want <= re:
+                        print(f"[DashProxy] {seg_label} resume overlap, salvaging")
+                        use_conn = _ResumedDashConn(conn, want - rs, span_left)
+                    else:
+                        print(
+                            f"[DashProxy] {seg_label} offset mismatch "
+                            f"(want {want}, got {resp_headers.headers.get('content-range')}), trying next mirror"
+                        )
+                        try:
+                            await conn.close()
+                        except Exception:
+                            pass
+                        continue
+                elif status == 200:
+                    try:
+                        full_len = int(str(resp_headers.headers.get("content-length") or "").strip())
+                    except (TypeError, ValueError):
+                        full_len = None
+                    if full_len is not None and full_len > want:
+                        print(f"[DashProxy] {seg_label} ignored Range, salvaging full body")
+                        use_conn = _ResumedDashConn(conn, want, span_left)
+                    else:
+                        try:
+                            await conn.close()
+                        except Exception:
+                            pass
+                        continue
+                else:
+                    try:
+                        await conn.close()
+                    except Exception:
+                        pass
+                    continue
+                try:
+                    async for chunk in _yield_dash_body(use_conn, seg_label):
+                        if cancel_event is not None and cancel_event.is_set():
+                            try:
+                                await use_conn.close()
+                            except Exception:
+                                pass
+                            return _DOWNLOAD_CANCELLED
+                        if written + seg_done + len(chunk) > max_bytes:
+                            print(f"[DashProxy] {seg_label} exceeds limit {max_bytes}")
+                            try:
+                                await use_conn.close()
+                            except Exception:
+                                pass
+                            return -1
+                        pending_writes.append(chunk)
+                        pending_len += len(chunk)
+                        seg_done += len(chunk)
+                        if progress_cb is not None:
+                            progress_cb(len(chunk))
+                        win_bytes += len(chunk)
+                        now_w = time.monotonic()
+                        if now_w - win_t0 >= _SLOW_REL_WINDOW:
+                            win_el = now_w - win_t0
+                            if win_el > 0:
+                                win_rate = win_bytes / win_el
+                                if win_rate > win_best:
+                                    win_best = win_rate
+                            win_t0, win_bytes = now_w, 0
+                            verdict = _relative_trip(
+                                seg_done,
+                                now_w - seg_t0,
+                                max(track_best_bps, win_best),
+                                rel_trips,
+                                len(order),
+                                now_w - last_switch_t,
+                            )
+                            if verdict is not None:
+                                rel_trips += 1
+                                raise _SlowDashBody(f"relative slowdown ({verdict})")
+                        if pending_len >= _DOWNLOAD_WRITE_BATCH:
+                            batch = b"".join(pending_writes)
+                            pending_writes.clear()
+                            pending_len = 0
+                            await asyncio.to_thread(file_obj.write, batch)
+                except (_SlowDashBody, CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError, TimeoutError) as exc:
+                    try:
+                        await use_conn.close()
+                    except Exception:
+                        pass
+                    print(f"[DashProxy] {seg_label} cut after {seg_done}/{span} bytes ({exc}), failing over")
+                    continue
+                if seg_done >= span and use_conn is conn and exact_206:
+                    # Fully consumed a length-framed body on the raw conn:
+                    # the socket sits exactly at the next boundary, so keep
+                    # it for the next segment (no handshake, no slow-start
+                    # restart). Anything else (salvage wraps, short bodies,
+                    # reuses that errored) is closed as before.
+                    keepalive = (conn, used)
+                else:
+                    try:
+                        await use_conn.close()
+                    except Exception:
+                        pass
+                if seg_done >= span:
+                    break
+                # Close-delimited body ended early with no error: resume the remainder.
+                print(f"[DashProxy] {seg_label} short body ({seg_done}/{span} bytes), resuming remainder")
+            if pending_len:
+                batch = b"".join(pending_writes)
+                pending_writes.clear()
+                pending_len = 0
+                await asyncio.to_thread(file_obj.write, batch)
+            written += seg_done
+            seg_el = time.monotonic() - seg_t0
+            if seg_el > 0:
+                track_best_bps = max(track_best_bps, seg_done / seg_el)
+            print(
+                f"[DashProxy] {seg_label} done {seg_done}/{span} bytes in {seg_el:.1f}s "
+                f"({seg_done / seg_el / 1024:.0f} KB/s) via {seg_host}"
+            )
+            seg_index += 1
+            if note_cb is not None:
+                note_cb(None)
+        if note_cb is not None:
+            note_cb(None)
+        return written
+    except Exception as exc:
+        print(f"[DashProxy] {label} segmented download error: {exc}")
+        return -1
+    finally:
+        if keepalive is not None:
+            try:
+                await keepalive[0].close()
+            except Exception:
+                pass
+            keepalive = None
+        if file_obj is not None:
+            await asyncio.to_thread(file_obj.close)
+
+
+async def _download_track_file(
+    urls,
+    headers: dict,
+    proxy_url: str,
+    dest: str,
+    total_size: int,
+    label: str,
+    max_bytes: int | None = None,
+    progress_cb=None,
+    cancel_event: asyncio.Event | None = None,
+    note_cb=None,
+    rewind_cb=None,
+    refresh_cb=None,
+    max_refreshes: int = 2,
+) -> int:
+    """Download a track file, player-style when the size is known.
+
+    With a known ``total_size`` (the normal case: callers peek it first) the
+    track is fetched as sequential player-sized segments
+    (:func:`_download_track_segmented`); when the size is unknown (peek
+    failed) it falls back to the legacy whole-file resumable GET
+    (:func:`_download_track_to_file`). Same return contract as both.
+    """
+    if total_size and total_size > 0:
+        return await _download_track_segmented(
+            urls,
+            headers,
+            proxy_url,
+            dest,
+            total_size,
+            label,
+            max_bytes=max_bytes,
+            progress_cb=progress_cb,
+            cancel_event=cancel_event,
+            note_cb=note_cb,
+            refresh_cb=refresh_cb,
+            max_refreshes=max_refreshes,
+        )
+    return await _download_track_to_file(
+        urls,
+        headers,
+        proxy_url,
+        dest,
+        max_bytes=max_bytes,
+        progress_cb=progress_cb,
+        cancel_event=cancel_event,
+        note_cb=note_cb,
+        rewind_cb=rewind_cb,
+    )
 
 
 @dash_proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
@@ -1989,8 +2710,24 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                 urls, headers, proxy_url, label
             )
         except _DashUpstreamError as exc:
-            print(f"[DashProxy] proxy_dash error: {exc}")
-            return Response("Upstream error", status=502)
+            old_stamp = _playurl_url_expiry(urls[0]) if urls else None
+            provably_expired = old_stamp is not None and time.time() > old_stamp
+            if not exc.forbidden and not provably_expired:
+                print(f"[DashProxy] proxy_dash error: {exc}")
+                return Response("Upstream error", status=502)
+            # Every mirror rejected the signature (expired playurl): fetch a
+            # fresh playurl once and retry, like the official player's
+            # backup-URL-then-prefetchPlayUrl recovery. Gated on 403-class or
+            # provably-past signatures so ordinary dead videos and slow edges
+            # don't amplify upstream playurl calls.
+            reason = "forbidden" if exc.forbidden else "expired"
+            print(f"[DashProxy] {label} URLs {reason} ({exc}), refreshing playurl once")
+            retry = await _retry_proxy_with_fresh_playurl(
+                vid, idx, media_type, qn, cid, urls, headers, proxy_url, label
+            )
+            if retry is None:
+                return Response("Upstream error", status=502)
+            (conn, resp_headers, used_url, content_length, content_range), urls = retry
 
         host = urlparse(used_url).hostname or "-"
         pending = [u for u in urls if u != used_url]
@@ -2101,7 +2838,18 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 @app.route("/video/dash/<vid>/<int:idx>/manifest.mpd")
 @rate_limit(**RATE_LIMITS["proxy"])
 async def video_dash_manifest_view(vid, idx):
-    """Serve the isoff-on-demand MPD manifest for a video part."""
+    """Serve the isoff-on-demand MPD manifest for a video part.
+
+    ``?fresh=1`` drops the cached playurl first so the manifest is built
+    from freshly re-fetched CDN URLs — the player recovery path for expired
+    signatures (backend half of the official player's ``prefetchPlayUrl``).
+    """
+    if request.args.get("fresh") == "1":
+        try:
+            await appredis.delete(f"miku_dash_{vid}_{idx}")
+            await appredis.delete(f"miku_dash_{vid}_{idx}:miss")
+        except Exception:
+            pass
     dash_data = await _load_dash_data(vid, idx)
     mpd_content = generate_vod_mpd(vid, idx, dash_data) if dash_data else None
     if not mpd_content:
@@ -2304,35 +3052,47 @@ async def cancel_download_job(job_id: str) -> dict | None:
 
 
 async def _peek_content_length(
-    url: str, headers: dict, proxy_url: str, cancel_event: asyncio.Event | None = None
+    url: str | list, headers: dict, proxy_url: str, cancel_event: asyncio.Event | None = None
 ) -> int:
     """Fetch only response headers to learn a track's size (0 if unknown).
 
-    Opens a throwaway connection and closes it without reading the body.
+    ``url`` may be a single URL or a candidate mirror list; each mirror is
+    tried in order until one answers 200/206 with a Content-Length. Opens a
+    throwaway connection per attempt and closes it without reading the body.
     Raises RuntimeError if the track exceeds the per-track size cap.
     """
-    try:
-        conn, resp_headers = await _open_cdn_track(url, headers, proxy_url)
-    except Exception as exc:
-        print(f"[DashProxy] size peek failed: {exc}")
-        return 0
-    try:
-        if resp_headers.status_code not in (200, 206):
-            return 0
-        cl = (resp_headers.headers or {}).get("content-length")
-        if not cl:
-            return 0
+    if isinstance(url, (list, tuple)):
+        candidates = [u for u in url if isinstance(u, str) and u]
+    else:
+        candidates = [url] if isinstance(url, str) and url else []
+    last_exc: Exception | None = None
+    for cand in candidates:
         try:
-            size = int(cl)
-        except (TypeError, ValueError):
-            return 0
-        if size > _max_download_track_bytes():
-            raise RuntimeError(
-                f"this instance maximum allowed download size is {_max_download_size_mb()} MB"
-            )
-        return max(size, 0)
-    finally:
-        await conn.close()
+            conn, resp_headers = await _open_cdn_track(cand, headers, proxy_url)
+        except Exception as exc:
+            last_exc = exc
+            continue
+        try:
+            if resp_headers.status_code not in (200, 206):
+                last_exc = RuntimeError(f"HTTP {resp_headers.status_code}")
+                continue
+            cl = (resp_headers.headers or {}).get("content-length")
+            if not cl:
+                return 0
+            try:
+                size = int(cl)
+            except (TypeError, ValueError):
+                return 0
+            if size > _max_download_track_bytes():
+                raise RuntimeError(
+                    f"this instance maximum allowed download size is {_max_download_size_mb()} MB"
+                )
+            return max(size, 0)
+        finally:
+            await conn.close()
+    if last_exc is not None:
+        print(f"[DashProxy] size peek failed on all mirrors: {last_exc}")
+    return 0
 
 
 async def _run_dash_job(job: _DownloadJob, dash_data: dict):
@@ -2341,12 +3101,15 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     video, audio = _pick_download_tracks(dash_data, max_qn)
     if not video or not audio:
         raise RuntimeError("no suitable DASH tracks for download")
-    vurl = video.get("base_url") or video.get("baseUrl")
-    aurl = audio.get("base_url") or audio.get("baseUrl")
-    if not vurl or not aurl:
+    vurls = _dash_candidate_urls(video)
+    aurls = _dash_candidate_urls(audio)
+    if not vurls or not aurls:
         raise RuntimeError("track has no URL")
-    v_ok, a_ok = await asyncio.gather(_is_safe_dash_url_async(vurl), _is_safe_dash_url_async(aurl))
-    if not v_ok or not a_ok:
+    v_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in vurls))
+    a_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in aurls))
+    vurls = [u for u, ok in zip(vurls, v_checks, strict=False) if ok]
+    aurls = [u for u, ok in zip(aurls, a_checks, strict=False) if ok]
+    if not vurls or not aurls:
         raise RuntimeError("invalid CDN target")
 
     proxy_url = Network.get_proxy()
@@ -2362,38 +3125,97 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     job.actual_qn = actual_qn
     job.filename = _safe_download_filename(job.vid, job.idx, actual_qn)
 
-    vsize = await _peek_content_length(vurl, headers, proxy_url)
+    vsize = await _peek_content_length(vurls, headers, proxy_url)
     job.throw_if_cancelled()
-    asize = await _peek_content_length(aurl, headers, proxy_url)
+    asize = await _peek_content_length(aurls, headers, proxy_url)
     job.throw_if_cancelled()
     job.total_bytes = vsize + asize
     job.state = "downloading"
     job.touch()
 
-    n = await _download_track_to_file(
-        vurl,
+    try:
+        v_qn = int(video.get("id") or 0)
+    except (TypeError, ValueError):
+        v_qn = 0
+    try:
+        v_cid = int(video.get("codecid") or 0)
+    except (TypeError, ValueError):
+        v_cid = 0
+    try:
+        a_qn = int(audio.get("id") or 0)
+    except (TypeError, ValueError):
+        a_qn = 0
+    try:
+        a_cid = int(audio.get("codecid") or 0)
+    except (TypeError, ValueError):
+        a_cid = 0
+
+    async def _refresh_job_track_urls(media_type: str, qn: int, cid: int):
+        """Fresh-playurl mirrors for the *same* track (byte-identical content).
+
+        Returns a safety-checked candidate list, or None. A refreshed
+        response that no longer carries this exact track id is declined:
+        switching qualities mid-file would corrupt the download.
+        """
+        fresh = await _refresh_dash_data(job.vid, job.idx)
+        if not has_valid_dash_tracks(fresh):
+            return None
+        track = _lookup_track(fresh, media_type, qn, cid)
+        if track is None:
+            pick = _pick_download_tracks(fresh, max_qn)
+            track = pick[0] if media_type == "video" else pick[1]
+        if track is None:
+            return None
+        try:
+            if int(track.get("id") or -1) != qn:
+                print(
+                    f"[DashProxy] job {job.job_id} refresh changed track id "
+                    f"(want {qn}, got {track.get('id')}), declining"
+                )
+                return None
+        except (TypeError, ValueError):
+            return None
+        urls = _dash_candidate_urls(track)
+        checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls))
+        urls = [u for u, ok in zip(urls, checks, strict=False) if ok]
+        return urls or None
+
+    async def _refresh_video_urls():
+        return await _refresh_job_track_urls("video", v_qn, v_cid)
+
+    async def _refresh_audio_urls():
+        return await _refresh_job_track_urls("audio", a_qn, a_cid)
+
+    n = await _download_track_file(
+        vurls,
         headers,
         proxy_url,
         vpath,
+        vsize,
+        f"{job.vid}:{job.idx} video",
         progress_cb=job.add_progress,
         cancel_event=job.cancel_event,
         note_cb=job.set_note,
         rewind_cb=job.rewind_progress,
+        refresh_cb=_refresh_video_urls,
     )
     if n == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()
     if n < 0:
         raise RuntimeError("video track download failed")
     job.throw_if_cancelled()
-    n = await _download_track_to_file(
-        aurl,
+    n = await _download_track_file(
+        aurls,
         headers,
         proxy_url,
         apath,
+        asize,
+        f"{job.vid}:{job.idx} audio",
         progress_cb=job.add_progress,
         cancel_event=job.cancel_event,
         note_cb=job.set_note,
         rewind_cb=job.rewind_progress,
+        refresh_cb=_refresh_audio_urls,
     )
     if n == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()
@@ -2431,7 +3253,19 @@ async def _run_durl_job(job: _DownloadJob):
     except _DurlResolveError as exc:
         raise RuntimeError(str(exc)) from None
     job.actual_qn = qn
-    if not await _is_safe_dash_url_async(url):
+    durl_urls = [url]
+    try:
+        bak = await appredis.get(f"mikuinv_{job.vid}_{job.idx}_{qn}_bak")
+        if bak:
+            if isinstance(bak, bytes):
+                bak = bak.decode()
+            if bak and bak != url and _is_safe_dash_url(bak):
+                durl_urls.append(bak)
+    except Exception:
+        pass
+    safe_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in durl_urls))
+    durl_urls = [u for u, ok in zip(durl_urls, safe_checks, strict=False) if ok]
+    if not durl_urls:
         raise RuntimeError("invalid CDN target")
 
     tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix=f"miku_dl_{job.job_id}_")
@@ -2442,19 +3276,61 @@ async def _run_durl_job(job: _DownloadJob):
 
     headers = await _build_dash_cdn_headers()
     proxy_url = Network.get_proxy()
-    job.total_bytes = await _peek_content_length(url, headers, proxy_url)
+    job.total_bytes = await _peek_content_length(durl_urls, headers, proxy_url)
     job.throw_if_cancelled()
     job.state = "downloading"
     job.touch()
-    n = await _download_track_to_file(
-        url,
+
+    async def _refresh_durl_urls():
+        """Re-resolve fresh progressive URLs for the *same* quality.
+
+        Drops the quality-list cache so every quality is re-fetched (never
+        reusing the possibly-stale initial ``durl``), then resolves again.
+        A refreshed response pointing at a different quality is declined:
+        switching files mid-download would corrupt it.
+        """
+        try:
+            await appredis.delete(f"mikuinv_{job.vid}_{job.idx}")
+        except Exception:
+            pass
+        ladder = {
+            "support_formats": (play_data or {}).get("support_formats") or [],
+            "quality": job.qual,
+            "durl": None,
+        }
+        try:
+            url2, qn2, _ext2 = await _resolve_durl_download(v, job.vid, job.idx, job.qual, play_data=ladder)
+        except _DurlResolveError:
+            return None
+        if qn2 != qn:
+            print(f"[DashProxy] job {job.job_id} refresh changed quality (want {qn}, got {qn2}), declining")
+            return None
+        urls2 = [url2]
+        try:
+            bak2 = await appredis.get(f"mikuinv_{job.vid}_{job.idx}_{qn2}_bak")
+            if bak2:
+                if isinstance(bak2, bytes):
+                    bak2 = bak2.decode()
+                if bak2 and bak2 != url2 and _is_safe_dash_url(bak2):
+                    urls2.append(bak2)
+        except Exception:
+            pass
+        checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls2))
+        urls2 = [u for u, ok in zip(urls2, checks, strict=False) if ok]
+        return urls2 or None
+
+    n = await _download_track_file(
+        durl_urls,
         headers,
         proxy_url,
         outpath,
+        job.total_bytes,
+        f"{job.vid}:{job.idx} progressive",
         progress_cb=job.add_progress,
         cancel_event=job.cancel_event,
         note_cb=job.set_note,
         rewind_cb=job.rewind_progress,
+        refresh_cb=_refresh_durl_urls,
     )
     if n == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()
