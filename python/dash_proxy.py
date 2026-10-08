@@ -85,6 +85,22 @@ DASH_ATTEMPT_TIMEOUT = 8.0
 DASH_BODY_GRACE = 3.0
 DASH_BODY_FLOOR_KBPS = 100
 
+# Playback fail-fast budgets. dash.js abandons slow fragments itself (~7s,
+# proven live) and retries up to 5x with ABR downshift — so the proxy must
+# fail a fragment fast instead of heroically churning mirrors for longer
+# than the client waits (abandoned work + spins). Downloads keep the patient
+# 8s/all-mirror budgets: no client intelligence there, the server must
+# succeed. Caps: 2 mirrors per playback request, 4s handshakes.
+DASH_PLAYBACK_ATTEMPT_TIMEOUT = 4.0
+_PLAYBACK_MAX_MIRRORS = 2
+
+# Idle-stall trip for response bodies: no bytes at all for this long means a
+# wedged edge (the cumulative-average watchdog above can't see pure idleness
+# — a 7s stall followed by a dribble reads as merely "slow"). Shared by
+# playback and downloads; both resume byte-exact, so tripping early only
+# costs a handshake.
+DASH_BODY_IDLE_TIMEOUT = 5.0
+
 # Raw CDN domains allowed through the DASH track proxy.
 _ALLOWED_DASH_DOMAINS = [
     ".hdslb.com",
@@ -1742,10 +1758,10 @@ def _dash_candidate_urls(track: dict) -> list:
     return candidates
 
 
-async def _fetch_dash_attempt(url: str, headers: dict, proxy_url: str):
+async def _fetch_dash_attempt(url: str, headers: dict, proxy_url: str, timeout: float = DASH_ATTEMPT_TIMEOUT):
     """Connect + request + read headers for one candidate URL.
 
-    Bounded by ``DASH_ATTEMPT_TIMEOUT`` so a stalled edge fails fast and
+    Bounded by ``timeout`` so a stalled edge fails fast and
     the caller can try the next mirror. Returns ``(conn, resp_headers)``;
     the caller owns ``conn.close()``. Raises ``TimeoutError`` on stall
     (closed connection included) and propagates other errors.
@@ -1754,7 +1770,7 @@ async def _fetch_dash_attempt(url: str, headers: dict, proxy_url: str):
     try:
         resp_headers = await asyncio.wait_for(
             _dash_handshake(conn),
-            timeout=DASH_ATTEMPT_TIMEOUT,
+            timeout=timeout,
         )
         return conn, resp_headers
     except BaseException:
@@ -1864,10 +1880,21 @@ async def _yield_dash_body(conn, label: str):
     remaining Range on the next mirror instead of tarpitting until dash.js
     abandons the request. Small (sidx/init) responses finish inside the grace
     period and never trip.
+
+    Separately, no bytes at all for ``DASH_BODY_IDLE_TIMEOUT`` raises too: a
+    wedged edge that idles (then dribbles) is invisible to the cumulative
+    average until far too late.
     """
     got = 0
     t0 = time.monotonic()
-    async for chunk in conn.iter_chunks():
+    iterator = conn.iter_chunks()
+    while True:
+        try:
+            chunk = await asyncio.wait_for(iterator.__anext__(), timeout=DASH_BODY_IDLE_TIMEOUT)
+        except StopAsyncIteration:
+            return
+        except (asyncio.TimeoutError, TimeoutError):
+            raise _SlowDashBody(f"no data for {DASH_BODY_IDLE_TIMEOUT:.0f}s (idle stall)")
         got += len(chunk)
         el = time.monotonic() - t0
         if el > DASH_BODY_GRACE and got / el < DASH_BODY_FLOOR_KBPS * 1024:
@@ -1976,7 +2003,8 @@ class _ResumedDashConn:
 
 
 async def _failover_dash_conn(
-    pending: list, headers: dict, proxy_url: str, label: str, orig_range, yielded: int, downstream_total: int | None = None
+    pending: list, headers: dict, proxy_url: str, label: str, orig_range, yielded: int, downstream_total: int | None = None,
+    attempt_timeout: float | None = None
 ):
     """Fail over a cut/slow body to the next mirror.
 
@@ -2002,7 +2030,9 @@ async def _failover_dash_conn(
     forbidden_seen = False
     while pending:
         try:
-            conn, resp_headers, used, _, _ = await _fetch_dash_track(pending, headers, proxy_url, label)
+            conn, resp_headers, used, _, _ = await _fetch_dash_track(
+                pending, headers, proxy_url, label, attempt_timeout=attempt_timeout
+            )
         except _DashUpstreamError as exc:
             raise exc
         if resp_headers.status_code in (403, 412, 514):
@@ -2163,7 +2193,7 @@ def _segment_mirror_order(candidates: list, seg_index: int) -> list:
     return healthy[rot:] + healthy[:rot] + sick + tail
 
 
-async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str):
+async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str, attempt_timeout: float | None = None):
     """Try each candidate mirror in order; return ``(conn, resp_headers, used_url, content_length, content_range)``.
     Stalled edges fail fast (``DASH_ATTEMPT_TIMEOUT``) so playback falls over
     to the next mirror instead of hanging until dash.js abandons the request
@@ -2182,11 +2212,12 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
     ticket_refreshed = False
     last_error: Exception | None = None
     forbidden_seen = False
+    handshake_timeout = attempt_timeout or DASH_ATTEMPT_TIMEOUT
     urls = _order_urls_by_health(urls)
     for url in urls:
         host = urlparse(url).hostname or url
         try:
-            conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url)
+            conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url, timeout=handshake_timeout)
         except (asyncio.TimeoutError, TimeoutError) as exc:
             last_error = exc
             _note_mirror_bad(urlparse(url).hostname or "")
@@ -2223,7 +2254,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
     )
 
 
-async def _retry_proxy_with_fresh_playurl(vid, idx, media_type, qn, cid, old_urls, headers, proxy_url, label):
+async def _retry_proxy_with_fresh_playurl(vid, idx, media_type, qn, cid, old_urls, headers, proxy_url, label, attempt_timeout=None):
     """One fresh-playurl retry for a 403-swept track (official player recovery).
 
     Drops the cached playurl (whose signatures likely expired — all mirrors
@@ -2254,7 +2285,7 @@ async def _retry_proxy_with_fresh_playurl(vid, idx, media_type, qn, cid, old_url
         return None
     print(f"[DashProxy] {label} refreshed playurl (stamp {old_stamp} -> {new_stamp}), retrying request")
     try:
-        fetched = await _fetch_dash_track(new_urls, headers, proxy_url, label)
+        fetched = await _fetch_dash_track(new_urls, headers, proxy_url, label, attempt_timeout=attempt_timeout)
     except _DashUpstreamError as exc:
         print(f"[DashProxy] {label} fresh playurl also failed: {exc}")
         return None
@@ -2741,10 +2772,11 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     Content`` with ``Content-Range``/``Content-Length``/``ETag`` so the sidx
     (SegmentBase indexRange) can drive byte-range seeking in dash.js.
 
-    Each track is tried on its primary ``base_url`` first, then on its
-    ``backup_url`` mirrors: individual objects sometimes stall on one edge
-    while siblings serve in milliseconds, and hanging on the primary until
-    dash.js abandons the request is what used to surface as bare 500s.
+    Each track is tried on at most two mirrors (healthy-first): dash.js
+    abandons slow fragments itself and retries with ABR downshift, so deeper
+    per-request sweeps only outlive client patience. Individual objects
+    sometimes stall on one edge while siblings serve in milliseconds — the
+    sick-mirror memory routes the next fragment straight to a healthy one.
     """
     started = time.monotonic()
     host = "-"
@@ -2770,6 +2802,14 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         urls = [u for u, ok in zip(urls, verdicts, strict=False) if ok]
         if not urls:
             return Response("Forbidden: Invalid proxy target", status=403)
+        # Fail fast, not heroically: dash.js abandons slow fragments itself
+        # (~7s, with 5 retries + ABR downshift), so churning more than two
+        # mirrors per request only guarantees the client gives up first and
+        # the work is wasted. Sick-mirror memory (health ordering) makes
+        # those two attempts count.
+        urls = _order_urls_by_health(urls)[:_PLAYBACK_MAX_MIRRORS]
+        if not urls:
+            return Response("Forbidden: Invalid proxy target", status=403)
 
         creds = appconf["credential"]
         cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds.get("use_cred") else {}
@@ -2790,7 +2830,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         label = f"{vid}:{idx} {media_type}/{qn}/{cid}"
         try:
             conn, resp_headers, used_url, content_length, content_range = await _fetch_dash_track(
-                urls, headers, proxy_url, label
+                urls, headers, proxy_url, label, attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT
             )
         except _DashUpstreamError as exc:
             old_stamp = _playurl_url_expiry(urls[0]) if urls else None
@@ -2806,7 +2846,8 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             reason = "forbidden" if exc.forbidden else "expired"
             print(f"[DashProxy] {label} URLs {reason} ({exc}), refreshing playurl once")
             retry = await _retry_proxy_with_fresh_playurl(
-                vid, idx, media_type, qn, cid, urls, headers, proxy_url, label
+                vid, idx, media_type, qn, cid, urls, headers, proxy_url, label,
+                attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
             )
             if retry is None:
                 return Response("Upstream error", status=502)
@@ -2855,7 +2896,8 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}), trying next mirror")
                     try:
                         conn, used, _ = await _failover_dash_conn(
-                            pending, headers, proxy_url, label, orig_range, yielded, downstream_total
+                            pending, headers, proxy_url, label, orig_range, yielded, downstream_total,
+                            attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
                         )
                     except _DashUpstreamError as exc2:
                         print(f"[DashProxy] {label} body failover failed: {exc2}")
