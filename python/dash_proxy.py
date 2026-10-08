@@ -1714,19 +1714,95 @@ def _expected_resume_start(orig_range: str | None, yielded: int) -> int | None:
     return None
 
 
-async def _failover_dash_conn(pending: list, headers: dict, proxy_url: str, label: str, orig_range, yielded: int):
+def _parse_content_range_full(cr: str | None) -> tuple[int | None, int | None, int | None]:
+    """Parse ``Content-Range: bytes <start>-<end>/<total>`` into ints.
+
+    Returns ``(start, end, total)`` with ``total`` None for ``*``/missing.
+    Returns ``(None, None, None)`` when unparseable.
+    """
+    m = _CONTENT_RANGE_RE.match((cr or "").strip())
+    if not m:
+        return None, None, None
+    try:
+        start, end = int(m.group(1)), int(m.group(2))
+    except (TypeError, ValueError):
+        return None, None, None
+    total: int | None = None
+    raw_total = m.group(3)
+    if raw_total and raw_total != "*":
+        try:
+            total = int(raw_total)
+        except (TypeError, ValueError):
+            total = None
+    return start, end, total
+
+
+class _ResumedDashConn:
+    """Wrap a mirror that did not resume contiguously (Range ignored / offset).
+
+    Skips ``skip`` prefix bytes of the upstream body and caps output at
+    ``limit`` bytes so the byte sequence stays contiguous with what was
+    already sent downstream (downstream headers were emitted from the first
+    mirror and cannot change). ``limit`` None means unbounded.
+    """
+
+    def __init__(self, conn, skip: int, limit: int | None):
+        self._conn = conn
+        self._skip = max(int(skip or 0), 0)
+        self._limit = limit
+
+    async def iter_chunks(self):
+        skip = self._skip
+        limit = self._limit
+        async for chunk in self._conn.iter_chunks():
+            if skip > 0:
+                if len(chunk) <= skip:
+                    skip -= len(chunk)
+                    continue
+                chunk = chunk[skip:]
+                skip = 0
+            if limit is not None:
+                if limit <= 0:
+                    break
+                if len(chunk) > limit:
+                    chunk = chunk[:limit]
+                limit -= len(chunk)
+                yield chunk
+                if limit <= 0:
+                    break
+            else:
+                yield chunk
+
+    async def close(self):
+        try:
+            await self._conn.close()
+        except Exception:
+            pass
+
+
+async def _failover_dash_conn(
+    pending: list, headers: dict, proxy_url: str, label: str, orig_range, yielded: int, downstream_total: int | None = None
+):
     """Fail over a cut/slow body to the next mirror.
 
     Shifts ``headers["range"]`` when bytes were already sent, then walks
     ``pending`` until a mirror answers with a byte-contiguous resume point.
-    Mirrors that ignore the resume Range (200 instead of 206) or start at
-    the wrong offset are skipped. Removes the used URL from ``pending`` and
-    returns ``(conn, used_url, resp_headers)``; raises ``_DashUpstreamError``
-    when no mirror is usable. The caller owns ``conn.close()``.
+    Mirrors that answer 206 at the expected offset are used directly.
+    Mirrors that ignore the resume Range (200 full body) or answer 206 at an
+    earlier offset that still covers the resume point are salvaged by
+    skipping the already-sent prefix (capped to the downstream remainder),
+    because re-requesting cannot change bytes already flushed to the player.
+    Mirrors that start past the resume point (gap) or whose body is shorter
+    than the resume point are skipped. Removes the used URL from ``pending``
+    and returns ``(conn, used_url, resp_headers)``; raises ``_DashUpstreamError``
+    when no mirror is usable. The caller owns ``conn.close()`` (wrapper or raw).
     """
     if yielded:
         headers["range"] = _shift_dash_range(orig_range, yielded) or headers.get("range")
     expected = _expected_resume_start(orig_range, yielded) if yielded else None
+    remaining = downstream_total - yielded if downstream_total is not None and yielded else None
+    if remaining is not None and remaining < 0:
+        remaining = 0
     last_error: Exception | None = None
     while pending:
         try:
@@ -1734,11 +1810,23 @@ async def _failover_dash_conn(pending: list, headers: dict, proxy_url: str, labe
         except _DashUpstreamError as exc:
             raise exc
         if yielded:
-            start = _parse_content_range_start(resp_headers.headers)
-            if resp_headers.status_code != 206 or (expected is not None and start != expected):
+            status = resp_headers.status_code
+            if status == 206:
+                start, end, _ = _parse_content_range_full(resp_headers.headers.get("content-range"))
+                if expected is None or start == expected:
+                    pending.remove(used)
+                    return conn, used, resp_headers
+                if start is not None and end is not None and expected is not None and start < expected <= end:
+                    skip = expected - start
+                    pending.remove(used)
+                    print(
+                        f"[DashProxy] {label} {urlparse(used).hostname} resume overlap "
+                        f"(got {start}-{end}, want {expected}, skipping {skip}), salvaging"
+                    )
+                    return _ResumedDashConn(conn, skip, remaining), used, resp_headers
                 print(
                     f"[DashProxy] {label} {urlparse(used).hostname} resume mismatch "
-                    f"(want start={expected}, got status={resp_headers.status_code} "
+                    f"(want start={expected}, got status={status} "
                     f"range={resp_headers.headers.get('content-range')}), trying next mirror"
                 )
                 pending.remove(used)
@@ -1748,6 +1836,44 @@ async def _failover_dash_conn(pending: list, headers: dict, proxy_url: str, labe
                     pass
                 last_error = RuntimeError(f"resume offset mismatch on {used}")
                 continue
+            if status == 200 and expected is not None:
+                # Server ignored Range: full body from 0, discard the prefix.
+                try:
+                    total = int(str(resp_headers.headers.get("content-length") or "").strip())
+                except (TypeError, ValueError):
+                    total = None
+                if total is not None and total > expected:
+                    limit = total - expected if remaining is None else min(remaining, total - expected)
+                    pending.remove(used)
+                    print(
+                        f"[DashProxy] {label} {urlparse(used).hostname} ignored resume Range "
+                        f"(200 full body, discarding {expected} prefix), salvaging"
+                    )
+                    return _ResumedDashConn(conn, expected, limit), used, resp_headers
+                print(
+                    f"[DashProxy] {label} {urlparse(used).hostname} resume mismatch "
+                    f"(want start={expected}, got status={status} "
+                    f"range={resp_headers.headers.get('content-range')}), trying next mirror"
+                )
+                pending.remove(used)
+                try:
+                    await conn.close()
+                except Exception:
+                    pass
+                last_error = RuntimeError(f"resume offset mismatch on {used}")
+                continue
+            print(
+                f"[DashProxy] {label} {urlparse(used).hostname} resume mismatch "
+                f"(want start={expected}, got status={resp_headers.status_code} "
+                f"range={resp_headers.headers.get('content-range')}), trying next mirror"
+            )
+            pending.remove(used)
+            try:
+                await conn.close()
+            except Exception:
+                pass
+            last_error = RuntimeError(f"resume offset mismatch on {used}")
+            continue
         pending.remove(used)
         return conn, used, resp_headers
     raise _DashUpstreamError(f"all mirrors failed for {label}: {last_error}")
@@ -1870,6 +1996,10 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         pending = [u for u in urls if u != used_url]
         orig_range = headers.get("range")
         yielded = 0
+        try:
+            downstream_total = int(str(content_length).strip()) if content_length is not None else None
+        except (TypeError, ValueError):
+            downstream_total = None
 
         async def generate():
             nonlocal conn, host, yielded
@@ -1904,7 +2034,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}), trying next mirror")
                     try:
                         conn, used, _ = await _failover_dash_conn(
-                            pending, headers, proxy_url, label, orig_range, yielded
+                            pending, headers, proxy_url, label, orig_range, yielded, downstream_total
                         )
                     except _DashUpstreamError as exc2:
                         print(f"[DashProxy] {label} body failover failed: {exc2}")
