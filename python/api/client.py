@@ -300,6 +300,14 @@ async def get_bili_client() -> httpx.AsyncClient:
                     timeout=httpx.Timeout(None, connect=15.0, pool=30.0, read=30.0),
                     follow_redirects=False,
                 )
+                # httpx seeds 4 client-level defaults (accept/accept-encoding/
+                # connection/user-agent) via the headers *setter* and merges
+                # them ahead of per-request headers — including
+                # `connection: keep-alive`, which never appears on real
+                # HTTP/2 traffic and breaks our ordered Chrome set. Bypass
+                # the setter so requests carry exactly what callers pass
+                # (plus the transport-level pseudo-headers curl manages).
+                __client._headers = httpx.Headers()
                 __client_configured_proxy = proxy
     return __client
 

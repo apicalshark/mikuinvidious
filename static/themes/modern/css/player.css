@@ -169,10 +169,6 @@ media-controller:fullscreen #danmaku-container {
 #quality-list [data-menu-view] button {
   white-space: nowrap;
 }
-#quality-list [data-menu-view][hidden] {
-  /* Beats Tailwind .flex (author origin wins over the UA [hidden] rule). */
-  display: none;
-}
 #quality-list [data-menu-view]:not([hidden]) {
   animation: miku-menu-in 160ms cubic-bezier(0.2, 0, 0, 1);
 }

@@ -68,3 +68,20 @@ class CookiesRefreshException(ApiException):
     """Failed to refresh Bilibili cookies."""
 
     pass
+
+
+# Risk-control signals worth surfacing (not silently swallowing): Bilibili
+# answers enumeration throttling with these instead of data. Verified live:
+# rapid space calls return HTTP 412 ("request was banned") even for real
+# browsers; -352/-509/-799 are the sibling gates.
+RISK_RESPONSE_CODES = frozenset({-352, -412, -509, -799})
+RISK_HTTP_STATUS = frozenset({412, 429})
+
+
+def is_risk_error(exc: Exception) -> bool:
+    """True when *exc* is a recognized Bilibili risk-control response."""
+    if isinstance(exc, ResponseCodeException):
+        return exc.code in RISK_RESPONSE_CODES
+    if isinstance(exc, NetworkException):
+        return exc.code in RISK_HTTP_STATUS
+    return False

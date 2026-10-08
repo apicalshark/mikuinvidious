@@ -1106,6 +1106,18 @@ async function initMikuPlayer() {
     qualityBtn.onclick = (e) => {
       e.stopPropagation();
       const isVisible = qualityMenu.classList.contains("opacity-100");
+      if (!isVisible) {
+        // Always open on the main view: an option pick closes the menu
+        // while its sub-view is visible, which would otherwise greet the
+        // next open with a stale sub-view. Flat (live/progressive-legacy)
+        // menus have no views, so this no-ops for them.
+        const qlist = document.getElementById("quality-list");
+        if (qlist) {
+          qlist.querySelectorAll("[data-menu-view]").forEach((v) => {
+            v.hidden = v.dataset.menuView !== "main";
+          });
+        }
+      }
       toggleQualityMenu(!isVisible, qualityBtn, qualityMenu, controller);
     };
     document.addEventListener("click", (e) => {

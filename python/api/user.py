@@ -23,7 +23,7 @@ from enum import Enum
 
 from .client import Api, build_chrome_headers
 from .credential import Credential
-from .exceptions import ArgsException, NetworkException, ResponseCodeException
+from .exceptions import ArgsException, is_risk_error
 from .video import _get_dm_img_params
 
 __all__ = ["User", "VideoOrder", "ArticleOrder"]
@@ -36,24 +36,6 @@ def _space_headers(mid) -> dict:
     return build_chrome_headers(
         origin=_SPACE_ORIGIN, referer=f"{_SPACE_ORIGIN}/{mid}"
     )
-
-
-# Risk-control signals worth surfacing (not silently swallowing): Bilibili
-# answers enumeration throttling with these instead of data. Verified live:
-# rapid space calls return HTTP 412 ("request was banned") even for real
-# browsers; -352/-509/-799 are the sibling gates. Callers read
-# ``User.degraded`` to decide whether an empty list means "no content" or
-# "upstream throttled us — say so in the UI".
-_RISK_CODES = frozenset({-352, -412, -509, -799})
-_RISK_HTTP_STATUS = frozenset({412, 429})
-
-
-def _is_risk_error(exc: Exception) -> bool:
-    if isinstance(exc, ResponseCodeException):
-        return exc.code in _RISK_CODES
-    if isinstance(exc, NetworkException):
-        return exc.code in _RISK_HTTP_STATUS
-    return False
 
 
 class VideoOrder(Enum):
@@ -88,7 +70,7 @@ class User:
         else:
             raise ArgsException("One of uid and name must be provided")
         self.credential = credential if credential is not None else Credential()
-        # Set when any fetch below hits risk control (see _is_risk_error).
+        # Set when any fetch below hits risk control (see is_risk_error).
         # Views read it to tell "throttled, content missing" apart from a
         # genuinely empty channel. Per-request instances only — never cached.
         self._degraded = False
@@ -113,7 +95,7 @@ class User:
                 return result
             # Empty / risk-controlled result (e.g. v_voucher gate) -> fall through
         except Exception as e:
-            if _is_risk_error(e):
+            if is_risk_error(e):
                 self._degraded = True
         # /x/space/wbi/acc/info is often risk-controlled / IP-blocked (412/-352)
         # from datacenter IPs. PipePipe uses the non-wbi /x/web-interface/card
@@ -140,7 +122,7 @@ class User:
                     return card
             except Exception as e:
                 last = e
-                if _is_risk_error(e):
+                if is_risk_error(e):
                     self._degraded = True
         if last is not None:
             raise last
@@ -190,7 +172,7 @@ class User:
                 return result
             # Empty / risk-controlled result (e.g. v_voucher gate) -> fall through
         except Exception as e:
-            if _is_risk_error(e):
+            if is_risk_error(e):
                 self._degraded = True
         # The /x/space/wbi/arc/search endpoint is frequently risk-controlled /
         # IP-blocked (HTTP 412 / -352) from datacenter IPs without the WARP
@@ -229,7 +211,7 @@ class User:
                 break
             except Exception as e:
                 last_err = e
-                if _is_risk_error(e):
+                if is_risk_error(e):
                     self._degraded = True
         data = data if isinstance(data, dict) else {}
         archives = data.get("archives", []) if isinstance(data.get("archives"), list) else []
@@ -282,6 +264,6 @@ class User:
         try:
             return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
         except Exception as e:
-            if _is_risk_error(e):
+            if is_risk_error(e):
                 self._degraded = True
             raise

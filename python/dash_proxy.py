@@ -602,6 +602,39 @@ async def _cache_durl_entry(vid: str, idx: int, qn: int, desc: str, node: dict |
     return {"quality": actual_qn, "new_description": desc, "ext": ext}
 
 
+def _select_durl_results(results: list, play_data: dict | None) -> list:
+    """Collapse same-file dupes to the truthful entry (or [] when empty).
+
+    PGC durl endpoints answer every quality request with the same
+    single-quality node (e.g. everything resolves to qn 32 wearing each
+    other's labels — seen live on bangumi ep98604). An entry resolved at its
+    own requested quality describes reality; otherwise keep the best file
+    the server actually served, relabeled from support_formats by ACTUAL
+    quality (request descriptions describe files we didn't get). Temp
+    ``_requested_qn`` keys are stripped before returning.
+    """
+    results = [r for r in results if r]
+    exact = [r for r in results if r.get("quality") == r.get("_requested_qn")]
+    picked = exact
+    if not picked and results:
+        fmt_desc = {}
+        for f in ((play_data or {}).get("support_formats") or []):
+            try:
+                if f.get("quality") is not None and (
+                    f.get("new_description") or f.get("display_desc")
+                ):
+                    fmt_desc[int(f["quality"])] = f.get("new_description") or f.get("display_desc")
+            except (TypeError, ValueError):
+                continue
+        best = max(results, key=lambda r: r.get("quality", 0))
+        if fmt_desc.get(best.get("quality")):
+            best["new_description"] = fmt_desc[best["quality"]]
+        picked = [best]
+    for r in picked:
+        r.pop("_requested_qn", None)
+    return picked
+
+
 async def fetch_durl_supported_src(
     v,
     vid: str,
@@ -658,18 +691,8 @@ async def fetch_durl_supported_src(
         return entry
 
     results = await asyncio.gather(*[resolve_one(qn, desc) for qn, desc in qualities])
-    results = [r for r in results if r]
-    exact = [r for r in results if r.get("quality") == r.get("_requested_qn")]
-    if exact:
-        results = exact
-    elif results:
-        # No request hit its own quality (hard-capped ladder): keep the
-        # lowest request as the single truthful entry instead of N dupes.
-        results = [min(results, key=lambda r: r.get("_requested_qn", 0))]
-    for r in results:
-        r.pop("_requested_qn", None)
     supported = sorted(
-        results,
+        _select_durl_results(results, play_data),
         key=lambda r: r["quality"],
         reverse=True,
     )

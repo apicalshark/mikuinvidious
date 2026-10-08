@@ -34,6 +34,7 @@ from api import (
     video,
     video_zone,
 )
+from api.exceptions import is_risk_error
 from extra import (
     article_to_any,
     article_to_html,
@@ -367,6 +368,16 @@ async def _fetch_space_data(mid, pn=1, ps=30):
     return uinfo, uvids, bool(getattr(u, "_degraded", False))
 
 
+def _space_html_response(html, *, use_cache, cache_hit, degraded):
+    """200 HTML response for space pages with observability headers."""
+    headers = {}
+    if use_cache:
+        headers["X-Cache"] = "HIT" if cache_hit else "MISS"
+    if degraded:
+        headers["X-Degraded"] = "risk-control"
+    return Response(html, status=200, content_type="text/html", headers=headers)
+
+
 @app.route("/space/<mid>")
 @app.route("/space/<mid>/")
 async def space_view(mid):
@@ -381,6 +392,7 @@ async def space_view(mid):
     use_cache = cache_ttl > 0
     cache_hit = False
     degraded = False
+    load_failed = False
     uinfo = None
     uvids = {}
     if use_cache:
@@ -392,11 +404,16 @@ async def space_view(mid):
             # ps=30 on the page-1 path so the payload is a superset the JSON
             # feed can also use; page-1 HTML is sliced back to 28 below.
             uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=30 if pn == 1 else 28))
-        except Exception:
+        except Exception as e:
             # The user API is often risk-controlled / IP-blocked (412/-352) without the
             # WARP proxy; re-run the core profile fetch alone in case only a sibling
             # gather task failed. The video list is optional and falls back to empty.
-            degraded = True
+            # Only recognized risk-control errors mark the page degraded;
+            # anything else is a neutral load failure (see template).
+            if is_risk_error(e):
+                degraded = True
+            else:
+                load_failed = True
             uvids = {}
             if not isinstance(uinfo, dict) or not uinfo:
                 try:
@@ -451,20 +468,11 @@ async def space_view(mid):
     # fallback covered (full list) needs no banner; an empty list after risk
     # control is "throttled", not "this channel has no videos".
     degraded = degraded and not vlist
+    load_failed = load_failed and not vlist and not degraded
     html = await render_template_with_theme(
-        "space.html", uinfo=uinfo, uvids=uvids, degraded=degraded
+        "space.html", uinfo=uinfo, uvids=uvids, degraded=degraded, load_failed=load_failed
     )
-    if use_cache:
-        return Response(
-            html,
-            status=200,
-            content_type="text/html",
-            headers={
-                "X-Cache": "HIT" if cache_hit else "MISS",
-                **({"X-Degraded": "risk-control"} if degraded else {}),
-            },
-        )
-    return html
+    return _space_html_response(html, use_cache=use_cache, cache_hit=cache_hit, degraded=degraded)
 
 
 @app.route("/space/<mid>/json")
