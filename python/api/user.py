@@ -249,6 +249,8 @@ class User:
             total = int(page_info.get("total") or len(vlist))
         except (TypeError, ValueError):
             total = len(vlist)
+        if vlist:
+            self._videos_load_failed = False
         return {
             "list": {"vlist": vlist},
             "page": {"count": total, "pn": pn, "ps": ps},
