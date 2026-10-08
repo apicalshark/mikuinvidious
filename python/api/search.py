@@ -205,14 +205,14 @@ _SEARCH_ORIGIN = "https://search.bilibili.com"
 
 
 def _headers_for(url: str, params: dict) -> dict:
-    host = urlsplit(url).netloc
+    host = (urlsplit(url).hostname or "").lower()
     keyword = params.get("keyword") or params.get("term")
     if host == "api.bilibili.com" and keyword:
         return build_chrome_headers(
             origin=_SEARCH_ORIGIN,
             referer=f"{_SEARCH_ORIGIN}/all?keyword={quote(str(keyword))}",
         )
-    if host.startswith("s.search.bilibili.com"):
+    if host == "s.search.bilibili.com" or host.endswith(".s.search.bilibili.com"):
         referer = (
             f"{_SEARCH_ORIGIN}/all?keyword={quote(str(keyword))}"
             if keyword
