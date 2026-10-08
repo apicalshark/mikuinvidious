@@ -49,7 +49,7 @@ import aiofiles
 import orjson
 from csrf import csrf_protect
 from quart import Blueprint, Response, jsonify, redirect, request
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
 from shared import (
     Network,
     TicketManager,
@@ -67,11 +67,11 @@ DASH_CACHE_TTL = 1800
 DASH_FETCH_TIMEOUT = 8.0
 
 # Per-attempt deadline for reaching a DASH CDN URL (connect + request +
-# response headers). Healthy edges answer sidx/init range requests in well
-# under a second; a stalled edge must fail over to a backup URL instead of
-# hanging until dash.js abandons the request — abandoned handlers surface
-# as bare 500s in the access log with no app-side traceback.
-DASH_ATTEMPT_TIMEOUT = 8.0
+# response headers). Healthy edges answer in well under a second; a stalled
+# edge must fail over to a backup URL instead of hanging. Kept at 5s (not
+# lower): WARP SOCKS5 + TLS handshakes under load need headroom, and each
+# "stalled" line below is this many seconds of pure zero-progress waste.
+DASH_ATTEMPT_TIMEOUT = 5.0
 
 # Mid-body watchdog for DASH track proxying. The handshake deadline above only
 # covers connect + request + response headers; some edges answer headers in ms
@@ -84,6 +84,22 @@ DASH_ATTEMPT_TIMEOUT = 8.0
 # fires (see player.js) instead of burning all of its retries on one edge.
 DASH_BODY_GRACE = 3.0
 DASH_BODY_FLOOR_KBPS = 100
+
+# Playback fail-fast budgets. dash.js abandons slow fragments itself (~7s,
+# proven live) and retries up to 5x with ABR downshift — so the proxy must
+# fail a fragment fast instead of heroically churning mirrors for longer
+# than the client waits (abandoned work + spins). Downloads keep the patient
+# 8s/all-mirror budgets: no client intelligence there, the server must
+# succeed. Caps: 2 mirrors per playback request, 4s handshakes.
+DASH_PLAYBACK_ATTEMPT_TIMEOUT = 4.0
+_PLAYBACK_MAX_MIRRORS = 2
+
+# Idle-stall trip for response bodies: no bytes at all for this long means a
+# wedged edge (the cumulative-average watchdog above can't see pure idleness
+# — a 7s stall followed by a dribble reads as merely "slow"). Shared by
+# playback and downloads; both resume byte-exact, so tripping early only
+# costs a handshake.
+DASH_BODY_IDLE_TIMEOUT = 5.0
 
 # Raw CDN domains allowed through the DASH track proxy.
 _ALLOWED_DASH_DOMAINS = [
@@ -1101,9 +1117,9 @@ _DOWNLOAD_CANCELLED = -3
 
 # Resume-with-backoff when the CDN/WARP tunnel cuts a track download mid-body
 # ("Upstream connection closed prematurely", connection resets, read timeouts).
-# Up to _TRACK_DOWNLOAD_MAX_RETRIES resume attempts (Range requests) after the
-# initial try, waiting a few seconds between attempts.
-_TRACK_DOWNLOAD_MAX_RETRIES = 5
+# Retries are UNBOUNDED (a download never gives up unless the user cancels);
+# backoff delays plateau at the last entry (16s) so a troubled download waits
+# patiently instead of hammering.
 _TRACK_DOWNLOAD_RETRY_DELAYS = (2.0, 4.0, 8.0, 12.0, 16.0)
 _RETRYABLE_TRACK_ERRORS = (
     CdnConnectError,
@@ -1237,15 +1253,19 @@ def _parse_content_range_start(headers) -> int | None:
         return None
 
 
-async def _await_track_retry(attempt: int, cancel_event: asyncio.Event | None, note_cb, exc: Exception) -> str:
-    """Back off before resume attempt ``attempt`` (0-based). Returns 'retry', 'abort' or 'cancelled'."""
-    if attempt >= _TRACK_DOWNLOAD_MAX_RETRIES:
-        print(f"[DashProxy] track download retries exhausted after {attempt} retries: {exc}")
-        return "abort"
-    print(f"[DashProxy] track download cut, will resume (retry {attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES}): {exc}")
+async def _await_track_retry(
+    attempt: int, cancel_event: asyncio.Event | None, note_cb, exc: Exception, label: str | None = None
+) -> str:
+    """Back off before resume attempt ``attempt`` (0-based). Returns 'retry' or 'cancelled'.
+
+    Never 'abort's on its own: downloads persist until the user cancels.
+    Backoff plateaus at the last entry of ``_TRACK_DOWNLOAD_RETRY_DELAYS``.
+    """
+    where = f" {label}" if label else ""
+    print(f"[DashProxy] track download{where} cut, will resume (retry #{attempt + 1}): {exc}")
     delay = _TRACK_DOWNLOAD_RETRY_DELAYS[min(attempt, len(_TRACK_DOWNLOAD_RETRY_DELAYS) - 1)]
     if note_cb is not None:
-        note_cb(f"Connection interrupted, retrying in {delay:g}s (attempt {attempt + 1}/{_TRACK_DOWNLOAD_MAX_RETRIES})…")
+        note_cb(f"Connection interrupted, retrying in {delay:g}s (attempt #{attempt + 1})…")
     if cancel_event is None:
         await asyncio.sleep(delay)
         return "retry"
@@ -1278,7 +1298,8 @@ async def _download_track_to_file(
     When upstream cuts the connection mid-body (reset / premature close /
     read timeout) or answers a resume with a transient status / offset
     mismatch, waits a few seconds and resumes from the downloaded offset
-    with a ``Range`` request, up to ``_TRACK_DOWNLOAD_MAX_RETRIES`` retries.
+    with a ``Range`` request, retrying without limit until the user cancels
+    (backoff plateaus at 16s between attempts).
 
     Returns byte count, ``-1`` on error/oversize, or ``_DOWNLOAD_CANCELLED``
     when ``cancel_event`` is set (checked per chunk and during backoff waits;
@@ -1644,8 +1665,8 @@ async def proxy_download(vid, idx, qual):
 
     try:
         async with _download_limiter:
-            if (
-                await _download_track_file(
+            vn, an = await asyncio.gather(
+                _download_track_file(
                     vurls,
                     headers,
                     proxy_url,
@@ -1653,12 +1674,8 @@ async def proxy_download(vid, idx, qual):
                     vsize,
                     f"{vid}:{idx} video",
                     refresh_cb=_refresh_legacy_video_urls,
-                )
-                < 0
-            ):
-                return Response("Upstream error (video track)", status=502)
-            if (
-                await _download_track_file(
+                ),
+                _download_track_file(
                     aurls,
                     headers,
                     proxy_url,
@@ -1666,9 +1683,11 @@ async def proxy_download(vid, idx, qual):
                     asize,
                     f"{vid}:{idx} audio",
                     refresh_cb=_refresh_legacy_audio_urls,
-                )
-                < 0
-            ):
+                ),
+            )
+            if vn < 0:
+                return Response("Upstream error (video track)", status=502)
+            if an < 0:
                 return Response("Upstream error (audio track)", status=502)
             try:
                 await _mux_tracks(vpath, apath, outpath)
@@ -1742,10 +1761,10 @@ def _dash_candidate_urls(track: dict) -> list:
     return candidates
 
 
-async def _fetch_dash_attempt(url: str, headers: dict, proxy_url: str):
+async def _fetch_dash_attempt(url: str, headers: dict, proxy_url: str, timeout: float = DASH_ATTEMPT_TIMEOUT):
     """Connect + request + read headers for one candidate URL.
 
-    Bounded by ``DASH_ATTEMPT_TIMEOUT`` so a stalled edge fails fast and
+    Bounded by ``timeout`` so a stalled edge fails fast and
     the caller can try the next mirror. Returns ``(conn, resp_headers)``;
     the caller owns ``conn.close()``. Raises ``TimeoutError`` on stall
     (closed connection included) and propagates other errors.
@@ -1754,7 +1773,7 @@ async def _fetch_dash_attempt(url: str, headers: dict, proxy_url: str):
     try:
         resp_headers = await asyncio.wait_for(
             _dash_handshake(conn),
-            timeout=DASH_ATTEMPT_TIMEOUT,
+            timeout=timeout,
         )
         return conn, resp_headers
     except BaseException:
@@ -1856,7 +1875,7 @@ class _SlowDashBody(Exception):
     """Upstream body trickling below the watchdog floor (retryable on next mirror)."""
 
 
-async def _yield_dash_body(conn, label: str):
+async def _yield_dash_body(conn, label: str, floor_watchdog: bool = True):
     """Yield upstream body chunks with a throughput watchdog.
 
     Past ``DASH_BODY_GRACE`` seconds, a cumulative average under
@@ -1864,13 +1883,30 @@ async def _yield_dash_body(conn, label: str):
     remaining Range on the next mirror instead of tarpitting until dash.js
     abandons the request. Small (sidx/init) responses finish inside the grace
     period and never trip.
+
+    Separately, no bytes at all for ``DASH_BODY_IDLE_TIMEOUT`` raises too: a
+    wedged edge that idles (then dribbles) is invisible to the cumulative
+    average until far too late.
+
+    ``floor_watchdog=False`` disables the speed trip (keeps the idle trip).
+    Slow is not failure: like Bilibili's own player (backup URLs only on
+    failure), the playback proxy must not switch mirrors merely because an
+    edge is slow — dash.js owns slowness (abandon + ABR). Speed trips stay on
+    for downloads, where no client exists to catch them.
     """
     got = 0
     t0 = time.monotonic()
-    async for chunk in conn.iter_chunks():
+    iterator = conn.iter_chunks()
+    while True:
+        try:
+            chunk = await asyncio.wait_for(iterator.__anext__(), timeout=DASH_BODY_IDLE_TIMEOUT)
+        except StopAsyncIteration:
+            return
+        except (asyncio.TimeoutError, TimeoutError):
+            raise _SlowDashBody(f"no data for {DASH_BODY_IDLE_TIMEOUT:.0f}s (idle stall)")
         got += len(chunk)
         el = time.monotonic() - t0
-        if el > DASH_BODY_GRACE and got / el < DASH_BODY_FLOOR_KBPS * 1024:
+        if floor_watchdog and el > DASH_BODY_GRACE and got / el < DASH_BODY_FLOOR_KBPS * 1024:
             raise _SlowDashBody(f"{got / el / 1024:.0f} KB/s < {DASH_BODY_FLOOR_KBPS} KB/s after {el:.1f}s")
         yield chunk
 
@@ -1976,7 +2012,8 @@ class _ResumedDashConn:
 
 
 async def _failover_dash_conn(
-    pending: list, headers: dict, proxy_url: str, label: str, orig_range, yielded: int, downstream_total: int | None = None
+    pending: list, headers: dict, proxy_url: str, label: str, orig_range, yielded: int, downstream_total: int | None = None,
+    attempt_timeout: float | None = None
 ):
     """Fail over a cut/slow body to the next mirror.
 
@@ -2002,7 +2039,9 @@ async def _failover_dash_conn(
     forbidden_seen = False
     while pending:
         try:
-            conn, resp_headers, used, _, _ = await _fetch_dash_track(pending, headers, proxy_url, label)
+            conn, resp_headers, used, _, _ = await _fetch_dash_track(
+                pending, headers, proxy_url, label, attempt_timeout=attempt_timeout
+            )
         except _DashUpstreamError as exc:
             raise exc
         if resp_headers.status_code in (403, 412, 514):
@@ -2082,32 +2121,120 @@ async def _failover_dash_conn(
     )
 
 
-async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str):
-    """Try each candidate mirror in order; return ``(conn, resp_headers, used_url, content_length, content_range)``.
+# Cross-request sick-mirror memory. Per-request failover always restarts at
+# the primary, so one sick edge poisons every fragment (each burns seconds
+# failing over) while the player sees only slowness. These marks make the
+# *next* request start on a healthy mirror instead.
+#
+# Only transport health is tracked: handshake stalls, connection/protocol
+# errors, mid-body cuts, slow bodies, unusable responses. 403/412/514 are
+# auth-level (dead signatures — handled by the ticket/playurl refresh paths)
+# and never mark a mirror sick. Success clears immediately; failures expire
+# after _MIRROR_SICK_COOLDOWN so recovered edges rejoin automatically.
+# Single worker, so a plain dict is fine.
+_MIRROR_SICK_COOLDOWN = 120.0
+_MIRROR_HEALTH_MAX = 1024
+_mirror_health: dict = {}  # host -> [consecutive_fails, last_fail_monotonic]
 
+
+def _note_mirror_ok(host: str | None):
+    """Clear a mirror's failure record after a clean full-body transfer."""
+    if not host:
+        return
+    _mirror_health.pop(host, None)
+
+
+def _note_mirror_bad(host: str | None):
+    """Record a transport failure for a mirror (sick for _MIRROR_SICK_COOLDOWN)."""
+    if not host:
+        return
+    now = time.monotonic()
+    entry = _mirror_health.get(host)
+    if entry is None:
+        _mirror_health[host] = [1, now]
+    else:
+        entry[0] += 1
+        entry[1] = now
+    if len(_mirror_health) > _MIRROR_HEALTH_MAX:
+        cutoff = now - _MIRROR_SICK_COOLDOWN
+        for h in [h for h, (_, last) in _mirror_health.items() if last < cutoff]:
+            del _mirror_health[h]
+
+
+def _mirror_last_fail(host: str) -> float:
+    entry = _mirror_health.get(host)
+    return entry[1] if entry is not None else 0.0
+
+
+def _mirror_is_sick(host: str | None) -> bool:
+    """True when a mirror failed recently and hasn't proven healthy since."""
+    if not host:
+        return False
+    entry = _mirror_health.get(host)
+    if entry is None or entry[0] <= 0:
+        return False
+    return time.monotonic() - entry[1] < _MIRROR_SICK_COOLDOWN
+
+
+def _order_urls_by_health(urls: list) -> list:
+    """Healthy mirrors first (original order), recently-failed last (oldest failure first)."""
+    healthy, sick = [], []
+    for u in urls:
+        (sick if _mirror_is_sick(urlparse(u).hostname or "") else healthy).append(u)
+    sick.sort(key=lambda u: _mirror_last_fail(urlparse(u).hostname or ""))
+    return healthy + sick
+
+
+def _segment_mirror_order(candidates: list, seg_index: int) -> list:
+    """Per-segment mirror order: rotate healthy stable mirrors first.
+
+    Rotation spreads back-to-back load so no single edge throttles (the
+    decaying-speed failure mode); sick mirrors trail for failover only;
+    M-CDN stays last-resort.
+    """
+    stable = [u for u in candidates if not _is_mcdn_url(u)] or list(candidates)
+    tail = [u for u in candidates if u not in stable]
+    healthy = [u for u in stable if not _mirror_is_sick(urlparse(u).hostname or "")]
+    sick = [u for u in stable if u not in healthy]
+    if not healthy:
+        return sick + tail
+    rot = seg_index % len(healthy)
+    return healthy[rot:] + healthy[:rot] + sick + tail
+
+
+async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str, attempt_timeout: float | None = None):
+    """Try each candidate mirror in order; return ``(conn, resp_headers, used_url, content_length, content_range)``.
     Stalled edges fail fast (``DASH_ATTEMPT_TIMEOUT``) so playback falls over
     to the next mirror instead of hanging until dash.js abandons the request
     (which used to surface as a bare 500 with no app-side log). Mirrors whose
     ``200``/``206`` response cannot provide computable lengths (see
     ``_dash_response_lengths``) are likewise skipped: serving them would leave
     dash.js with non-computable progress events, breaking throughput/ABR and
-    ending in "Request timeout: non-computable download size". Raises
+    ending in "Request timeout: non-computable download size".     Raises
     ``_DashUpstreamError`` when every mirror fails; the caller owns
     ``conn.close()`` on success.
+
+    Recently-failed mirrors are tried last (see sick-mirror memory): every
+    fragment otherwise restarts at a sick primary and burns seconds before
+    failing over.
     """
     ticket_refreshed = False
     last_error: Exception | None = None
     forbidden_seen = False
+    handshake_timeout = attempt_timeout or DASH_ATTEMPT_TIMEOUT
+    urls = _order_urls_by_health(urls)
     for url in urls:
         host = urlparse(url).hostname or url
         try:
-            conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url)
+            conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url, timeout=handshake_timeout)
         except (asyncio.TimeoutError, TimeoutError) as exc:
             last_error = exc
+            _note_mirror_bad(urlparse(url).hostname or "")
             print(f"[DashProxy] {label} {host} stalled, trying next mirror")
             continue
         except (CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError) as exc:
             last_error = exc
+            _note_mirror_bad(urlparse(url).hostname or "")
             print(f"[DashProxy] {label} {host} failed ({exc}), trying next mirror")
             continue
         if resp_headers.status_code in [403, 412, 514]:
@@ -2123,6 +2250,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
             content_length, content_range = _dash_response_lengths(resp_headers)
             if content_length is None:
                 await conn.close()
+                _note_mirror_bad(urlparse(url).hostname or "")
                 last_error = RuntimeError("CDN response has no computable length")
                 print(f"[DashProxy] {label} {host} has no computable length, trying next mirror")
                 continue
@@ -2135,7 +2263,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
     )
 
 
-async def _retry_proxy_with_fresh_playurl(vid, idx, media_type, qn, cid, old_urls, headers, proxy_url, label):
+async def _retry_proxy_with_fresh_playurl(vid, idx, media_type, qn, cid, old_urls, headers, proxy_url, label, attempt_timeout=None):
     """One fresh-playurl retry for a 403-swept track (official player recovery).
 
     Drops the cached playurl (whose signatures likely expired — all mirrors
@@ -2166,7 +2294,7 @@ async def _retry_proxy_with_fresh_playurl(vid, idx, media_type, qn, cid, old_url
         return None
     print(f"[DashProxy] {label} refreshed playurl (stamp {old_stamp} -> {new_stamp}), retrying request")
     try:
-        fetched = await _fetch_dash_track(new_urls, headers, proxy_url, label)
+        fetched = await _fetch_dash_track(new_urls, headers, proxy_url, label, attempt_timeout=attempt_timeout)
     except _DashUpstreamError as exc:
         print(f"[DashProxy] {label} fresh playurl also failed: {exc}")
         return None
@@ -2192,48 +2320,37 @@ _DOWNLOAD_SEGMENT_SIZE = 32 * 1024 * 1024
 # cost ~800 threadpool round-trips/sec at speed for zero benefit.
 _DOWNLOAD_WRITE_BATCH = 1024 * 1024
 
-
-# Relative slowdown trip: a segment averaging under this fraction of the best
-# rate seen (this track's completed segments, or this segment's own early
-# peak) is treated like a premature disconnect and failed over. The absolute
-# watchdog only catches sub-100KB/s tarpits; it lets an 8-25x collapse (e.g.
-# 3.4MB/s -> 400KB/s) trickle for minutes. Slower regimes stay under the
-# absolute watchdog's purview (see _relative_trip).
-_SLOW_REL_RATIO = 0.2
-_SLOW_REL_GRACE = 10.0
-_SLOW_REL_REGRACE = 5.0
-_SLOW_REL_WINDOW = 2.0
+# Adaptive pacing ladder for downloads: dash.js fragment requests arrive seconds
+# apart (buffer-driven), while this loop fires back-to-back at full speed —
+# sustained hammering earns shed load (empty closes) and escalating per-IP
+# throttling that reads as decaying speed (fast start, then clamp). Pauses let
+# the punishment decay: each consecutive slow trip steps down the ladder
+# (4/6/9/12/14s, holding 14s); clean fast segments reset to the base.
+_DOWNLOAD_PACE_DELAYS = (2.0, 4.0, 6.0, 8.0, 10.0)
+_DOWNLOAD_GOOD_BPS = 1024 * 1024
 
 
-def _relative_trip(
-    seg_done_bytes: int,
-    seg_el_s: float,
-    peak_bps: float,
-    rel_trips: int,
-    mirror_count: int,
-    since_switch_s: float,
-) -> str | None:
-    """Verdict for peak-relative slowdown. Returns a reason to trip, else None.
+def _pace_delay(slow_streak: int) -> float:
+    """Pause for the current consecutive-slow-trip count (0 = base inter-segment gap)."""
+    return _DOWNLOAD_PACE_DELAYS[min(max(slow_streak, 0), len(_DOWNLOAD_PACE_DELAYS) - 1)]
 
-    Pure function (unit-tested). Fires only on genuine decay: needs a
-    meaningful peak (whose 20% still exceeds the absolute floor, so uniformly
-    slow links are untouched), a warmed-up segment, a freshly-proven-slow
-    mirror, and remaininguntried mirrors (bounded probes per segment, then
-    patience — a single-edge track gets exactly one probe).
-    """
-    if rel_trips >= mirror_count:
-        return None
-    if seg_el_s <= _SLOW_REL_GRACE or since_switch_s <= _SLOW_REL_REGRACE:
-        return None
-    floor_bps = peak_bps * _SLOW_REL_RATIO
-    if floor_bps <= DASH_BODY_FLOOR_KBPS * 1024:
-        return None
-    if seg_el_s <= 0:
-        return None
-    avg_bps = seg_done_bytes / seg_el_s
-    if avg_bps < floor_bps:
-        return f"{avg_bps / 1024:.0f} KB/s < {_SLOW_REL_RATIO:.0%} of peak {peak_bps / 1024:.0f} KB/s"
-    return None
+
+# Current-speed slowdown trip: fixed 2s windows; N consecutive windows under
+# _SLOW_WINDOW_KBPS treatments the connection like a premature disconnect and
+# fails over. Averages react too slowly (a collapsed edge hides behind its own
+# fast start for minutes) and burst-set peaks trip healthy-hundreds speeds —
+# the current window is always the truth about right now. Armed only after
+# capability is proven (a >= _SLOW_ARM_BPS window seen this track — uniformly
+# slow links never trip; the absolute watchdog still guards true stalls), and
+# bounded to one probe per mirror per segment, then patience.
+_SLOW_WINDOW = 2.0
+_SLOW_WINDOW_KBPS = 300
+_SLOW_ARM_BPS = 1024 * 1024
+_SLOW_WINDOW_STRIKES = 3
+# Pause after a slow trip before reconnecting: the edge is throttling, and a
+# fresh hammer lands back in the penalty box. Fixed 10s (not escalating —
+# escalation lives in the inter-segment pacing ladder).
+_SLOW_TRIP_PAUSE = 10.0
 
 
 def _has_exact_content_length(resp_headers, span_left: int) -> bool:
@@ -2265,7 +2382,7 @@ async def _download_track_segmented(
     cancel_event: asyncio.Event | None = None,
     note_cb=None,
     refresh_cb=None,
-    max_refreshes: int = 2,
+    max_refreshes: int | None = None,
 ) -> int:
     """Download a track as sequential player-sized Range segments to ``dest``.
 
@@ -2276,16 +2393,16 @@ async def _download_track_segmented(
     slow-loris bodies fail over to the next mirror for the *remainder* of the
     segment, and a fully exhausted mirror set backs off
     (``_await_track_retry``) and retries the segment from the next mirror,
-    up to ``_TRACK_DOWNLOAD_MAX_RETRIES`` attempts per segment.
+    without limit until the user cancels (backoff plateaus at 16s).
 
     ``refresh_cb`` (``async () -> list | None``) fetches a fresh playurl and
     returns replacement mirror URLs for the *same* track when the current
     set is exhausted — all mirrors of one response share the expiry window,
     so rotating them cannot fix dead signatures. Refresh fires only for dead
     signatures (403-class sweep, or a provably-past URL stamp), never for
-    mere slowness. At most ``max_refreshes`` refreshes per track, and a
-    refresh returning the same URL stamp is declined (the official player's
-    same-stamp dedup): retrying identical signatures cannot succeed.
+    mere slowness; ``max_refreshes=None`` (default) means unbounded, and a
+    refresh returning the same URL stamp is always declined (the official
+    player's same-stamp dedup): retrying identical signatures cannot succeed.
 
     Returns the byte count, ``-1`` on error/oversize, or
     ``_DOWNLOAD_CANCELLED`` when ``cancel_event`` is set.
@@ -2311,6 +2428,7 @@ async def _download_track_segmented(
     pending_len = 0
     keepalive = None  # (conn, url): fully-consumed length-framed connection, reusable
     track_best_bps = 0.0  # best completed-segment (or early-window) rate this track
+    slow_streak = 0  # consecutive slow trips: indexes _DOWNLOAD_PACE_DELAYS
     try:
         file_obj = await asyncio.to_thread(open, dest, "wb")
         while written < total_size:
@@ -2323,16 +2441,11 @@ async def _download_track_segmented(
             orig_range = f"bytes={seg_start}-{seg_end}"
             seg_headers = dict(headers)
             seg_headers["range"] = orig_range
-            # Rotate the starting mirror per segment. Unlike the player (whose
-            # fragment requests are spaced seconds apart by the playback
-            # clock), this loop fires back-to-back at full speed; hammering
-            # one edge continuously invites per-edge throttling that reads as
-            # decaying download speed. Spreading segments across the stable
-            # mirrors keeps any single edge cool; M-CDN stays last-resort.
-            stable = [u for u in candidates if not _is_mcdn_url(u)] or candidates[:]
-            tail = [u for u in candidates if u not in stable]
-            rot = seg_index % len(stable)
-            order = stable[rot:] + stable[:rot] + tail
+            # Per-segment mirror order (rotation + sick-mirror memory, M-CDN
+            # last): unlike the player (fragments spaced seconds apart), this
+            # loop fires back-to-back at full speed — hammering one edge
+            # invites throttling that reads as decaying speed.
+            order = _segment_mirror_order(candidates, seg_index)
             start_idx = 0
             pending = order[:]
             seg_done = 0
@@ -2342,8 +2455,9 @@ async def _download_track_segmented(
             win_t0 = seg_t0
             win_bytes = 0
             win_best = 0.0
-            rel_trips = 0
-            last_switch_t = seg_t0
+            slow_strikes = 0
+            slow_trips = 0
+            seg_clean = True
             while seg_done < span:
                 if cancel_event is not None and cancel_event.is_set():
                     return _DOWNLOAD_CANCELLED
@@ -2395,7 +2509,7 @@ async def _download_track_segmented(
                         provably_expired = last_stamp is not None and time.time() > last_stamp
                         if (
                             refresh_cb is not None
-                            and refreshes_used < max_refreshes
+                            and (max_refreshes is None or refreshes_used < max_refreshes)
                             and (exc.forbidden or provably_expired)
                         ):
                             if note_cb is not None:
@@ -2416,10 +2530,9 @@ async def _download_track_segmented(
                                     last_stamp = new_stamp
                                     refreshes_used += 1
                                     seg_attempt = 0
-                                    rel_trips = 0
-                                    stable = [u for u in candidates if not _is_mcdn_url(u)] or candidates[:]
-                                    tail = [u for u in candidates if u not in stable]
-                                    order = stable + tail
+                                    slow_strikes = 0
+                                    slow_trips = 0
+                                    order = _segment_mirror_order(candidates, seg_index)
                                     start_idx = 0
                                     pending = order[:]
                                     if note_cb is not None:
@@ -2429,7 +2542,7 @@ async def _download_track_segmented(
                                     f"[DashProxy] {seg_label} refresh returned same URL stamp, "
                                     "not retrying refresh"
                                 )
-                        decision = await _await_track_retry(seg_attempt, cancel_event, note_cb, exc)
+                        decision = await _await_track_retry(seg_attempt, cancel_event, note_cb, exc, label=seg_label)
                         if decision == "retry":
                             seg_attempt += 1
                             start_idx = (start_idx + 1) % len(order)
@@ -2437,7 +2550,7 @@ async def _download_track_segmented(
                             continue
                         return _DOWNLOAD_CANCELLED if decision == "cancelled" else -1
                 seg_host = urlparse(used).hostname or "-"
-                last_switch_t = time.monotonic()
+                slow_strikes = 0  # fresh mirror: benefit of the doubt for its first windows
                 exact_206 = False
                 # Validate the mirror answered at the wanted offset. The
                 # resume path inside _failover_dash_conn already guarantees
@@ -2518,24 +2631,26 @@ async def _download_track_segmented(
                             progress_cb(len(chunk))
                         win_bytes += len(chunk)
                         now_w = time.monotonic()
-                        if now_w - win_t0 >= _SLOW_REL_WINDOW:
+                        if now_w - win_t0 >= _SLOW_WINDOW:
                             win_el = now_w - win_t0
                             if win_el > 0:
                                 win_rate = win_bytes / win_el
                                 if win_rate > win_best:
                                     win_best = win_rate
+                                capable = (
+                                    track_best_bps >= _SLOW_ARM_BPS or win_best >= _SLOW_ARM_BPS
+                                )
+                                if win_rate >= _SLOW_WINDOW_KBPS * 1024:
+                                    slow_strikes = 0
+                                elif capable:
+                                    slow_strikes += 1
                             win_t0, win_bytes = now_w, 0
-                            verdict = _relative_trip(
-                                seg_done,
-                                now_w - seg_t0,
-                                max(track_best_bps, win_best),
-                                rel_trips,
-                                len(order),
-                                now_w - last_switch_t,
-                            )
-                            if verdict is not None:
-                                rel_trips += 1
-                                raise _SlowDashBody(f"relative slowdown ({verdict})")
+                            if slow_strikes >= _SLOW_WINDOW_STRIKES and slow_trips < len(order):
+                                slow_trips += 1
+                                raise _SlowDashBody(
+                                    f"slow {win_rate / 1024:.0f} KB/s x{slow_strikes} windows "
+                                    f"(< {_SLOW_WINDOW_KBPS} KB/s)"
+                                )
                         if pending_len >= _DOWNLOAD_WRITE_BATCH:
                             batch = b"".join(pending_writes)
                             pending_writes.clear()
@@ -2547,6 +2662,32 @@ async def _download_track_segmented(
                     except Exception:
                         pass
                     print(f"[DashProxy] {seg_label} cut after {seg_done}/{span} bytes ({exc}), failing over")
+                    _note_mirror_bad(seg_host)
+                    seg_clean = False
+                    slow = isinstance(exc, _SlowDashBody)
+                    if slow:
+                        # Slow (not dead): cut the upstream connection and wait
+                        # a full _SLOW_TRIP_PAUSE before reconnecting — a fresh
+                        # hammer lands back in the penalty box. slow_streak
+                        # still steps (drives the inter-segment pacing ladder).
+                        slow_streak += 1
+                        pause = _SLOW_TRIP_PAUSE
+                        if note_cb is not None:
+                            note_cb(f"Too slow, pausing {pause:g}s before retry…")
+                    else:
+                        # Settle before reconnecting: hammering a shedding edge
+                        # with instant reconnects earns empty closes ("Bad status
+                        # line") and deepens the hole. Cancel-aware
+                        # (user-cancel still aborts promptly).
+                        pause = 1.0
+                    if cancel_event is not None:
+                        try:
+                            await asyncio.wait_for(cancel_event.wait(), timeout=pause)
+                            return _DOWNLOAD_CANCELLED
+                        except (asyncio.TimeoutError, TimeoutError):
+                            pass
+                    else:
+                        await asyncio.sleep(pause)
                     continue
                 if seg_done >= span and use_conn is conn and exact_206:
                     # Fully consumed a length-framed body on the raw conn:
@@ -2573,6 +2714,9 @@ async def _download_track_segmented(
             seg_el = time.monotonic() - seg_t0
             if seg_el > 0:
                 track_best_bps = max(track_best_bps, seg_done / seg_el)
+                if seg_clean and seg_attempt == 0 and slow_trips == 0 and seg_done / seg_el > _DOWNLOAD_GOOD_BPS:
+                    slow_streak = 0
+            _note_mirror_ok(seg_host)
             print(
                 f"[DashProxy] {seg_label} done {seg_done}/{span} bytes in {seg_el:.1f}s "
                 f"({seg_done / seg_el / 1024:.0f} KB/s) via {seg_host}"
@@ -2580,6 +2724,18 @@ async def _download_track_segmented(
             seg_index += 1
             if note_cb is not None:
                 note_cb(None)
+            if written < total_size:
+                # Pacing breather before the next segment (cancel-aware),
+                # at the current ladder rung (escalated by slow trips).
+                pause = _pace_delay(slow_streak)
+                if cancel_event is not None:
+                    try:
+                        await asyncio.wait_for(cancel_event.wait(), timeout=pause)
+                        return _DOWNLOAD_CANCELLED
+                    except (asyncio.TimeoutError, TimeoutError):
+                        pass
+                else:
+                    await asyncio.sleep(pause)
         if note_cb is not None:
             note_cb(None)
         return written
@@ -2610,7 +2766,7 @@ async def _download_track_file(
     note_cb=None,
     rewind_cb=None,
     refresh_cb=None,
-    max_refreshes: int = 2,
+    max_refreshes: int | None = None,
 ) -> int:
     """Download a track file, player-style when the size is known.
 
@@ -2648,8 +2804,28 @@ async def _download_track_file(
     )
 
 
+async def _dash_ip_key(req) -> str:
+    """Coarse per-IP bucket across all DASH fragment requests (abuse guard)."""
+    return f"{get_client_ip(req)}:dash"
+
+
+async def _dash_frag_key(req) -> str:
+    """Per-fragment rate-limit bucket: path + Range header.
+
+    Every fragment of a rendition shares one route path (the byte range rides
+    in a header), so the default ``{ip}:{path}`` key lumps the whole stream
+    into a single bucket — seeks, 2x playback, and abandon re-requests then
+    429 legitimate burst traffic and dash.js stalls on our own 429s. Keying on
+    the requested Range gives each fragment its own bucket while identical
+    retries still share one.
+    """
+    rng = (req.headers.get("Range") or req.headers.get("range") or "").strip()
+    return f"{get_client_ip(req)}:{req.path}:{rng}"
+
+
 @dash_proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
-@rate_limit(**RATE_LIMITS["proxy"])
+@rate_limit(limit=600, window=60, key_func=_dash_ip_key)
+@rate_limit(limit=100, window=60, key_func=_dash_frag_key)
 async def proxy_dash(vid, idx, media_type, qn, cid):
     """Range-capable DASH track proxy through the WARP SOCKS5 tunnel.
 
@@ -2658,10 +2834,11 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     Content`` with ``Content-Range``/``Content-Length``/``ETag`` so the sidx
     (SegmentBase indexRange) can drive byte-range seeking in dash.js.
 
-    Each track is tried on its primary ``base_url`` first, then on its
-    ``backup_url`` mirrors: individual objects sometimes stall on one edge
-    while siblings serve in milliseconds, and hanging on the primary until
-    dash.js abandons the request is what used to surface as bare 500s.
+    Each track is tried on at most two mirrors (healthy-first): dash.js
+    abandons slow fragments itself and retries with ABR downshift, so deeper
+    per-request sweeps only outlive client patience. Individual objects
+    sometimes stall on one edge while siblings serve in milliseconds — the
+    sick-mirror memory routes the next fragment straight to a healthy one.
     """
     started = time.monotonic()
     host = "-"
@@ -2687,6 +2864,14 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         urls = [u for u, ok in zip(urls, verdicts, strict=False) if ok]
         if not urls:
             return Response("Forbidden: Invalid proxy target", status=403)
+        # Fail fast, not heroically: dash.js abandons slow fragments itself
+        # (~7s, with 5 retries + ABR downshift), so churning more than two
+        # mirrors per request only guarantees the client gives up first and
+        # the work is wasted. Sick-mirror memory (health ordering) makes
+        # those two attempts count.
+        urls = _order_urls_by_health(urls)[:_PLAYBACK_MAX_MIRRORS]
+        if not urls:
+            return Response("Forbidden: Invalid proxy target", status=403)
 
         creds = appconf["credential"]
         cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds.get("use_cred") else {}
@@ -2707,7 +2892,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         label = f"{vid}:{idx} {media_type}/{qn}/{cid}"
         try:
             conn, resp_headers, used_url, content_length, content_range = await _fetch_dash_track(
-                urls, headers, proxy_url, label
+                urls, headers, proxy_url, label, attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT
             )
         except _DashUpstreamError as exc:
             old_stamp = _playurl_url_expiry(urls[0]) if urls else None
@@ -2723,7 +2908,8 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             reason = "forbidden" if exc.forbidden else "expired"
             print(f"[DashProxy] {label} URLs {reason} ({exc}), refreshing playurl once")
             retry = await _retry_proxy_with_fresh_playurl(
-                vid, idx, media_type, qn, cid, urls, headers, proxy_url, label
+                vid, idx, media_type, qn, cid, urls, headers, proxy_url, label,
+                attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
             )
             if retry is None:
                 return Response("Upstream error", status=502)
@@ -2742,7 +2928,10 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             nonlocal conn, host, yielded
             while True:
                 try:
-                    async for chunk in _yield_dash_body(conn, label):
+                    # No speed trip here (floor_watchdog=False): slow is not
+                    # failure — backup URLs are for failures, and dash.js owns
+                    # slowness (abandon + ABR). Idle wedges still trip.
+                    async for chunk in _yield_dash_body(conn, label, floor_watchdog=False):
                         yielded += len(chunk)
                         yield chunk
                 except (asyncio.CancelledError, GeneratorExit):
@@ -2758,6 +2947,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                         await conn.close()
                     except Exception:
                         pass
+                    _note_mirror_bad(host)
                     kind = "body too slow" if isinstance(exc, _SlowDashBody) else "mid-body cut"
                     if not pending:
                         # No mirrors left: end the stream early WITHOUT
@@ -2771,7 +2961,8 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}), trying next mirror")
                     try:
                         conn, used, _ = await _failover_dash_conn(
-                            pending, headers, proxy_url, label, orig_range, yielded, downstream_total
+                            pending, headers, proxy_url, label, orig_range, yielded, downstream_total,
+                            attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
                         )
                     except _DashUpstreamError as exc2:
                         print(f"[DashProxy] {label} body failover failed: {exc2}")
@@ -2782,6 +2973,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     await conn.close()
                 except Exception:
                     pass
+                _note_mirror_ok(host)
                 return
 
         proxy_resp = Response(generate(), status=resp_headers.status_code)
@@ -3186,40 +3378,45 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     async def _refresh_audio_urls():
         return await _refresh_job_track_urls("audio", a_qn, a_cid)
 
-    n = await _download_track_file(
-        vurls,
-        headers,
-        proxy_url,
-        vpath,
-        vsize,
-        f"{job.vid}:{job.idx} video",
-        progress_cb=job.add_progress,
-        cancel_event=job.cancel_event,
-        note_cb=job.set_note,
-        rewind_cb=job.rewind_progress,
-        refresh_cb=_refresh_video_urls,
+    # Video + audio fetch concurrently (like dash.js's two adaptation sets):
+    # independent files, shared progress/cancel accounting. All shared-state
+    # updates are synchronous (no awaits inside), so coroutines cannot
+    # interleave mid-update on the single event loop. Callees never raise
+    # (they return byte counts / _DOWNLOAD_CANCELLED), so gather is safe.
+    vn, an = await asyncio.gather(
+        _download_track_file(
+            vurls,
+            headers,
+            proxy_url,
+            vpath,
+            vsize,
+            f"{job.vid}:{job.idx} video",
+            progress_cb=job.add_progress,
+            cancel_event=job.cancel_event,
+            note_cb=job.set_note,
+            rewind_cb=job.rewind_progress,
+            refresh_cb=_refresh_video_urls,
+        ),
+        _download_track_file(
+            aurls,
+            headers,
+            proxy_url,
+            apath,
+            asize,
+            f"{job.vid}:{job.idx} audio",
+            progress_cb=job.add_progress,
+            cancel_event=job.cancel_event,
+            note_cb=job.set_note,
+            rewind_cb=job.rewind_progress,
+            refresh_cb=_refresh_audio_urls,
+        ),
     )
-    if n == _DOWNLOAD_CANCELLED:
+    if vn == _DOWNLOAD_CANCELLED or an == _DOWNLOAD_CANCELLED:
         raise _JobCancelled()
-    if n < 0:
-        raise RuntimeError("video track download failed")
     job.throw_if_cancelled()
-    n = await _download_track_file(
-        aurls,
-        headers,
-        proxy_url,
-        apath,
-        asize,
-        f"{job.vid}:{job.idx} audio",
-        progress_cb=job.add_progress,
-        cancel_event=job.cancel_event,
-        note_cb=job.set_note,
-        rewind_cb=job.rewind_progress,
-        refresh_cb=_refresh_audio_urls,
-    )
-    if n == _DOWNLOAD_CANCELLED:
-        raise _JobCancelled()
-    if n < 0:
+    if vn < 0:
+        raise RuntimeError("video track download failed")
+    if an < 0:
         raise RuntimeError("audio track download failed")
 
     job.state = "muxing"

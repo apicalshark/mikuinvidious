@@ -164,7 +164,9 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
             g.rate_limit_info = info
 
             if not allowed:
-                return Response(f"Rate limit exceeded. Try again in {info['retry_after']} seconds.", status=429)
+                resp = Response(f"Rate limit exceeded. Try again in {info['retry_after']} seconds.", status=429)
+                resp.headers["Retry-After"] = str(max(info["retry_after"], 0))
+                return resp
 
             return await f(*args, **kwargs)
 
