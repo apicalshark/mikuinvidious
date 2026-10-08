@@ -2335,15 +2335,17 @@ def _pace_delay(slow_streak: int) -> float:
     return _DOWNLOAD_PACE_DELAYS[min(max(slow_streak, 0), len(_DOWNLOAD_PACE_DELAYS) - 1)]
 
 
-# Current-speed slowdown trip: fixed 2s windows; N consecutive windows under
-# _SLOW_WINDOW_KBPS treatments the connection like a premature disconnect and
+# Current-speed slowdown trip: fixed 1s windows; 3 consecutive windows under
+# _SLOW_WINDOW_KBPS treats the connection like a premature disconnect and
 # fails over. Averages react too slowly (a collapsed edge hides behind its own
 # fast start for minutes) and burst-set peaks trip healthy-hundreds speeds —
-# the current window is always the truth about right now. Armed only after
-# capability is proven (a >= _SLOW_ARM_BPS window seen this track — uniformly
-# slow links never trip; the absolute watchdog still guards true stalls), and
-# bounded to one probe per mirror per segment, then patience.
-_SLOW_WINDOW = 2.0
+# the current window is always the truth about right now. Three strikes (not
+# one) so an isolated bad second on a bursty-but-healthy edge doesn't earn a
+# 10s pause. Armed only after capability is proven (a >= _SLOW_ARM_BPS window
+# seen this track — uniformly slow links never trip; the absolute watchdog
+# still guards true stalls), and bounded to one probe per mirror per segment,
+# then patience.
+_SLOW_WINDOW = 1.0
 _SLOW_WINDOW_KBPS = 300
 _SLOW_ARM_BPS = 1024 * 1024
 _SLOW_WINDOW_STRIKES = 3
