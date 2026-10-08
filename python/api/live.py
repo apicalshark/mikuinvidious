@@ -29,7 +29,14 @@ from enum import Enum
 import brotli
 from aiohttp import WSMsgType
 
-from .client import HEADERS, Api, _enc_wbi, _get_mixin_key, request_settings
+from .client import (
+    HEADERS,
+    Api,
+    _enc_wbi,
+    _get_mixin_key,
+    build_chrome_headers,
+    get_curl_client,
+)
 from .credential import Credential
 from .exceptions import ResponseCodeException
 
@@ -75,36 +82,28 @@ class LiveCodec(Enum):
 # getInfoByRoom started enforcing WBI signing + browser TLS fingerprint in
 # Aug 2026 (Bilibili's web client sends wbiSign({room_id, web_location}));
 # unsigned httpx requests now get -352 risk control. Same curl_cffi Chrome
-# impersonation pattern as search.py / comment.py.
-_IMPERSONATE = "chrome150"
-
-# NOTE: no User-Agent here — libcurl-impersonate supplies the genuine Chrome
-# UA + matching sec-ch-ua hints for the impersonation target (see comment.py).
-_LIVE_HEADERS = {
-    "Referer": "https://live.bilibili.com",
-    "Accept-Language": "zh-CN,zh;q=0.9",
-    "Accept": "application/json, text/plain, */*",
-}
+# impersonation pattern as search.py / comment.py. Sep 2026 probe: full
+# ordered Chrome headers (not just TLS impersonation) are what clears -352.
+_LIVE_ORIGIN = "https://live.bilibili.com"
 
 
-async def _fetch(url: str, params: dict) -> dict:
-    """Fetch JSON via an async curl_cffi session (Chrome impersonation).
+async def _fetch(url: str, params: dict, referer: str = None) -> dict:
+    """Fetch JSON via the shared impersonating client (Chrome fingerprint).
 
     Returns the response's ``data`` or ``result`` payload (matching what
     ``Api.result`` returns). Cookies are deliberately not forwarded so the
     browser impersonation isn't tripped by generated pseudo-cookies.
+    ``default_headers=False`` keeps our header order browser-exact.
     """
-    from curl_cffi import requests as _creq
-
-    async with _creq.AsyncSession(proxy=request_settings.get_proxy() or None) as session:
-        resp = await session.get(
-            url,
-            params=params,
-            cookies=None,
-            headers=_LIVE_HEADERS,
-            impersonate=_IMPERSONATE,
-            timeout=10.0,
-        )
+    headers = build_chrome_headers(
+        origin=_LIVE_ORIGIN, referer=referer or _LIVE_ORIGIN + "/"
+    )
+    client = await get_curl_client()
+    # Keep the shared jar empty: response cookies must never leak into these
+    # cookie-less calls (risk-control fingerprinting). Clearing the jar does
+    # not touch the connection pool, so keepalive reuse is preserved.
+    client.cookies.clear()
+    resp = await client.get(url, params=params, headers=headers, timeout=10.0)
     if resp.status_code != 200:
         raise ResponseCodeException(resp.status_code, f"HTTP {resp.status_code}")
     try:
@@ -123,7 +122,7 @@ async def _fetch(url: str, params: dict) -> dict:
     return data
 
 
-async def _wbi_get(url: str, params: dict, wbi: bool = True) -> dict:
+async def _wbi_get(url: str, params: dict, wbi: bool = True, referer: str = None) -> dict:
     """GET with optional wbi signing + -403 mixin-key retry (curl_cffi)."""
     clean = {k: v for k, v in params.items() if v is not None}
     for attempt in range(3):
@@ -132,7 +131,7 @@ async def _wbi_get(url: str, params: dict, wbi: bool = True) -> dict:
             if wbi:
                 mixin = await _get_mixin_key()
                 request_params = _enc_wbi(request_params, mixin)
-            return await _fetch(url, request_params)
+            return await _fetch(url, request_params, referer=referer)
         except ResponseCodeException as exc:
             if exc.code == -403 and wbi and attempt < 2:
                 from .client import recalculate_wbi
@@ -150,12 +149,20 @@ class LiveRoom:
         self._real_id = None
         self._ruid = None
 
+    def _live_headers(self) -> dict:
+        """Browser-exact headers for live pages (origin + room referer)."""
+        return build_chrome_headers(
+            origin=_LIVE_ORIGIN, referer=f"{_LIVE_ORIGIN}/{self.room_display_id}"
+        )
+
     async def get_room_play_info(self) -> dict:
         params = {"room_id": self.room_display_id}
         api = {
             "url": "https://api.live.bilibili.com/xlive/web-room/v1/index/getRoomPlayInfo",
             "method": "GET",
             "verify": False,
+            "headers": self._live_headers(),
+            "curl": True,
         }
         resp = await Api(**api, credential=self.credential).update_params(**params).result
         self._ruid = resp.get("uid")
@@ -174,17 +181,21 @@ class LiveRoom:
             "method": "GET",
             "verify": False,
             "wbi": True,
+            "headers": self._live_headers(),
+            "curl": True,
         }
         return await Api(**api, credential=self.credential).update_params(**params).result
 
     async def get_room_info(self) -> dict:
         # WBI-signed via curl_cffi: Bilibili's web client calls this endpoint
         # as wbiSign({room_id, web_location: "444.8"}); anything else gets -352.
+        # Referer is the room page itself, matching the browser call.
         params = {"room_id": self.room_display_id, "web_location": "444.8"}
         return await _wbi_get(
             "https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom",
             params,
             wbi=True,
+            referer=f"{_LIVE_ORIGIN}/{self.room_display_id}",
         )
 
     async def get_room_base_info(self) -> dict:
@@ -199,6 +210,7 @@ class LiveRoom:
             "https://api.live.bilibili.com/xlive/web-room/v1/index/getRoomBaseInfo",
             params,
             wbi=False,
+            referer=f"{_LIVE_ORIGIN}/{self.room_display_id}",
         )
         rooms = data.get("by_room_ids") if isinstance(data, dict) else None
         room = None
@@ -229,6 +241,8 @@ class LiveRoom:
             "url": "https://api.live.bilibili.com/xlive/web-room/v1/playUrl/playUrl",
             "method": "GET",
             "verify": False,
+            "headers": self._live_headers(),
+            "curl": True,
         }
         return await Api(**api, credential=self.credential).update_params(**params).result
 
@@ -261,6 +275,8 @@ class LiveRoom:
             "url": "https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo",
             "method": "GET",
             "verify": False,
+            "headers": self._live_headers(),
+            "curl": True,
         }
         return await Api(**api, credential=self.credential).update_params(**params).result
 

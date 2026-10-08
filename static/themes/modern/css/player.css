@@ -153,3 +153,50 @@ media-controller[media-user-inactive] #danmaku-container {
 media-controller:fullscreen #danmaku-container {
   z-index: 10;
 }
+
+/* MD3-style transitions for the nested quality menu views.
+   Forward drill-in slides from the right, Back slides from the left
+   (MD3 emphasize easing). Honours reduced-motion. */
+#quality-list [data-menu-view][hidden] {
+  /* Beats Tailwind .flex (author origin wins over the UA [hidden] rule). */
+  display: none;
+}
+#quality-list [data-menu-view] {
+  /* The shell glides through widths narrower than the content mid-flight;
+     never rewrap rows during the transition — clip instead. */
+  overflow: hidden;
+}
+#quality-list [data-menu-view] button {
+  white-space: nowrap;
+}
+#quality-list [data-menu-view]:not([hidden]) {
+  animation: miku-menu-in 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+#quality-list [data-menu-view][data-menu-dir="back"]:not([hidden]) {
+  animation-name: miku-menu-in-back;
+}
+@keyframes miku-menu-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes miku-menu-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #quality-list [data-menu-view]:not([hidden]) {
+    animation: none;
+  }
+}

@@ -19,7 +19,7 @@ Minimal drop-in for ``bilibili_api.live_area`` covering get_list_by_area as
 used by MikuInvidious.
 """
 
-from .client import Api
+from .client import Api, build_chrome_headers
 from .credential import Credential
 
 __all__ = ["get_list_by_area"]
@@ -89,5 +89,10 @@ async def get_list_by_area(area_id, page=1, order="", credential=None) -> dict:
         "url": "https://api.live.bilibili.com/xlive/web-interface/v1/second/getList",
         "method": "GET",
         "verify": False,
+        "headers": build_chrome_headers(
+            origin="https://live.bilibili.com",
+            referer="https://live.bilibili.com/",
+        ),
+        "curl": True,
     }
     return await Api(**api, credential=credential, wbi=True).update_params(**params).result

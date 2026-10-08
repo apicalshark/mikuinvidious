@@ -460,6 +460,7 @@ class DashPlayerManager {
     this.reconnectTimer = null;
     this.destroyed = false;
     this._errorHandler = null;
+    this._userAudioChoice = false;
   }
 
   init() {
@@ -470,6 +471,7 @@ class DashPlayerManager {
       }
       return;
     }
+    this._userAudioChoice = false;
 
     console.log("[DashManager] Initializing DASH:", this.mpdUrl);
     const absoluteUrl = new URL(this.mpdUrl, window.location.href).href;
@@ -533,10 +535,27 @@ class DashPlayerManager {
     };
     this.player.on(dashjs.MediaPlayer.events.ERROR, this._errorHandler);
 
+    // Audio follows the official tier map (core.*.js: video <=480p -> 30216,
+    // =720p -> 30232, >=1080p -> 30280; audio ABR stays off). Re-tiered on
+    // every rendered video change, exactly like Bilibili's own player — the
+    // manifest lists audio worst-first, so without this dash.js would sit on
+    // the ~44kbps track forever. A manual pick in the Audio row opts out
+    // (sticky, like video picks locking video ABR off).
+    this.player.on(
+      dashjs.MediaPlayer.events.STREAM_INITIALIZED,
+      () => {
+        this._buildAudioMenu();
+        this._applyTierAudio();
+      }
+    );
+
     // Keep the quality menu truthful: highlight whatever is actually
     // being rendered (ABR may start lower or drop down from the top
-    // entry, e.g. when higher tracks fail).
-    this._qualityHandler = () => this._syncQualityUI();
+    // entry, e.g. when higher tracks fail). Audio follows the video tier.
+    this._qualityHandler = (e) => {
+      this._syncQualityUI();
+      if (!e || e.mediaType === "video" || e.mediaType == null) this._applyTierAudio();
+    };
     this.player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, this._qualityHandler);
 
     this.video.play().catch((error) => {
@@ -566,6 +585,137 @@ class DashPlayerManager {
       this.video.addEventListener("loadedmetadata", onLoaded);
       this.isReconnecting = false;
     }, 2000);
+  }
+
+  _repQn(rep) {
+    // MPD Representation ids are "<type>_<qn>_<codecid>".
+    const m = /_(\d+)_/.exec(String((rep && rep.id) || ""));
+    return m ? parseInt(m[1], 10) : null;
+  }
+
+  _tierAudioQn(videoQn) {
+    // Bundle-exact tier map (core.*.js setAudioQuality).
+    if (videoQn == null) return null;
+    if (videoQn <= 32) return 30216;
+    if (videoQn < 80) return 30232;
+    return 30280;
+  }
+
+  _bestAudio(reps) {
+    let best = null;
+    for (const r of reps || []) {
+      if (best == null || Number(r.bandwidth) > Number(best.bandwidth)) best = r;
+    }
+    return best;
+  }
+
+  _applyTierAudio() {
+    // Audio tier follows the rendered video quality (official behavior).
+    // Skipped after a manual pick (sticky until reconnect).
+    if (!this.player || this._userAudioChoice) return;
+    try {
+      const areps = this.player.getRepresentationsByType("audio") || [];
+      if (!areps.length) return;
+      const target = this._tierAudioQn(
+        this._repQn(this.player.getCurrentRepresentationForType("video"))
+      );
+      let pick = target != null
+        ? areps.find((r) => this._repQn(r) === target)
+        : null;
+      if (!pick) pick = this._bestAudio(areps);
+      const cur = this.player.getCurrentRepresentationForType("audio");
+      this._syncAudioMenu(pick.id);
+      if (cur && String(cur.id) === String(pick.id)) return;
+      this.player.setRepresentationForTypeById("audio", pick.id, true);
+      console.log("[DashManager] Tier audio:", pick.id, pick.bandwidth);
+    } catch (e) {
+      console.warn("[DashManager] Could not tier audio:", e);
+    }
+  }
+
+  setAudioQuality(repId) {
+    // Manual audio choice from the quality menu (freedom row). Audio ABR
+    // stays off; a pinned/manual pick is stable by design.
+    if (!this.player) return;
+    try {
+      this._userAudioChoice = true;
+      this.player.setRepresentationForTypeById("audio", repId, true);
+      console.log("[DashManager] Audio manually set to:", repId);
+    } catch (e) {
+      console.warn("[DashManager] Could not set audio quality:", e);
+    }
+  }
+
+  _audioLabel(rep) {
+    const kbps = Math.round(Number(rep.bandwidth) / 1000) || 0;
+    const codecs = String(rep.codecs || "");
+    const fmt = codecs.includes("40.5")
+      ? "HE-AAC"
+      : codecs.includes("ec-3")
+        ? "Dolby"
+        : codecs.includes("flac")
+          ? "FLAC"
+          : "AAC";
+    return `${kbps}k ${fmt}`;
+  }
+
+  _buildAudioMenu() {
+    // Fills the Audio sub-view ([data-audio-options]) with one row per
+    // track. Manual picks are sticky (tier-follow off until reconnect),
+    // mirroring how video picks lock video ABR off.
+    try {
+      const opts = document.querySelector("#quality-list [data-audio-options]");
+      if (!opts || !this.player) return;
+      opts.innerHTML = "";
+      const reps = this.player.getRepresentationsByType("audio") || [];
+      const sorted = [...reps].sort((a, b) => Number(b.bandwidth) - Number(a.bandwidth));
+      if (!sorted.length) return;
+      // Show the section from a single track up: one row is display-only
+      // but keeps the menu chrome consistent (cf. single-quality videos
+      // like BV1xx411c7m9 whose Audio row would otherwise vanish).
+      for (const r of sorted) {
+        const btn = document.createElement("button");
+        btn.className =
+          "w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between group";
+        btn.dataset.audioQn = String(r.id);
+        const span = document.createElement("span");
+        span.textContent = this._audioLabel(r);
+        btn.appendChild(span);
+        const icon = document.createElement("i");
+        icon.className = "icon ion-md-checkmark opacity-0 group-[.active]:opacity-100";
+        btn.appendChild(icon);
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          this.setAudioQuality(r.id);
+          this._syncAudioMenu(r.id);
+          toggleQualityMenu(false, null, document.getElementById("quality-menu"));
+        };
+        opts.appendChild(btn);
+      }
+      this._syncAudioMenu(null);
+    } catch (e) {
+      console.warn("[DashManager] Could not build audio menu:", e);
+    }
+  }
+
+  _syncAudioMenu(currentId) {
+    // Checkmark truth: whatever audio is rendered. currentId null = refresh.
+    try {
+      if (currentId == null) {
+        const cur = this.player && this.player.getCurrentRepresentationForType("audio");
+        currentId = cur ? cur.id : currentId;
+      }
+      document.querySelectorAll("#quality-list [data-audio-qn]").forEach((b) => {
+        b.classList.toggle("active", currentId != null && String(b.dataset.audioQn) === String(currentId));
+      });
+      if (currentId != null) {
+        const btn = document.querySelector(`#quality-list [data-audio-qn="${currentId}"]`);
+        const av = document.querySelector("#quality-list [data-audio-value]");
+        if (btn && av) av.textContent = btn.querySelector("span").textContent;
+      }
+    } catch (e) {
+      console.warn("[DashManager] Could not sync audio menu:", e);
+    }
   }
 
   setQuality(source) {
@@ -606,7 +756,8 @@ class DashPlayerManager {
       if (list) {
         const btn = list.querySelector(`button[data-qn="${qn}"]`);
         if (btn) {
-          list.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+          // Scoped to the video group: the audio group keeps its own mark.
+          list.querySelectorAll("button[data-video-qn]").forEach((b) => b.classList.remove("active"));
           btn.classList.add("active");
         }
       }
@@ -614,6 +765,11 @@ class DashPlayerManager {
       if (label) {
         const src = (window.supported_src || []).find((s) => String(s.quality) === qn);
         if (src) label.innerText = src.new_description;
+      }
+      const rv = document.querySelector("#quality-list [data-resolution-value]");
+      if (rv) {
+        const src = (window.supported_src || []).find((s) => String(s.quality) === qn);
+        if (src) rv.textContent = src.new_description;
       }
     } catch (e) {
       console.warn("[DashManager] Could not sync DASH quality UI:", e);
@@ -950,6 +1106,18 @@ async function initMikuPlayer() {
     qualityBtn.onclick = (e) => {
       e.stopPropagation();
       const isVisible = qualityMenu.classList.contains("opacity-100");
+      if (!isVisible) {
+        // Always open on the main view: an option pick closes the menu
+        // while its sub-view is visible, which would otherwise greet the
+        // next open with a stale sub-view. Flat (live/progressive-legacy)
+        // menus have no views, so this no-ops for them.
+        const qlist = document.getElementById("quality-list");
+        if (qlist) {
+          qlist.querySelectorAll("[data-menu-view]").forEach((v) => {
+            v.hidden = v.dataset.menuView !== "main";
+          });
+        }
+      }
       toggleQualityMenu(!isVisible, qualityBtn, qualityMenu, controller);
     };
     document.addEventListener("click", (e) => {
@@ -1278,65 +1446,263 @@ function setupVodQuality(video, list, label) {
   list.innerHTML = "";
   const sorted = [...window.supported_src].sort((a, b) => b.quality - a.quality);
 
+  // Shared nested-menu builders (YouTube/Bilibili style). Both VOD paths
+  // (DASH and progressive) get main rows + sub-views with back buttons;
+  // only the option rows differ. Highlights stay scoped per group.
+  const menu = document.getElementById("quality-menu");
+  const staticTitle = menu ? menu.querySelector("[data-menu-title]") : null;
+  if (staticTitle) staticTitle.style.display = "none";
+  const showView = (name, dir) => {
+      // FLIP the shell: switch views synchronously (no paint lands
+      // mid-task), then animate #quality-list from the old box to the new
+      // one so width/height glide instead of snapping. Content slides via
+      // the CSS enter animation in parallel.
+      const reduce =
+        window.matchMedia &&
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const prevW = list.offsetWidth;
+      const prevH = list.offsetHeight;
+      list.querySelectorAll("[data-menu-view]").forEach((v) => {
+        const on = v.dataset.menuView === name;
+        v.hidden = !on;
+        if (on) v.dataset.menuDir = dir || "forward";
+      });
+      if (!reduce) {
+        const nextW = list.offsetWidth;
+        const nextH = list.offsetHeight;
+        if (nextW !== prevW || nextH !== prevH) {
+          list.animate(
+            [
+              { width: `${prevW}px`, height: `${prevH}px` },
+              { width: `${nextW}px`, height: `${nextH}px` },
+            ],
+            { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }
+          );
+        }
+      }
+    };
+    const rowClass =
+      "w-full px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3";
+    const optClass =
+      "w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between group";
+    const checkIcon = () => {
+      const icon = document.createElement("i");
+      icon.className = "icon ion-md-checkmark opacity-0 group-[.active]:opacity-100";
+      return icon;
+    };
+    const backBtn = (target) => {
+      const b = document.createElement("button");
+      b.className = rowClass + " text-white/50";
+      const l = document.createElement("span");
+      l.className = "flex items-center gap-1";
+      const arrow = document.createElement("i");
+      arrow.className = "icon ion-ios-arrow-back";
+      l.appendChild(arrow);
+      const t = document.createElement("span");
+      t.textContent = I18n.t("Back");
+      l.appendChild(t);
+      b.appendChild(l);
+      b.onclick = (e) => {
+        e.stopPropagation();
+        showView(target, "back");
+      };
+      return b;
+    };
+    const menuRow = (labelText, valueAttr, target) => {
+      const b = document.createElement("button");
+      b.className = rowClass;
+      const l = document.createElement("span");
+      l.textContent = labelText;
+      b.appendChild(l);
+      const r = document.createElement("span");
+      r.className = "flex items-center gap-1 text-white/50";
+      const v = document.createElement("span");
+      v.setAttribute(valueAttr, "1");
+      r.appendChild(v);
+      const chev = document.createElement("i");
+      chev.className = "icon ion-ios-arrow-forward";
+      r.appendChild(chev);
+      b.appendChild(r);
+      b.onclick = (e) => {
+        e.stopPropagation();
+        showView(target, "forward");
+      };
+      return b;
+    };
+    // Speed sub-view (Bilibili's rate set), shared by DASH and
+    // progressive menus. Static list, synced on open.
+    const buildSpeedView = () => {
+      const speedView = document.createElement("div");
+      speedView.dataset.menuView = "speed";
+      speedView.className = "flex flex-col gap-px";
+      speedView.hidden = true;
+      speedView.appendChild(backBtn("main"));
+      for (const rate of [2, 1.5, 1.25, 1, 0.75, 0.5]) {
+        const btn = document.createElement("button");
+        btn.className = optClass + " text-left group";
+        btn.dataset.speedRate = String(rate);
+        const span = document.createElement("span");
+        span.textContent = `${rate}x`;
+        btn.appendChild(span);
+        btn.appendChild(checkIcon());
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          video.playbackRate = rate;
+          syncSpeedMenu();
+          toggleQualityMenu(false, null, document.getElementById("quality-menu"));
+        };
+        speedView.appendChild(btn);
+      }
+      return speedView;
+    };
+    const syncSpeedMenu = () => {
+      const cur = video.playbackRate || 1;
+      list.querySelectorAll("button[data-speed-rate]").forEach((b) => {
+        b.classList.toggle("active", Number(b.dataset.speedRate) === cur);
+      });
+      const sv = list.querySelector("[data-speed-value]");
+      if (sv) sv.textContent = `${cur}x`;
+    };
   if (window.is_dash) {
-    // DASH quality switching resolves the API quality against MPD representations.
-    // Buttons carry data-qn so DashPlayerManager can re-highlight the entry
-    // that is actually rendered (see QUALITY_CHANGE_RENDERED sync).
+    // Main view: navigation rows with live values.
+    const main = document.createElement("div");
+    main.dataset.menuView = "main";
+    main.className = "flex flex-col gap-px";
+    main.appendChild(menuRow(I18n.t("Resolution"), "data-resolution-value", "video"));
+    main.appendChild(menuRow(I18n.t("Audio"), "data-audio-value", "audio"));
+    const speedRow = menuRow(I18n.t("Playback speed"), "data-speed-value", "speed");
+    // The control-bar cycle button can change the rate behind our back;
+    // re-sync the highlight every time the row is opened.
+    speedRow.onclick = (e) => {
+      e.stopPropagation();
+      syncSpeedMenu();
+      showView("speed", "forward");
+    };
+    main.appendChild(speedRow);
+    list.appendChild(main);
+    // Video sub-view.
+    const videoView = document.createElement("div");
+    videoView.dataset.menuView = "video";
+    videoView.className = "flex flex-col gap-px";
+    videoView.hidden = true;
+    videoView.appendChild(backBtn("main"));
     sorted.forEach((src, i) => {
-      const btn = createOption(
-        src.new_description,
-        src.quality,
-        () => {
-          window.dashManager.setQuality(src);
-          if (label) label.innerText = src.new_description;
-        },
-        list
-      );
+      // DASH switching resolves the API quality against MPD representations.
+      // data-video-qn scopes the active highlight to this group (see
+      // _syncQualityUI); data-qn is kept for the rendered-quality lookup.
+      const btn = document.createElement("button");
+      btn.className = optClass + " text-left group";
+      btn.dataset.videoQn = String(src.quality);
       btn.dataset.qn = String(src.quality);
+      const span = document.createElement("span");
+      span.textContent = src.new_description;
+      btn.appendChild(span);
+      btn.appendChild(checkIcon());
       if (i === 0) btn.classList.add("active");
-      list.appendChild(btn);
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        window.dashManager.setQuality(src);
+        if (label) label.innerText = src.new_description;
+        const rv = list.querySelector("[data-resolution-value]");
+        if (rv) rv.textContent = src.new_description;
+        list.querySelectorAll("button[data-video-qn]").forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        toggleQualityMenu(false, null, document.getElementById("quality-menu"));
+      };
+      videoView.appendChild(btn);
     });
+    list.appendChild(videoView);
+    // Audio sub-view: back button now, tracks once the manifest parses
+    // (DashPlayerManager._buildAudioMenu fills [data-audio-options]).
+    const audioView = document.createElement("div");
+    audioView.dataset.menuView = "audio";
+    audioView.className = "flex flex-col gap-px";
+    audioView.hidden = true;
+    audioView.appendChild(backBtn("main"));
+    const audioOpts = document.createElement("div");
+    audioOpts.dataset.audioOptions = "1";
+    audioOpts.className = "flex flex-col gap-px";
+    audioView.appendChild(audioOpts);
+    list.appendChild(audioView);
+    list.appendChild(buildSpeedView());
+    syncSpeedMenu();
+    // Prefill with the top entry; live sync corrects both rows as the
+    // player renders (video) and tiers (audio).
+    const rv0 = list.querySelector("[data-resolution-value]");
+    if (rv0 && sorted[0]) rv0.textContent = sorted[0].new_description;
     return;
   }
 
+  // Progressive (native MP4 / FLV) menu: same nested shape as DASH, minus
+  // the Audio row (muxed file, no separate track to choose).
+  const main = document.createElement("div");
+  main.dataset.menuView = "main";
+  main.className = "flex flex-col gap-px";
+  main.appendChild(menuRow(I18n.t("Resolution"), "data-resolution-value", "video"));
+  const speedRow = menuRow(I18n.t("Playback speed"), "data-speed-value", "speed");
+  speedRow.onclick = (e) => {
+    e.stopPropagation();
+    syncSpeedMenu();
+    showView("speed", "forward");
+  };
+  main.appendChild(speedRow);
+  list.appendChild(main);
+  const videoView = document.createElement("div");
+  videoView.dataset.menuView = "video";
+  videoView.className = "flex flex-col gap-px";
+  videoView.hidden = true;
+  videoView.appendChild(backBtn("main"));
   sorted.forEach((src) => {
-    const btn = createOption(
-      src.new_description,
-      src.quality,
-      () => {
-        const time = video.currentTime,
-          paused = video.paused;
-        const ext = src.ext || "";
-        const newUrl = `/proxy/video/${window.current_vid}_${window.idx}_${src.quality}${ext}`;
+    const btn = document.createElement("button");
+    btn.className = optClass + " text-left group";
+    btn.dataset.videoQn = String(src.quality);
+    const span = document.createElement("span");
+    span.textContent = src.new_description;
+    btn.appendChild(span);
+    btn.appendChild(checkIcon());
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const time = video.currentTime,
+        paused = video.paused;
+      const ext = src.ext || "";
+      const newUrl = `/proxy/video/${window.current_vid}_${window.idx}_${src.quality}${ext}`;
 
-        if (window.vodManager) {
-          window.vodManager.destroy();
-          window.vodManager = null;
-        }
+      if (window.vodManager) {
+        window.vodManager.destroy();
+        window.vodManager = null;
+      }
 
-        video.src = newUrl;
+      video.src = newUrl;
 
-        if (ext === ".flv") {
-          window.vodManager = new VodStreamManager(video, newUrl);
-          window.vodManager.init();
-        }
+      if (ext === ".flv") {
+        window.vodManager = new VodStreamManager(video, newUrl);
+        window.vodManager.init();
+      }
 
-        const onLoaded = () => {
-          video.currentTime = time;
-          if (!paused) video.play().catch(() => {});
-          video.removeEventListener("loadedmetadata", onLoaded);
-        };
-        video.addEventListener("loadedmetadata", onLoaded);
-        if (label) label.innerText = src.new_description;
-      },
-      list
-    );
+      const onLoaded = () => {
+        video.currentTime = time;
+        if (!paused) video.play().catch(() => {});
+        video.removeEventListener("loadedmetadata", onLoaded);
+      };
+      video.addEventListener("loadedmetadata", onLoaded);
+      if (label) label.innerText = src.new_description;
+      const rv = list.querySelector("[data-resolution-value]");
+      if (rv) rv.textContent = src.new_description;
+      list.querySelectorAll("button[data-video-qn]").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      toggleQualityMenu(false, null, document.getElementById("quality-menu"));
+    };
     if (video.src.includes(`_${src.quality}`)) {
       btn.classList.add("active");
       if (label) label.innerText = src.new_description;
+      const rv = list.querySelector("[data-resolution-value]");
+      if (rv) rv.textContent = src.new_description;
     }
-    list.appendChild(btn);
+    videoView.appendChild(btn);
   });
+  list.appendChild(videoView);
+  list.appendChild(buildSpeedView());
+  syncSpeedMenu();
 }
 
 function createOption(text, val, onClick, list) {

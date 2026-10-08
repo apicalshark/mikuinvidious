@@ -424,6 +424,11 @@ async def _video_get_dash_for_qn_uncached(vi, idx, ep_id=None, cid=None) -> dict
         print(f"[DashProxy] PGC fallback returned code {pgc.get('code') if isinstance(pgc, dict) else '?'}")
         code = pgc.get("code", -1) if isinstance(pgc, dict) else -1
         msg = pgc.get("message", "PGC playurl failed") if isinstance(pgc, dict) else "PGC playurl failed"
+        if code == -10403:
+            # PGC VIP/region gate ("大会员专享限制"): same paywall marker the
+            # UGC 8700x path produces, so the player renders the "Restricted
+            # video" overlay instead of spinning forever.
+            return {"code": code, "message": msg, "paywall": True}
         return {"code": code, "message": msg}
     except Exception as exc:
         print(f"[DashProxy] PGC fallback failed for {v.get_bvid()}: {exc}")
@@ -597,6 +602,44 @@ async def _cache_durl_entry(vid: str, idx: int, qn: int, desc: str, node: dict |
     return {"quality": actual_qn, "new_description": desc, "ext": ext}
 
 
+def _select_durl_results(results: list, play_data: dict | None) -> list:
+    """Collapse same-file dupes to the truthful entry (or [] when empty).
+
+    PGC durl endpoints answer every quality request with the same
+    single-quality node (e.g. everything resolves to qn 32 wearing each
+    other's labels — seen live on bangumi ep98604). When any request resolves
+    exactly, keep one entry per actual quality, preferring exact matches.
+    Otherwise keep only the best file served. Relabel mismatches from
+    support_formats by actual quality when available. Temp
+    ``_requested_qn`` keys are stripped before returning.
+    """
+    results = [r for r in results if r]
+    fmt_desc = {}
+    for f in ((play_data or {}).get("support_formats") or []):
+        if not isinstance(f, dict) or f.get("quality") is None:
+            continue
+        try:
+            desc = f.get("new_description") or f.get("display_desc")
+            if desc:
+                fmt_desc[int(f["quality"])] = desc
+        except (TypeError, ValueError):
+            continue
+    if any(r.get("quality") == r.get("_requested_qn") for r in results):
+        by_quality = {}
+        for r in results:
+            quality = r.get("quality")
+            if quality not in by_quality or quality == r.get("_requested_qn"):
+                by_quality[quality] = r
+        picked = list(by_quality.values())
+    else:
+        picked = [max(results, key=lambda r: r.get("quality", 0))] if results else []
+    for r in picked:
+        if r.get("quality") != r.get("_requested_qn") and fmt_desc.get(r.get("quality")):
+            r["new_description"] = fmt_desc[r["quality"]]
+        r.pop("_requested_qn", None)
+    return picked
+
+
 async def fetch_durl_supported_src(
     v,
     vid: str,
@@ -640,11 +683,19 @@ async def fetch_durl_supported_src(
             node = play_data
         else:
             node = await _fetch_single_durl(v, idx, qn, ep_id=ep_id, cid=cid)
-        return await _cache_durl_entry(vid, idx, qn, desc, node)
+        entry = await _cache_durl_entry(vid, idx, qn, desc, node)
+        if entry is None:
+            return None
+        # PGC durl endpoints answer every quality request with the same
+        # single-quality node (e.g. everything resolves to qn 32 wearing
+        # each other's labels). Track the request so selection can prefer
+        # exact matches and relabel mismatches by the quality actually served.
+        entry["_requested_qn"] = qn
+        return entry
 
     results = await asyncio.gather(*[resolve_one(qn, desc) for qn, desc in qualities])
     supported = sorted(
-        [r for r in results if r],
+        _select_durl_results(results, play_data),
         key=lambda r: r["quality"],
         reverse=True,
     )
@@ -997,18 +1048,14 @@ async def _build_dash_cdn_headers() -> dict:
 
     Bilibili's .bilivideo.com DASH CDN returns 403 when the request carries the
     Android app User-Agent (used for the API layer) — the CDN only serves DASH
-    tracks to a web-browser UA. So build CDN-specific headers here (web UA +
+    tracks to a web-browser UA. So build on the shared CDN base (web UA +
     Referer/Origin), NOT the android get_common_headers() set.
     """
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
-        ),
-        "Referer": appconf["bili"].get("referer", "https://www.bilibili.com"),
-        "Origin": "https://www.bilibili.com",
-        "Accept": "*/*",
-    }
+    from api.client import build_cdn_headers
+
+    headers = build_cdn_headers(
+        referer=appconf["bili"].get("referer", "https://www.bilibili.com")
+    )
     ticket = await TicketManager.get_ticket()
     if ticket:
         headers["x-bili-ticket"] = ticket

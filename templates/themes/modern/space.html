@@ -60,6 +60,15 @@
         <h2 class="text-xl font-bold text-on-surface">{{ _('Videos') }}</h2>
         <span class="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary font-bold">{{ uvids['page']['count'] }}</span>
     </div>
+    {% if degraded %}
+        <div class="mb-6 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-sm leading-relaxed">
+            {{ _('Video list temporarily unavailable — Bilibili rate-limited this instance. Profile shown; videos should return in a few minutes.') }}
+        </div>
+    {% elif load_failed %}
+        <div class="mb-6 px-4 py-3 rounded-2xl bg-surface-variant/20 border border-white/10 text-on-surface-variant text-sm leading-relaxed">
+            {{ _('Video list could not be loaded due to a network error. Profile shown; please retry shortly.') }}
+        </div>
+    {% endif %}
     <!-- Videos Grid -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {% for v in uvids['list']['vlist'] %}
@@ -115,6 +124,17 @@
                 </div>
             </div>
         {% endfor %}
+        {% if not uvids['list']['vlist'] %}
+            <p class="col-span-full text-center text-sm text-on-surface-variant opacity-70 py-8">
+                {% if degraded %}
+                    {{ _('Nothing to show right now — see notice above.') }}
+                {% elif load_failed %}
+                    {{ _('Nothing to show right now — loading failed, see notice above.') }}
+                {% else %}
+                    {{ _('This user has no videos yet.') }}
+                {% endif %}
+            </p>
+        {% endif %}
     </div>
     <!-- Pagination -->
     <div class="mt-10 flex items-center justify-center gap-4">

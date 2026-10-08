@@ -10,7 +10,8 @@ msgstr ""
 msgid "Resolving video URL..."
 msgstr "正在解析影片網址..."
 
-#: templates/macros.html:68
+#: static/themes/modern/js/player.js:1571
+#: static/themes/modern/js/player.js:1641 templates/macros.html:68
 msgid "Resolution"
 msgstr "解析度"
 
@@ -38,11 +39,11 @@ msgstr "切換彈幕"
 msgid "Switch resolution"
 msgstr "切換解析度"
 
-#: templates/themes/modern/author.html:37 templates/themes/modern/space.html:37
+#: templates/themes/modern/author.html:37 templates/themes/modern/space.html:35
 msgid "This user has no bio yet."
 msgstr "這個人很懶，什麼都沒有寫。"
 
-#: templates/themes/modern/author.html:45 templates/themes/modern/space.html:45
+#: templates/themes/modern/author.html:45 templates/themes/modern/space.html:43
 msgid "Bilibili Space"
 msgstr "嗶哩嗶哩空間"
 
@@ -50,7 +51,7 @@ msgstr "嗶哩嗶哩空間"
 #: templates/themes/modern/search.html:12
 #: templates/themes/modern/search_article.html:12
 #: templates/themes/modern/search_user.html:12
-#: templates/themes/modern/space.html:62
+#: templates/themes/modern/space.html:60
 msgid "Videos"
 msgstr "影片"
 
@@ -58,7 +59,7 @@ msgstr "影片"
 #: templates/themes/modern/search.html:16
 #: templates/themes/modern/search_article.html:14
 #: templates/themes/modern/search_user.html:14
-#: templates/themes/modern/space.html:50
+#: templates/themes/modern/space.html:48
 msgid "Articles"
 msgstr "專欄"
 
@@ -68,20 +69,20 @@ msgid "reads"
 msgstr "次閱讀"
 
 #: templates/themes/modern/author.html:108
-#: templates/themes/modern/bangumi_index.html:116
-#: templates/themes/modern/search.html:105
+#: templates/themes/modern/bangumi_index.html:114
+#: templates/themes/modern/search.html:108
 #: templates/themes/modern/search_article.html:82
 #: templates/themes/modern/search_user.html:56
-#: templates/themes/modern/space.html:126 templates/themes/modern/zone.html:75
+#: templates/themes/modern/space.html:144 templates/themes/modern/zone.html:75
 msgid "Previous page"
 msgstr "上一頁"
 
 #: templates/themes/modern/author.html:114
-#: templates/themes/modern/bangumi_index.html:121
-#: templates/themes/modern/search.html:111
+#: templates/themes/modern/bangumi_index.html:119
+#: templates/themes/modern/search.html:114
 #: templates/themes/modern/search_article.html:88
 #: templates/themes/modern/search_user.html:62
-#: templates/themes/modern/space.html:132 templates/themes/modern/zone.html:81
+#: templates/themes/modern/space.html:150 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "下一頁"
 
@@ -93,31 +94,31 @@ msgstr "尚無專欄文章"
 msgid "Bangumi index"
 msgstr "番劇索引"
 
-#: templates/themes/modern/bangumi_index.html:36
+#: templates/themes/modern/bangumi_index.html:34
 msgid "Anime"
 msgstr "番劇"
 
-#: templates/themes/modern/bangumi_index.html:36
+#: templates/themes/modern/bangumi_index.html:34
 msgid "Chinese Original"
 msgstr "國創"
 
-#: templates/themes/modern/bangumi_index.html:36
+#: templates/themes/modern/bangumi_index.html:34
 msgid "Movies"
 msgstr "電影"
 
-#: templates/themes/modern/bangumi_index.html:36
+#: templates/themes/modern/bangumi_index.html:34
 msgid "TV Series"
 msgstr "電視劇"
 
-#: templates/themes/modern/bangumi_index.html:36
+#: templates/themes/modern/bangumi_index.html:34
 msgid "Variety"
 msgstr "綜藝"
 
-#: templates/themes/modern/bangumi_index.html:36
+#: templates/themes/modern/bangumi_index.html:34
 msgid "Documentary"
 msgstr "紀錄片"
 
-#: templates/themes/modern/bangumi_index.html:65
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Sort"
 msgstr "排序"
 
@@ -149,53 +150,53 @@ msgstr "正在從 Nyaa 搜尋資源..."
 msgid "Failed to load Nyaa resources"
 msgstr "無法載入 Nyaa 資源"
 
-#: templates/themes/modern/base.html:361 templates/themes/modern/base.html:414
+#: templates/themes/modern/base.html:366 templates/themes/modern/base.html:419
 msgid "Bangumi"
 msgstr "番劇"
 
-#: templates/themes/modern/base.html:385 templates/themes/modern/base.html:438
+#: templates/themes/modern/base.html:390 templates/themes/modern/base.html:443
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:9
 msgid "Preferences"
 msgstr "偏好設定"
 
-#: templates/themes/modern/base.html:405
+#: templates/themes/modern/base.html:410
 msgid "Search for something?"
 msgstr "想要搜尋點什麼？"
 
-#: templates/themes/modern/base.html:455
+#: templates/themes/modern/base.html:460
 msgid "Original source code"
 msgstr "原始專案程式碼"
 
-#: templates/themes/modern/base.html:457
+#: templates/themes/modern/base.html:462
 msgid "Modified source code"
 msgstr "修改後的程式碼"
 
-#: templates/themes/modern/base.html:460
+#: templates/themes/modern/base.html:465
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "程式碼"
 
-#: templates/themes/modern/base.html:466
+#: templates/themes/modern/base.html:471
 msgid "Documentation"
 msgstr "文件"
 
-#: templates/themes/modern/base.html:472
+#: templates/themes/modern/base.html:477
 msgid "Proudly released under AGPLv3"
 msgstr "以 AGPLv3 釋出為榮"
 
-#: templates/themes/modern/base.html:479
+#: templates/themes/modern/base.html:484
 msgid "View JavaScript licenses"
 msgstr "檢視 JavaScript 授權"
 
-#: templates/themes/modern/base.html:484
+#: templates/themes/modern/base.html:489
 msgid "Privacy policy"
 msgstr "隱私權政策"
 
-#: templates/themes/modern/base.html:491
+#: templates/themes/modern/base.html:496
 msgid "Donate"
 msgstr "贊助"
 
-#: templates/themes/modern/base.html:493
+#: templates/themes/modern/base.html:498
 msgid "Version info unavailable :-("
 msgstr "目前無法取得版本資訊 :-("
 
@@ -258,15 +259,15 @@ msgstr "之後的數字接在實例網域 +"
 msgid "suffix."
 msgstr "後綴。"
 
-#: templates/themes/modern/home.html:58 templates/themes/modern/search.html:84
-#: templates/themes/modern/space.html:100
-#: templates/themes/modern/video.html:131
-#: templates/themes/modern/video_listen.html:122
+#: templates/themes/modern/home.html:58 templates/themes/modern/search.html:87
+#: templates/themes/modern/space.html:107
+#: templates/themes/modern/video.html:137
+#: templates/themes/modern/video_listen.html:128
 #: templates/themes/modern/zone.html:49
 msgid "Watch on Bilibili"
 msgstr "在嗶哩嗶哩上觀看"
 
-#: templates/themes/modern/home.html:63 templates/themes/modern/space.html:105
+#: templates/themes/modern/home.html:63 templates/themes/modern/space.html:112
 #: templates/themes/modern/video.html:68 templates/themes/modern/zone.html:54
 msgid "Audio mode"
 msgstr "音訊模式"
@@ -307,8 +308,8 @@ msgstr "使用 OpenCC 將內容轉換為繁體中文"
 
 #: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
-#: templates/themes/modern/video.html:458
-#: templates/themes/modern/video_listen.html:278
+#: templates/themes/modern/video.html:466
+#: templates/themes/modern/video_listen.html:284
 msgid "Loading..."
 msgstr "載入中..."
 
@@ -320,7 +321,7 @@ msgstr "自動轉換為簡體中文"
 msgid "Automatically convert keywords to Simplified Chinese when searching"
 msgstr "搜尋時自動將關鍵字轉換為簡體中文"
 
-#: templates/themes/modern/base.html:368 templates/themes/modern/base.html:421
+#: templates/themes/modern/base.html:373 templates/themes/modern/base.html:426
 msgid "Language"
 msgstr "語言"
 
@@ -392,12 +393,12 @@ msgstr "換個關鍵字試試？"
 msgid "watching"
 msgstr "人觀看"
 
-#: templates/themes/modern/search.html:93
+#: templates/themes/modern/search.html:96
 msgid "popularity"
 msgstr "人氣"
 
-#: templates/themes/modern/search.html:93
-#: templates/themes/modern/space.html:114 templates/themes/modern/zone.html:63
+#: templates/themes/modern/search.html:96
+#: templates/themes/modern/space.html:121 templates/themes/modern/zone.html:63
 msgid "plays"
 msgstr "播放次數"
 
@@ -421,7 +422,7 @@ msgstr "最高等級"
 msgid "No users found"
 msgstr "找不到相關使用者"
 
-#: templates/themes/modern/space.html:55
+#: templates/themes/modern/space.html:53
 msgid "RSS Feed"
 msgstr "RSS 訂閱"
 
@@ -449,56 +450,56 @@ msgstr "收藏"
 msgid "Share"
 msgstr "分享"
 
-#: templates/themes/modern/video.html:154
+#: templates/themes/modern/video.html:160
 msgid "Download"
 msgstr "下載"
 
 #: templates/themes/modern/components/meta_part.html:6
-#: templates/themes/modern/video.html:174
-#: templates/themes/modern/video.html:443
-#: templates/themes/modern/video_listen.html:153
+#: templates/themes/modern/video.html:180
+#: templates/themes/modern/video.html:451
+#: templates/themes/modern/video_listen.html:159
 msgid "Comments"
 msgstr "評論"
 
-#: templates/themes/modern/video.html:203
+#: templates/themes/modern/video.html:209
 msgid "Loading comments..."
 msgstr "正在載入評論..."
 
-#: templates/themes/modern/video.html:222
-#: templates/themes/modern/video.html:225
+#: templates/themes/modern/video.html:228
+#: templates/themes/modern/video.html:231
 msgid "Live chat"
 msgstr "即時聊天"
 
-#: templates/themes/modern/video.html:233
+#: templates/themes/modern/video.html:239
 msgid "Connecting to chat..."
 msgstr "正在連線至聊天室..."
 
-#: templates/themes/modern/video.html:306
-#: templates/themes/modern/video_listen.html:198
+#: templates/themes/modern/video.html:312
+#: templates/themes/modern/video_listen.html:204
 msgid "Episodes"
 msgstr "選集"
 
-#: templates/themes/modern/video.html:312
-#: templates/themes/modern/video_listen.html:204
+#: templates/themes/modern/video.html:318
+#: templates/themes/modern/video_listen.html:210
 msgid "Autoplay next"
 msgstr "自動連播"
 
-#: templates/themes/modern/video.html:341
-#: templates/themes/modern/video_listen.html:232
+#: templates/themes/modern/video.html:347
+#: templates/themes/modern/video_listen.html:238
 msgid "Recommended"
 msgstr "推薦影片"
 
-#: templates/themes/modern/video.html:361
-#: templates/themes/modern/video_listen.html:251
+#: templates/themes/modern/video.html:367
+#: templates/themes/modern/video_listen.html:257
 msgid "Play"
 msgstr "播放"
 
-#: templates/themes/modern/video.html:443
+#: templates/themes/modern/video.html:451
 msgid "Failed to load comments, please try again later"
 msgstr "評論載入失敗，請稍後再試"
 
-#: templates/themes/modern/video.html:496
-#: templates/themes/modern/video_listen.html:316
+#: templates/themes/modern/video.html:504
+#: templates/themes/modern/video_listen.html:322
 msgid "Load failed"
 msgstr "載入失敗"
 
@@ -506,19 +507,19 @@ msgstr "載入失敗"
 msgid "Video mode"
 msgstr "影片模式"
 
-#: templates/themes/modern/video_listen.html:137
+#: templates/themes/modern/video_listen.html:143
 msgid "Download audio"
 msgstr "下載音訊"
 
 #: templates/themes/modern/components/comment_items.html:25
-#: templates/themes/modern/video_listen.html:178
+#: templates/themes/modern/video_listen.html:184
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
 msgstr[0] "%(count)s 則回覆"
 
 #: templates/themes/modern/components/meta_part.html:14
-#: templates/themes/modern/video_listen.html:187
+#: templates/themes/modern/video_listen.html:193
 msgid "No comments yet or failed to load"
 msgstr "尚無評論或評論載入失敗"
 
@@ -575,14 +576,14 @@ msgstr "磁力連結"
 msgid "No collection resources found"
 msgstr "找不到合輯資源"
 
-#: static/themes/modern/js/player.js:1155
-#: static/themes/modern/js/player.js:1159
-#: static/themes/modern/js/player.js:1190
-#: static/themes/modern/js/player.js:1194
+#: static/themes/modern/js/player.js:1337
+#: static/themes/modern/js/player.js:1341
+#: static/themes/modern/js/player.js:1372
+#: static/themes/modern/js/player.js:1376
 msgid "Auto"
 msgstr "自動"
 
-#: static/themes/modern/js/player.js:1132
+#: static/themes/modern/js/player.js:1314
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自動 (%(height)sp)"
@@ -656,12 +657,12 @@ msgstr "下載中... %(bytes)s · %(speed)s"
 msgid "If the download does not start automatically, click here to retry"
 msgstr "若下載沒有自動開始，請點擊這裡重試"
 
-#: static/themes/modern/js/player.js:271
+#: static/themes/modern/js/player.js:285
 msgid "Live stream has ended"
 msgstr "直播已結束"
 
-#: templates/themes/modern/video.html:403
-#: templates/themes/modern/video_listen.html:263
+#: templates/themes/modern/video.html:411
+#: templates/themes/modern/video_listen.html:269
 #, python-format
 msgid "Loaded %(count)s, click to load more"
 msgstr "已載入 %(count)s 則，點擊載入更多"
@@ -678,11 +679,11 @@ msgstr "混流中...（正在合併音訊與視訊，請稍候）"
 msgid "Nyaa Magnet Resources"
 msgstr "Nyaa 磁力資源"
 
-#: static/themes/modern/js/themes.js:180 static/themes/modern/js/themes.js:192
+#: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 msgid "Off"
 msgstr "已關閉"
 
-#: static/themes/modern/js/themes.js:177 static/themes/modern/js/themes.js:189
+#: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 msgid "On"
 msgstr "已開啟"
 
@@ -706,7 +707,7 @@ msgstr "（所選畫質不可用，已切換為最高可用畫質）"
 msgid "Resolving video info..."
 msgstr "解析影片資訊..."
 
-#: static/themes/modern/js/player.js:270
+#: static/themes/modern/js/player.js:284
 msgid "Stream ended"
 msgstr "直播流已結束"
 
@@ -873,6 +874,47 @@ msgstr "影片載入失敗"
 #: python/i18n_strings.py:72
 msgid "You have no browsing history yet."
 msgstr "尚無瀏覽紀錄。"
+
+#: templates/themes/modern/base.html:369 templates/themes/modern/base.html:422
+msgid "Toggle theme"
+msgstr "切換主題"
+
+#: templates/themes/modern/space.html:65
+msgid ""
+"Video list temporarily unavailable — Bilibili rate-limited this instance."
+" Profile shown; videos should return in a few minutes."
+msgstr "影片列表暫時無法取得——Bilibili 已限制此站台的請求頻率。個人空間仍有顯示；影片應於幾分鐘後恢復。"
+
+#: templates/themes/modern/space.html:69
+msgid ""
+"Video list could not be loaded due to a network error. Profile shown; "
+"please retry shortly."
+msgstr "因網路錯誤，無法載入影片列表。個人空間仍有顯示；請稍後再試。"
+
+#: templates/themes/modern/space.html:130
+msgid "Nothing to show right now — see notice above."
+msgstr "目前沒有可顯示的內容——請參見上方通知。"
+
+#: templates/themes/modern/space.html:132
+msgid "Nothing to show right now — loading failed, see notice above."
+msgstr "目前沒有可顯示的內容——載入失敗，請參見上方通知。"
+
+#: templates/themes/modern/space.html:134
+msgid "This user has no videos yet."
+msgstr "這個使用者還沒有影片。"
+
+#: static/themes/modern/js/player.js:1502
+msgid "Back"
+msgstr "返回"
+
+#: static/themes/modern/js/player.js:1572
+msgid "Audio"
+msgstr "音訊"
+
+#: static/themes/modern/js/player.js:1573
+#: static/themes/modern/js/player.js:1642
+msgid "Playback speed"
+msgstr "播放速度"
 
 #~ #: templates/themes/modern/pref.html:9
 #~ msgid "Personalization settings"

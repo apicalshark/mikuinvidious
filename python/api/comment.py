@@ -23,9 +23,12 @@ import json as _json
 import sys
 from enum import Enum
 
-from curl_cffi import requests as _creq
-
-from .client import _enc_wbi, _get_mixin_key, request_settings
+from .client import (
+    _enc_wbi,
+    _get_mixin_key,
+    build_chrome_headers,
+    get_curl_client,
+)
 from .exceptions import ArgsException, ResponseCodeException
 from .video import bv2av
 
@@ -69,17 +72,9 @@ class OrderType(Enum):
 # control truncates comment responses (to ~3) for Python's default TLS stack,
 # but serves full 20-item pages to a genuine browser fingerprint -- this is what
 # PipePipe gets via OkHttp. We use a Chrome impersonation so comments paginate.
-_IMPERSONATE = "chrome150"
-
-# Comment requests need the pseudo-cookie set (buvid3/buvid4/...) — the
-# User-Agent is deliberately NOT set here: libcurl-impersonate supplies the
-# genuine Chrome UA + matching sec-ch-ua client hints for the impersonation
-# target, which stays consistent with the TLS fingerprint by construction.
-_COMMENT_HEADERS = {
-    "Referer": "https://www.bilibili.com",
-    "Accept-Language": "zh-CN,zh;q=0.9",
-    "Accept": "application/json, text/plain, */*",
-}
+# Headers are the full ordered Chrome set (see .client.build_chrome_headers);
+# UA/client-hints match the impersonation target (chrome150) by construction.
+_MAIN_ORIGIN = "https://www.bilibili.com"
 
 
 async def _fetch(url: str, params: dict, cookies: dict) -> dict:
@@ -89,17 +84,18 @@ async def _fetch(url: str, params: dict, cookies: dict) -> dict:
     our fake buvid/b_nut/b_lsid set trips Bilibili's risk control and truncates
     the comment list to ~3 items, whereas the raw browser impersonation (no
     cookies, letting curl_cffi's own session/bawt handling apply) returns full
-    20-item pages with working pagination.
+    20-item pages with working pagination. Verified Sep 2026: BilibiliApis sends
+    device cookies here and gets 3 replies; we get 20. ``default_headers=False``
+    keeps the header order browser-exact.
     """
-    async with _creq.AsyncSession(proxy=request_settings.get_proxy() or None) as session:
-        resp = await session.get(
-            url,
-            params=params,
-            cookies=cookies or None,
-            headers=_COMMENT_HEADERS,
-            impersonate=_IMPERSONATE,
-            timeout=10.0,
-        )
+    headers = build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
+    client = await get_curl_client()
+    # See live.py: keep the shared jar empty — any cookie presence here
+    # risks the ~3-item truncation documented above.
+    client.cookies.clear()
+    resp = await client.get(
+        url, params=params, cookies=cookies or None, headers=headers, timeout=10.0
+    )
     if resp.status_code != 200:
         raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
     try:
