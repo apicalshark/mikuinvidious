@@ -36,6 +36,7 @@ from .exceptions import ArgsException, NetworkException, ResponseCodeException
 __all__ = [
     "Api",
     "get_bili_client",
+    "get_curl_client",
     "request_settings",
     "get_bili_ticket",
     "refresh_bili_ticket",
@@ -43,6 +44,11 @@ __all__ = [
     "recalculate_wbi",
     "HEADERS",
     "FIXED_CHROME_UA",
+    "CURL_IMPERSONATE",
+    "CURL_UA",
+    "CDN_CHROME_UA",
+    "build_chrome_headers",
+    "build_cdn_headers",
 ]
 
 # Fixed UA — do not randomize (triggers risk control).
@@ -57,6 +63,80 @@ HEADERS: dict[str, str] = {
     "Referer": "https://www.bilibili.com",
     "Accept-Language": "zh-CN,zh;q=0.9",
 }
+
+# ---------------------------------------------------------------------------
+# Browser-faithful Chrome headers for curl_cffi paths (search/comment/live).
+# ---------------------------------------------------------------------------
+# Ported from BilibiliApis builder/header.py (see doc/bili-research-docs/).
+# Verified live Sep 2026: getInfoByRoom returned -352 with a minimal 3-header
+# set and 0 with this full ordered set, all else (params, signing, cookies)
+# identical. Header NAME ORDER is part of the HTTP/2 fingerprint, so the
+# insertion order below is load-bearing — do not re-sort.
+#
+# UA/client-hints must match the impersonation target or UA and TLS
+# fingerprint contradict each other (same reason FIXED_CHROME_UA exists).
+CURL_IMPERSONATE = "chrome150"
+CURL_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+)
+_CURL_SEC_CH_UA = '"Chromium";v="150", "Not-A.Brand";v="24", "Google Chrome";v="150"'
+_CURL_ACCEPT_LANGUAGE = "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7,ja;q=0.6"
+
+
+def build_chrome_headers(
+    *,
+    origin: str,
+    referer: str,
+    accept: str = "application/json, text/plain, */*",
+) -> dict[str, str]:
+    """Ordered Chrome XHR headers for a curl_cffi request.
+
+    Must be sent with ``default_headers=False`` so curl does not append its
+    own ``origin``/``referer``/``accept`` at the tail (which breaks the
+    browser order). ``origin``/``referer`` identify the calling page:
+    live room page for live, search page for search, main site otherwise.
+    """
+    return {
+        "sec-ch-ua": _CURL_SEC_CH_UA,
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "user-agent": CURL_UA,
+        "accept": accept,
+        "origin": origin,
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": referer,
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": _CURL_ACCEPT_LANGUAGE,
+        "priority": "u=1, i",
+    }
+
+
+# Web-Chrome UA string for raw-socket CDN fetches (CdnConnection). Deliberately
+# NOT the impersonation stack: media edges (upos mirrors, akamaized,
+# .bilivideo.com) validate the UA *string* plus the signed URL token — never
+# the TLS fingerprint (proven live: plain-socket 206s with this string, 403s
+# with the BiliDroid app UA). httpx-curl-cffi is an httpx *transport* and
+# cannot drive our socket layer (WARP SOCKS5, Range-resume, mid-body watchdog),
+# so CDN paths carry this string while API paths carry full impersonation.
+# Version intentionally differs from CURL_UA (150, pinned to the impersonation
+# target): CDN edges only check "browser-like", and 152 is battle-tested here.
+CDN_CHROME_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+)
+
+
+def build_cdn_headers(referer: str = "https://www.bilibili.com") -> dict[str, str]:
+    """Base header set for raw-socket CDN media requests (proxy/dash paths)."""
+    return {
+        "User-Agent": CDN_CHROME_UA,
+        "Referer": referer,
+        "Origin": "https://www.bilibili.com",
+        "Accept": "*/*",
+    }
 
 # OE permutation table used to derive the wbi mixin key.
 OE = [
@@ -130,12 +210,16 @@ _NAV_URL = "https://api.bilibili.com/x/web-interface/nav"
 _TICKET_URL = "https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket"
 _SPI_URL = "https://api.bilibili.com/x/frontend/finger/spi"
 
-# Static fallback WBI keys embedded in the web player bundle
-# (player_core.*.js `w()`/`C()`, `__NanoStaticHttpKey` gate; verified Sep 29 2026
-# against core.ba67b466.js). Used only when `/x/web-interface/nav` is
-# unreachable so wbi-signed requests degrade gracefully instead of failing.
-_FALLBACK_WBI_IMG_KEY = "5a6f002d0bb14fc9848fc64157648ad4"
-_FALLBACK_WBI_SUB_KEY = "0503a77b29d7409d9548fb44fe9daa1a"
+# Static fallback WBI keys embedded in the web bundles (space fresh-space
+# index-*.js `encWbiKeys`, fetched Oct 2026). Used only when
+# `/x/web-interface/nav` is unreachable so wbi-signed requests degrade
+# gracefully instead of failing.
+# Previous pair (player_core.*.js `w()`/`C()`, verified Sep 29 2026 against
+# core.ba67b466.js) kept for reference / instant revert:
+#   _FALLBACK_WBI_IMG_KEY = "5a6f002d0bb14fc9848fc64157648ad4"
+#   _FALLBACK_WBI_SUB_KEY = "0503a77b29d7409d9548fb44fe9daa1a"
+_FALLBACK_WBI_IMG_KEY = "4a1d4479a1ea4146bc7552eea71c28e9"
+_FALLBACK_WBI_SUB_KEY = "fa5812e23a204d10b332dc24d992432d"
 
 # `x-bili-device-req-json` header the web player attaches to every unified
 # request (player_core.*.js `r0` middleware). `mobi_app` is UA-parsed client-side;
@@ -177,14 +261,31 @@ class RequestSettings:
 
 request_settings = RequestSettings()
 
-# Process-wide single httpx client
+# Process-wide single client. ALL Bilibili web-API traffic goes through the
+# Chrome-impersonating transport (httpx API over curl-impersonate): a single
+# uniform TLS/JA3 fingerprint is itself a trust signal — a real browser never
+# shows two different fingerprints from one device. The old native-httpx
+# client is gone; streaming media still uses raw sockets (proxy.py /
+# dash_proxy.py) and never touches this path (the curl transport buffers
+# request bodies in memory and ignores write timeouts, so it must stay away
+# from multi-hundred-MB streams and hour-long reads).
 __client = None
 __client_configured_proxy = None
 __client_lock = asyncio.Lock()
 
 
+def _build_curl_transport(proxy):
+    from httpx_curl_cffi import AsyncCurlTransport
+
+    return AsyncCurlTransport(
+        impersonate=CURL_IMPERSONATE,
+        default_headers=False,
+        proxy=proxy,
+    )
+
+
 async def get_bili_client() -> httpx.AsyncClient:
-    """Return the shared async httpx client (recreated when proxy changes)."""
+    """Return the shared async client (recreated when proxy changes)."""
     global __client, __client_configured_proxy
     proxy = request_settings.get_proxy() or None
     if __client is None or __client.is_closed or __client_configured_proxy != proxy:
@@ -194,15 +295,18 @@ async def get_bili_client() -> httpx.AsyncClient:
                 if __client is not None and not __client.is_closed:
                     await __client.aclose()
                 __client = httpx.AsyncClient(
-                    proxy=proxy,
+                    transport=_build_curl_transport(proxy),
                     trust_env=False,
-                    http2=False,
                     timeout=httpx.Timeout(None, connect=15.0, pool=30.0, read=30.0),
-                    limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
                     follow_redirects=False,
                 )
                 __client_configured_proxy = proxy
     return __client
+
+
+async def get_curl_client() -> httpx.AsyncClient:
+    """Alias: the impersonating client is now the only client (see above)."""
+    return await get_bili_client()
 
 
 # ---------------------------------------------------------------------------
@@ -486,6 +590,7 @@ class Api:
         files=None,
         headers=None,
         credential=None,
+        curl=False,
         **kwargs,
     ):
         self.url = url
@@ -502,6 +607,10 @@ class Api:
         self.files = dict(files or {})
         self.headers = dict(headers or {})
         self.credential = credential if credential is not None else Credential()
+        # curl=True routes through the shared Chrome-impersonating client
+        # (see get_curl_client). Callers then own their full ordered header
+        # set, so the player-parity header injection below is skipped.
+        self.curl = curl
 
     def update_data(self, **kwargs) -> "Api":
         self.data = kwargs
@@ -562,7 +671,7 @@ class Api:
             cookies["opus-goback"] = "1"
 
             headers = dict(HEADERS) if not self.headers else dict(self.headers)
-            if self.wbi or "/x/player/" in self.url:
+            if not self.curl and (self.wbi or "/x/player/" in self.url):
                 # Player parity: web clients attach device metadata to unified
                 # requests (player_core.*.js `r0` middleware).
                 headers.setdefault("x-bili-device-req-json", _DEVICE_REQ_JSON)
@@ -574,7 +683,7 @@ class Api:
                 json_content = _json.dumps(request_data)
                 request_data = None
 
-            client = await get_bili_client()
+            client = await get_curl_client() if self.curl else await get_bili_client()
             resp = await client.request(
                 method=self.method,
                 url=self.url,

@@ -35,6 +35,7 @@ dependencies = [
     "curl-cffi>=0.16.0",
     "tinycss2>=1.5.1",
     "Babel>=2.17.0",
+    "httpx-curl-cffi==0.1.5",
 ]
 
 [tool.ruff]

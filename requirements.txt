@@ -16,5 +16,6 @@ uvloop>=0.22.1
 pynacl>=1.5.0
 bleach>=6.1.0
 curl-cffi>=0.16.0
+httpx-curl-cffi==0.1.5
 tinycss2>=1.5.1
 Babel>=2.17.0

@@ -25,10 +25,14 @@ the same approach used by the comment module.
 
 import sys
 from enum import Enum
+from urllib.parse import quote, urlsplit
 
-from curl_cffi import requests as _creq
-
-from .client import _enc_wbi, _get_mixin_key, request_settings
+from .client import (
+    _enc_wbi,
+    _get_mixin_key,
+    build_chrome_headers,
+    get_curl_client,
+)
 from .credential import Credential
 from .exceptions import ArgsException, ResponseCodeException
 
@@ -193,16 +197,29 @@ class CategoryTypeArticle(Enum):
 
 # curl_cffi impersonates a real browser TLS/HTTP2 fingerprint which Bilibili's
 # risk control trusts (the same as the comment module uses). Search endpoints
-# are wbi-signed; see .client._enc_wbi / _get_mixin_key.
-_IMPERSONATE = "chrome150"
+# are wbi-signed; see .client._enc_wbi / _get_mixin_key. Headers are the full
+# ordered Chrome set (see .client.build_chrome_headers); search-page calls
+# carry the search origin + keyword referer, other hosts get a generic root.
+_MAIN_ORIGIN = "https://www.bilibili.com"
+_SEARCH_ORIGIN = "https://search.bilibili.com"
 
-# NOTE: no User-Agent here — libcurl-impersonate supplies the genuine Chrome
-# UA + matching sec-ch-ua hints for the impersonation target (see comment.py).
-_SEARCH_HEADERS = {
-    "Referer": "https://www.bilibili.com",
-    "Accept-Language": "zh-CN,zh;q=0.9",
-    "Accept": "application/json, text/plain, */*",
-}
+
+def _headers_for(url: str, params: dict) -> dict:
+    host = urlsplit(url).netloc
+    keyword = params.get("keyword") or params.get("term")
+    if host == "api.bilibili.com" and keyword:
+        return build_chrome_headers(
+            origin=_SEARCH_ORIGIN,
+            referer=f"{_SEARCH_ORIGIN}/all?keyword={quote(str(keyword))}",
+        )
+    if host.startswith("s.search.bilibili.com"):
+        referer = (
+            f"{_SEARCH_ORIGIN}/all?keyword={quote(str(keyword))}"
+            if keyword
+            else _SEARCH_ORIGIN + "/"
+        )
+        return build_chrome_headers(origin=_SEARCH_ORIGIN, referer=referer)
+    return build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
 
 
 async def _fetch(url: str, params: dict) -> dict:
@@ -211,16 +228,17 @@ async def _fetch(url: str, params: dict) -> dict:
     Returns the response's ``data`` or ``result`` payload (matching what
     upstream ``Api.result`` returns). Cookies are deliberately not forwarded
     so the browser impersonation isn't tripped by our generated pseudo-cookies.
+    Uses the shared impersonating client (keepalive reuse).
     """
-    async with _creq.AsyncSession(proxy=request_settings.get_proxy() or None) as session:
-        resp = await session.get(
-            url,
-            params=params,
-            cookies=None,
-            headers=_SEARCH_HEADERS,
-            impersonate=_IMPERSONATE,
-            timeout=10.0,
-        )
+    client = await get_curl_client()
+    # See live.py: keep the shared jar empty for these cookie-less calls.
+    client.cookies.clear()
+    resp = await client.get(
+        url,
+        params=params,
+        headers=_headers_for(url, params),
+        timeout=10.0,
+    )
     if resp.status_code != 200:
         raise ResponseCodeException(resp.status_code, f"HTTP {resp.status_code}")
     try:
@@ -444,15 +462,17 @@ async def search_manga(keyword: str, page_num: int = 1, page_size: int = 9, cred
         dict: raw result returned by the API
     """
     data = {"key_word": keyword, "page_num": page_num, "page_size": page_size}
-    async with _creq.AsyncSession(proxy=request_settings.get_proxy() or None) as session:
-        resp = await session.post(
-            "https://manga.bilibili.com/twirp/comic.v1.Comic/Search?device=pc&platform=web",
-            data=data,
-            cookies=credential.get_cookies() if credential is not None else None,
-            headers=_SEARCH_HEADERS,
-            impersonate=_IMPERSONATE,
-            timeout=10.0,
-        )
+    client = await get_curl_client()
+    resp = await client.post(
+        "https://manga.bilibili.com/twirp/comic.v1.Comic/Search?device=pc&platform=web",
+        data=data,
+        cookies=credential.get_cookies() if credential is not None else None,
+        headers=build_chrome_headers(
+            origin="https://manga.bilibili.com",
+            referer="https://manga.bilibili.com/",
+        ),
+        timeout=10.0,
+    )
     if resp.status_code != 200:
         raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
     return resp.json()

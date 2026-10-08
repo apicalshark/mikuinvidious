@@ -363,7 +363,8 @@ async def _write_space_data(mid, uinfo, uvids, pn=1, ttl=None):
 
 async def _fetch_space_data(mid, pn=1, ps=30):
     u = user.User(mid, credential=appcred)
-    return await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=ps))
+    uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=ps))
+    return uinfo, uvids, bool(getattr(u, "_degraded", False))
 
 
 @app.route("/space/<mid>")
@@ -379,6 +380,7 @@ async def space_view(mid):
     cache_ttl = cache_minutes("space_minutes") * 60
     use_cache = cache_ttl > 0
     cache_hit = False
+    degraded = False
     uinfo = None
     uvids = {}
     if use_cache:
@@ -394,12 +396,14 @@ async def space_view(mid):
             # The user API is often risk-controlled / IP-blocked (412/-352) without the
             # WARP proxy; re-run the core profile fetch alone in case only a sibling
             # gather task failed. The video list is optional and falls back to empty.
+            degraded = True
             uvids = {}
             if not isinstance(uinfo, dict) or not uinfo:
                 try:
                     uinfo = await u.get_user_info()
                 except Exception:
                     uinfo = None
+        degraded = degraded or bool(getattr(u, "_degraded", False))
         if use_cache:
             # Page-1 key expiry covers the longest (space/json) policy so a
             # divergent JSON TTL isn't cut short; deeper pages use their own.
@@ -443,13 +447,22 @@ async def space_view(mid):
     for v in vlist:
         if not v.get("author") and uname:
             v["author"] = uname
-    html = await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids)
+    # Warn only when content is actually missing: a throttle blip that the
+    # fallback covered (full list) needs no banner; an empty list after risk
+    # control is "throttled", not "this channel has no videos".
+    degraded = degraded and not vlist
+    html = await render_template_with_theme(
+        "space.html", uinfo=uinfo, uvids=uvids, degraded=degraded
+    )
     if use_cache:
         return Response(
             html,
             status=200,
             content_type="text/html",
-            headers={"X-Cache": "HIT" if cache_hit else "MISS"},
+            headers={
+                "X-Cache": "HIT" if cache_hit else "MISS",
+                **({"X-Degraded": "risk-control"} if degraded else {}),
+            },
         )
     return html
 
@@ -466,13 +479,15 @@ async def space_json_feed(mid):
         cache_hit = uinfo is not None
     if not cache_hit:
         try:
-            uinfo, uvids = await _fetch_space_data(mid, pn=1, ps=30)
+            uinfo, uvids, degraded = await _fetch_space_data(mid, pn=1, ps=30)
         except Exception as e:
             return Response(
                 orjson.dumps({"error": str(e)}),
                 status=502,
                 content_type="application/json",
             )
+    else:
+        degraded = False
         if not isinstance(uinfo, dict) or not isinstance(uvids, dict):
             return Response(
                 orjson.dumps({"error": "Unexpected response format from Bilibili API"}),
@@ -514,18 +529,21 @@ async def space_json_feed(mid):
         "description": uinfo.get("sign", ""),
         "items": items,
     }
+    if degraded and not items:
+        # Machine-readable sibling of the space.html banner: upstream
+        # rate-limited us, so an empty item list means "throttled", not
+        # "no videos". (Underscore prefix = JSON Feed custom extension.)
+        feed["_degraded"] = "risk-control"
 
     raw = orjson.dumps(feed)
     # Payload caching already happened via _write_space_data above (healthy
     # payloads only); the feed itself is cheaply rebuilt from cached data.
+    feed_headers = (
+        {"X-Degraded": "risk-control"} if degraded and not items else {}
+    )
     if cache_ttl > 0:
-        return Response(
-            raw,
-            status=200,
-            content_type="application/feed+json",
-            headers={"X-Cache": "HIT" if cache_hit else "MISS"},
-        )
-    return Response(raw, status=200, content_type="application/feed+json")
+        feed_headers["X-Cache"] = "HIT" if cache_hit else "MISS"
+    return Response(raw, status=200, content_type="application/feed+json", headers=feed_headers)
 
 
 @app.route("/author/<mid>")

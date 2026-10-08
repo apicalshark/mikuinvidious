@@ -21,12 +21,39 @@ get_videos and get_articles as used by MikuInvidious.
 
 from enum import Enum
 
-from .client import Api
+from .client import Api, build_chrome_headers
 from .credential import Credential
-from .exceptions import ArgsException
+from .exceptions import ArgsException, NetworkException, ResponseCodeException
 from .video import _get_dm_img_params
 
 __all__ = ["User", "VideoOrder", "ArticleOrder"]
+
+_SPACE_ORIGIN = "https://space.bilibili.com"
+
+
+def _space_headers(mid) -> dict:
+    """Browser-exact headers for space pages (origin + profile referer)."""
+    return build_chrome_headers(
+        origin=_SPACE_ORIGIN, referer=f"{_SPACE_ORIGIN}/{mid}"
+    )
+
+
+# Risk-control signals worth surfacing (not silently swallowing): Bilibili
+# answers enumeration throttling with these instead of data. Verified live:
+# rapid space calls return HTTP 412 ("request was banned") even for real
+# browsers; -352/-509/-799 are the sibling gates. Callers read
+# ``User.degraded`` to decide whether an empty list means "no content" or
+# "upstream throttled us — say so in the UI".
+_RISK_CODES = frozenset({-352, -412, -509, -799})
+_RISK_HTTP_STATUS = frozenset({412, 429})
+
+
+def _is_risk_error(exc: Exception) -> bool:
+    if isinstance(exc, ResponseCodeException):
+        return exc.code in _RISK_CODES
+    if isinstance(exc, NetworkException):
+        return exc.code in _RISK_HTTP_STATUS
+    return False
 
 
 class VideoOrder(Enum):
@@ -61,21 +88,33 @@ class User:
         else:
             raise ArgsException("One of uid and name must be provided")
         self.credential = credential if credential is not None else Credential()
+        # Set when any fetch below hits risk control (see _is_risk_error).
+        # Views read it to tell "throttled, content missing" apart from a
+        # genuinely empty channel. Per-request instances only — never cached.
+        self._degraded = False
 
     async def get_user_info(self) -> dict:
-        params = {"mid": self.uid}
+        # Space endpoints are the most risk-controlled read surface (dm_img
+        # fingerprint required; 412/-352 from datacenter IPs). Param set is
+        # bundle-exact (fresh-space index-*.js: `{mid, token, platform: "web",
+        # web_location: 1550101}` + RISK_USER_LOG dm_img_*).
+        params = {"mid": self.uid, "token": "", "platform": "web", "web_location": 1550101}
+        params.update(_get_dm_img_params(fingerprint=True))
         api = {
             "url": "https://api.bilibili.com/x/space/wbi/acc/info",
             "method": "GET",
             "verify": False,
+            "headers": _space_headers(self.uid),
+            "curl": True,
         }
         try:
             result = await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
             if isinstance(result, dict) and (result.get("name") or result.get("face")):
                 return result
             # Empty / risk-controlled result (e.g. v_voucher gate) -> fall through
-        except Exception:
-            pass
+        except Exception as e:
+            if _is_risk_error(e):
+                self._degraded = True
         # /x/space/wbi/acc/info is often risk-controlled / IP-blocked (412/-352)
         # from datacenter IPs. PipePipe uses the non-wbi /x/web-interface/card
         # endpoint instead, which serves the same profile fields and is not
@@ -101,6 +140,8 @@ class User:
                     return card
             except Exception as e:
                 last = e
+                if _is_risk_error(e):
+                    self._degraded = True
         if last is not None:
             raise last
         return {}
@@ -118,6 +159,10 @@ class User:
             ps = 30
         pn = max(pn, 1)
         ps = max(ps, 1)
+        # Bundle-exact (fresh-space video tab): e1({pn, ps, tid, special_type,
+        # order, mid, index: 0, keyword}) + {order_avoided: "true" (STRING —
+        # bool True encodes as 1 and mismatches), platform: "web",
+        # web_location: 333.1387 (tab spm)} + dm_img_*.
         params = {
             "mid": self.uid,
             "ps": ps,
@@ -125,22 +170,28 @@ class User:
             "pn": pn,
             "keyword": keyword,
             "order": order,
-            "order_avoided": True,
+            "order_avoided": "true",
             "platform": "web",
-            "web_location": 1550101,
+            "web_location": 333.1387,
+            "special_type": "",
+            "index": 0,
         }
+        params.update(_get_dm_img_params(fingerprint=True))
         api = {
             "url": "https://api.bilibili.com/x/space/wbi/arc/search",
             "method": "GET",
             "verify": False,
+            "headers": _space_headers(self.uid),
+            "curl": True,
         }
         try:
             result = await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
             if isinstance(result, dict) and result.get("list", {}).get("vlist"):
                 return result
             # Empty / risk-controlled result (e.g. v_voucher gate) -> fall through
-        except Exception:
-            pass
+        except Exception as e:
+            if _is_risk_error(e):
+                self._degraded = True
         # The /x/space/wbi/arc/search endpoint is frequently risk-controlled /
         # IP-blocked (HTTP 412 / -352) from datacenter IPs without the WARP
         # proxy. Fall back to the /x/series/recArchivesByKeywords endpoint used
@@ -163,11 +214,12 @@ class User:
         last_err = None
         for _ in range(2):
             # Fresh device fingerprint (dm_img_*) per attempt, mirroring PipePipe's
-            # regenerate-device-on-risk-control retry strategy.
+            # regenerate-device-on-risk-control retry strategy. Param names are
+            # bundle-exact: the key is `orderby`, not `order`.
             params = {
                 "mid": self.uid,
                 "keywords": "",
-                "order": "pubdate",
+                "orderby": "pubdate",
                 "pn": pn,
                 "ps": ps,
             }
@@ -177,6 +229,8 @@ class User:
                 break
             except Exception as e:
                 last_err = e
+                if _is_risk_error(e):
+                    self._degraded = True
         data = data if isinstance(data, dict) else {}
         archives = data.get("archives", []) if isinstance(data.get("archives"), list) else []
         vlist = []
@@ -217,9 +271,17 @@ class User:
         if isinstance(order, ArticleOrder):
             order = order.value
         params = {"mid": self.uid, "ps": ps, "pn": pn, "sort": order}
+        params.update(_get_dm_img_params(fingerprint=True))
         api = {
             "url": "https://api.bilibili.com/x/space/wbi/article",
             "method": "GET",
             "verify": False,
+            "headers": _space_headers(self.uid),
+            "curl": True,
         }
-        return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+        try:
+            return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+        except Exception as e:
+            if _is_risk_error(e):
+                self._degraded = True
+            raise
