@@ -609,19 +609,39 @@ class DashPlayerManager {
     return best;
   }
 
+  _pinBestAudio() {
+    // "Pin best audio quality" defaults ON: only an explicit "0" opts out
+    // (fresh visitors get the best track with no action needed).
+    try {
+      if (typeof helpers !== "undefined" && helpers.storage) {
+        const v = helpers.storage.get("best_audio");
+        if (v === "0") return false;
+        if (v === "1") return true;
+      }
+    } catch (e) {
+      console.warn("[DashManager] Could not read best_audio pref:", e);
+    }
+    return !/(?:^|;\s*)best_audio=0(?:;|$)/.test(document.cookie || "");
+  }
+
   _applyTierAudio() {
     // Audio tier follows the rendered video quality (official behavior).
-    // Skipped after a manual pick (sticky until reconnect).
+    // Skipped after a manual pick (sticky until reconnect), and skipped
+    // entirely when the "Pin best audio quality" pref is on — then the
+    // best available track is pinned instead of tier-following.
     if (!this.player || this._userAudioChoice) return;
     try {
       const areps = this.player.getRepresentationsByType("audio") || [];
       if (!areps.length) return;
-      const target = this._tierAudioQn(
-        this._repQn(this.player.getCurrentRepresentationForType("video"))
-      );
-      let pick = target != null
-        ? areps.find((r) => this._repQn(r) === target)
-        : null;
+      let pick = null;
+      if (!this._pinBestAudio()) {
+        const target = this._tierAudioQn(
+          this._repQn(this.player.getCurrentRepresentationForType("video"))
+        );
+        pick = target != null
+          ? areps.find((r) => this._repQn(r) === target)
+          : null;
+      }
       if (!pick) pick = this._bestAudio(areps);
       const cur = this.player.getCurrentRepresentationForType("audio");
       this._syncAudioMenu(pick.id);

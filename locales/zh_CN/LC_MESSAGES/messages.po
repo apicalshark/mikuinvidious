@@ -10,8 +10,8 @@ msgstr ""
 msgid "Resolving video URL..."
 msgstr "正在解析视频地址..."
 
-#: static/themes/modern/js/player.js:1571
-#: static/themes/modern/js/player.js:1641 templates/macros.html:68
+#: static/themes/modern/js/player.js:1581
+#: static/themes/modern/js/player.js:1651 templates/macros.html:68
 msgid "Resolution"
 msgstr "解析度"
 
@@ -208,7 +208,7 @@ msgstr "错误"
 msgid "Check your request. If you believe this is a site issue, contact the administrator. If you are the administrator, consider reporting it via the source code link below."
 msgstr "请检查您的请求。如果您认为这是网站问题，请联系管理员。如果您是管理员，请考虑通过下方源代码链接反馈。"
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:38
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:50
 msgid "Back to home"
 msgstr "返回首页"
 
@@ -301,7 +301,7 @@ msgstr "使用 OpenCC 将内容转换为繁体中文"
 
 #: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
-#: templates/themes/modern/video.html:466
+#: templates/themes/modern/pref.html:41 templates/themes/modern/video.html:466
 #: templates/themes/modern/video_listen.html:284
 msgid "Loading..."
 msgstr "加载中..."
@@ -688,23 +688,25 @@ msgstr "直播流已结束"
 msgid "Live stream has ended"
 msgstr "直播已结束"
 
-#: static/themes/modern/js/player.js:1314
+#: static/themes/modern/js/player.js:1324
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自动 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1337
-#: static/themes/modern/js/player.js:1341
-#: static/themes/modern/js/player.js:1372
-#: static/themes/modern/js/player.js:1376
+#: static/themes/modern/js/player.js:1347
+#: static/themes/modern/js/player.js:1351
+#: static/themes/modern/js/player.js:1382
+#: static/themes/modern/js/player.js:1386
 msgid "Auto"
 msgstr "自动"
 
-#: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
+#: static/themes/modern/js/themes.js:218 static/themes/modern/js/themes.js:230
+#: static/themes/modern/js/themes.js:242
 msgid "On"
 msgstr "已开启"
 
-#: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
+#: static/themes/modern/js/themes.js:221 static/themes/modern/js/themes.js:233
+#: static/themes/modern/js/themes.js:245
 msgid "Off"
 msgstr "已关闭"
 
@@ -896,18 +898,28 @@ msgstr "暂无内容可显示——加载失败，请参见上方通知。"
 msgid "This user has no videos yet."
 msgstr "这个用户还没有视频。"
 
-#: static/themes/modern/js/player.js:1502
+#: static/themes/modern/js/player.js:1512
 msgid "Back"
 msgstr "返回"
 
-#: static/themes/modern/js/player.js:1572
+#: static/themes/modern/js/player.js:1582
 msgid "Audio"
 msgstr "音频"
 
-#: static/themes/modern/js/player.js:1573
-#: static/themes/modern/js/player.js:1642
+#: static/themes/modern/js/player.js:1583
+#: static/themes/modern/js/player.js:1652
 msgid "Playback speed"
 msgstr "播放速度"
+
+#: templates/themes/modern/pref.html:36
+msgid "Pin best audio quality"
+msgstr "锁定最佳音质"
+
+#: templates/themes/modern/pref.html:37
+msgid ""
+"Always play the highest available audio track instead of following video "
+"quality"
+msgstr "始终播放最高可用音轨，而不跟随视频画质"
 
 #~ #: templates/themes/modern/pref.html:9
 #~ msgid "Personalization settings"

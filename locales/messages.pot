@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-08 18:58+0800\n"
+"POT-Creation-Date: 2026-10-08 20:29+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -193,8 +193,8 @@ msgstr ""
 msgid "Resolving video URL..."
 msgstr ""
 
-#: static/themes/modern/js/player.js:1571
-#: static/themes/modern/js/player.js:1641 templates/macros.html:68
+#: static/themes/modern/js/player.js:1581
+#: static/themes/modern/js/player.js:1651 templates/macros.html:68
 msgid "Resolution"
 msgstr ""
 
@@ -406,7 +406,7 @@ msgid ""
 "the source code link below."
 msgstr ""
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:38
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:50
 msgid "Back to home"
 msgstr ""
 
@@ -503,7 +503,7 @@ msgstr ""
 
 #: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
-#: templates/themes/modern/video.html:466
+#: templates/themes/modern/pref.html:41 templates/themes/modern/video.html:466
 #: templates/themes/modern/video_listen.html:284
 msgid "Loading..."
 msgstr ""
@@ -514,6 +514,16 @@ msgstr ""
 
 #: templates/themes/modern/pref.html:25
 msgid "Automatically convert keywords to Simplified Chinese when searching"
+msgstr ""
+
+#: templates/themes/modern/pref.html:36
+msgid "Pin best audio quality"
+msgstr ""
+
+#: templates/themes/modern/pref.html:37
+msgid ""
+"Always play the highest available audio track instead of following video "
+"quality"
 msgstr ""
 
 #: templates/themes/modern/read.html:5
@@ -907,36 +917,38 @@ msgstr ""
 msgid "Live stream has ended"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1314
+#: static/themes/modern/js/player.js:1324
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1337
-#: static/themes/modern/js/player.js:1341
-#: static/themes/modern/js/player.js:1372
-#: static/themes/modern/js/player.js:1376
+#: static/themes/modern/js/player.js:1347
+#: static/themes/modern/js/player.js:1351
+#: static/themes/modern/js/player.js:1382
+#: static/themes/modern/js/player.js:1386
 msgid "Auto"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1502
+#: static/themes/modern/js/player.js:1512
 msgid "Back"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1572
+#: static/themes/modern/js/player.js:1582
 msgid "Audio"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1573
-#: static/themes/modern/js/player.js:1642
+#: static/themes/modern/js/player.js:1583
+#: static/themes/modern/js/player.js:1652
 msgid "Playback speed"
 msgstr ""
 
-#: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
+#: static/themes/modern/js/themes.js:218 static/themes/modern/js/themes.js:230
+#: static/themes/modern/js/themes.js:242
 msgid "On"
 msgstr ""
 
-#: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
+#: static/themes/modern/js/themes.js:221 static/themes/modern/js/themes.js:233
+#: static/themes/modern/js/themes.js:245
 msgid "Off"
 msgstr ""
 

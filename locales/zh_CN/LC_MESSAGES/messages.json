@@ -2,6 +2,7 @@
   "%(count)s reply": [
     "%(count)s 条回复"
   ],
+  "Always play the highest available audio track instead of following video quality": "始终播放最高可用音轨，而不跟随视频画质",
   "Anime": "番剧",
   "Article does not exist or parse error": "文章不存在或解析错误",
   "Article not found": "没有找到文章",
@@ -129,6 +130,7 @@
   "Original source code": "原始项目源代码",
   "Page not found (404)": "未找到页面 (404)",
   "Parse error": "解析错误",
+  "Pin best audio quality": "锁定最佳音质",
   "Play": "播放",
   "Playback speed": "播放速度",
   "Playlist empty": "歌单为空",

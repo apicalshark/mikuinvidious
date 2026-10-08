@@ -2,6 +2,7 @@
   "%(count)s reply": [
     "%(count)s 件の返信"
   ],
+  "Always play the highest available audio track instead of following video quality": "画質に連動せず、常に最高の音声トラックを再生する",
   "Anime": "アニメ",
   "Article does not exist or parse error": "記事が存在しないか解析エラーです",
   "Article not found": "記事が見つかりません",
@@ -129,6 +130,7 @@
   "Original source code": "オリジナルのソースコード",
   "Page not found (404)": "ページが見つかりません (404)",
   "Parse error": "解析エラー",
+  "Pin best audio quality": "最高音質に固定",
   "Play": "再生",
   "Playback speed": "再生速度",
   "Playlist empty": "プレイリストが空です",

@@ -84,6 +84,24 @@ if (toggle_search_opencc) {
   });
 }
 
+var toggle_best_audio = document.getElementById("toggle_best_audio");
+if (toggle_best_audio) {
+  toggle_best_audio.addEventListener("click", function () {
+    const oldVal = helpers.storage.get("best_audio") || getCookie("best_audio");
+    const newVal = oldVal === "1" ? "0" : "1";
+    helpers.storage.set("best_audio", newVal);
+    const secureFlag = location.protocol === "https:" ? "; Secure" : "";
+    document.cookie =
+      "best_audio=" +
+      newVal +
+      "; path=/; max-age=" +
+      3600 * 24 * 30 +
+      "; SameSite=Lax" +
+      secureFlag;
+    location.reload();
+  });
+}
+
 /** @param {THEME_DARK|THEME_LIGHT} theme */
 function setTheme(theme) {
   const iconClass = theme === THEME_DARK ? "icon ion-ios-sunny" : "icon ion-ios-moon";
@@ -213,6 +231,19 @@ function initPreferences() {
     } else {
       btnSearchOpencc.classList.remove("is-on");
       btnSearchOpencc.innerText = I18n.t("Off");
+    }
+  }
+
+  const bestAudioPref = helpers.storage.get("best_audio") || getCookie("best_audio");
+  const btnBestAudio = document.getElementById("toggle_best_audio");
+  if (btnBestAudio) {
+    // Default ON: only an explicit "0" shows Off.
+    if (bestAudioPref === "0") {
+      btnBestAudio.classList.remove("is-on");
+      btnBestAudio.innerText = I18n.t("Off");
+    } else {
+      btnBestAudio.classList.add("is-on");
+      btnBestAudio.innerText = I18n.t("On");
     }
   }
 

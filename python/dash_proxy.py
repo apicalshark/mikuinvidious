@@ -1075,8 +1075,9 @@ async def _build_dash_cdn_headers() -> dict:
 def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
     """Pick the best (video, audio) track pair for a muxed download.
 
-    Video: highest ``id`` (quality) <= ``max_video_qn``. Audio: highest ``id``
-    from the standard ``dash.audio`` array (avoids Dolby/FLAC lossless tracks).
+    Video: highest ``id`` (quality) <= ``max_video_qn``. Audio: highest
+    ``bandwidth`` from the standard ``dash.audio`` array, independent of the
+    video resolution (avoids Dolby/FLAC lossless tracks).
     """
     if not dash_data or not isinstance(dash_data, dict):
         return None, None
@@ -1092,13 +1093,16 @@ def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
             video = t
 
     audio = None
+    audio_bw = -1
     for t in _normalize_track_urls(dash.get("audio")):
         try:
-            qn = int(t.get("id", 0))
+            bw = int(t.get("bandwidth") or 0)
         except (TypeError, ValueError):
-            qn = 0
-        if audio is None or qn > int(audio.get("id") or 0):
-            audio = t
+            bw = 0
+        if bw < 0:
+            bw = 0
+        if audio is None or bw > audio_bw:
+            audio, audio_bw = t, bw
     return video, audio
 
 

@@ -4,6 +4,7 @@
     "%(count)s відповіді",
     "%(count)s відповідей"
   ],
+  "Always play the highest available audio track instead of following video quality": "Завжди відтворювати найкращу доступну аудіодоріжку замість якості відео",
   "Anime": "Аніме",
   "Article does not exist or parse error": "Стаття не існує або помилка розбору",
   "Article not found": "Статтю не знайдено",
@@ -131,6 +132,7 @@
   "Original source code": "Оригінальний сирцевий код",
   "Page not found (404)": "Сторінку не знайдено (404)",
   "Parse error": "Помилка розбору",
+  "Pin best audio quality": "Закріпити найкращу якість аудіо",
   "Play": "Відтворити",
   "Playback speed": "Швидкість відтворення",
   "Playlist empty": "Список відтворення порожній",

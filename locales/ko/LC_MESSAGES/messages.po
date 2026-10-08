@@ -138,8 +138,8 @@ msgstr "아직 탐색 기록이 없습니다."
 msgid "Resolving video URL..."
 msgstr "영상 URL을 해석하는 중..."
 
-#: static/themes/modern/js/player.js:1571
-#: static/themes/modern/js/player.js:1641 templates/macros.html:68
+#: static/themes/modern/js/player.js:1581
+#: static/themes/modern/js/player.js:1651 templates/macros.html:68
 msgid "Resolution"
 msgstr "화질"
 
@@ -340,7 +340,7 @@ msgstr "버전 정보를 사용할 수 없습니다 :-("
 msgid "Error"
 msgstr "오류"
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:38
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:50
 msgid "Back to home"
 msgstr "홈으로 돌아가기"
 
@@ -425,7 +425,7 @@ msgstr "OpenCC를 사용하여 콘텐츠를 번체자로 변환"
 
 #: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
-#: templates/themes/modern/video.html:466
+#: templates/themes/modern/pref.html:41 templates/themes/modern/video.html:466
 #: templates/themes/modern/video_listen.html:284
 msgid "Loading..."
 msgstr "불러오는 중..."
@@ -804,23 +804,25 @@ msgstr "스트림 종료"
 msgid "Live stream has ended"
 msgstr "생방송이 종료되었습니다"
 
-#: static/themes/modern/js/player.js:1314
+#: static/themes/modern/js/player.js:1324
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "자동 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1337
-#: static/themes/modern/js/player.js:1341
-#: static/themes/modern/js/player.js:1372
-#: static/themes/modern/js/player.js:1376
+#: static/themes/modern/js/player.js:1347
+#: static/themes/modern/js/player.js:1351
+#: static/themes/modern/js/player.js:1382
+#: static/themes/modern/js/player.js:1386
 msgid "Auto"
 msgstr "자동"
 
-#: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
+#: static/themes/modern/js/themes.js:218 static/themes/modern/js/themes.js:230
+#: static/themes/modern/js/themes.js:242
 msgid "On"
 msgstr "켬"
 
-#: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
+#: static/themes/modern/js/themes.js:221 static/themes/modern/js/themes.js:233
+#: static/themes/modern/js/themes.js:245
 msgid "Off"
 msgstr "끔"
 
@@ -915,15 +917,25 @@ msgstr "현재 표시할 내용이 없습니다——불러오기에 실패했�
 msgid "This user has no videos yet."
 msgstr "이 사용자는 아직 영상이 없습니다."
 
-#: static/themes/modern/js/player.js:1502
+#: static/themes/modern/js/player.js:1512
 msgid "Back"
 msgstr "뒤로"
 
-#: static/themes/modern/js/player.js:1572
+#: static/themes/modern/js/player.js:1582
 msgid "Audio"
 msgstr "오디오"
 
-#: static/themes/modern/js/player.js:1573
-#: static/themes/modern/js/player.js:1642
+#: static/themes/modern/js/player.js:1583
+#: static/themes/modern/js/player.js:1652
 msgid "Playback speed"
 msgstr "재생 속도"
+
+#: templates/themes/modern/pref.html:36
+msgid "Pin best audio quality"
+msgstr "최고 음질 고정"
+
+#: templates/themes/modern/pref.html:37
+msgid ""
+"Always play the highest available audio track instead of following video "
+"quality"
+msgstr "화질과 관계없이 항상 최고 음질 트랙을 재생"

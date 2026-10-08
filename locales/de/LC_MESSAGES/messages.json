@@ -3,6 +3,7 @@
     "%(count)s Antwort",
     "%(count)s Antworten"
   ],
+  "Always play the highest available audio track instead of following video quality": "Immer die beste verfügbare Audiospur wiedergeben, statt der Videoqualität zu folgen",
   "Anime": "Anime",
   "Article does not exist or parse error": "Artikel existiert nicht oder Parserfehler",
   "Article not found": "Artikel nicht gefunden",
@@ -130,6 +131,7 @@
   "Original source code": "Originaler Quellcode",
   "Page not found (404)": "Seite nicht gefunden (404)",
   "Parse error": "Parserfehler",
+  "Pin best audio quality": "Beste Audioqualität anpinnen",
   "Play": "Abspielen",
   "Playback speed": "Wiedergabegeschwindigkeit",
   "Playlist empty": "Wiedergabeliste leer",
