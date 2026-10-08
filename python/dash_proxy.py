@@ -2082,32 +2082,119 @@ async def _failover_dash_conn(
     )
 
 
+# Cross-request sick-mirror memory. Per-request failover always restarts at
+# the primary, so one sick edge poisons every fragment (each burns seconds
+# failing over) while the player sees only slowness. These marks make the
+# *next* request start on a healthy mirror instead.
+#
+# Only transport health is tracked: handshake stalls, connection/protocol
+# errors, mid-body cuts, slow bodies, unusable responses. 403/412/514 are
+# auth-level (dead signatures — handled by the ticket/playurl refresh paths)
+# and never mark a mirror sick. Success clears immediately; failures expire
+# after _MIRROR_SICK_COOLDOWN so recovered edges rejoin automatically.
+# Single worker, so a plain dict is fine.
+_MIRROR_SICK_COOLDOWN = 120.0
+_MIRROR_HEALTH_MAX = 1024
+_mirror_health: dict = {}  # host -> [consecutive_fails, last_fail_monotonic]
+
+
+def _note_mirror_ok(host: str | None):
+    """Clear a mirror's failure record after a clean full-body transfer."""
+    if not host:
+        return
+    _mirror_health.pop(host, None)
+
+
+def _note_mirror_bad(host: str | None):
+    """Record a transport failure for a mirror (sick for _MIRROR_SICK_COOLDOWN)."""
+    if not host:
+        return
+    now = time.monotonic()
+    entry = _mirror_health.get(host)
+    if entry is None:
+        _mirror_health[host] = [1, now]
+    else:
+        entry[0] += 1
+        entry[1] = now
+    if len(_mirror_health) > _MIRROR_HEALTH_MAX:
+        cutoff = now - _MIRROR_SICK_COOLDOWN
+        for h in [h for h, (_, last) in _mirror_health.items() if last < cutoff]:
+            del _mirror_health[h]
+
+
+def _mirror_last_fail(host: str) -> float:
+    entry = _mirror_health.get(host)
+    return entry[1] if entry is not None else 0.0
+
+
+def _mirror_is_sick(host: str | None) -> bool:
+    """True when a mirror failed recently and hasn't proven healthy since."""
+    if not host:
+        return False
+    entry = _mirror_health.get(host)
+    if entry is None or entry[0] <= 0:
+        return False
+    return time.monotonic() - entry[1] < _MIRROR_SICK_COOLDOWN
+
+
+def _order_urls_by_health(urls: list) -> list:
+    """Healthy mirrors first (original order), recently-failed last (oldest failure first)."""
+    healthy, sick = [], []
+    for u in urls:
+        (sick if _mirror_is_sick(urlparse(u).hostname or "") else healthy).append(u)
+    sick.sort(key=lambda u: _mirror_last_fail(urlparse(u).hostname or ""))
+    return healthy + sick
+
+
+def _segment_mirror_order(candidates: list, seg_index: int) -> list:
+    """Per-segment mirror order: rotate healthy stable mirrors first.
+
+    Rotation spreads back-to-back load so no single edge throttles (the
+    decaying-speed failure mode); sick mirrors trail for failover only;
+    M-CDN stays last-resort.
+    """
+    stable = [u for u in candidates if not _is_mcdn_url(u)] or list(candidates)
+    tail = [u for u in candidates if u not in stable]
+    healthy = [u for u in stable if not _mirror_is_sick(urlparse(u).hostname or "")]
+    sick = [u for u in stable if u not in healthy]
+    if not healthy:
+        return sick + tail
+    rot = seg_index % len(healthy)
+    return healthy[rot:] + healthy[:rot] + sick + tail
+
+
 async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str):
     """Try each candidate mirror in order; return ``(conn, resp_headers, used_url, content_length, content_range)``.
-
     Stalled edges fail fast (``DASH_ATTEMPT_TIMEOUT``) so playback falls over
     to the next mirror instead of hanging until dash.js abandons the request
     (which used to surface as a bare 500 with no app-side log). Mirrors whose
     ``200``/``206`` response cannot provide computable lengths (see
     ``_dash_response_lengths``) are likewise skipped: serving them would leave
     dash.js with non-computable progress events, breaking throughput/ABR and
-    ending in "Request timeout: non-computable download size". Raises
+    ending in "Request timeout: non-computable download size".     Raises
     ``_DashUpstreamError`` when every mirror fails; the caller owns
     ``conn.close()`` on success.
+
+    Recently-failed mirrors are tried last (see sick-mirror memory): every
+    fragment otherwise restarts at a sick primary and burns seconds before
+    failing over.
     """
     ticket_refreshed = False
     last_error: Exception | None = None
     forbidden_seen = False
+    urls = _order_urls_by_health(urls)
     for url in urls:
         host = urlparse(url).hostname or url
         try:
             conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url)
         except (asyncio.TimeoutError, TimeoutError) as exc:
             last_error = exc
+            _note_mirror_bad(urlparse(url).hostname or "")
             print(f"[DashProxy] {label} {host} stalled, trying next mirror")
             continue
         except (CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError) as exc:
             last_error = exc
+            _note_mirror_bad(urlparse(url).hostname or "")
             print(f"[DashProxy] {label} {host} failed ({exc}), trying next mirror")
             continue
         if resp_headers.status_code in [403, 412, 514]:
@@ -2123,6 +2210,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
             content_length, content_range = _dash_response_lengths(resp_headers)
             if content_length is None:
                 await conn.close()
+                _note_mirror_bad(urlparse(url).hostname or "")
                 last_error = RuntimeError("CDN response has no computable length")
                 print(f"[DashProxy] {label} {host} has no computable length, trying next mirror")
                 continue
@@ -2323,16 +2411,11 @@ async def _download_track_segmented(
             orig_range = f"bytes={seg_start}-{seg_end}"
             seg_headers = dict(headers)
             seg_headers["range"] = orig_range
-            # Rotate the starting mirror per segment. Unlike the player (whose
-            # fragment requests are spaced seconds apart by the playback
-            # clock), this loop fires back-to-back at full speed; hammering
-            # one edge continuously invites per-edge throttling that reads as
-            # decaying download speed. Spreading segments across the stable
-            # mirrors keeps any single edge cool; M-CDN stays last-resort.
-            stable = [u for u in candidates if not _is_mcdn_url(u)] or candidates[:]
-            tail = [u for u in candidates if u not in stable]
-            rot = seg_index % len(stable)
-            order = stable[rot:] + stable[:rot] + tail
+            # Per-segment mirror order (rotation + sick-mirror memory, M-CDN
+            # last): unlike the player (fragments spaced seconds apart), this
+            # loop fires back-to-back at full speed — hammering one edge
+            # invites throttling that reads as decaying speed.
+            order = _segment_mirror_order(candidates, seg_index)
             start_idx = 0
             pending = order[:]
             seg_done = 0
@@ -2417,9 +2500,7 @@ async def _download_track_segmented(
                                     refreshes_used += 1
                                     seg_attempt = 0
                                     rel_trips = 0
-                                    stable = [u for u in candidates if not _is_mcdn_url(u)] or candidates[:]
-                                    tail = [u for u in candidates if u not in stable]
-                                    order = stable + tail
+                                    order = _segment_mirror_order(candidates, seg_index)
                                     start_idx = 0
                                     pending = order[:]
                                     if note_cb is not None:
@@ -2547,6 +2628,7 @@ async def _download_track_segmented(
                     except Exception:
                         pass
                     print(f"[DashProxy] {seg_label} cut after {seg_done}/{span} bytes ({exc}), failing over")
+                    _note_mirror_bad(seg_host)
                     continue
                 if seg_done >= span and use_conn is conn and exact_206:
                     # Fully consumed a length-framed body on the raw conn:
@@ -2573,6 +2655,7 @@ async def _download_track_segmented(
             seg_el = time.monotonic() - seg_t0
             if seg_el > 0:
                 track_best_bps = max(track_best_bps, seg_done / seg_el)
+            _note_mirror_ok(seg_host)
             print(
                 f"[DashProxy] {seg_label} done {seg_done}/{span} bytes in {seg_el:.1f}s "
                 f"({seg_done / seg_el / 1024:.0f} KB/s) via {seg_host}"
@@ -2758,6 +2841,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                         await conn.close()
                     except Exception:
                         pass
+                    _note_mirror_bad(host)
                     kind = "body too slow" if isinstance(exc, _SlowDashBody) else "mid-body cut"
                     if not pending:
                         # No mirrors left: end the stream early WITHOUT
@@ -2782,6 +2866,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     await conn.close()
                 except Exception:
                     pass
+                _note_mirror_ok(host)
                 return
 
         proxy_resp = Response(generate(), status=resp_headers.status_code)
