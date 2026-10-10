@@ -74,6 +74,9 @@ export default withMermaid(
       ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/mikuinvidious/apple-touch-icon.png" }],
       ["link", { rel: "manifest", href: "/mikuinvidious/site.webmanifest" }],
       ["meta", { name: "theme-color", content: "#120c10" }],
+      // Search-console verification: paste the token from
+      // Search Console (URL-prefix property -> HTML tag method) below.
+      // ["meta", { name: "google-site-verification", content: "PASTE_TOKEN_HERE" }],
     ],
     srcExclude: ["README.md"],
     transformHead({ pageData }) {

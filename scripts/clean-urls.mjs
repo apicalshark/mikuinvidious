@@ -12,6 +12,8 @@ for (const file of walk(dist)) {
   const rel = path.relative(dist, file);
   const base = path.basename(file);
   if (!base.endsWith(".html") || base === "index.html" || base === "404.html") continue;
+  // Search-console verification files must stay at the exact uploaded path.
+  if (/^google[a-z0-9]+\.html$/.test(base)) continue;
   const dir = path.join(path.dirname(file), base.slice(0, -".html".length));
   const target = path.join(dir, "index.html");
   if (fs.existsSync(target)) {
