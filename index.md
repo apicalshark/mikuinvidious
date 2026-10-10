@@ -24,4 +24,4 @@ MikuInvidious 是一套自由開源的 Bilibili 前端服務，其設計理念�
 - **使用服務**：開啟所屬實例的網址（本地 Docker 部署的預設位址為 `http://localhost:8000`）。
 - **部署實例**：請參閱[使用 Docker 快速啟動](operators/quickstart-docker.md)，僅需兩個指令即可完成部署。
 - **理解架構**：請參閱[系統架構](developers/architecture.md)，內容涵蓋 Caddy、Granian／Quart、Redis 與媒體代理的整體設計。
-- **原始碼**：[apicalshark/mikuinvidious](https://github.com/apicalshark/mikuinvidious)，採用 GNU GPL-3.0 授權
+- **原始碼**：[apicalshark/mikuinvidious](https://github.com/apicalshark/mikuinvidious)，採用 GNU GPL-3.0 授權。
