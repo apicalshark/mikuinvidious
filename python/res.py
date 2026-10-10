@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 from xml.dom import minidom
 
 from api import video
-from danmaku import danmaku_xml_conv
+from danmaku import danmaku_xml_conv, danmaku_xml_fallback
 from quart import Response, jsonify
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import app, appcred, appredis
@@ -66,7 +66,16 @@ async def danmaku_res(vid, idx=0):
     try:
         v = video.Video(bvid=vid, credential=appcred)
         xml = await v.get_danmaku_xml(int(idx))
-        return jsonify(danmaku_xml_conv(minidom.parseString(xml)))
+        try:
+            return jsonify(danmaku_xml_conv(minidom.parseString(xml)))
+        except Exception as parse_exc:
+            # Strict parse failed (e.g. upstream malformed/truncated XML):
+            # log payload shape for diagnosis, then salvage via regex.
+            head = (xml[:300] if isinstance(xml, str) else repr(xml[:300])) if xml else ""
+            print(
+                f"Danmaku strict parse failed for {vid}:{idx}: {parse_exc} len={len(xml) if xml else 0} head={head!r}"
+            )
+            return jsonify(danmaku_xml_fallback(xml if isinstance(xml, str) else ""))
     except Exception as e:
         print(f"Danmaku error for {vid}:{idx}: {e}")
         return jsonify([])

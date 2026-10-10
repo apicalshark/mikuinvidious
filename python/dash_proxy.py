@@ -1816,6 +1816,7 @@ class _DashUpstreamError(Exception):
 
 
 _CONTENT_RANGE_RE = re.compile(r"bytes\s+(\d+)-(\d+)(?:/(\d+|\*))?")
+_RANGE_NOT_SATISFIABLE_RE = re.compile(r"bytes\s+\*/(\d+)")
 
 
 def _dash_response_lengths(resp_headers) -> tuple[str | None, str | None]:
@@ -1968,6 +1969,22 @@ def _parse_content_range_full(cr: str | None) -> tuple[int | None, int | None, i
     return start, end, total
 
 
+def _parse_416_total(cr: str | None) -> int | None:
+    """Parse ``Content-Range: bytes */<total>`` from a 416 response.
+
+    Returns the total file size, or None when absent/unparseable. The
+    generic ``_parse_content_range_full`` cannot handle the ``*/TOTAL``
+    shape (no start-end span), so 416 handling needs its own parse.
+    """
+    m = _RANGE_NOT_SATISFIABLE_RE.match((cr or "").strip())
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except (TypeError, ValueError):
+        return None
+
+
 class _ResumedDashConn:
     """Wrap a mirror that did not resume contiguously (Range ignored / offset).
 
@@ -2074,6 +2091,32 @@ async def _failover_dash_conn(
                 except Exception:
                     pass
                 last_error = RuntimeError(f"resume offset mismatch on {used}")
+                continue
+            if status == 416:
+                # Range Not Satisfiable: the mirror tells us its file size via
+                # ``Content-Range: bytes */<total>``. When our resume offset is
+                # already past EOF, no mirror can satisfy it — byte accounting
+                # drifted (e.g. salvaged-200 prefix math across mirrors with
+                # divergent lengths). Abort immediately instead of burning
+                # through every mirror: the caller truncates and the player
+                # re-requests. Deliberately not forbidden (a fresh playurl
+                # with the same bad offset 416s again) and not sick-marked
+                # (this is our accounting, not edge health).
+                total = _parse_416_total(resp_headers.headers.get("content-range"))
+                pending.remove(used)
+                try:
+                    await conn.close()
+                except Exception:
+                    pass
+                if expected is not None and total is not None and expected >= total:
+                    raise _DashUpstreamError(
+                        f"resume offset {expected} past EOF (total {total}) for {label}",
+                    )
+                print(
+                    f"[DashProxy] {label} {urlparse(used).hostname} range rejected "
+                    f"(want start={expected}, total={total}), trying next mirror"
+                )
+                last_error = RuntimeError(f"range rejected (416) on {used}")
                 continue
             if status == 200 and expected is not None:
                 # Server ignored Range: full body from 0, discard the prefix.

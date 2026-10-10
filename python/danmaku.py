@@ -15,18 +15,20 @@
 
 """Server-Side danmaku translation"""
 
+import html
+import re
 
-def danmaku_xml_conv(domtree):
-    results = []
-    for d in domtree.getElementsByTagName("d"):
-        res = danmaku_elem_conv(d)
-        if res:
-            results.append(res)
-    return results
+# Fallback extractor for payloads the strict XML parser rejects (upstream
+# occasionally returns malformed/truncated XML — historically failing at the
+# same position across many videos). Matches the same <d p="...">text</d>
+# shape the strict path handles; entities are unescaped and stray inner tags
+# stripped so one bad node can't kill the whole file.
+_DANMAKU_RE = re.compile(r'<d\s+p="([^"]*)">(.*?)</d>', re.S)
+_TAG_RE = re.compile(r"<[^>]+>")
 
 
-def danmaku_elem_conv(d):
-    p = d.getAttribute("p").split(",")
+def _danmaku_entry(p_str, text):
+    p = (p_str or "").split(",")
 
     try:
         # Modes: 1:RTL, 4:Bottom, 5:Top, 6:LTR.
@@ -35,7 +37,7 @@ def danmaku_elem_conv(d):
     except (KeyError, IndexError):
         return {}
 
-    if not d.firstChild or not d.firstChild.data:
+    if not text:
         return {}
 
     try:
@@ -46,7 +48,7 @@ def danmaku_elem_conv(d):
         ftcolor = "ffffff"
 
     return {
-        "text": d.firstChild.data,
+        "text": text,
         "mode": m,
         "time": float(p[0]) if len(p) > 0 else 0.0,
         "style": {
@@ -62,3 +64,30 @@ def danmaku_elem_conv(d):
             "lineWidth": 2.0,
         },
     }
+
+
+def danmaku_xml_fallback(xml_text):
+    """Best-effort danmaku extraction when strict XML parsing fails."""
+    results = []
+    if not xml_text:
+        return results
+    for match in _DANMAKU_RE.finditer(xml_text):
+        text = html.unescape(_TAG_RE.sub("", match.group(2))).strip()
+        res = _danmaku_entry(match.group(1), text)
+        if res:
+            results.append(res)
+    return results
+
+
+def danmaku_xml_conv(domtree):
+    results = []
+    for d in domtree.getElementsByTagName("d"):
+        res = danmaku_elem_conv(d)
+        if res:
+            results.append(res)
+    return results
+
+
+def danmaku_elem_conv(d):
+    text = d.firstChild.data if d.firstChild and d.firstChild.data else None
+    return _danmaku_entry(d.getAttribute("p"), text)

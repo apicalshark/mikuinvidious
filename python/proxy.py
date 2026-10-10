@@ -406,13 +406,19 @@ async def proxy_main(subpath):
                 try:
                     async for chunk in conn.iter_chunks():
                         yield chunk
-                except (CdnProtocolError, CdnTimeoutError) as e:
-                    # Mid-body cut: abort the connection instead of ending
-                    # cleanly, so a truncated body is never delivered as a
-                    # successful 200/206 (players would cache it as complete
-                    # instead of retrying the Range).
-                    print(f"[Proxy] Mid-body cut for {url[:80]}...: {e}")
+                except (asyncio.CancelledError, GeneratorExit):
+                    # Client went away mid-stream: close upstream and let
+                    # cancellation propagate (no error log — this is normal).
                     raise
+                except (CdnProtocolError, CdnTimeoutError) as e:
+                    # Mid-body cut: end the stream early WITHOUT raising.
+                    # Response headers (200/206 + Content-Length) were already
+                    # emitted, so a short body surfaces as a length mismatch
+                    # and the player retries the Range — instead of a 500 +
+                    # TaskGroup traceback from re-raising inside the generator
+                    # (same truncate pattern as the DASH proxy).
+                    print(f"[Proxy] Mid-body cut for {url[:80]}...: {e}")
+                    return
                 finally:
                     await conn.close()
 
