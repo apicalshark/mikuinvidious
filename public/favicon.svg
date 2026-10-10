@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <!-- Reversed Background Gradient: Soft deep espresso/dark plum tones to maintain macOS squircle depth while complementing Sakura pink -->
+    <linearGradient id="reversedSakuraBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#120c10"/>
+      <stop offset="100%" stop-color="#261620"/>
+    </linearGradient>
+
+    <!-- Sakura Blossom Gradient for TV Body and Antennas -->
+    <linearGradient id="sakuraGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffb7c5"/>
+      <stop offset="100%" stop-color="#ff8fab"/>
+    </linearGradient>
+  </defs>
+
+  <!-- macOS Big Sur/Monterey standard continuous superellipse squircle -->
+  <rect width="128" height="128" rx="28.5" fill="url(#reversedSakuraBgGrad)"/>
+
+  <!-- TV with Antennas matching selected favicon geometry exactly -->
+  <g transform="translate(0, 4)">
+    <!-- Antennas: Left -->
+    <line x1="48" y1="23" x2="55" y2="39" stroke="url(#sakuraGrad)" stroke-width="6.5" stroke-linecap="round"/>
+    <circle cx="47.5" cy="22.5" r="4.5" fill="#ffb7c5"/>
+
+    <!-- Antennas: Right -->
+    <line x1="80" y1="23" x2="73" y2="39" stroke="url(#sakuraGrad)" stroke-width="6.5" stroke-linecap="round"/>
+    <circle cx="80.5" cy="22.5" r="4.5" fill="#ffb7c5"/>
+
+    <!-- Solid Clean TV Monitor Body in Sakura Blossom Gradient -->
+    <rect x="25" y="37" width="78" height="60" rx="19" fill="url(#sakuraGrad)"/>
+
+    <!-- Play Triangle Cutout using the reversed gradient to preserve seamless negative space -->
+    <polygon points="55,52 82,67 55,82" fill="url(#reversedSakuraBgGrad)"/>
+  </g>
+</svg>

@@ -67,6 +67,14 @@ export default withMermaid(
   defineConfig({
     base: "/mikuinvidious/",
     cleanUrls: true,
+    head: [
+      ["link", { rel: "icon", type: "image/svg+xml", href: "/mikuinvidious/favicon.svg" }],
+      ["link", { rel: "icon", type: "image/png", sizes: "32x32", href: "/mikuinvidious/favicon-32x32.png" }],
+      ["link", { rel: "icon", type: "image/png", sizes: "16x16", href: "/mikuinvidious/favicon-16x16.png" }],
+      ["link", { rel: "apple-touch-icon", sizes: "180x180", href: "/mikuinvidious/apple-touch-icon.png" }],
+      ["link", { rel: "manifest", href: "/mikuinvidious/site.webmanifest" }],
+      ["meta", { name: "theme-color", content: "#120c10" }],
+    ],
     srcExclude: ["README.md"],
     transformHead({ pageData }) {
       const route = toRoute(pageData.relativePath);
