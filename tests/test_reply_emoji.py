@@ -125,6 +125,22 @@ class RenderReplyContentTests(unittest.TestCase):
         out = render_reply_content(content('["q] hmm', {}))
         self.assertIn('[&quot;q] hmm', out)
 
+    def test_no_double_escape_when_emote_present(self):
+        # Regression: substitution must run on the raw message so fallback
+        # tokens are escaped exactly once (CodeRabbit PR #63 review).
+        out = render_reply_content(content('["q] [doge]', {"[doge]": doge_entry()}))
+        self.assertIn('[&quot;q]', out)
+        self.assertNotIn("&amp;quot;", out)
+        self.assertIn("<img", out)
+
+    def test_emote_name_with_special_char_matches(self):
+        key = "[a&b]"
+        entry = doge_entry()
+        out = render_reply_content(content(f"x {key} y", {key: entry}))
+        self.assertIn("<img", out)
+        self.assertIn('alt="[a&amp;b]"', out)  # escaped once, inside the attribute
+        self.assertNotIn(">[a", out)  # no leftover visible token text
+
     def test_degenerate_inputs(self):
         self.assertEqual(render_reply_content(None), "")
         self.assertEqual(render_reply_content(42), "")

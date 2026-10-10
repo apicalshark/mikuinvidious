@@ -335,4 +335,14 @@ def render_reply_content(content):
         alt = html.escape(token, quote=True)
         return f'<img src="{src}" alt="{alt}" loading="lazy" style="{style}">'
 
-    return _REPLY_EMOTE_TOKEN_RE.sub(_replace, html.escape(message))
+    # Match tokens against the RAW message: substituting on the escaped
+    # string would double-escape fallback tokens and miss emote keys
+    # containing &<>"'. Each plain segment / fallback is escaped exactly once.
+    out = []
+    pos = 0
+    for m in _REPLY_EMOTE_TOKEN_RE.finditer(message):
+        out.append(html.escape(message[pos : m.start()]))
+        out.append(_replace(m))
+        pos = m.end()
+    out.append(html.escape(message[pos:]))
+    return "".join(out)
