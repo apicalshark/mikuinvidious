@@ -1,9 +1,8 @@
 # What is MikuInvidious?
 
-MikuInvidious is a free and open-source frontend for Bilibili, inspired by
+[MikuInvidious](https://github.com/apicalshark/mikuinvidious) is a free and open-source frontend for Bilibili, inspired by
 [Invidious](https://invidious.io). It provides a lightweight, privacy-focused
-interface for browsing and watching Bilibili content — no account, no official
-app, no tracking.
+interface for browsing and watching Bilibili content without an account and tracking.
 
 ## Features
 
