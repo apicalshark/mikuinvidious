@@ -33,6 +33,8 @@ This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xaca
 
 The application will be available at `http://localhost:8000`.
 
+For detailed setup, configuration, and troubleshooting, see the full documentation: [apicalshark.github.io/mikuinvidious](https://apicalshark.github.io/mikuinvidious/) (English / 正體中文).
+
 ### Local Installation (Without Docker)
 
 For users who want to run the application manually, see the [local installation guide](doc/setup.md). This project uses `uv` for dependency management.
