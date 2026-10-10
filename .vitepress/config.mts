@@ -84,8 +84,44 @@ export default withMermaid(
         title: "MikuInvidious Docs",
         description: "MikuInvidious operator and developer docs",
         themeConfig: {
-          nav: [{ text: "Home", link: "/en/" }],
+          nav: [
+            { text: "Operator guide", link: "/en/operators/" },
+            { text: "Developer guide", link: "/en/developers/" },
+          ],
           sidebar: {
+            "/en/operators/": [
+              {
+                text: "Operator guide",
+                items: [
+                  { text: "Overview", link: "/en/operators/" },
+                  { text: "Quickstart with Docker", link: "/en/operators/quickstart-docker" },
+                  { text: "Manual installation", link: "/en/operators/manual-install" },
+                  { text: "Configuration reference", link: "/en/operators/configuration" },
+                  { text: "Reverse proxy (Caddy)", link: "/en/operators/reverse-proxy" },
+                  { text: "Bilibili credentials", link: "/en/operators/credentials" },
+                  { text: "Caching", link: "/en/operators/caching" },
+                  { text: "Rate limiting", link: "/en/operators/rate-limiting" },
+                  { text: "Maintenance", link: "/en/operators/maintenance" },
+                  { text: "Troubleshooting", link: "/en/operators/troubleshooting" },
+                ],
+              },
+            ],
+            "/en/developers/": [
+              {
+                text: "Developer guide",
+                items: [
+                  { text: "Overview", link: "/en/developers/" },
+                  { text: "Architecture", link: "/en/developers/architecture" },
+                  { text: "Playback & download", link: "/en/developers/playback-stack" },
+                  { text: "Route & API reference", link: "/en/developers/api-reference" },
+                  { text: "Bilibili API wrapper", link: "/en/developers/bilibili-api" },
+                  { text: "Theming", link: "/en/developers/theming" },
+                  { text: "Internationalization", link: "/en/developers/i18n" },
+                  { text: "Testing", link: "/en/developers/testing" },
+                  { text: "Contributing", link: "/en/developers/contributing" },
+                ],
+              },
+            ],
             "/en/": [{ text: "Docs", items: [{ text: "Home", link: "/en/" }] }],
           },
           search: { provider: "local" },
