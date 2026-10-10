@@ -1,8 +1,9 @@
-# 反向代理（Caddy）
+# Reverse proxy (Caddy)
 
-Caddy 為使用者實際連接的入口，負責 HTTPS 終止、靜態檔案服務，其餘請求一律轉發至 `app:8080`。
+Caddy is the entry point users actually connect to: it terminates HTTPS, serves
+static files, and forwards everything else to `app:8080`.
 
-## 最小可用組態
+## Minimal working config
 
 ```text
 :8000 {
@@ -23,11 +24,13 @@ Caddy 為使用者實際連接的入口，負責 HTTPS 終止、靜態檔案服�
 }
 ```
 
-請注意 `encode` 排除 `/proxy/*`——影音串流為已壓縮的二進位內容，重新壓縮只會消耗 CPU 而無實益。
+Note that `encode` excludes `/proxy/*` — media streams are already-compressed
+binary; re-compressing them only burns CPU.
 
-## 播放異常時停用 HTTP/3
+## Disable HTTP/3 when playback breaks
 
-若播放期間出現 `ERR_QUIC_PROTOCOL_ERROR`，成因多為瀏覽器 QUIC 協定棧處理 206 Partial Content 的相容性問題。請於 `Caddyfile` 頂端加入以下設定：
+`ERR_QUIC_PROTOCOL_ERROR` during playback is usually a browser QUIC-stack issue
+with 206 Partial Content. Add this to the top of `Caddyfile`:
 
 ```text
 {
@@ -37,9 +40,10 @@ Caddy 為使用者實際連接的入口，負責 HTTPS 終止、靜態檔案服�
 }
 ```
 
-重新啟動 Caddy 即可生效。此為已知問題，與使用者網路品質無關。
+Restart Caddy and it takes effect. This is a known issue, unrelated to the
+user's network quality.
 
-## 使用自有憑證
+## Bring your own certificate
 
 ```text
 mi.example.com {
@@ -48,4 +52,5 @@ mi.example.com {
 }
 ```
 
-若無特殊需求，建議由 Caddy 自動申請（Let's Encrypt／ZeroSSL），無需額外設定。
+Without special needs, let Caddy obtain certificates automatically
+(Let's Encrypt / ZeroSSL) — no extra configuration required.

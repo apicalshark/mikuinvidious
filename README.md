@@ -3,8 +3,8 @@
 Documentation source for the MikuInvidious site, built with
 [VitePress](https://vitepress.dev) and published to GitHub Pages.
 
-- Default language is Traditional Chinese (`/`, `lang: zh-TW`).
-- English lives under `/en/` (stub for now).
+- Default language is English (`/`, `lang: en-US`).
+- Traditional Chinese lives under `/zh-TW/`.
 - Project pages base: `/mikuinvidious/`.
 
 ## Preview locally

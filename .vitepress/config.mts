@@ -2,28 +2,53 @@ import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
 
 const operatorSidebar = [
-  { text: "總覽", link: "/operators/" },
-  { text: "使用 Docker 快速啟動", link: "/operators/quickstart-docker" },
-  { text: "手動安裝", link: "/operators/manual-install" },
-  { text: "組態參照", link: "/operators/configuration" },
-  { text: "反向代理（Caddy）", link: "/operators/reverse-proxy" },
-  { text: "Bilibili 憑證", link: "/operators/credentials" },
-  { text: "快取", link: "/operators/caching" },
-  { text: "速率限制", link: "/operators/rate-limiting" },
-  { text: "日常維運", link: "/operators/maintenance" },
-  { text: "故障排除", link: "/operators/troubleshooting" },
+  { text: "Overview", link: "/operators/" },
+  { text: "Quickstart with Docker", link: "/operators/quickstart-docker" },
+  { text: "Manual installation", link: "/operators/manual-install" },
+  { text: "Configuration reference", link: "/operators/configuration" },
+  { text: "Reverse proxy (Caddy)", link: "/operators/reverse-proxy" },
+  { text: "Bilibili credentials", link: "/operators/credentials" },
+  { text: "Caching", link: "/operators/caching" },
+  { text: "Rate limiting", link: "/operators/rate-limiting" },
+  { text: "Maintenance", link: "/operators/maintenance" },
+  { text: "Troubleshooting", link: "/operators/troubleshooting" },
 ];
 
 const developerSidebar = [
-  { text: "總覽", link: "/developers/" },
-  { text: "系統架構", link: "/developers/architecture" },
-  { text: "播放與下載架構", link: "/developers/playback-stack" },
-  { text: "路由與 API 參照", link: "/developers/api-reference" },
-  { text: "Bilibili API 封裝", link: "/developers/bilibili-api" },
-  { text: "主題開發", link: "/developers/theming" },
-  { text: "多國語系", link: "/developers/i18n" },
-  { text: "測試", link: "/developers/testing" },
-  { text: "參與貢獻", link: "/developers/contributing" },
+  { text: "Overview", link: "/developers/" },
+  { text: "Architecture", link: "/developers/architecture" },
+  { text: "Playback & download", link: "/developers/playback-stack" },
+  { text: "Route & API reference", link: "/developers/api-reference" },
+  { text: "Bilibili API wrapper", link: "/developers/bilibili-api" },
+  { text: "Theming", link: "/developers/theming" },
+  { text: "Internationalization", link: "/developers/i18n" },
+  { text: "Testing", link: "/developers/testing" },
+  { text: "Contributing", link: "/developers/contributing" },
+];
+
+const operatorSidebarZhTw = [
+  { text: "總覽", link: "/zh-TW/operators/" },
+  { text: "使用 Docker 快速啟動", link: "/zh-TW/operators/quickstart-docker" },
+  { text: "手動安裝", link: "/zh-TW/operators/manual-install" },
+  { text: "組態參照", link: "/zh-TW/operators/configuration" },
+  { text: "反向代理（Caddy）", link: "/zh-TW/operators/reverse-proxy" },
+  { text: "Bilibili 憑證", link: "/zh-TW/operators/credentials" },
+  { text: "快取", link: "/zh-TW/operators/caching" },
+  { text: "速率限制", link: "/zh-TW/operators/rate-limiting" },
+  { text: "日常維運", link: "/zh-TW/operators/maintenance" },
+  { text: "故障排除", link: "/zh-TW/operators/troubleshooting" },
+];
+
+const developerSidebarZhTw = [
+  { text: "總覽", link: "/zh-TW/developers/" },
+  { text: "系統架構", link: "/zh-TW/developers/architecture" },
+  { text: "播放與下載架構", link: "/zh-TW/developers/playback-stack" },
+  { text: "路由與 API 參照", link: "/zh-TW/developers/api-reference" },
+  { text: "Bilibili API 封裝", link: "/zh-TW/developers/bilibili-api" },
+  { text: "主題開發", link: "/zh-TW/developers/theming" },
+  { text: "多國語系", link: "/zh-TW/developers/i18n" },
+  { text: "測試", link: "/zh-TW/developers/testing" },
+  { text: "參與貢獻", link: "/zh-TW/developers/contributing" },
 ];
 
 export default withMermaid(
@@ -39,33 +64,65 @@ export default withMermaid(
         include: ["mermaid", "fastdom/extensions/fastdom-promised.js"],
       },
     },
-    title: "MikuInvidious 文件",
-    description: "MikuInvidious 站長與開發者文件（正體中文）",
+    title: "MikuInvidious Docs",
+    description: "MikuInvidious operator and developer docs",
     locales: {
       root: {
-        label: "正體中文",
-        lang: "zh-TW",
+        label: "English",
+        lang: "en-US",
         themeConfig: {
           nav: [
-            { text: "站長指南", link: "/operators/" },
-            { text: "開發者指南", link: "/developers/" },
+            { text: "Operator guide", link: "/operators/" },
+            { text: "Developer guide", link: "/developers/" },
           ],
           sidebar: {
             "/": [
               {
-                text: "指南",
+                text: "Docs",
                 items: [
-                  { text: "首頁", link: "/" },
-                  { text: "站長指南", link: "/operators/" },
-                  { text: "開發者指南", link: "/developers/" },
+                  { text: "Home", link: "/" },
+                  { text: "Operator guide", link: "/operators/" },
+                  { text: "Developer guide", link: "/developers/" },
                 ],
               },
             ],
             "/operators/": [
-              { text: "站長指南", items: operatorSidebar },
+              { text: "Operator guide", items: operatorSidebar },
             ],
             "/developers/": [
-              { text: "開發者指南", items: developerSidebar },
+              { text: "Developer guide", items: developerSidebar },
+            ],
+          },
+          search: { provider: "local" },
+        },
+      },
+      "zh-TW": {
+        label: "正體中文",
+        lang: "zh-TW",
+        link: "/zh-TW/",
+        title: "MikuInvidious 文件",
+        description: "MikuInvidious 站長與開發者文件（正體中文）",
+        themeConfig: {
+          nav: [
+            { text: "站長指南", link: "/zh-TW/operators/" },
+            { text: "開發者指南", link: "/zh-TW/developers/" },
+          ],
+          sidebar: {
+            "/zh-TW/": [
+              {
+                text: "指南",
+                items: [
+                  { text: "首頁", link: "/zh-TW/" },
+                  { text: "站長指南", link: "/zh-TW/operators/" },
+                  { text: "開發者指南", link: "/zh-TW/developers/" },
+                ],
+              },
+            ],
+            "/zh-TW/operators/": [
+              { text: "站長指南", items: operatorSidebarZhTw },
+            ],
+            "/zh-TW/developers/": [
+              { text: "開發者指南", items: developerSidebarZhTw },
             ],
           },
           search: {
@@ -94,56 +151,6 @@ export default withMermaid(
           returnToTopLabel: "回到頂端",
           sidebarMenuLabel: "選單",
           darkModeSwitchLabel: "切換深色模式",
-        },
-      },
-      en: {
-        label: "English",
-        lang: "en-US",
-        link: "/en/",
-        title: "MikuInvidious Docs",
-        description: "MikuInvidious operator and developer docs",
-        themeConfig: {
-          nav: [
-            { text: "Operator guide", link: "/en/operators/" },
-            { text: "Developer guide", link: "/en/developers/" },
-          ],
-          sidebar: {
-            "/en/operators/": [
-              {
-                text: "Operator guide",
-                items: [
-                  { text: "Overview", link: "/en/operators/" },
-                  { text: "Quickstart with Docker", link: "/en/operators/quickstart-docker" },
-                  { text: "Manual installation", link: "/en/operators/manual-install" },
-                  { text: "Configuration reference", link: "/en/operators/configuration" },
-                  { text: "Reverse proxy (Caddy)", link: "/en/operators/reverse-proxy" },
-                  { text: "Bilibili credentials", link: "/en/operators/credentials" },
-                  { text: "Caching", link: "/en/operators/caching" },
-                  { text: "Rate limiting", link: "/en/operators/rate-limiting" },
-                  { text: "Maintenance", link: "/en/operators/maintenance" },
-                  { text: "Troubleshooting", link: "/en/operators/troubleshooting" },
-                ],
-              },
-            ],
-            "/en/developers/": [
-              {
-                text: "Developer guide",
-                items: [
-                  { text: "Overview", link: "/en/developers/" },
-                  { text: "Architecture", link: "/en/developers/architecture" },
-                  { text: "Playback & download", link: "/en/developers/playback-stack" },
-                  { text: "Route & API reference", link: "/en/developers/api-reference" },
-                  { text: "Bilibili API wrapper", link: "/en/developers/bilibili-api" },
-                  { text: "Theming", link: "/en/developers/theming" },
-                  { text: "Internationalization", link: "/en/developers/i18n" },
-                  { text: "Testing", link: "/en/developers/testing" },
-                  { text: "Contributing", link: "/en/developers/contributing" },
-                ],
-              },
-            ],
-            "/en/": [{ text: "Docs", items: [{ text: "Home", link: "/en/" }] }],
-          },
-          search: { provider: "local" },
         },
       },
     },

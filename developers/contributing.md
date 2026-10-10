@@ -1,20 +1,25 @@
-# 參與貢獻
+# Contributing
 
-任何形式的貢獻都歡迎。
+Contributions of any kind are welcome.
 
-## 流程
+## Process
 
-1. 先在本地跑起來（見[手動安裝](../operators/manual-install.md)），開 `QUART_DEBUG=true`。
-2. 改完跑完整檢查：
+1. Get it running locally (see [Manual installation](../operators/manual-install))
+   with `QUART_DEBUG=true`.
+2. Run the full checks after changing code:
 
 ```bash
-npm run lint     # ruff、prettier、djlint
-npm run format   # 沒過就先排好
-npm run check:i18n   # 有動到字串才需要
+npm run lint     # ruff, prettier, djlint
+npm run format   # format first if it fails
+npm run check:i18n   # only needed when strings changed
 ```
 
-3. 開 issue、PR 或 discussion 都可以；提交前看一下 `git status`、`git diff`，確認沒有把機密資訊送上去。
+3. Issues, PRs, and discussions are all fine. Before submitting, review
+   `git status` / `git diff` and make sure no secrets are included.
 
-## 授權
+## License
 
-主程式用 GNU GPL-3.0；前端函式庫授權見 `/licenses`（hls.js、mpegts.js 是 Apache-2.0；dash.js 是 BSD-3-Clause；media-chrome、Danmaku、opencc-js 是 MIT）。內嵌檔案用 `npm run sync:static` 同步，不要手動複製。
+The app is GNU GPL-3.0. Frontend library licenses: see `/licenses` (hls.js and
+mpegts.js are Apache-2.0; dash.js is BSD-3-Clause; media-chrome, Danmaku, and
+opencc-js are MIT). Sync vendored files with `npm run sync:static` — don't copy
+by hand.

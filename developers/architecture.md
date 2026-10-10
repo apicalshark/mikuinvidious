@@ -1,28 +1,28 @@
-# 系統架構
+# Architecture
 
 ```mermaid
 graph TD
-    User((使用者))
-    Caddy["Caddy 反向代理<br>(8000)"]
+    User((user))
+    Caddy["Caddy reverse proxy<br>(8000)"]
     Granian["Granian ASGI<br>(8080)"]
-    Router{路由}
-    Proxy["媒體代理<br>(proxy.py / live_manager.py)"]
-    Bangumi["番劇<br>(views_bangumi.py)"]
-    Views["主視圖<br>(views.py)"]
-    BiliAPI["Bilibili API 封裝"]
+    Router{router}
+    Proxy["media proxy<br>(proxy.py / live_manager.py)"]
+    Bangumi["bangumi<br>(views_bangumi.py)"]
+    Views["main views<br>(views.py)"]
+    BiliAPI["Bilibili API wrapper"]
     Redis[("Redis")]
-    Warp["WARP SOCKS5<br>(可選)"]
+    Warp["WARP SOCKS5<br>(optional)"]
     BiliCDN["Bilibili CDN"]
     BiliSrv["Bilibili API"]
     Nyaa["Nyaa.si"]
 
     User --> Caddy
-    Caddy -- "靜態檔案" --> Granian
-    Caddy -- "應用流量" --> Granian
+    Caddy -- "static files" --> Granian
+    Caddy -- "app traffic" --> Granian
     Granian --> Router
     Router -- "/proxy/..." --> Proxy
     Router -- "/bangumi/..." --> Bangumi
-    Router -- "其他" --> Views
+    Router -- "other" --> Views
     Proxy --> Redis
     Views --> BiliAPI
     Bangumi --> BiliAPI
@@ -33,10 +33,15 @@ graph TD
     Bangumi --> Nyaa
 ```
 
-## 關鍵設計決策
+## Key design decisions
 
-- **Caddy 只做反向代理和靜態檔案**，應用邏輯集中在 Quart，以非同步 I/O 處理。
-- **媒體代理一律啟用**：`CdnConnection` 經由 raw socket 建立連接，直接連接或經 WARP SOCKS5 轉發；`ProxyResponse` 與 `ClosingIterator` 確保檔案描述符不洩漏。
-- **WARP 是選用元件**：給資料中心 IP 繞過風險控制用，家用寬頻直接連接即可。
-- **Redis 是必要元件**：工作階段、playurl 快取（`miku_dash_*`，1800 秒）、頁面快取都依賴 Redis。
-- **串流逾時 3 小時**：`RESPONSE_TIMEOUT`／`BODY_TIMEOUT` 固定為 10800 秒，確保長片可以完整播完。
+- **Caddy only reverse-proxies and serves static files**. Application logic lives in
+  Quart, all async I/O.
+- **The media proxy is always on**: `CdnConnection` dials over raw sockets, direct
+  or via WARP SOCKS5. `ProxyResponse` + `ClosingIterator` guarantee no fd leaks.
+- **WARP is optional**: for datacenter IPs to bypass risk control. Home broadband
+  connects directly.
+- **Redis is required**: sessions, playurl cache (`miku_dash_*`, 1800s), and page
+  cache all depend on it.
+- **3-hour streaming timeouts**: `RESPONSE_TIMEOUT` / `BODY_TIMEOUT` are fixed at
+  10800 seconds so long videos play to the end.

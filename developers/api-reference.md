@@ -1,48 +1,50 @@
-# 路由與 API 參照
+# Route & API reference
 
-## 頁面路由（`views.py`、`views_bangumi.py`、`app.py`）
+## Page routes (`views.py`, `views_bangumi.py`, `app.py`)
 
-| 路由 | 說明 |
+| Route | Description |
 | :--- | :--- |
-| `/` | 首頁動態（WBI `top/feed/rcmd`） |
-| `/search` | 全站搜尋（影片／上傳者／專欄／直播／番劇分頁） |
-| `/video/<vid>`、`/video/<vid>:<idx>` | 影片頁面與分集 |
-| `/video_listen/<vid>[:<idx>]` | 純音訊模式 |
-| `/video/dash/<vid>/<idx>/manifest.mpd` | DASH manifest（`?fresh=1` 強制重整） |
-| `/live`、`/live/<room_id>` | 直播分區與房間 |
-| `/live/chat/<room_id>` | 聊天室 SSE |
-| `/space/<mid>`、`/space/<mid>/json` | 上傳者空間與 JSON feed |
-| `/author/<mid>` | 作者頁面 |
-| `/read/<cid>`、`/read/mobile/<cid>`、`/opus/<cid>` | 專欄／動態 |
-| `/audio/<auid>`、`/audio_list/<amid>[:<idx>]` | 單曲／歌單 |
-| `/bangumi`、`/bangumi/view/<ssid>`、`/bangumi/play/ep<id>` | 番劇索引／作品／單集 |
-| `/bangumi/api/nyaa/<ssid>` | Nyaa 搜尋 API |
-| `/history`、`/preferences`、`/licenses`、`/robots.txt` | 歷史紀錄／偏好設定／JS 授權／爬蟲政策 |
-| `/<b32tvid>` | 短 ID 萬用入口 |
-| `/vv/<zid>` | 分區動態 |
+| `/` | home feed (WBI `top/feed/rcmd`) |
+| `/search` | global search (video / uploader / article / live / bangumi tabs) |
+| `/video/<vid>`, `/video/<vid>:<idx>` | video page and parts |
+| `/video_listen/<vid>[:<idx>]` | audio-only mode |
+| `/video/dash/<vid>/<idx>/manifest.mpd` | DASH manifest (`?fresh=1` forces refresh) |
+| `/live`, `/live/<room_id>` | live directory and rooms |
+| `/live/chat/<room_id>` | chatroom SSE |
+| `/space/<mid>`, `/space/<mid>/json` | uploader space and JSON feed |
+| `/author/<mid>` | author page |
+| `/read/<cid>`, `/read/mobile/<cid>`, `/opus/<cid>` | articles / posts |
+| `/audio/<auid>`, `/audio_list/<amid>[:<idx>]` | tracks / playlists |
+| `/bangumi`, `/bangumi/view/<ssid>`, `/bangumi/play/ep<id>` | bangumi index / series / episode |
+| `/bangumi/api/nyaa/<ssid>` | Nyaa search API |
+| `/history`, `/preferences`, `/licenses`, `/robots.txt` | history / preferences / JS licenses / crawler policy |
+| `/<b32tvid>` | short-ID universal entry |
+| `/vv/<zid>` | zone feed |
 
-## 媒體／資源代理
+## Media / resource proxy
 
-| 路由 | 說明 |
+| Route | Description |
 | :--- | :--- |
-| `/proxy/<subpath>` | 通用代理（圖片轉 WebP、progressive 影音） |
-| `/proxy/dash/<vid>/<idx>/<type>/<qn>/<cid>` | DASH 軌道代理（Range 透傳） |
-| `/proxy/download/<vid>/<idx>/<qual>` | 無 JS 環境的傳統下載 |
-| `/proxy/live/disconnect`（POST） | 中斷直播轉發 |
-| `/res/danmaku/<vid>[:<idx>]` | 彈幕 XML |
-| `/res/subtitle/<vid>[:<idx>[:<lan>]]` | 字幕 |
+| `/proxy/<subpath>` | generic proxy (images to WebP, progressive media) |
+| `/proxy/dash/<vid>/<idx>/<type>/<qn>/<cid>` | DASH track proxy (Range passthrough) |
+| `/proxy/download/<vid>/<idx>/<qual>` | legacy download for non-JS environments |
+| `/proxy/live/disconnect` (POST) | tear down live forwarding |
+| `/res/danmaku/<vid>[:<idx>]` | danmaku XML |
+| `/res/subtitle/<vid>[:<idx>[:<lan>]]` | subtitles |
 
-## 下載任務／元件 API
+## Download jobs / component API
 
-| 路由 | 說明 |
+| Route | Description |
 | :--- | :--- |
-| `/download`（POST） | 建立任務，回 `{"job_id"}` |
-| `/download/status/<job>` | 輪詢進度 |
-| `/download/file/<job>` | 下載成品 |
-| `/download/cancel/<job>`（POST） | 取消任務 |
-| `/api/component/player/<vid>/<idx>` | 播放器元件（含 `is_dash`／`dash_url`） |
-| `/api/component/meta/<vid>/<idx>` | 資訊元件 |
-| `/api/component/comments/<vid>/<idx>/more`、`/api/component/comments/<vid>/<rpid>` | 更多留言／留言串 |
-| `/toggle_theme`、`/set_lang`（POST） | 主題／語言 cookie |
+| `/download` (POST) | create a job, returns `{"job_id"}` |
+| `/download/status/<job>` | poll progress |
+| `/download/file/<job>` | download the finished file |
+| `/download/cancel/<job>` (POST) | cancel a job |
+| `/api/component/player/<vid>/<idx>` | player component (`is_dash` / `dash_url` included) |
+| `/api/component/meta/<vid>/<idx>` | info component |
+| `/api/component/comments/<vid>/<idx>/more`, `/api/component/comments/<vid>/<rpid>` | more comments / comment threads |
+| `/toggle_theme`, `/set_lang` (POST) | theme / language cookies |
 
-直播格式政策（FLV 優先、`LIVE_PREFER_HLS` 反轉）和「播放中不換格式」由伺服器端決定，模板用 `window.live_format` 告訴前端載 mpegts 還是 hls；VOD 頁面兩個都不載。
+The live format policy (FLV first, `LIVE_PREFER_HLS` reverses) and the
+never-switch-mid-stream rule are decided server-side; templates tell the frontend
+which loader to use via `window.live_format` (mpegts vs hls). VOD pages load neither.

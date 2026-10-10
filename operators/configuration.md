@@ -1,73 +1,80 @@
-# 組態參照
+# Configuration reference
 
-本系統可透過 `config.toml` 或環境變數進行組態，**環境變數的優先順序高於組態檔**。Docker 部署以環境變數為主，手動部署以 `config.toml` 為主。
+The system is configured via `config.toml` or environment variables.
+**Environment variables always take precedence over the config file.**
+Docker deployments use environment variables; manual deployments use `config.toml`.
 
-## `[site]` 站點識別
+## `[site]` identity
 
-| Key | 環境變數 | 預設值 | 說明 |
+| Key | Env var | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `site_name` | `SITE_NAME` | `MikuInvidious` | 站點名稱，顯示於頂端列 |
-| `site_url` | `SITE_URL` | `https://example.org` | 對外網址，用於詮釋資料與連結產生 |
-| `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | 若曾修改程式碼，請填寫修改版儲存庫網址（AGPL 授權要求） |
-| `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | 關閉此選項僅隱藏下載按鈕，無法阻止具備技術能力的使用者下載 |
-| `max_download_size_mb` | `MAX_DOWNLOAD_SIZE_MB` | `1024` | 每條下載軌道的大小上限（MB） |
-| `site_show_unsafe_error_response` | `SITE_SHOW_UNSAFE_ERROR_RESPONSE` | `false` | 顯示詳細錯誤訊息（可能包含敏感資訊，僅供除錯使用） |
-| `nyaa_bangumi` | `NYAA_BANGUMI` | `true` | 番劇頁面的 Nyaa 搜尋功能開關 |
-| `robots_policy` | `ROBOTS_POLICY` | `strict` | `strict`（禁止全部索引）、`relaxed`（允許文章與搜尋頁）、`PLEASE_INDEX_EVERYTHING`（請審慎使用） |
+| `site_name` | `SITE_NAME` | `MikuInvidious` | Site name shown in the header |
+| `site_url` | `SITE_URL` | `https://example.org` | Public URL, used for metadata and link generation |
+| `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | Modified source repo URL if you changed the code (AGPL requirement) |
+| `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | Disabling only hides the download button; it won't stop skilled users |
+| `max_download_size_mb` | `MAX_DOWNLOAD_SIZE_MB` | `1024` | Per-track download size limit (MB) |
+| `site_show_unsafe_error_response` | `SITE_SHOW_UNSAFE_ERROR_RESPONSE` | `false` | Show detailed errors (may leak sensitive info; debug only) |
+| `nyaa_bangumi` | `NYAA_BANGUMI` | `true` | Nyaa search toggle on bangumi pages |
+| `robots_policy` | `ROBOTS_POLICY` | `strict` | `strict` (block all indexing), `relaxed` (allow articles and search), `PLEASE_INDEX_EVERYTHING` (use with care) |
 
-## `[server]` 伺服器
+## `[server]`
 
-| Key | 環境變數 | 預設值 | 說明 |
+| Key | Env var | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `host` | `SERVER_HOST` | `0.0.0.0` | 監聽的網路介面（僅本機使用 `localhost`，IPv4／IPv6 雙棧使用 `::`） |
-| `port` | `SERVER_PORT` | `8888` | 應用伺服器監聽連接埠（Docker 內部為 8080） |
-| `secret_key` | `QUART_SECRET_KEY` | 隨機產生 | 工作階段加密金鑰。**正式站點務必設定固定值**，否則每次重新啟動將導致全部工作階段失效 |
-| `access_log` | `SERVER_ACCESS_LOG` | `false` | Granian 的每請求存取紀錄（輸出量大，預設關閉） |
+| `host` | `SERVER_HOST` | `0.0.0.0` | Listening interface (`localhost` for local-only, `::` for dual-stack) |
+| `port` | `SERVER_PORT` | `8888` | App listen port (8080 inside Docker) |
+| `secret_key` | `QUART_SECRET_KEY` | random | Session encryption key. **Production sites must set a fixed value**, or every restart invalidates all sessions |
+| `access_log` | `SERVER_ACCESS_LOG` | `false` | Per-request Granian access log (very noisy, off by default) |
 
-## `[display]` 介面
+## `[display]` UI
 
-| Key | 環境變數 | 預設值 | 說明 |
+| Key | Env var | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `default_theme` | — | `modern` | 新訪客的預設主題（目前僅 `modern` 為正式支援） |
-| `default_locale` | `DEFAULT_LOCALE` | `zh-CN` | 無 `?lang=` 參數、cookie 或瀏覽器語言匹配時的預設語系 |
-| `supported_locales` | `SUPPORTED_LOCALES` | 自動偵測 | 語系白名單，例如 `en,zh-TW,ja`；未設定則全部啟用 |
+| `default_theme` | — | `modern` | Default theme for new visitors (only `modern` is officially supported) |
+| `default_locale` | `DEFAULT_LOCALE` | `zh-CN` | Fallback locale when no `?lang=` param, cookie, or browser-language match |
+| `supported_locales` | `SUPPORTED_LOCALES` | auto-detect | Locale allowlist, e.g. `en,zh-TW,ja`; unset means all enabled |
 
-## `[live]` 直播
+## `[live]`
 
-| Key | 環境變數 | 預設值 | 說明 |
+| Key | Env var | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `prefer_hls` | `LIVE_PREFER_HLS` | `false` | `false` 表示 FLV 優先、HLS 備援；`true` 則相反。每一直播間僅選用一種格式，播放期間不切換 |
+| `prefer_hls` | `LIVE_PREFER_HLS` | `false` | `false` = FLV first with HLS fallback; `true` reverses it. One format per room, never switched mid-stream |
 
-## `[credential]` 憑證
+## `[credential]`
 
-| Key | 環境變數 | 預設值 | 說明 |
+| Key | Env var | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `use_cred` | `USE_CRED` | `false` | 總開關 |
-| `sessdata`／`bili_jct`／`buvid3`／`buvid4`／`dedeuserid` | 同名大寫 | 空 | Bilibili Cookie，取得方式見[憑證](credentials.md) |
-| `ac_time_value` | `AC_TIME_VALUE` | 空 | Bilibili 主站 `localStorage` 的重新整理權杖 |
+| `use_cred` | `USE_CRED` | `false` | Master switch |
+| `sessdata` / `bili_jct` / `buvid3` / `buvid4` / `dedeuserid` | same name, uppercased | empty | Bilibili cookies — see [Credentials](credentials) for how to obtain them |
+| `ac_time_value` | `AC_TIME_VALUE` | empty | Refresh token from Bilibili's `localStorage` |
 
-敏感數值建議以 libsodium 加密存放（`tools/encrypt_secrets.py`），詳見[憑證](credentials.md)。
+Sensitive values should be stored encrypted with libsodium
+(`tools/encrypt_secrets.py`) — see [Credentials](credentials).
 
-## `[proxy]` 代理
+## `[proxy]`
 
-| Key | 環境變數 | 預設值 | 說明 |
+| Key | Env var | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `proxy_url` | `HTTP_PROXY`／`http_proxy` | 空 | SOCKS5／HTTP 出口的完整網址，例如 `socks5://127.0.0.1:1080`。媒體代理本身一律啟用，此選項僅決定連往 Bilibili 的流量是否經由代理轉發 |
+| `proxy_url` | `HTTP_PROXY` / `http_proxy` | empty | Full SOCKS5/HTTP egress URL, e.g. `socks5://127.0.0.1:1080`. The media proxy itself is always on; this only decides whether traffic to Bilibili goes through a proxy |
 
-## `[render]` 文章轉譯
+## `[render]` article rendering
 
-| Key | 環境變數 | 預設值 | 說明 |
+| Key | Env var | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `use_pandoc` | `USE_PANDOC` | `false` | 改用 Pandoc 轉譯文章（主機須預先安裝 pandoc） |
-| `article_allowed_formats` | `ARTICLE_ALLOWED_FORMATS` | `markdown,plain,html` | Pandoc 允許轉換的來源格式 |
+| `use_pandoc` | `USE_PANDOC` | `false` | Render articles with Pandoc (must be installed on the host) |
+| `article_allowed_formats` | `ARTICLE_ALLOWED_FORMATS` | `markdown,plain,html` | Source formats Pandoc may convert from |
 
-## `[redis]`、`[cache]`、`[rate_limit]`
+## `[redis]`, `[cache]`, `[rate_limit]`
 
-- Redis：設定 `redis_url`（`REDIS_URL`）後將覆寫 host／port／帳號密碼。Redis 為必要元件，未設定將無法啟動。
-- 快取 TTL：詳見[快取](caching.md)，單位均為分鐘，`0` 表示停用該路由的快取。
-- 速率限制：詳見[速率限制](rate-limiting.md)，預設為關閉。
+- Redis: setting `redis_url` (`REDIS_URL`) overrides host/port/credentials. Redis is
+  required — the app won't start without it.
+- Cache TTLs: see [Caching](caching). All in minutes; `0` disables that route's cache.
+- Rate limiting: see [Rate limiting](rate-limiting). Off by default.
 
-## `[quart]`、`[bili]`
+## `[quart]`, `[bili]`
 
-- `[quart]` 的設定將直接傳遞給 Quart 框架（例如 `TEMPLATES_AUTO_RELOAD = true`）。串流逾時固定為 10800 秒（3 小時），以支援長片完整播放。
-- `[bili]` 可調整呼叫 Bilibili API 所用的 UA、referer、app_key 等標頭，一般無需修改。
+- `[quart]` settings pass straight through to the Quart framework
+  (e.g. `TEMPLATES_AUTO_RELOAD = true`). Streaming timeouts are fixed at
+  10800 seconds (3 hours) so long videos play to the end.
+- `[bili]` tunes the UA, referer, app_key and other headers used against the
+  Bilibili API. Rarely needs changing.

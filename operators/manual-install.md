@@ -1,8 +1,9 @@
-# 手動安裝
+# Manual installation
 
-本章適用於不使用 Docker、需直接修改程式碼的開發者。系統需求為 Python 3.14 以上版本、Redis，以及 `uv` 套件管理工具。
+For developers who skip Docker and hack on the code directly. Requirements:
+Python 3.14+, Redis, and the `uv` package manager.
 
-## 系統依賴（Debian／Ubuntu）
+## System dependencies (Debian/Ubuntu)
 
 ```bash
 sudo apt update
@@ -10,26 +11,31 @@ sudo apt install python3 python3-venv git curl
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-另需安裝 [Redis](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)（預設監聽 6379 即可）與 [Caddy](https://caddyserver.com/docs/install）。如需修改前端樣式，另需 Node.js 18 以上版本。
+Also install [Redis](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
+(listening on 6379 is fine) and [Caddy](https://caddyserver.com/docs/install).
+Frontend style work additionally needs Node.js 18+.
 
-## 安裝步驟
+## Steps
 
 ```bash
 git clone https://github.com/apicalshark/mikuinvidious
 cd mikuinvidious
 uv sync
 npm install
-npm run build:css        # 編譯 Tailwind（僅於修改 CSS 後需要）
+npm run build:css        # compile Tailwind (only needed after CSS changes)
 cp config.toml.sample config.toml
 ```
 
-編輯 `config.toml`：於 `[server]` 設定 secret（未設定時將於每次啟動自動產生，但重新啟動後工作階段將失效）；於 `[redis]` 確認 `url = "redis://localhost:6379"`；若主機位於資料中心，請於 `[proxy]` 設定 `proxy_url`。
+Edit `config.toml`: set `secret` under `[server]` (auto-generated at each start
+if unset, but sessions die on restart); confirm
+`url = "redis://localhost:6379"` under `[redis]`; on datacenter hosts, set
+`proxy_url` under `[proxy]`.
 
 ```bash
 uv run python/main.py
 ```
 
-應用程式預設監聽 `http://localhost:8888`，經由 Caddy 轉發後為 8000：
+The app listens on `http://localhost:8888` by default, port 8000 via Caddy:
 
 ```text
 :8000 {
@@ -41,11 +47,12 @@ uv run python/main.py
 }
 ```
 
-開發期間建議啟用除錯模式以取得自動重新載入：`QUART_DEBUG=true uv run python/main.py`。
+During development, enable debug mode for auto-reload:
+`QUART_DEBUG=true uv run python/main.py`.
 
-## 提交前檢查
+## Pre-submit checks
 
 ```bash
-npm run lint      # 執行 ruff、prettier、djlint 完整檢查
-npm run format    # 自動格式化後再送出 PR
+npm run lint      # full ruff + prettier + djlint check
+npm run format    # auto-format before opening a PR
 ```
