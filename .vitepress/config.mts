@@ -1,6 +1,18 @@
 import { defineConfig } from "vitepress";
 import { withMermaid } from "vitepress-plugin-mermaid";
 
+const SITE_URL = "https://apicalshark.github.io/mikuinvidious";
+
+// Source markdown path -> clean site route (no .html suffix;
+// output files are rewritten to directory style by scripts/clean-urls.mjs).
+function toRoute(relativePath: string): string | null {
+  if (!relativePath.endsWith(".md")) return null;
+  let p = relativePath.slice(0, -".md".length);
+  if (p === "index") return "/";
+  if (p.endsWith("/index")) p = p.slice(0, -"/index".length);
+  return `/${p}`;
+}
+
 const operatorSidebar = [
   { text: "Overview", link: "/operators/" },
   { text: "Quickstart with Docker", link: "/operators/quickstart-docker" },
@@ -54,7 +66,60 @@ const developerSidebarZhTw = [
 export default withMermaid(
   defineConfig({
     base: "/mikuinvidious/",
+    cleanUrls: true,
     srcExclude: ["README.md"],
+    transformHead({ pageData }) {
+      const route = toRoute(pageData.relativePath);
+      if (!route) return [];
+      const isZh = pageData.relativePath.startsWith("zh-TW/");
+      const enRoute = isZh ? route.replace(/^\/zh-TW/, "") || "/" : route;
+      const zhRoute = isZh ? route : route === "/" ? "/zh-TW" : `/zh-TW${route}`;
+      const title = pageData.title || "MikuInvidious Docs";
+      const description =
+        pageData.description ||
+        (isZh
+          ? "MikuInvidious 站長與開發者文件"
+          : "MikuInvidious operator and developer docs");
+      const url = `${SITE_URL}${route === "/" ? "/" : `${route}/`}`;
+      return [
+        ["link", { rel: "canonical", href: url }],
+        ["meta", { property: "og:title", content: title }],
+        ["meta", { property: "og:description", content: description }],
+        ["meta", { property: "og:url", content: url }],
+        ["meta", { property: "og:locale", content: isZh ? "zh_TW" : "en_US" }],
+        [
+          "meta",
+          {
+            property: "og:locale:alternate",
+            content: isZh ? "en_US" : "zh_TW",
+          },
+        ],
+        [
+          "link",
+          {
+            rel: "alternate",
+            hreflang: "en",
+            href: `${SITE_URL}${enRoute === "/" ? "/" : `${enRoute}/`}`,
+          },
+        ],
+        [
+          "link",
+          {
+            rel: "alternate",
+            hreflang: "zh-TW",
+            href: `${SITE_URL}${zhRoute}/`,
+          },
+        ],
+        [
+          "link",
+          {
+            rel: "alternate",
+            hreflang: "x-default",
+            href: `${SITE_URL}${enRoute === "/" ? "/" : `${enRoute}/`}`,
+          },
+        ],
+      ];
+    },
     vite: {
       // mermaid pulls a UMD-only deep import
       // (fastdom/extensions/fastdom-promised.js, no ESM exports).

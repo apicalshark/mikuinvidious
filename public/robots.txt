@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://apicalshark.github.io/mikuinvidious/sitemap.xml
