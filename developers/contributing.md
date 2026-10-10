@@ -1,25 +1,20 @@
 # Contributing
 
-Contributions of any kind are welcome.
+Any contribution welcome.
 
-## Process
-
-1. Get it running locally (see [Manual installation](../operators/manual-install))
-   with `QUART_DEBUG=true`.
-2. Run the full checks after changing code:
+1. Run locally ([Manual installation](../operators/manual-install)),
+   `QUART_DEBUG=true`.
+2. After changing code:
 
 ```bash
 npm run lint     # ruff, prettier, djlint
-npm run format   # format first if it fails
-npm run check:i18n   # only needed when strings changed
+npm run format   # format first on failure
+npm run check:i18n   # strings changed only
 ```
 
-3. Issues, PRs, and discussions are all fine. Before submitting, review
-   `git status` / `git diff` and make sure no secrets are included.
+3. Issues, PRs, discussions all fine. Check `git status` / `git diff` before
+   submitting — no secrets.
 
-## License
-
-The app is GNU GPL-3.0. Frontend library licenses: see `/licenses` (hls.js and
-mpegts.js are Apache-2.0; dash.js is BSD-3-Clause; media-chrome, Danmaku, and
-opencc-js are MIT). Sync vendored files with `npm run sync:static` — don't copy
-by hand.
+License: app is GNU GPL-3.0. Frontend licenses: `/licenses` (hls.js, mpegts.js:
+Apache-2.0; dash.js: BSD-3-Clause; media-chrome, Danmaku, opencc-js: MIT).
+Vendored files sync via `npm run sync:static`, never by hand.

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vitepress dev",
-    "build": "vitepress build && node scripts/clean-urls.mjs && node scripts/sitemap.mjs",
+    "build": "rm -rf .vitepress/dist .vitepress/cache && vitepress build && node scripts/clean-urls.mjs && node scripts/sitemap.mjs",
     "preview": "vitepress preview"
   },
   "devDependencies": {

@@ -1,29 +1,24 @@
-# What is MikuInvidious?
+# MikuInvidious Docs
 
-[MikuInvidious](https://github.com/apicalshark/mikuinvidious) is a free and open-source frontend for Bilibili, inspired by
-[Invidious](https://invidious.io). It provides a lightweight, privacy-focused
-interface for browsing and watching Bilibili content without an account and tracking.
+A free and open-source frontend for Bilibili, inspired by
+[Invidious](https://invidious.io). No account, no official app, no tracking.
 
-## Features
-
-- **Video** — DASH adaptive streaming, danmaku overlay, subtitles, multi-part videos.
-- **Audio-only mode** — any video can play audio only. Good for music, podcasts, or saving bandwidth.
-- **Live** — stable forwarding proxy, heartbeat keep-alive, real-time chat.
-- **Bangumi** — browse and select episodes, with optional Nyaa.si torrent search.
-- **Articles & Opus** — Bilibili `cv` articles and `opus` posts rendered as clean proxy pages.
-- **Global search** — videos, uploaders, articles, live rooms, bangumi, with filters.
-- **Privacy by default** — all media goes through a server-side proxy (client IPs never reach Bilibili's CDN). No account, zero tracking.
-
-## Guide
+- **Video** — DASH adaptive streaming, danmaku, subtitles, multi-part videos.
+- **Audio-only mode** — any video as audio only.
+- **Live** — forwarded streams with heartbeat keep-alive and real-time chat.
+- **Bangumi** — episode browsing with optional Nyaa.si torrent search.
+- **Articles & Opus** — Bilibili `cv` articles and `opus` posts as proxy pages.
+- **Search** — videos, uploaders, articles, live rooms, bangumi, with filters.
+- **Privacy** — all media is server-side proxied. Client IPs never reach
+  Bilibili's CDN.
 
 | Section | Audience |
 | :--- | :--- |
-| [Operator guide](operators/) | People deploying and running an instance (Docker, Caddy, Redis, credentials). |
-| [Developer guide](developers/) | Contributors working on the Quart app, player, themes, or the Bilibili API wrapper. |
+| [Operator guide](operators/) | Deploying and running an instance. |
+| [Developer guide](developers/) | Working on the app, player, themes, or API wrapper. |
 
-## Quick links
-
-- **Use it** — open your instance URL (default local Docker address: `http://localhost:8000`).
-- **Deploy it** — see [Quickstart with Docker](operators/quickstart-docker); two commands and you're running.
-- **Understand it** — see [Architecture](developers/architecture): Caddy, Granian/Quart, Redis, and the media proxy.
-- **Source** — [apicalshark/mikuinvidious](https://github.com/apicalshark/mikuinvidious), GNU GPL-3.0.
+- Run it: [Quickstart with Docker](operators/quickstart-docker) (default local
+  address: `http://localhost:8000`).
+- Understand it: [Architecture](developers/architecture).
+- Source: [apicalshark/mikuinvidious](https://github.com/apicalshark/mikuinvidious)
+  (GNU GPL-3.0).

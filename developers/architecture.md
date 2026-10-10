@@ -33,15 +33,10 @@ graph TD
     Bangumi --> Nyaa
 ```
 
-## Key design decisions
-
-- **Caddy only reverse-proxies and serves static files**. Application logic lives in
-  Quart, all async I/O.
-- **The media proxy is always on**: `CdnConnection` dials over raw sockets, direct
-  or via WARP SOCKS5. `ProxyResponse` + `ClosingIterator` guarantee no fd leaks.
-- **WARP is optional**: for datacenter IPs to bypass risk control. Home broadband
-  connects directly.
-- **Redis is required**: sessions, playurl cache (`miku_dash_*`, 1800s), and page
-  cache all depend on it.
-- **3-hour streaming timeouts**: `RESPONSE_TIMEOUT` / `BODY_TIMEOUT` are fixed at
-  10800 seconds so long videos play to the end.
+- **Caddy: reverse proxy + static files only.** App logic in Quart, async I/O.
+- **Media proxy always on.** `CdnConnection` over raw sockets, direct or WARP
+  SOCKS5. `ProxyResponse` + `ClosingIterator`: no fd leaks.
+- **WARP optional.** Datacenter IPs bypassing risk control. Home broadband: direct.
+- **Redis required.** Sessions, playurl cache (`miku_dash_*`, 1800 s), page cache.
+- **3 h streaming timeouts.** `RESPONSE_TIMEOUT` / `BODY_TIMEOUT` fixed at
+  10800 s. Long videos play to the end.

@@ -1,9 +1,6 @@
 # Manual installation
 
-For developers who skip Docker and hack on the code directly. Requirements:
-Python 3.14+, Redis, and the `uv` package manager.
-
-## System dependencies (Debian/Ubuntu)
+For running without Docker. Requires Python 3.14+, Redis, `uv`.
 
 ```bash
 sudo apt update
@@ -12,30 +9,27 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 Also install [Redis](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
-(listening on 6379 is fine) and [Caddy](https://caddyserver.com/docs/install).
-Frontend style work additionally needs Node.js 18+.
-
-## Steps
+(port 6379) and [Caddy](https://caddyserver.com/docs/install). CSS work needs
+Node.js 18+.
 
 ```bash
 git clone https://github.com/apicalshark/mikuinvidious
 cd mikuinvidious
 uv sync
 npm install
-npm run build:css        # compile Tailwind (only needed after CSS changes)
+npm run build:css        # only after CSS changes
 cp config.toml.sample config.toml
 ```
 
-Edit `config.toml`: set `secret` under `[server]` (auto-generated at each start
-if unset, but sessions die on restart); confirm
-`url = "redis://localhost:6379"` under `[redis]`; on datacenter hosts, set
-`proxy_url` under `[proxy]`.
+Edit `config.toml`: `secret` under `[server]` (generated at each start if unset;
+sessions die on restart), `url = "redis://localhost:6379"` under `[redis]`,
+`proxy_url` under `[proxy]` on datacenter hosts.
 
 ```bash
 uv run python/main.py
 ```
 
-The app listens on `http://localhost:8888` by default, port 8000 via Caddy:
+Listens on `http://localhost:8888` (8000 behind Caddy):
 
 ```text
 :8000 {
@@ -47,12 +41,11 @@ The app listens on `http://localhost:8888` by default, port 8000 via Caddy:
 }
 ```
 
-During development, enable debug mode for auto-reload:
-`QUART_DEBUG=true uv run python/main.py`.
+Development: `QUART_DEBUG=true uv run python/main.py` (auto-reload).
 
-## Pre-submit checks
+Before a PR:
 
 ```bash
-npm run lint      # full ruff + prettier + djlint check
-npm run format    # auto-format before opening a PR
+npm run lint      # ruff + prettier + djlint
+npm run format
 ```

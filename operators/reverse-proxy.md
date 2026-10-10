@@ -1,9 +1,6 @@
 # Reverse proxy (Caddy)
 
-Caddy is the entry point users actually connect to: it terminates HTTPS, serves
-static files, and forwards everything else to `app:8080`.
-
-## Minimal working config
+Caddy terminates HTTPS, serves static files, forwards the rest to `app:8080`.
 
 ```text
 :8000 {
@@ -24,13 +21,12 @@ static files, and forwards everything else to `app:8080`.
 }
 ```
 
-Note that `encode` excludes `/proxy/*` — media streams are already-compressed
-binary; re-compressing them only burns CPU.
+`encode` skips `/proxy/*`: streams are already compressed; re-compressing wastes CPU.
 
-## Disable HTTP/3 when playback breaks
+## `ERR_QUIC_PROTOCOL_ERROR` during playback
 
-`ERR_QUIC_PROTOCOL_ERROR` during playback is usually a browser QUIC-stack issue
-with 206 Partial Content. Add this to the top of `Caddyfile`:
+Browser QUIC stacks mishandle 206 Partial Content. Disable HTTP/3 at the top of
+`Caddyfile`:
 
 ```text
 {
@@ -40,10 +36,9 @@ with 206 Partial Content. Add this to the top of `Caddyfile`:
 }
 ```
 
-Restart Caddy and it takes effect. This is a known issue, unrelated to the
-user's network quality.
+Restart Caddy. Known issue, not a network problem.
 
-## Bring your own certificate
+## Own certificate
 
 ```text
 mi.example.com {
@@ -52,5 +47,4 @@ mi.example.com {
 }
 ```
 
-Without special needs, let Caddy obtain certificates automatically
-(Let's Encrypt / ZeroSSL) — no extra configuration required.
+Otherwise Caddy provisions from Let's Encrypt / ZeroSSL with no configuration.
