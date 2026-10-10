@@ -53,6 +53,7 @@ from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
 from shared import (
     Network,
     TicketManager,
+    UPSTREAM_RESPONSE_BLACKLIST,
     app,
     appconf,
     appcred,
@@ -3027,6 +3028,8 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         proxy_resp.headers["Accept-Ranges"] = "bytes"
 
         for k, v in resp_headers.headers.items():
+            if k.lower() in UPSTREAM_RESPONSE_BLACKLIST:
+                continue
             if k in [
                 "content-type",
                 "etag",

@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import os
+import subprocess
 import time
 
 import httpx
@@ -358,16 +359,97 @@ def cache_minutes(key, default=5):
         return default
 
 
+# Bump when cached payload shapes change (transformers.py, view data dicts)
+# so entries written by older code can never be served. Legacy unprefixed
+# entries miss and age out on their own (self-migrating, same as the old
+# fetched_at migration).
+CACHE_SCHEMA_VERSION = 1
+
+# Extra Redis TTL beyond a payload's freshness window so expired-but-intact
+# entries survive for stale-serve on upstream failure (mirrors Invidious'
+# 10min-stale / 6h-hard-expire split). Fresh readers see no change.
+CACHE_STALE_GRACE_SECONDS = 6 * 3600
+
+
+# Upstream response headers that must never reach clients (mirrors
+# Invidious' RESPONSE_HEADERS_BLACKLIST): server fingerprinting, alt-svc
+# advertisements, and reporting channels. The proxy forward loops are
+# allowlists so these already can't pass — this is defense-in-depth in
+# case an allowlist ever widens.
+UPSTREAM_RESPONSE_BLACKLIST = frozenset(
+    {
+        "server",
+        "alt-svc",
+        "report-to",
+        "timing-allow-origin",
+        "access-control-allow-origin",
+        "cross-origin-embedder-policy",
+        "cross-origin-opener-policy",
+        "cross-origin-resource-policy",
+    }
+)
+
+
+def _versioned_key(key):
+    """Namespace a cache key with the payload-schema version."""
+    if key.startswith("miku_v"):
+        return key
+    return f"miku_v{CACHE_SCHEMA_VERSION}:{key}"
+
+
+def _compute_asset_version():
+    """Short version string for static-asset ``?v=`` busting (Invidious-style).
+
+    Caddy serves ``/static/*`` as ``immutable``, so without a deploy-varying
+    query string browsers would keep last release's player.js/CSS for a year.
+    Prefers the git short commit; falls back to the newest mtime under
+    ``static/`` (manual runs without git); ``"dev"`` if neither resolves.
+    The value is server-generated and only ever interpolated into our own
+    templates — never derived from request input.
+    """
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        p = subprocess.run(
+            ["git", "-C", root, "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if p.returncode == 0 and p.stdout.strip():
+            v = "".join(c for c in p.stdout.strip()[:16] if c.isalnum() or c in "-_")
+            if v:
+                return v
+    except Exception:
+        pass
+    try:
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        latest = 0.0
+        for dirpath, _, filenames in os.walk(os.path.join(root, "static")):
+            for fn in filenames:
+                try:
+                    latest = max(latest, os.path.getmtime(os.path.join(dirpath, fn)))
+                except OSError:
+                    continue
+        if latest:
+            return str(int(latest))
+    except Exception:
+        pass
+    return "dev"
+
+
+ASSET_VERSION = _compute_asset_version()
+
+
 async def cache_get(key, max_age_seconds):
     """Return the cached payload dict if fresh, else None.
 
     Entries carry a ``fetched_at`` stamp; readers older than their own
     max-age treat the entry as expired. Anything unreadable (Redis down,
-    corrupt JSON, legacy entries without a stamp) is a silent miss so the
-    caller falls back to live data instead of 500ing.
+    corrupt JSON, legacy entries without a stamp, pre-versioning keys) is
+    a silent miss so the caller falls back to live data instead of 500ing.
     """
     try:
-        raw = await appredis.get(key)
+        raw = await appredis.get(_versioned_key(key))
     except Exception:
         return None
     data = safe_json_loads(raw, default=None)
@@ -382,8 +464,37 @@ async def cache_get(key, max_age_seconds):
     return data
 
 
+async def cache_get_stale(key, max_age_seconds, stale_window_seconds=CACHE_STALE_GRACE_SECONDS):
+    """Return ``(payload, is_stale)`` for fresh-or-expired entries.
+
+    Fresh entries (age <= max_age) come back with ``is_stale=False``;
+    expired-but-intact entries within the stale window come back with
+    ``is_stale=True`` for degraded serving when upstream fails; anything
+    older/unreadable returns ``(None, False)``. Only healthy-shaped dicts
+    are returned — callers still validate their own payload shape.
+    """
+    try:
+        raw = await appredis.get(_versioned_key(key))
+    except Exception:
+        return None, False
+    data = safe_json_loads(raw, default=None)
+    if not isinstance(data, dict):
+        return None, False
+    try:
+        age = time.time() - float(data.get("fetched_at", 0))
+    except (TypeError, ValueError):
+        return None, False
+    if age < 0 or age > max_age_seconds + stale_window_seconds:
+        return None, False
+    return data, age > max_age_seconds
+
+
 async def cache_set(key, payload, ttl_seconds):
-    """Store a payload dict with a fetched_at stamp; failures are silent."""
+    """Store a payload dict with a fetched_at stamp; failures are silent.
+
+    Redis expiry is freshness TTL plus the stale-serve grace window so
+    expired entries remain available to :func:`cache_get_stale`.
+    """
     if ttl_seconds <= 0 or not isinstance(payload, dict):
         return
     try:
@@ -391,9 +502,9 @@ async def cache_set(key, payload, ttl_seconds):
         payload["fetched_at"] = time.time()
         raw = orjson.dumps(payload)
         await appredis.set(
-            key,
+            _versioned_key(key),
             raw.decode("utf-8") if isinstance(raw, (bytes, bytearray)) else str(raw),
-            ex=ttl_seconds,
+            ex=ttl_seconds + CACHE_STALE_GRACE_SECONDS,
         )
     except Exception:
         pass
@@ -443,7 +554,7 @@ class SimpleCache:
                 """Serve cached HTML or render once per key across concurrent misses."""
                 # Avoid caching during POST or when arguments exist in some cases
                 # But for simplicity, we use the full path as the key
-                cache_key = key_prefix % request.full_path
+                cache_key = _versioned_key(key_prefix % request.full_path)
 
                 # Check if we have a cached version
                 cached_val = await appredis.get(cache_key)
@@ -573,6 +684,7 @@ async def render_template_with_theme(fp, **kwargs):
         dark_mode=dark_theme,
         proxy_status=appconf["proxy"],
         locale=locale,
+        asset_version=ASSET_VERSION,
         _=_,
         gettext=lambda s: gettext_msg(locale, s),
         ngettext=lambda s, p, n: ngettext_msg(locale, s, p, n),

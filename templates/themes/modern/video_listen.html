@@ -26,7 +26,7 @@
     <link rel="alternate" href="https://www.bilibili.com/video/{{ vid }}" />
     <title>{{ vinfo['title'] }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
-    <link rel="stylesheet" href="/static/themes/modern/css/player.css" />
+    <link rel="stylesheet" href="/static/themes/modern/css/player.css?v={{ asset_version }}" />
     <script nonce="{{ csp_nonce }}">
         window.current_vid = '{{ vid }}';
         window.idx = {{ idx }};
@@ -263,8 +263,8 @@
             </div>
         </div>
     </div>
-    <script src="/static/themes/modern/js/audioplayer.js"></script>
-    <script src="/static/themes/modern/js/download.js"></script>
+    <script src="/static/themes/modern/js/audioplayer.js?v={{ asset_version }}"></script>
+    <script src="/static/themes/modern/js/download.js?v={{ asset_version }}"></script>
     <script nonce="{{ csp_nonce }}">
         var MSG_LOADED_MORE = {{ _('Loaded %(count)s, click to load more')|tojson }};
         document.addEventListener('DOMContentLoaded', function() {

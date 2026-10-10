@@ -51,6 +51,7 @@ from shared import (
     appcred,
     appredis,
     cache_get,
+    cache_get_stale,
     cache_minutes,
     cache_set,
     render_template_with_theme,
@@ -168,10 +169,26 @@ async def home_view():
             api_res = data["payload"]
             cache_hit = True
     if not cache_hit:
-        api_res = await homepage.get_videos()
+        try:
+            api_res = await homepage.get_videos()
+        except Exception:
+            # Upstream blip: serve the last good feed (stale) instead of
+            # 500ing the front page; re-raise only when nothing survived.
+            if cache_ttl > 0:
+                stale_data, is_stale = await cache_get_stale("home:data", cache_ttl)
+                if (
+                    is_stale
+                    and isinstance(stale_data, dict)
+                    and isinstance(stale_data.get("payload"), (dict, list))
+                ):
+                    api_res = stale_data["payload"]
+                    cache_hit = "STALE"
+            if cache_hit != "STALE":
+                raise
         # Only cache a healthy feed; an empty homepage is almost certainly a
-        # transient upstream blip, not a real empty front page.
-        if cache_ttl > 0 and isinstance(api_res, (dict, list)):
+        # transient upstream blip, not a real empty front page. Stale-served
+        # payloads are never re-cached (that would refresh fetched_at).
+        if cache_hit != "STALE" and cache_ttl > 0 and isinstance(api_res, (dict, list)):
             raw_probe = api_res.get("item") if isinstance(api_res, dict) else api_res
             if isinstance(raw_probe, list) and raw_probe:
                 await cache_set("home:data", {"payload": api_res}, cache_ttl)
@@ -191,7 +208,7 @@ async def home_view():
             html,
             status=200,
             content_type="text/html",
-            headers={"X-Cache": "HIT" if cache_hit else "MISS"},
+            headers={"X-Cache": "STALE" if cache_hit == "STALE" else ("HIT" if cache_hit else "MISS")},
         )
     return html
 
@@ -353,6 +370,21 @@ async def _read_space_data(mid, max_age_seconds, pn=1):
     return uinfo, uvids
 
 
+async def _read_space_data_stale(mid, max_age_seconds, pn=1):
+    """Return (uinfo, uvids, is_stale), including expired-but-intact entries.
+
+    Only entries that pass the same healthy-payload check as fresh reads
+    are returned, so stale-serve can never resurrect a broken profile.
+    """
+    data, is_stale = await cache_get_stale(_space_data_key(mid, pn), max_age_seconds)
+    if not isinstance(data, dict):
+        return None, None, False
+    uinfo, uvids = data.get("uinfo"), data.get("uvids")
+    if not _is_good_space_data(uinfo, uvids):
+        return None, None, False
+    return uinfo, uvids, is_stale
+
+
 async def _write_space_data(mid, uinfo, uvids, pn=1, ttl=None):
     """Store a healthy payload; page-1 expiry covers the longest route policy."""
     if not _is_good_space_data(uinfo, uvids):
@@ -368,11 +400,11 @@ async def _fetch_space_data(mid, pn=1, ps=30):
     return uinfo, uvids, bool(getattr(u, "_degraded", False))
 
 
-def _space_html_response(html, *, use_cache, cache_hit, degraded):
+def _space_html_response(html, *, use_cache, cache_hit, degraded, stale=False):
     """200 HTML response for space pages with observability headers."""
     headers = {}
     if use_cache:
-        headers["X-Cache"] = "HIT" if cache_hit else "MISS"
+        headers["X-Cache"] = "STALE" if stale else ("HIT" if cache_hit else "MISS")
     if degraded:
         headers["X-Degraded"] = "risk-control"
     return Response(html, status=200, content_type="text/html", headers=headers)
@@ -426,6 +458,14 @@ async def space_view(mid):
             # Page-1 key expiry covers the longest (space/json) policy so a
             # divergent JSON TTL isn't cut short; deeper pages use their own.
             await _write_space_data(mid, uinfo, uvids, pn, _max_space_ttl() if pn == 1 else cache_ttl)
+    stale = False
+    if (not isinstance(uinfo, dict) or not uinfo) and use_cache:
+        # Upstream profile fetch failed (often 412/-352 risk control without
+        # WARP): serve the last good payload instead of 500ing the space.
+        suinfo, suvids, is_stale = await _read_space_data_stale(mid, cache_ttl, pn)
+        if is_stale and isinstance(suinfo, dict) and suinfo:
+            uinfo, uvids, stale = suinfo, suvids if isinstance(suvids, dict) else {}, True
+            degraded = True
     if not isinstance(uinfo, dict) or not uinfo:
         return await render_template_with_theme(
             "error.html",
@@ -470,10 +510,14 @@ async def space_view(mid):
     # control is "throttled", not "this channel has no videos".
     degraded = degraded and not vlist
     load_failed = load_failed and not vlist and not degraded
+    if stale:
+        # Stale-served data may be outdated: keep the banner on even when
+        # the cached list is non-empty so the age is visible to the user.
+        degraded = True
     html = await render_template_with_theme(
         "space.html", uinfo=uinfo, uvids=uvids, degraded=degraded, load_failed=load_failed
     )
-    return _space_html_response(html, use_cache=use_cache, cache_hit=cache_hit, degraded=degraded)
+    return _space_html_response(html, use_cache=use_cache, cache_hit=cache_hit, degraded=degraded, stale=stale)
 
 
 @app.route("/space/<mid>/json")
@@ -1411,6 +1455,46 @@ async def video_view(vid, idx=0):
     if isinstance(results[0], Exception) or results[0] is None:
         err_msg = str(results[0]) if results[0] else "Bilibili returned empty data (possibly region-restricted)"
         print(f"[Video] Error fetching info for {vid}: {err_msg}")
+        if cache_ttl > 0:
+            # Upstream detail fetch failed — including risk-control fake-404s
+            # ("啥都木有" on PGC BVs from datacenter IPs). Serve the last good
+            # payload, marked STALE, instead of erroring.
+            stale_data, is_stale = await cache_get_stale(cache_key, cache_ttl)
+            if (
+                is_stale
+                and isinstance(stale_data, dict)
+                and isinstance(stale_data.get("vinfo"), dict)
+                and (stale_data["vinfo"].get("bvid") or stale_data["vinfo"].get("title"))
+                and isinstance(stale_data.get("vtags"), list)
+                and isinstance(stale_data.get("vrelated"), list)
+                and isinstance(stale_data.get("vset"), list)
+                and stale_data.get("vset")
+            ):
+                vinfo, vtags, vrelated, vset = (
+                    stale_data["vinfo"],
+                    stale_data["vtags"],
+                    stale_data["vrelated"],
+                    stale_data["vset"],
+                )
+                html = await render_template_with_theme(
+                    "video.html",
+                    vid=vid,
+                    vinfo=vinfo,
+                    vcomments={"page": {"count": 0}, "replies": []},
+                    vrelated=vrelated[:15],
+                    keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
+                    vtags=vtags,
+                    supported_src=[],
+                    ato=ato,
+                    idx=idx,
+                    vset=vset,
+                )
+                return Response(
+                    html,
+                    status=200,
+                    content_type="text/html",
+                    headers={"X-Cache": "STALE", "X-Degraded": "risk-control"},
+                )
         # Show a friendly message for 404 / "啥都木有" (empty-result) responses
         if "啥都木有" in err_msg or "-404" in err_msg:
             return await render_template_with_theme(

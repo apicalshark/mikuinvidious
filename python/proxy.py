@@ -9,6 +9,7 @@ from rate_limit import RATE_LIMITS, rate_limit
 from shared import (
     Network,
     TicketManager,
+    UPSTREAM_RESPONSE_BLACKLIST,
     appconf,
     appredis,
     get_common_headers,
@@ -440,6 +441,8 @@ async def proxy_main(subpath):
                     proxy_resp.headers["Content-Type"] = "video/x-flv"
 
             for k, v in resp_headers.headers.items():
+                if k.lower() in UPSTREAM_RESPONSE_BLACKLIST:
+                    continue
                 if k in [
                     "content-type",
                     "content-length",

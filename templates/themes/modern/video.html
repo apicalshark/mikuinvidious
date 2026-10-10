@@ -33,7 +33,7 @@
 
     <meta name="referrer" content="never" />
 
-    <link rel="stylesheet" href="/static/themes/modern/css/player.css" />
+    <link rel="stylesheet" href="/static/themes/modern/css/player.css?v={{ asset_version }}" />
 
     <script nonce="{{ csp_nonce }}">
         window.current_vid = '{{ vid }}';
@@ -376,19 +376,19 @@
     </div>
 
     {% if is_live and live_format == 'hls' %}
-    <script defer src="/static/vjs/hls.min.js"></script>
+    <script defer src="/static/vjs/hls.min.js?v={{ asset_version }}"></script>
     {% elif is_live %}
-    <script defer src="/static/vjs/mpegts.js"></script>
+    <script defer src="/static/vjs/mpegts.js?v={{ asset_version }}"></script>
     {% endif %}
     {% if not is_live %}
-    <script defer src="/static/vjs/dash.min.js"></script>
+    <script defer src="/static/vjs/dash.min.js?v={{ asset_version }}"></script>
     {% endif %}
-    <script defer src="/static/vjs/media-chrome.js"></script>
+    <script defer src="/static/vjs/media-chrome.js?v={{ asset_version }}"></script>
 
-    <script defer src="/static/danmakujs/danmaku.min.js"></script>
+    <script defer src="/static/danmakujs/danmaku.min.js?v={{ asset_version }}"></script>
 
-    <script defer src="/static/themes/modern/js/player.js"></script>
-    <script defer src="/static/themes/modern/js/download.js"></script>
+    <script defer src="/static/themes/modern/js/player.js?v={{ asset_version }}"></script>
+    <script defer src="/static/themes/modern/js/download.js?v={{ asset_version }}"></script>
 
     <script nonce="{{ csp_nonce }}">
         function updateDownloadDropdown() {
