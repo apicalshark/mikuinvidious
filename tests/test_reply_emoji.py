@@ -75,6 +75,7 @@ class RenderReplyContentTests(unittest.TestCase):
         self.assertIn('src="/proxy/pic/i0.hdslb.com/bfs/emote/', out)
         self.assertIn('alt="[doge]"', out)
         self.assertIn("1.4em", out)
+        self.assertIn("display:inline-block", out)  # beats Tailwind preflight img{display:block}
         self.assertIn('loading="lazy"', out)
         self.assertNotIn("https://i0.hdslb.com", out)  # no direct upstream URL leaks
 

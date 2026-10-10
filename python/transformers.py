@@ -269,8 +269,8 @@ _REPLY_EMOTE_DOMAINS = (
     ".akamaized.net",
 )
 
-_REPLY_EMOTE_SIZE1_STYLE = "width:1.4em;height:1.4em;vertical-align:text-bottom;"
-_REPLY_EMOTE_SIZE2_STYLE = "width:50px;height:50px;"
+_REPLY_EMOTE_SIZE1_STYLE = "display:inline-block;width:1.4em;height:1.4em;vertical-align:text-bottom;"
+_REPLY_EMOTE_SIZE2_STYLE = "display:inline-block;width:50px;height:50px;vertical-align:middle;"
 
 # Linear, bracket-balanced token scan (mirrors the [...] tokenizer upstream).
 _REPLY_EMOTE_TOKEN_RE = re.compile(r"\[[^\[\]\n\r]{1,50}\]")
