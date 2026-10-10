@@ -69,3 +69,12 @@ def __jinja2_filter_pic(url):
 @app.template_filter("format_desc")
 def __jinja2_filter_format_desc(desc):
     return Markup(transformers.format_description(desc))
+
+
+# Render a comment content dict: escaped text with Bilibili [emote]
+# placeholders replaced by same-origin proxied <img> tags. Output is fully
+# sanitized by transformers.render_reply_content (no upstream HTML/JS/URLs
+# reach the client), so Markup is safe here.
+@app.template_filter("reply_content")
+def __jinja2_filter_reply_content(content):
+    return Markup(transformers.render_reply_content(content))

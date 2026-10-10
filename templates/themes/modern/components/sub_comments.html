@@ -19,7 +19,7 @@
                             <span class="text-xs text-on-surface-variant/60">{{ rep['reply_control']['time_desc'] }}</span>
                         {% endif %}
                     </div>
-                    <p class="text-sm text-on-surface-variant leading-relaxed break-words">{{ rep['content']['message'] }}</p>
+                    <p class="text-sm text-on-surface-variant leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
                     <div class="flex items-center gap-3 text-xs text-on-surface-variant/60 pt-0.5">
                         <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default">
                             <i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}
