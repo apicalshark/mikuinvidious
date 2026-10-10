@@ -145,6 +145,7 @@ export default withMermaid(
         lang: "en-US",
         themeConfig: {
           nav: [
+            { text: "Instances", link: "/instances/" },
             { text: "Operator guide", link: "/operators/" },
             { text: "Developer guide", link: "/developers/" },
           ],
@@ -154,6 +155,7 @@ export default withMermaid(
                 text: "Docs",
                 items: [
                   { text: "Home", link: "/" },
+                  { text: "Instances", link: "/instances/" },
                   { text: "Operator guide", link: "/operators/" },
                   { text: "Developer guide", link: "/developers/" },
                 ],
@@ -177,6 +179,7 @@ export default withMermaid(
         description: "MikuInvidious 站長與開發者文件（正體中文）",
         themeConfig: {
           nav: [
+            { text: "公開實例", link: "/zh-TW/instances/" },
             { text: "站長指南", link: "/zh-TW/operators/" },
             { text: "開發者指南", link: "/zh-TW/developers/" },
           ],
@@ -186,6 +189,7 @@ export default withMermaid(
                 text: "指南",
                 items: [
                   { text: "首頁", link: "/zh-TW/" },
+                  { text: "公開實例", link: "/zh-TW/instances/" },
                   { text: "站長指南", link: "/zh-TW/operators/" },
                   { text: "開發者指南", link: "/zh-TW/developers/" },
                 ],

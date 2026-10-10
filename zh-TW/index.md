@@ -1,6 +1,6 @@
 # MikuInvidious 概述
 
-MikuInvidious 是一套自由開源的 Bilibili 前端服務，其設計理念源自 [Invidious](https://invidious.io)。本系統提供輕量化且注重隱私的介面，用於瀏覽與觀看 Bilibili 內容——無需註冊帳號，無需安裝官方應用程式，亦不進行任何追蹤。
+[MikuInvidious](https://github.com/apicalshark/mikuinvidious) 是一套自由開源的 Bilibili 前端服務，其設計理念源自 [Invidious](https://invidious.io)。本系統提供輕量化且注重隱私的介面，用於瀏覽與觀看 Bilibili 內容——無需註冊帳號，無需安裝官方應用程式，亦不進行任何追蹤。
 
 ## 功能範圍
 
