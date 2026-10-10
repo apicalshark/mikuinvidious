@@ -30,6 +30,15 @@ export default withMermaid(
   defineConfig({
     base: "/mikuinvidious/",
     srcExclude: ["README.md"],
+    vite: {
+      // mermaid pulls a UMD-only deep import
+      // (fastdom/extensions/fastdom-promised.js, no ESM exports).
+      // Pre-bundle it so esbuild resolves the interop in dev;
+      // production Rollup already handles this (build was never broken).
+      optimizeDeps: {
+        include: ["mermaid", "fastdom/extensions/fastdom-promised.js"],
+      },
+    },
     title: "MikuInvidious 文件",
     description: "MikuInvidious 站長與開發者文件（正體中文）",
     locales: {
