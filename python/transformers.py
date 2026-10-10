@@ -1,5 +1,9 @@
 # transformers.py
 
+import html
+import re
+from urllib.parse import urlparse
+
 
 def format_duration(seconds):
     if not seconds:
@@ -13,10 +17,6 @@ def format_duration(seconds):
         return f"{h}:{m:02d}:{s:02d}" if h > 0 else f"{m:02d}:{s:02d}"
     except Exception:
         return "00:00"
-
-
-import html
-import re
 
 
 def strip_search_highlight(text):
@@ -240,3 +240,109 @@ def transform_user_card(data):
         }
     except Exception:
         return None
+
+
+# Reply emoji (Bilibili comment emotes) — safe server-side renderer.
+#
+# Bilibili's web client (seed/jinkela/commentpc/bili-comments.js) tokenizes
+# content.message on [...] placeholders and replaces exact matches from
+# content.emote with <img src=webp_url||gif_url||url>. All image hosts are
+# *.hdslb.com, so the existing /proxy/pic/ route proxies them with zero
+# client contact to Bilibili (and same-origin satisfies CSP img-src 'self').
+#
+# Privacy/safety rules (no tracking or injection from upstream data):
+# - message text is HTML-escaped first; only our own <img> tags are emitted.
+# - upstream URLs are re-validated against the proxy domain allowlist (mirror
+#   of proxy.is_safe_proxy_url, syntactic only — no DNS here) and rewritten
+#   to same-origin /proxy/pic/<host><path>; query/fragment are DROPPED so
+#   tracking params never reach the CDN fetch nor the client.
+# - size-2 sticker data-* attrs (emoji-jump-url etc.) are deliberately NOT
+#   rendered: our frontend has no consumer, and jump_url is arbitrary upstream.
+# - styles are fixed constants; alt text is escaped; no inline JS anywhere.
+_REPLY_EMOTE_DOMAINS = (
+    ".hdslb.com",
+    ".biliimg.com",
+    ".bilivideo.com",
+    ".bilivideo.cn",
+    ".bilibili.com",
+    ".acgvideo.com",
+    ".akamaized.net",
+)
+
+_REPLY_EMOTE_SIZE1_STYLE = "width:1.4em;height:1.4em;vertical-align:text-bottom;"
+_REPLY_EMOTE_SIZE2_STYLE = "width:50px;height:50px;"
+
+# Linear, bracket-balanced token scan (mirrors the [...] tokenizer upstream).
+_REPLY_EMOTE_TOKEN_RE = re.compile(r"\[[^\[\]\n\r]{1,50}\]")
+
+
+def _proxied_emote_src(raw_url):
+    """Validate an upstream emote URL; same-origin /proxy/pic/ path or None."""
+    if not raw_url or not isinstance(raw_url, str):
+        return None
+    url = raw_url.strip()
+    if url.startswith("//"):
+        url = "https:" + url
+    try:
+        parts = urlparse(url)
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https"):
+        return None
+    host = (parts.hostname or "").lower()
+    if not host or not any(host == d.lstrip(".") or host.endswith(d) for d in _REPLY_EMOTE_DOMAINS):
+        return None
+    path = parts.path or "/"
+    # Reject anything that could break out of the src attribute or path.
+    if re.search(r"[\s\"'<>\\^`{|}]", path):
+        return None
+    if ".." in path.split("/"):
+        return None
+    return "/proxy/pic/" + host + path
+
+
+def render_reply_content(content):
+    """Render a comment content dict to safe HTML with proxied emoji.
+
+    Returns an escaped-text string with [...] emote placeholders replaced by
+    same-origin <img> tags. Unknown/blocked placeholders stay as plain text.
+    """
+    if isinstance(content, str):
+        return html.escape(content)
+    if not isinstance(content, dict):
+        return ""
+    message = content.get("message") or ""
+    if not isinstance(message, str):
+        message = str(message)
+    emote = content.get("emote")
+    if not isinstance(emote, dict) or not emote:
+        return html.escape(message)
+
+    def _replace(match):
+        token = match.group(0)
+        entry = emote.get(token)
+        if not isinstance(entry, dict):
+            return html.escape(token)
+        raw = entry.get("webp_url") or entry.get("gif_url") or entry.get("url")
+        src = _proxied_emote_src(raw)
+        if not src:
+            return html.escape(token)
+        try:
+            size = int((entry.get("meta") or {}).get("size", 1))
+        except (TypeError, ValueError):
+            size = 1
+        style = _REPLY_EMOTE_SIZE2_STYLE if size == 2 else _REPLY_EMOTE_SIZE1_STYLE
+        alt = html.escape(token, quote=True)
+        return f'<img src="{src}" alt="{alt}" loading="lazy" style="{style}">'
+
+    # Match tokens against the RAW message: substituting on the escaped
+    # string would double-escape fallback tokens and miss emote keys
+    # containing &<>"'. Each plain segment / fallback is escaped exactly once.
+    out = []
+    pos = 0
+    for m in _REPLY_EMOTE_TOKEN_RE.finditer(message):
+        out.append(html.escape(message[pos : m.start()]))
+        out.append(_replace(m))
+        pos = m.end()
+    out.append(html.escape(message[pos:]))
+    return "".join(out)
