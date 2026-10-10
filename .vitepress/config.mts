@@ -42,6 +42,16 @@ export default withMermaid(
             { text: "開發者指南", link: "/developers/" },
           ],
           sidebar: {
+            "/": [
+              {
+                text: "指南",
+                items: [
+                  { text: "首頁", link: "/" },
+                  { text: "站長指南", link: "/operators/" },
+                  { text: "開發者指南", link: "/developers/" },
+                ],
+              },
+            ],
             "/operators/": [
               { text: "站長指南", items: operatorSidebar },
             ],
