@@ -1,6 +1,17 @@
-# MikuInvidious
+<p align="center">
+  <img src="static/banner.svg" alt="MikuInvidious banner" width="100%" />
+</p>
 
-A free as in freedom frontend for Bilibili.
+<p align="center">
+  <a href="https://github.com/apicalshark/mikuinvidious/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-ff8fab?style=flat-square" alt="License: GPLv3" /></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.14+" /></a>
+  <img src="https://img.shields.io/badge/Quart-ASGI-ff8fab?style=flat-square" alt="Quart ASGI" />
+  <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker ready" />
+  <img src="https://img.shields.io/badge/Redis-required-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis required" />
+  <a href="https://mikuinv.apicalshark.dedyn.io/"><img src="https://img.shields.io/badge/Demo-Try_it-39d353?style=flat-square&logo=rss&logoColor=white" alt="Demo" /></a>
+</p>
+
+> A free as in freedom frontend for Bilibili.
 
 This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxina/mikuinvidious) plus AI slop.
 

@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#120c10"/>
+      <stop offset="100%" stop-color="#261620"/>
+    </linearGradient>
+    <linearGradient id="sakura" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffb7c5"/>
+      <stop offset="100%" stop-color="#ff8fab"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#ffb7c5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="360" rx="24" fill="url(#bg)"/>
+
+  <!-- Subtle blossom dots -->
+  <g opacity="0.12" fill="#ffb7c5">
+    <circle cx="120" cy="70" r="28"/>
+    <circle cx="1060" cy="280" r="36"/>
+    <circle cx="980" cy="80" r="16"/>
+    <circle cx="200" cy="290" r="18"/>
+    <circle cx="1080" cy="90" r="8"/>
+    <circle cx="90" cy="220" r="10"/>
+  </g>
+
+  <!-- TV logo mark -->
+  <g transform="translate(536,48)">
+    <line x1="48" y1="23" x2="55" y2="39" stroke="url(#sakura)" stroke-width="6.5" stroke-linecap="round"/>
+    <circle cx="47.5" cy="22.5" r="4.5" fill="#ffb7c5"/>
+    <line x1="80" y1="23" x2="73" y2="39" stroke="url(#sakura)" stroke-width="6.5" stroke-linecap="round"/>
+    <circle cx="80.5" cy="22.5" r="4.5" fill="#ffb7c5"/>
+    <rect x="25" y="37" width="78" height="60" rx="19" fill="url(#sakura)"/>
+    <polygon points="55,52 82,67 55,82" fill="#261620"/>
+  </g>
+
+  <!-- Title -->
+  <text x="600" y="238" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="64" font-weight="800" letter-spacing="1" fill="url(#titleGrad)">MikuInvidious</text>
+
+  <!-- Tagline -->
+  <text x="600" y="278" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="400" fill="#d8c2c9">A free as in freedom frontend for Bilibili</text>
+
+  <!-- Accent underline -->
+  <rect x="540" y="300" width="120" height="5" rx="2.5" fill="url(#sakura)"/>
+</svg>
