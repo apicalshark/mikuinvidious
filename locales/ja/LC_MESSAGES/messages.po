@@ -10,8 +10,8 @@ msgstr ""
 msgid "Resolving video URL..."
 msgstr "動画URLを解決中..."
 
-#: static/themes/modern/js/player.js:1581
-#: static/themes/modern/js/player.js:1651 templates/macros.html:68
+#: static/themes/modern/js/player.js:1679
+#: static/themes/modern/js/player.js:1749 templates/macros.html:68
 msgid "Resolution"
 msgstr "画質"
 
@@ -211,7 +211,7 @@ msgid ""
 "the source code link below."
 msgstr "リクエストを確認してください。サイトの問題だと思われる場合は管理者に連絡してください。管理者の方は下のソースコードリンクから報告を検討してください。"
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:50
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:62
 msgid "Back to home"
 msgstr "ホームに戻る"
 
@@ -308,7 +308,8 @@ msgstr "OpenCCで簡体字を繁体字に変換する"
 
 #: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
-#: templates/themes/modern/pref.html:41 templates/themes/modern/video.html:466
+#: templates/themes/modern/pref.html:41 templates/themes/modern/pref.html:53
+#: templates/themes/modern/video.html:466
 #: templates/themes/modern/video_listen.html:284
 msgid "Loading..."
 msgstr "読み込み中..."
@@ -576,14 +577,14 @@ msgstr "Magnet"
 msgid "No collection resources found"
 msgstr "コレクションリソースが見つかりません"
 
-#: static/themes/modern/js/player.js:1347
-#: static/themes/modern/js/player.js:1351
-#: static/themes/modern/js/player.js:1382
-#: static/themes/modern/js/player.js:1386
+#: static/themes/modern/js/player.js:1445
+#: static/themes/modern/js/player.js:1449
+#: static/themes/modern/js/player.js:1480
+#: static/themes/modern/js/player.js:1484
 msgid "Auto"
 msgstr "自動"
 
-#: static/themes/modern/js/player.js:1324
+#: static/themes/modern/js/player.js:1422
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自動 (%(height)sp)"
@@ -679,13 +680,13 @@ msgstr "多重化中...（音声と映像を結合しています。しばらく
 msgid "Nyaa Magnet Resources"
 msgstr "Nyaa Magnet リソース"
 
-#: static/themes/modern/js/themes.js:221 static/themes/modern/js/themes.js:233
-#: static/themes/modern/js/themes.js:245
+#: static/themes/modern/js/themes.js:239 static/themes/modern/js/themes.js:251
+#: static/themes/modern/js/themes.js:261 static/themes/modern/js/themes.js:277
 msgid "Off"
 msgstr "オフ"
 
-#: static/themes/modern/js/themes.js:218 static/themes/modern/js/themes.js:230
-#: static/themes/modern/js/themes.js:242
+#: static/themes/modern/js/themes.js:236 static/themes/modern/js/themes.js:248
+#: static/themes/modern/js/themes.js:264 static/themes/modern/js/themes.js:274
 msgid "On"
 msgstr "オン"
 
@@ -905,16 +906,16 @@ msgstr "現在表示できる内容がありません——読み込みに失敗
 msgid "This user has no videos yet."
 msgstr "このユーザーはまだ動画を投稿していません。"
 
-#: static/themes/modern/js/player.js:1512
+#: static/themes/modern/js/player.js:1610
 msgid "Back"
 msgstr "戻る"
 
-#: static/themes/modern/js/player.js:1582
+#: static/themes/modern/js/player.js:1680
 msgid "Audio"
 msgstr "音声"
 
-#: static/themes/modern/js/player.js:1583
-#: static/themes/modern/js/player.js:1652
+#: static/themes/modern/js/player.js:1681
+#: static/themes/modern/js/player.js:1750
 msgid "Playback speed"
 msgstr "再生速度"
 
@@ -927,6 +928,16 @@ msgid ""
 "Always play the highest available audio track instead of following video "
 "quality"
 msgstr "画質に連動せず、常に最高の音声トラックを再生する"
+
+#: templates/themes/modern/pref.html:48
+msgid "Lock video resolution"
+msgstr ""
+
+#: templates/themes/modern/pref.html:49
+msgid ""
+"Always play the highest available video track instead of auto-switching "
+"quality"
+msgstr ""
 
 #~ #: templates/themes/modern/pref.html:9
 #~ msgid "Personalization settings"

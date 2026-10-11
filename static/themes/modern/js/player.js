@@ -507,7 +507,7 @@ class DashPlayerManager {
           bufferPruningInterval: 60,
         },
         abr: {
-          autoSwitchBitrate: { video: true, audio: false },
+          autoSwitchBitrate: { video: !this._lockVideo(), audio: false },
           // Keep abandon-on-slow-fragment explicitly enabled: with the
           // computable Content-Lengths the track proxy guarantees, this
           // lets ABR drop to a lower rendition during bandwidth dips
@@ -589,6 +589,7 @@ class DashPlayerManager {
       () => {
         this._buildAudioMenu();
         this._applyTierAudio();
+        this._applyLockVideo();
       }
     );
 
@@ -658,6 +659,42 @@ class DashPlayerManager {
       if (best == null || Number(r.bandwidth) > Number(best.bandwidth)) best = r;
     }
     return best;
+  }
+
+  _lockVideo() {
+    // "Lock video resolution" defaults OFF: only an explicit "1" opts in
+    // (fresh visitors keep ABR). Mirrors _pinBestAudio with inverted default.
+    try {
+      if (typeof helpers !== "undefined" && helpers.storage) {
+        const v = helpers.storage.get("lock_video");
+        if (v === "0") return false;
+        if (v === "1") return true;
+      }
+    } catch (e) {
+      console.warn("[DashManager] Could not read lock_video pref:", e);
+    }
+    return /(?:^|;\s*)lock_video=1(?:;|$)/.test(document.cookie || "");
+  }
+
+  _applyLockVideo() {
+    // Pinned video (pref): stick to the best rendition with ABR off.
+    // Manual quality-menu picks bypass this (sticky by design, like audio).
+    if (!this.player || !this._lockVideo()) return;
+    try {
+      const vreps = this.player.getRepresentationsByType("video") || [];
+      if (!vreps.length) return;
+      let best = null;
+      for (const r of vreps) {
+        if (best == null || Number(r.bandwidth) > Number(best.bandwidth)) best = r;
+      }
+      if (!best) return;
+      const cur = this.player.getCurrentRepresentationForType("video");
+      if (cur && String(cur.id) === String(best.id)) return;
+      this.player.setRepresentationForTypeById("video", best.id, true);
+      console.log("[DashManager] Locked video:", best.id, best.bandwidth);
+    } catch (e) {
+      console.warn("[DashManager] Could not lock video:", e);
+    }
   }
 
   _pinBestAudio() {

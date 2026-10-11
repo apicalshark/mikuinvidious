@@ -138,8 +138,8 @@ msgstr "У вас поки немає історії перегляду."
 msgid "Resolving video URL..."
 msgstr "Визначення URL-адреси відео..."
 
-#: static/themes/modern/js/player.js:1581
-#: static/themes/modern/js/player.js:1651 templates/macros.html:68
+#: static/themes/modern/js/player.js:1679
+#: static/themes/modern/js/player.js:1749 templates/macros.html:68
 msgid "Resolution"
 msgstr "Якість"
 
@@ -340,7 +340,7 @@ msgstr "Інформація про версію недоступна :-("
 msgid "Error"
 msgstr "Помилка"
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:50
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:62
 msgid "Back to home"
 msgstr "На головну"
 
@@ -425,7 +425,8 @@ msgstr "Перетворювати вміст на традиційну кита
 
 #: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
-#: templates/themes/modern/pref.html:41 templates/themes/modern/video.html:466
+#: templates/themes/modern/pref.html:41 templates/themes/modern/pref.html:53
+#: templates/themes/modern/video.html:466
 #: templates/themes/modern/video_listen.html:284
 msgid "Loading..."
 msgstr "Завантаження..."
@@ -806,25 +807,25 @@ msgstr "Потік завершено"
 msgid "Live stream has ended"
 msgstr "Трансляція завершилася"
 
-#: static/themes/modern/js/player.js:1324
+#: static/themes/modern/js/player.js:1422
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "Авто (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1347
-#: static/themes/modern/js/player.js:1351
-#: static/themes/modern/js/player.js:1382
-#: static/themes/modern/js/player.js:1386
+#: static/themes/modern/js/player.js:1445
+#: static/themes/modern/js/player.js:1449
+#: static/themes/modern/js/player.js:1480
+#: static/themes/modern/js/player.js:1484
 msgid "Auto"
 msgstr "Авто"
 
-#: static/themes/modern/js/themes.js:218 static/themes/modern/js/themes.js:230
-#: static/themes/modern/js/themes.js:242
+#: static/themes/modern/js/themes.js:236 static/themes/modern/js/themes.js:248
+#: static/themes/modern/js/themes.js:264 static/themes/modern/js/themes.js:274
 msgid "On"
 msgstr "Увімк"
 
-#: static/themes/modern/js/themes.js:221 static/themes/modern/js/themes.js:233
-#: static/themes/modern/js/themes.js:245
+#: static/themes/modern/js/themes.js:239 static/themes/modern/js/themes.js:251
+#: static/themes/modern/js/themes.js:261 static/themes/modern/js/themes.js:277
 msgid "Off"
 msgstr "Вимк"
 
@@ -919,16 +920,16 @@ msgstr "Наразі немає чого показати — не вдалос�
 msgid "This user has no videos yet."
 msgstr "У цього користувача поки немає відео."
 
-#: static/themes/modern/js/player.js:1512
+#: static/themes/modern/js/player.js:1610
 msgid "Back"
 msgstr "Назад"
 
-#: static/themes/modern/js/player.js:1582
+#: static/themes/modern/js/player.js:1680
 msgid "Audio"
 msgstr "Аудіо"
 
-#: static/themes/modern/js/player.js:1583
-#: static/themes/modern/js/player.js:1652
+#: static/themes/modern/js/player.js:1681
+#: static/themes/modern/js/player.js:1750
 msgid "Playback speed"
 msgstr "Швидкість відтворення"
 
@@ -941,3 +942,13 @@ msgid ""
 "Always play the highest available audio track instead of following video "
 "quality"
 msgstr "Завжди відтворювати найкращу доступну аудіодоріжку замість якості відео"
+
+#: templates/themes/modern/pref.html:48
+msgid "Lock video resolution"
+msgstr ""
+
+#: templates/themes/modern/pref.html:49
+msgid ""
+"Always play the highest available video track instead of auto-switching "
+"quality"
+msgstr ""

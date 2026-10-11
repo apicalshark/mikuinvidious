@@ -3,6 +3,7 @@
     "%(count)s 則回覆"
   ],
   "Always play the highest available audio track instead of following video quality": "始終播放最高可用音軌，而不跟隨影片畫質",
+  "Always play the highest available video track instead of auto-switching quality": "始終播放最高可用畫質，而非自動切換畫質",
   "Anime": "番劇",
   "Article does not exist or parse error": "文章不存在或解析錯誤",
   "Article not found": "找不到文章",
@@ -93,6 +94,7 @@
   "Loaded %(count)s, click to load more": "已載入 %(count)s 則，點擊載入更多",
   "Loading comments...": "正在載入評論...",
   "Loading...": "載入中...",
+  "Lock video resolution": "鎖定視訊解析度",
   "Lost connection to the server, please retry": "與伺服器連線中斷，請重試",
   "Magnet": "磁力連結",
   "MikuInvidious is a free Bilibili frontend.": "MikuInvidious 是自由的嗶哩嗶哩前端。",

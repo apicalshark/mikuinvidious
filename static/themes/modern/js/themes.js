@@ -102,6 +102,24 @@ if (toggle_best_audio) {
   });
 }
 
+var toggle_lock_video = document.getElementById("toggle_lock_video");
+if (toggle_lock_video) {
+  toggle_lock_video.addEventListener("click", function () {
+    const oldVal = helpers.storage.get("lock_video") || getCookie("lock_video");
+    const newVal = oldVal === "1" ? "0" : "1";
+    helpers.storage.set("lock_video", newVal);
+    const secureFlag = location.protocol === "https:" ? "; Secure" : "";
+    document.cookie =
+      "lock_video=" +
+      newVal +
+      "; path=/; max-age=" +
+      3600 * 24 * 30 +
+      "; SameSite=Lax" +
+      secureFlag;
+    location.reload();
+  });
+}
+
 /** @param {THEME_DARK|THEME_LIGHT} theme */
 function setTheme(theme) {
   const iconClass = theme === THEME_DARK ? "icon ion-ios-sunny" : "icon ion-ios-moon";
@@ -244,6 +262,19 @@ function initPreferences() {
     } else {
       btnBestAudio.classList.add("is-on");
       btnBestAudio.innerText = I18n.t("On");
+    }
+  }
+
+  const lockVideoPref = helpers.storage.get("lock_video") || getCookie("lock_video");
+  const btnLockVideo = document.getElementById("toggle_lock_video");
+  if (btnLockVideo) {
+    // Default OFF: only an explicit "1" shows On.
+    if (lockVideoPref === "1") {
+      btnLockVideo.classList.add("is-on");
+      btnLockVideo.innerText = I18n.t("On");
+    } else {
+      btnLockVideo.classList.remove("is-on");
+      btnLockVideo.innerText = I18n.t("Off");
     }
   }
 
