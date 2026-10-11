@@ -2974,10 +2974,14 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             nonlocal conn, host, yielded
             while True:
                 try:
-                    # No speed trip here (floor_watchdog=False): slow is not
-                    # failure — backup URLs are for failures, and dash.js owns
-                    # slowness (abandon + ABR). Idle wedges still trip.
-                    async for chunk in _yield_dash_body(conn, label, floor_watchdog=False):
+                    # Floor watchdog stays on here: genuine tarpits (<100KB/s
+                    # past grace) fail over to the next mirror transparently.
+                    # dash.js owns *mild* slowness (abandon + ABR), but it
+                    # cannot cover two silent stalls (no player logs): a big
+                    # top-quality buffer suppresses abandon urgency, and
+                    # pinned audio (ABR off) has no downshift at all. Idle
+                    # wedges still trip.
+                    async for chunk in _yield_dash_body(conn, label, floor_watchdog=True):
                         yielded += len(chunk)
                         yield chunk
                 except (asyncio.CancelledError, GeneratorExit):
