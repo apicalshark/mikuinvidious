@@ -496,7 +496,16 @@ class DashPlayerManager {
           InitializationSegment: 5,
           IndexSegment: 5,
         },
-        buffer: { fastSwitchEnabled: true },
+        buffer: {
+          fastSwitchEnabled: true,
+          // Retain all same-rendition buffered data until page exit: seeks
+          // back into watched regions must play instantly instead of
+          // re-fetching over sick edges (which reads as "seek reloads").
+          // MSE quota is the only cap — dash.js prunes itself on its
+          // quotaExceeded event, so this cannot break playback.
+          bufferToKeep: 3600,
+          bufferPruningInterval: 60,
+        },
         abr: {
           autoSwitchBitrate: { video: true, audio: false },
           // Keep abandon-on-slow-fragment explicitly enabled: with the
