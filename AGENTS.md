@@ -281,7 +281,7 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 
 ## Development Conventions
 
-- **License:** GNU GPL-3.0.
+- **License:** GNU AGPL-3.0.
 - **Theming:** Templates in `templates/themes/`. Current active theme is `modern` (Tailwind CSS, light/dark, mobile-first).
 - **Static Assets:** `static/` contains `hls.js`, `mpegts.js`, `dash.min.js`, and `danmaku.js`.
 - **Proxying Strategy:**
