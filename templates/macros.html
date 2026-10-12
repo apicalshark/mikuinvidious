@@ -75,7 +75,7 @@
             <media-mute-button media-controller="miku-player" class="bg-transparent hover:bg-white/10 rounded-lg transition-colors scale-90 w-11 p-2.5"></media-mute-button>
             <media-volume-range class="grow mr-2" media-controller="miku-player"></media-volume-range>
         </div>
-        <media-loading-indicator slot="centered-chrome" no-auto-hide class="w-16 h-12 z-20"></media-loading-indicator>
+        <media-loading-indicator slot="centered-chrome" noautohide class="z-20" style="--media-loading-indicator-icon-width: 4rem; --media-loading-indicator-icon-height: 4rem;"></media-loading-indicator>
         <!-- Autoplay Unlock Overlay -->
         <div id="autoplay-overlay"
              class="absolute inset-0 z-[40] flex items-center justify-center bg-black/40 backdrop-blur-xs opacity-0 pointer-events-none transition-opacity duration-300">
