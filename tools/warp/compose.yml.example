@@ -1,3 +1,35 @@
+# MicroWARP (Cloudflare WARP SOCKS5) + gost HTTP bridge.
+#
+# Optional egress for MikuInvidious. Needed only on datacenter /
+# risk-controlled IPs (Bilibili HTTP 412 / -352); residential links can
+# run direct with HTTP_PROXY left empty.
+#
+# Usage:
+#   cp compose.yml.example compose.yml
+#   docker compose up -d
+#
+# Endpoints (verified Oct 2026, microwarp 0.3.1):
+#   SOCKS5  127.0.0.1:1080  (microwarp, kernel WireGuard WARP tunnel)
+#   HTTP    127.0.0.1:1081  (gost CONNECT bridge in front of :1080)
+#
+# The app speaks SOCKS5 natively (CdnConnection handshake for media +
+# libcurl transport for API calls), so the gost HTTP bridge is OPTIONAL —
+# just a convenience for HTTP-proxy-only clients. Point the app at either:
+#   HTTP_PROXY=socks5://host.docker.internal:1080  # direct, no gost needed
+#   HTTP_PROXY=http://host.docker.internal:1081    # via gost below
+# Inside a container 127.0.0.1 is itself, so the app service also needs:
+#   extra_hosts: ["host.docker.internal:host-gateway"]
+# From the host itself, 127.0.0.1:1080 / 127.0.0.1:1081 work directly.
+#
+# Auth: MicroWARP >=0.3 refuses to start an unauthenticated proxy unless
+# ALLOW_NO_AUTH=1 is set (see below). For authenticated mode instead:
+#   environment:
+#     - SOCKS_USER=...
+#     - SOCKS_PASS=...
+# drop ALLOW_NO_AUTH, and point clients at socks5://user:pass@host:1080.
+# NOTE: "1080:1080" below binds all host interfaces; in no-auth mode prefer
+# "127.0.0.1:1080:1080" so the open proxy is not exposed to the LAN.
+
 services:
   microwarp:
     image: ghcr.io/ccbkkb/microwarp:latest
@@ -10,9 +42,12 @@ services:
       - SYS_MODULE
     sysctls:
       - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - ALLOW_NO_AUTH=1
     volumes:
       - warp_data:/etc/wireguard
 
+  # Optional: skip this service if the app uses SOCKS5 directly.
   microwarp-http:
     image: gogost/gost:latest
     container_name: microwarp_http
