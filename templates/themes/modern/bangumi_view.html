@@ -1,6 +1,8 @@
 {% extends 'themes/modern/base.html' %}
+{% from 'macros.html' import m3_spinner %}
 {% block head %}
     <title>{{ meta['title'] }} - MikuInvidious</title>
+    <link rel="stylesheet" href="/static/themes/modern/css/player.css?v={{ asset_version }}" />
 {% endblock %}
 {% block content %}
     <div class="flex flex-col md:flex-row gap-8 mb-12">
@@ -74,7 +76,7 @@
             {% if nyaa_enabled %}
             <div id="nyaa-sidebar-container">
                 <div class="flex flex-col items-center justify-center py-12 opacity-40">
-                    <div class="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+                    {{ m3_spinner('24px', cls='mb-4') }}
                     <p class="text-sm">{{ _('Searching Nyaa...') }}</p>
                 </div>
             </div>

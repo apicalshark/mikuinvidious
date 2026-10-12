@@ -42,20 +42,18 @@
             <div class="bg-surface dark:bg-background rounded-2xl overflow-hidden shadow-xs">
                 <!-- Audio Player Wrapper -->
                 <div id="player-container"
-                     class="relative w-full p-6 md:p-10 bg-linear-to-br from-surface-variant/50 to-surface flex flex-col items-center justify-center gap-6">
-                    <div class="w-48 h-48 md:w-64 md:h-64 rounded-2xl shadow-lg overflow-hidden relative">
-                        <img src="{{ vinfo['pic']|pic }}"
-                             alt="Cover"
-                             class="w-full h-full object-cover" />
-                        <div id="audio-buffering"
-                             class="absolute inset-0 bg-black/70 flex items-center justify-center text-white hidden">
-                            <div id="audio-progress-text" class="text-sm font-bold">{{ _('Buffering: %(available)s / %(target)s') % {'available': '0.0s', 'target': '15.0s'} }}</div>
-                        </div>
+                     class="relative w-full bg-black md:rounded-xl rounded-none overflow-hidden shadow-2xl aspect-video flex items-center justify-center">
+                    <img src="{{ vinfo['pic']|pic }}"
+                         alt="Cover"
+                         class="h-full w-full object-contain" />
+                    <div id="audio-buffering"
+                         class="absolute inset-0 bg-black/70 flex items-center justify-center text-white hidden">
+                        <div id="audio-progress-text" class="text-sm font-bold">{{ _('Buffering: %(available)s / %(target)s') % {'available': '0.0s', 'target': '15.0s'} }}</div>
                     </div>
                     <audio controls
                            preload="auto"
                            {{ 'autoplay' if ato else '' }}
-                           class="w-full max-w-2xl h-12"
+                           class="absolute bottom-0 left-0 w-full h-12"
                            src="/proxy/video/{{ vid }}_{{ idx }}_0"
                            id="player"></audio>
                 </div>
@@ -68,8 +66,8 @@
                         <a id='avswitch'
                            title="{{ _('Video mode') }}"
                            href="/video/{{ vid }}?listen=0{{ '&ato=1' if ato else '' }}"
-                           class="shrink-0 p-2 text-on-surface-variant hover:text-primary bg-surface-variant/30 hover:bg-surface-variant/50 rounded-full transition-all">
-                            <i class="icon ion-md-videocam text-xl"></i>
+                           class="md3-icon-button">
+                            <i class="icon ion-md-videocam"></i>
                         </a>
                     </div>
                     {% if vset|length > 1 %}
@@ -158,7 +156,11 @@
                     <i class="icon ion-ios-chatbubbles"></i>
                     {{ _('Comments') }} ({{ vcomments['page']['count'] }})
                 </h3>
-                <div class="space-y-6" id="comments-list">
+                <div id="comments-scrollbox" class="overflow-y-auto pr-1 custom-scrollbar" style="max-height: 130vh;">
+                    <div class="space-y-6" id="comments-list">
+                    <div id="comments-cursor"
+                         data-next-offset="{{ vcomments.get('next_offset', '') }}"
+                         data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"></div>
                     {% if vcomments['replies'] %}
                         {% for rep in vcomments['replies'] %}
                             <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
@@ -180,8 +182,8 @@
                                         {% set rcount = rep.get('rcount', 0) %}
                                         {% if rcount > 0 %}
                                             <button class="sub-comment-toggle flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
-                                                    data-vid="{{ vid }}" data-root="{{ rep['rpid'] }}" data-count="{{ rcount }}">
-                                                <i class="icon ion-ios-chatboxes"></i> <span>{{ ngettext('%(count)s reply', '%(count)s replies', rcount) % {'count': rcount} }}</span>
+                                                    data-vid="{{ vid }}" data-root="{{ rep['rpid'] }}" data-count="{{ rcount }}" data-expanded="0">
+                                                <i class="icon ion-ios-chatboxes"></i> <span>{{ ngettext('%(count)s reply', '%(count)s replies', rcount) % {'count': rcount} }}</span><i class="icon ion-ios-arrow-down sub-toggle-chevron"></i>
                                             </button>
                                         {% endif %}
                                     </div>
@@ -192,6 +194,8 @@
                     {% else %}
                         <p class="text-center text-on-surface-variant py-8">{{ _('No comments yet or failed to load') }}</p>
                     {% endif %}
+                </div>
+                    <div id="comments-scroll-spy" class="h-px"></div>
                 </div>
             </div>
         </div>
@@ -266,7 +270,88 @@
     <script src="/static/themes/modern/js/audioplayer.js?v={{ asset_version }}"></script>
     <script src="/static/themes/modern/js/download.js?v={{ asset_version }}"></script>
     <script nonce="{{ csp_nonce }}">
-        var MSG_LOADED_MORE = {{ _('Loaded %(count)s, click to load more')|tojson }};
+        var MSG_FOLD = {{ _('Fold')|tojson }};
+        var MSG_MORE_REPLIES = {{ _('Load more replies')|tojson }};
+        var MSG_LOADING_DOTS = {{ _('Loading...')|tojson }};
+        var MSG_LOAD_FAILED = {{ _('Load failed')|tojson }};
+        function repliesLabel(btn) {
+            var c = Number(btn.dataset.count);
+            if (typeof I18n.n === 'function') {
+                return I18n.n('%(count)s reply', '%(count)s replies', c, {count: c});
+            }
+            return c === 1
+                ? I18n.t('%(count)s reply', {count: c})
+                : I18n.t('%(count)s replies', {count: c});
+        }
+        function paintSubToggle(btn, slot, expanded) {
+            btn.dataset.expanded = expanded ? '1' : '0';
+            var label = btn.querySelector('span');
+            if (!label) return;
+            if (expanded) {
+                if (!slot.dataset.foldLabel) slot.dataset.foldLabel = label.textContent;
+                label.textContent = MSG_FOLD;
+            } else if (slot.dataset.foldLabel) {
+                label.textContent = slot.dataset.foldLabel;
+            }
+        }
+        function fetchSubPage(vid, root, page) {
+            return fetch('/api/component/comments/' + vid + '/' + root + '?page=' + encodeURIComponent(page))
+                .then(function(r) {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.text();
+                })
+                .then(function(html) {
+                    var tmp = document.createElement('div');
+                    tmp.innerHTML = html;
+                    var pageEl = tmp.querySelector('.sub-comments-page');
+                    if (!pageEl) throw new Error('Invalid sub-comment response');
+                    return pageEl;
+                });
+        }
+        function appendSubPage(slot, pageEl) {
+            var existing = new Set(Array.from(slot.querySelectorAll('[data-rpid]'), function(el) { return el.dataset.rpid; }));
+            pageEl.querySelectorAll('[data-rpid]').forEach(function(el) {
+                if (existing.has(el.dataset.rpid)) el.remove();
+                else existing.add(el.dataset.rpid);
+            });
+            var more = slot.querySelector('.sub-more-btn');
+            slot.insertBefore(pageEl, more || null);
+            return { isEnd: pageEl.dataset.isEnd === 'true', page: Number(pageEl.dataset.page) };
+        }
+        function ensureSubMoreBtn(slot, btn) {
+            if (slot.dataset.loaded === '1' || slot.querySelector('.sub-more-btn')) return;
+            var more = document.createElement('button');
+            more.type = 'button';
+            more.className = 'sub-more-btn mt-2 flex items-center gap-1 text-xs text-on-surface-variant/70 hover:text-primary transition-colors cursor-pointer';
+            more.dataset.next = '2';
+            var label = document.createElement('span');
+            label.textContent = MSG_MORE_REPLIES;
+            more.appendChild(label);
+            more.addEventListener('click', function() {
+                if (more.dataset.loading === '1') return;
+                more.dataset.loading = '1';
+                label.textContent = MSG_LOADING_DOTS;
+                fetchSubPage(btn.dataset.vid, btn.dataset.root, more.dataset.next)
+                    .then(function(pageEl) {
+                        var st = appendSubPage(slot, pageEl);
+                        more.dataset.next = String(st.page + 1);
+                        if (st.isEnd) {
+                            slot.dataset.loaded = '1';
+                            more.remove();
+                            slot.dataset.foldLabel = repliesLabel(btn);
+                        } else {
+                            label.textContent = MSG_MORE_REPLIES;
+                        }
+                    })
+                    .catch(function() {
+                        label.textContent = MSG_LOAD_FAILED;
+                    })
+                    .finally(function() {
+                        delete more.dataset.loading;
+                    });
+            });
+            slot.appendChild(more);
+        }
         document.addEventListener('DOMContentLoaded', function() {
             const dlForm = document.getElementById('download-form');
             if (dlForm && window.MikuDownload) window.MikuDownload.attach(dlForm);
@@ -278,45 +363,22 @@
             const root = btn.dataset.root;
             const slot = btn.closest('.grow').querySelector('.sub-comment-slot');
             if (!slot || slot.dataset.loading === '1') return;
-            if (slot.classList.contains('hidden')) { slot.classList.remove('hidden'); return; }
-            if (slot.dataset.loaded) { slot.classList.add('hidden'); return; }
+            if (slot.dataset.page1) {
+                slot.classList.toggle('hidden');
+                paintSubToggle(btn, slot, !slot.classList.contains('hidden'));
+                return;
+            }
 
             btn.querySelector('span').textContent = {{ _('Loading...')|tojson }};
             slot.dataset.loading = '1';
-            const page = slot.dataset.nextPage || '1';
-            fetch('/api/component/comments/' + vid + '/' + root + '?page=' + encodeURIComponent(page))
-                .then(function(r) {
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    return r.text();
-                })
-                .then(function(html) {
-                    const tmp = document.createElement('div');
-                    tmp.innerHTML = html;
-                    const pageEl = tmp.querySelector('.sub-comments-page');
-                    if (!pageEl) throw new Error('Invalid sub-comment response');
-                    const existing = new Set(Array.from(slot.querySelectorAll('[data-rpid]'), function(el) { return el.dataset.rpid; }));
-                    let added = 0;
-                    pageEl.querySelectorAll('[data-rpid]').forEach(function(el) {
-                        if (existing.has(el.dataset.rpid)) el.remove();
-                        else { existing.add(el.dataset.rpid); added += 1; }
-                    });
-                    slot.appendChild(pageEl);
-                    const loadedCount = Number(slot.dataset.loadedCount || 0) + added;
-                    const isEnd = pageEl.dataset.isEnd === 'true';
-                    slot.dataset.loadedCount = String(loadedCount);
-                    slot.dataset.nextPage = String(Number(pageEl.dataset.page) + 1);
-                    if (isEnd) slot.dataset.loaded = '1';
-                    // Reply-count labels via the JS catalog (window.I18N):
-                    // I18n.n() picks the right plural form per locale (the
-                    // typeof guard covers browsers with a cached old helper).
-                    // MSG_LOADED_MORE is a tojson-rendered _() const above.
-                    btn.querySelector('span').textContent = isEnd
-                        ? (typeof I18n.n === 'function'
-                            ? I18n.n('%(count)s reply', '%(count)s replies', Number(btn.dataset.count), {count: btn.dataset.count})
-                            : (Number(btn.dataset.count) === 1
-                                ? I18n.t('%(count)s reply', {count: btn.dataset.count})
-                                : I18n.t('%(count)s replies', {count: btn.dataset.count})))
-                        : MSG_LOADED_MORE.split('%(count)s').join(String(loadedCount));
+            fetchSubPage(vid, root, '1')
+                .then(function(pageEl) {
+                    var st = appendSubPage(slot, pageEl);
+                    slot.dataset.page1 = '1';
+                    if (st.isEnd) slot.dataset.loaded = '1';
+                    else ensureSubMoreBtn(slot, btn);
+                    slot.dataset.foldLabel = repliesLabel(btn);
+                    paintSubToggle(btn, slot, true);
                 })
                 .catch(function() {
                     btn.querySelector('span').textContent = {{ _('Load failed')|tojson }};
@@ -325,5 +387,69 @@
                     delete slot.dataset.loading;
                 });
         });
+
+        // Infinite scroll INSIDE the fixed-height comment box (mirrors video.html).
+        (function() {
+            const cspNonce = document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') || '';
+            const headers = cspNonce ? { 'X-CSP-Nonce': cspNonce } : {};
+            let commentsLoading = false;
+            async function loadMoreComments(vid, idx) {
+                if (commentsLoading) return;
+                const cursorEl = document.getElementById('comments-cursor');
+                if (!cursorEl) return;
+                const next = cursorEl.dataset.nextOffset;
+                if (!next || cursorEl.dataset.isEnd === 'true') return;
+                commentsLoading = true;
+                try {
+                    const r = await fetch(`/api/component/comments/${vid}/${idx}/more?next=${encodeURIComponent(next)}`, { headers });
+                    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                    const html = await r.text();
+                    const list = document.getElementById('comments-list');
+                    if (list && cursorEl) {
+                        const tmp = document.createElement('div');
+                        tmp.innerHTML = html;
+                        const newCursor = tmp.querySelector('#comments-cursor');
+                        const items = tmp.querySelectorAll('[data-rpid]');
+                        const existing = new Set(Array.from(list.querySelectorAll('[data-rpid]'), el => el.dataset.rpid));
+                        items.forEach(el => {
+                            if (!existing.has(el.dataset.rpid)) {
+                                existing.add(el.dataset.rpid);
+                                list.appendChild(el);
+                            }
+                        });
+                        if (newCursor) {
+                            cursorEl.dataset.nextOffset = newCursor.dataset.nextOffset;
+                            cursorEl.dataset.isEnd = newCursor.dataset.isEnd;
+                        }
+                    }
+                } catch (err) {
+                    console.error('[comments] load more failed:', err);
+                } finally {
+                    commentsLoading = false;
+                    const cur = document.getElementById('comments-cursor');
+                    if (!cur || cur.dataset.isEnd !== 'true') {
+                        window.__commentIO && window.__commentIO.observe(document.getElementById('comments-scroll-spy'));
+                    }
+                }
+            }
+            let commentIO = null;
+            function setupCommentInfiniteScroll() {
+                const spy = document.getElementById('comments-scroll-spy');
+                if (!spy || commentIO) return;
+                commentIO = new IntersectionObserver((entries) => {
+                    if (entries[0].isIntersecting) {
+                        commentIO.unobserve(spy);
+                        loadMoreComments(window.current_vid, window.idx);
+                    }
+                }, { root: document.getElementById('comments-scrollbox'), rootMargin: '200px' });
+                window.__commentIO = commentIO;
+                commentIO.observe(spy);
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', setupCommentInfiniteScroll);
+            } else {
+                setupCommentInfiniteScroll();
+            }
+        })();
     </script>
 {% endblock %}

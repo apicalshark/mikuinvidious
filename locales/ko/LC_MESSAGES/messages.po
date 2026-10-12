@@ -138,44 +138,44 @@ msgstr "아직 탐색 기록이 없습니다."
 msgid "Resolving video URL..."
 msgstr "영상 URL을 해석하는 중..."
 
-#: static/themes/modern/js/player.js:1679
-#: static/themes/modern/js/player.js:1749 templates/macros.html:68
+#: static/themes/modern/js/player.js:1707
+#: static/themes/modern/js/player.js:1777 templates/macros.html:68
 msgid "Resolution"
 msgstr "화질"
 
-#: templates/macros.html:86
+#: templates/macros.html:88
 msgid "Click to play"
 msgstr "클릭하여 재생"
 
-#: templates/macros.html:87
+#: templates/macros.html:89
 msgid "Browser blocked autoplay"
 msgstr "브라우저가 자동 재생을 차단했습니다"
 
-#: templates/macros.html:98
+#: templates/macros.html:100
 msgid "Volume"
 msgstr "음량"
 
-#: templates/macros.html:105
+#: templates/macros.html:107
 msgid "LIVE"
 msgstr "생방송"
 
-#: templates/macros.html:112
+#: templates/macros.html:114
 msgid "Toggle danmaku"
 msgstr "단막 전환"
 
-#: templates/macros.html:116
+#: templates/macros.html:118
 msgid "Switch resolution"
 msgstr "화질 전환"
 
-#: templates/themes/modern/author.html:37 templates/themes/modern/space.html:35
+#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:35
 msgid "This user has no bio yet."
 msgstr "이 사용자는 아직 자기소개가 없습니다."
 
-#: templates/themes/modern/author.html:45 templates/themes/modern/space.html:43
+#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:43
 msgid "Bilibili Space"
 msgstr "Bilibili 스페이스"
 
-#: templates/themes/modern/author.html:50
+#: templates/themes/modern/author.html:48
 #: templates/themes/modern/search.html:12
 #: templates/themes/modern/search_article.html:12
 #: templates/themes/modern/search_user.html:12
@@ -183,7 +183,7 @@ msgstr "Bilibili 스페이스"
 msgid "Videos"
 msgstr "영상"
 
-#: templates/themes/modern/author.html:57 templates/themes/modern/read.html:8
+#: templates/themes/modern/author.html:55 templates/themes/modern/read.html:8
 #: templates/themes/modern/search.html:16
 #: templates/themes/modern/search_article.html:14
 #: templates/themes/modern/search_user.html:14
@@ -191,12 +191,12 @@ msgstr "영상"
 msgid "Articles"
 msgstr "기사"
 
-#: templates/themes/modern/author.html:96
+#: templates/themes/modern/author.html:99
 #: templates/themes/modern/search_article.html:70
 msgid "reads"
 msgstr "조회"
 
-#: templates/themes/modern/author.html:108
+#: templates/themes/modern/author.html:111
 #: templates/themes/modern/bangumi_index.html:114
 #: templates/themes/modern/search.html:108
 #: templates/themes/modern/search_article.html:82
@@ -205,7 +205,7 @@ msgstr "조회"
 msgid "Previous page"
 msgstr "이전 페이지"
 
-#: templates/themes/modern/author.html:114
+#: templates/themes/modern/author.html:117
 #: templates/themes/modern/bangumi_index.html:119
 #: templates/themes/modern/search.html:114
 #: templates/themes/modern/search_article.html:88
@@ -213,10 +213,6 @@ msgstr "이전 페이지"
 #: templates/themes/modern/space.html:150 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "다음 페이지"
-
-#: templates/themes/modern/author.html:121
-msgid "No articles yet"
-msgstr "아직 기사가 없습니다"
 
 #: templates/themes/modern/bangumi_index.html:3
 msgid "Bangumi index"
@@ -250,35 +246,35 @@ msgstr "다큐멘터리"
 msgid "Sort"
 msgstr "정렬"
 
-#: templates/themes/modern/bangumi_view.html:22
+#: templates/themes/modern/bangumi_view.html:24
 msgid "points"
 msgstr "점"
 
-#: templates/themes/modern/bangumi_view.html:24
+#: templates/themes/modern/bangumi_view.html:26
 msgid "No rating yet"
 msgstr "아직 평점이 없습니다"
 
-#: templates/themes/modern/bangumi_view.html:29
+#: templates/themes/modern/bangumi_view.html:31
 msgid "No synopsis yet"
 msgstr "아직 줄거리가 없습니다"
 
-#: templates/themes/modern/bangumi_view.html:39
+#: templates/themes/modern/bangumi_view.html:41
 msgid "Episode list"
 msgstr "회차 목록"
 
-#: templates/themes/modern/bangumi_view.html:50
+#: templates/themes/modern/bangumi_view.html:52
 msgid "Episode "
 msgstr "에피소드 "
 
-#: templates/themes/modern/bangumi_view.html:78
+#: templates/themes/modern/bangumi_view.html:80
 msgid "Searching Nyaa..."
 msgstr "Nyaa에서 검색 중..."
 
-#: templates/themes/modern/bangumi_view.html:88
+#: templates/themes/modern/bangumi_view.html:90
 msgid "Nyaa Magnet Resources"
 msgstr "Nyaa 마그넷 리소스"
 
-#: templates/themes/modern/bangumi_view.html:137
+#: templates/themes/modern/bangumi_view.html:139
 msgid "Failed to load Nyaa resources"
 msgstr "Nyaa 리소스를 불러오지 못했습니다"
 
@@ -385,7 +381,7 @@ msgstr "접미사를 붙이세요."
 #: templates/themes/modern/home.html:58 templates/themes/modern/search.html:87
 #: templates/themes/modern/space.html:107
 #: templates/themes/modern/video.html:137
-#: templates/themes/modern/video_listen.html:128
+#: templates/themes/modern/video_listen.html:126
 #: templates/themes/modern/zone.html:49
 msgid "Watch on Bilibili"
 msgstr "Bilibili에서 보기"
@@ -423,11 +419,12 @@ msgstr "번체자 변환"
 msgid "Convert content to Traditional Chinese with OpenCC"
 msgstr "OpenCC를 사용하여 콘텐츠를 번체자로 변환"
 
-#: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
 #: templates/themes/modern/pref.html:41 templates/themes/modern/pref.html:53
-#: templates/themes/modern/video.html:466
-#: templates/themes/modern/video_listen.html:284
+#: templates/themes/modern/video.html:413
+#: templates/themes/modern/video.html:556
+#: templates/themes/modern/video_listen.html:275
+#: templates/themes/modern/video_listen.html:372
 msgid "Loading..."
 msgstr "불러오는 중..."
 
@@ -570,8 +567,8 @@ msgstr "다운로드"
 
 #: templates/themes/modern/components/meta_part.html:6
 #: templates/themes/modern/video.html:180
-#: templates/themes/modern/video.html:451
-#: templates/themes/modern/video_listen.html:159
+#: templates/themes/modern/video.html:477
+#: templates/themes/modern/video_listen.html:157
 msgid "Comments"
 msgstr "댓글"
 
@@ -589,64 +586,60 @@ msgid "Connecting to chat..."
 msgstr "채팅에 연결하는 중..."
 
 #: templates/themes/modern/video.html:312
-#: templates/themes/modern/video_listen.html:204
+#: templates/themes/modern/video_listen.html:208
 msgid "Episodes"
 msgstr "회차"
 
 #: templates/themes/modern/video.html:318
-#: templates/themes/modern/video_listen.html:210
+#: templates/themes/modern/video_listen.html:214
 msgid "Autoplay next"
 msgstr "다음 자동 재생"
 
 #: templates/themes/modern/video.html:347
-#: templates/themes/modern/video_listen.html:238
+#: templates/themes/modern/video_listen.html:242
 msgid "Recommended"
 msgstr "추천"
 
 #: templates/themes/modern/video.html:367
-#: templates/themes/modern/video_listen.html:257
+#: templates/themes/modern/video_listen.html:261
 msgid "Play"
 msgstr "재생"
 
-#: templates/themes/modern/video.html:411
-#: templates/themes/modern/video_listen.html:269
-#, python-format
-msgid "Loaded %(count)s, click to load more"
-msgstr "%(count)s개 불러옴, 클릭하여 더 불러오기"
-
-#: templates/themes/modern/video.html:451
+#: templates/themes/modern/video.html:477
 msgid "Failed to load comments, please try again later"
 msgstr "댓글을 불러오지 못했습니다. 나중에 다시 시도해 주세요"
 
-#: templates/themes/modern/video.html:504
-#: templates/themes/modern/video_listen.html:322
+#: templates/themes/modern/video.html:536
+#: templates/themes/modern/video.html:568
+#: templates/themes/modern/video_listen.html:276
+#: templates/themes/modern/video_listen.html:384
 msgid "Load failed"
 msgstr "불러오기 실패"
 
 #: static/themes/modern/js/audioplayer.js:29
 #: static/themes/modern/js/audioplayer.js:38
-#: templates/themes/modern/video_listen.html:52
+#: templates/themes/modern/video_listen.html:51
 #, python-format
 msgid "Buffering: %(available)s / %(target)s"
 msgstr "버퍼링: %(available)s / %(target)s"
 
-#: templates/themes/modern/video_listen.html:69
+#: templates/themes/modern/video_listen.html:67
 msgid "Video mode"
 msgstr "영상 모드"
 
-#: templates/themes/modern/video_listen.html:143
+#: templates/themes/modern/video_listen.html:141
 msgid "Download audio"
 msgstr "오디오 다운로드"
 
 #: templates/themes/modern/components/comment_items.html:25
-#: templates/themes/modern/video_listen.html:184
+#: templates/themes/modern/video_listen.html:186
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
 msgstr[0] "%(count)s개의 답글"
 
-#: templates/themes/modern/components/meta_part.html:14
-#: templates/themes/modern/video_listen.html:193
+#: templates/themes/modern/components/meta_part.html:15
+#: templates/themes/modern/video_listen.html:195
 msgid "No comments yet or failed to load"
 msgstr "아직 댓글이 없거나 불러오지 못했습니다"
 
@@ -654,7 +647,7 @@ msgstr "아직 댓글이 없거나 불러오지 못했습니다"
 msgid "Zone"
 msgstr "존"
 
-#: templates/themes/modern/components/meta_part.html:12
+#: templates/themes/modern/components/meta_part.html:13
 msgid "Comments are closed by the uploader."
 msgstr "업로더가 댓글을 닫았습니다."
 
@@ -805,15 +798,15 @@ msgstr "스트림 종료"
 msgid "Live stream has ended"
 msgstr "생방송이 종료되었습니다"
 
-#: static/themes/modern/js/player.js:1422
+#: static/themes/modern/js/player.js:1450
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "자동 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1445
-#: static/themes/modern/js/player.js:1449
-#: static/themes/modern/js/player.js:1480
-#: static/themes/modern/js/player.js:1484
+#: static/themes/modern/js/player.js:1473
+#: static/themes/modern/js/player.js:1477
+#: static/themes/modern/js/player.js:1508
+#: static/themes/modern/js/player.js:1512
 msgid "Auto"
 msgstr "자동"
 
@@ -918,16 +911,16 @@ msgstr "현재 표시할 내용이 없습니다——불러오기에 실패했�
 msgid "This user has no videos yet."
 msgstr "이 사용자는 아직 영상이 없습니다."
 
-#: static/themes/modern/js/player.js:1610
+#: static/themes/modern/js/player.js:1638
 msgid "Back"
 msgstr "뒤로"
 
-#: static/themes/modern/js/player.js:1680
+#: static/themes/modern/js/player.js:1708
 msgid "Audio"
 msgstr "오디오"
 
-#: static/themes/modern/js/player.js:1681
-#: static/themes/modern/js/player.js:1750
+#: static/themes/modern/js/player.js:1709
+#: static/themes/modern/js/player.js:1778
 msgid "Playback speed"
 msgstr "재생 속도"
 
@@ -950,3 +943,31 @@ msgid ""
 "Always play the highest available video track instead of auto-switching "
 "quality"
 msgstr ""
+
+#: templates/themes/modern/author.html:90
+msgid "Read on Bilibili"
+msgstr "Bilibili에서 읽기"
+
+#: templates/themes/modern/author.html:123
+msgid "This user has no articles yet."
+msgstr "이 사용자는 아직 글이 없습니다."
+
+#: templates/themes/modern/video.html:411
+#: templates/themes/modern/video_listen.html:273
+msgid "Fold"
+msgstr "접기"
+
+#: templates/themes/modern/video.html:412
+#: templates/themes/modern/video_listen.html:274
+msgid "Load more replies"
+msgstr "답글 더 보기"
+
+#~ #: templates/themes/modern/author.html:121
+#~ msgid "No articles yet"
+#~ msgstr "아직 기사가 없습니다"
+
+#~ #: templates/themes/modern/video.html:411
+#~ #: templates/themes/modern/video_listen.html:269
+#~ #, python-format
+#~ msgid "Loaded %(count)s, click to load more"
+#~ msgstr "%(count)s개 불러옴, 클릭하여 더 불러오기"

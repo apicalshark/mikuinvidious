@@ -5,19 +5,18 @@
             <i class="icon ion-ios-chatbubbles"></i>
             {{ _('Comments') }} ({{ vcomments['page']['count'] }})
         </h3>
-        <div class="space-y-6" id="comments-list">
-            {% if vcomments['replies'] %}
-                {% include "themes/modern/components/comment_items.html" %}
-            {% elif comments_closed %}
-                <p class="text-center text-on-surface-variant py-8">{{ _('Comments are closed by the uploader.') }}</p>
-            {% else %}
-                <p class="text-center text-on-surface-variant py-8">{{ _('No comments yet or failed to load') }}</p>
-            {% endif %}
+        <div id="comments-scrollbox" class="overflow-y-auto pr-1 custom-scrollbar" style="max-height: 130vh;">
+            <div class="space-y-6" id="comments-list">
+                {% if vcomments['replies'] %}
+                    {% include "themes/modern/components/comment_items.html" %}
+                {% elif comments_closed %}
+                    <p class="text-center text-on-surface-variant py-8">{{ _('Comments are closed by the uploader.') }}</p>
+                {% else %}
+                    <p class="text-center text-on-surface-variant py-8">{{ _('No comments yet or failed to load') }}</p>
+                {% endif %}
+            </div>
+            <div id="comments-scroll-spy" class="h-px"></div>
         </div>
-        <div id="comments-load-more" class="hidden text-center py-4">
-            <span class="text-sm text-on-surface-variant/70"><i class="icon ion-ios-loading animate-spin"></i> {{ _('Loading...') }}</span>
-        </div>
-        <div id="comments-scroll-spy" class="h-px"></div>
     </div>
 {% endif %}
 <!-- Recommendations (For Mobile Layout usually at bottom, but here we just return the block) -->

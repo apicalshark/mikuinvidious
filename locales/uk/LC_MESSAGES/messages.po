@@ -138,44 +138,44 @@ msgstr "У вас поки немає історії перегляду."
 msgid "Resolving video URL..."
 msgstr "Визначення URL-адреси відео..."
 
-#: static/themes/modern/js/player.js:1679
-#: static/themes/modern/js/player.js:1749 templates/macros.html:68
+#: static/themes/modern/js/player.js:1707
+#: static/themes/modern/js/player.js:1777 templates/macros.html:68
 msgid "Resolution"
 msgstr "Якість"
 
-#: templates/macros.html:86
+#: templates/macros.html:88
 msgid "Click to play"
 msgstr "Натисніть, щоб відтворити"
 
-#: templates/macros.html:87
+#: templates/macros.html:89
 msgid "Browser blocked autoplay"
 msgstr "Браузер заблокував автовідтворення"
 
-#: templates/macros.html:98
+#: templates/macros.html:100
 msgid "Volume"
 msgstr "Гучність"
 
-#: templates/macros.html:105
+#: templates/macros.html:107
 msgid "LIVE"
 msgstr "НАЖИВО"
 
-#: templates/macros.html:112
+#: templates/macros.html:114
 msgid "Toggle danmaku"
 msgstr "Перемкнути данмаку"
 
-#: templates/macros.html:116
+#: templates/macros.html:118
 msgid "Switch resolution"
 msgstr "Змінити якість"
 
-#: templates/themes/modern/author.html:37 templates/themes/modern/space.html:35
+#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:35
 msgid "This user has no bio yet."
 msgstr "У цього користувача поки немає опису."
 
-#: templates/themes/modern/author.html:45 templates/themes/modern/space.html:43
+#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:43
 msgid "Bilibili Space"
 msgstr "Простір Bilibili"
 
-#: templates/themes/modern/author.html:50
+#: templates/themes/modern/author.html:48
 #: templates/themes/modern/search.html:12
 #: templates/themes/modern/search_article.html:12
 #: templates/themes/modern/search_user.html:12
@@ -183,7 +183,7 @@ msgstr "Простір Bilibili"
 msgid "Videos"
 msgstr "Відео"
 
-#: templates/themes/modern/author.html:57 templates/themes/modern/read.html:8
+#: templates/themes/modern/author.html:55 templates/themes/modern/read.html:8
 #: templates/themes/modern/search.html:16
 #: templates/themes/modern/search_article.html:14
 #: templates/themes/modern/search_user.html:14
@@ -191,12 +191,12 @@ msgstr "Відео"
 msgid "Articles"
 msgstr "Статті"
 
-#: templates/themes/modern/author.html:96
+#: templates/themes/modern/author.html:99
 #: templates/themes/modern/search_article.html:70
 msgid "reads"
 msgstr "прочитань"
 
-#: templates/themes/modern/author.html:108
+#: templates/themes/modern/author.html:111
 #: templates/themes/modern/bangumi_index.html:114
 #: templates/themes/modern/search.html:108
 #: templates/themes/modern/search_article.html:82
@@ -205,7 +205,7 @@ msgstr "прочитань"
 msgid "Previous page"
 msgstr "Попередня сторінка"
 
-#: templates/themes/modern/author.html:114
+#: templates/themes/modern/author.html:117
 #: templates/themes/modern/bangumi_index.html:119
 #: templates/themes/modern/search.html:114
 #: templates/themes/modern/search_article.html:88
@@ -213,10 +213,6 @@ msgstr "Попередня сторінка"
 #: templates/themes/modern/space.html:150 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "Наступна сторінка"
-
-#: templates/themes/modern/author.html:121
-msgid "No articles yet"
-msgstr "Статей поки немає"
 
 #: templates/themes/modern/bangumi_index.html:3
 msgid "Bangumi index"
@@ -250,35 +246,35 @@ msgstr "Документальні"
 msgid "Sort"
 msgstr "Сортування"
 
-#: templates/themes/modern/bangumi_view.html:22
+#: templates/themes/modern/bangumi_view.html:24
 msgid "points"
 msgstr "балів"
 
-#: templates/themes/modern/bangumi_view.html:24
+#: templates/themes/modern/bangumi_view.html:26
 msgid "No rating yet"
 msgstr "Оцінок поки немає"
 
-#: templates/themes/modern/bangumi_view.html:29
+#: templates/themes/modern/bangumi_view.html:31
 msgid "No synopsis yet"
 msgstr "Опису поки немає"
 
-#: templates/themes/modern/bangumi_view.html:39
+#: templates/themes/modern/bangumi_view.html:41
 msgid "Episode list"
 msgstr "Список епізодів"
 
-#: templates/themes/modern/bangumi_view.html:50
+#: templates/themes/modern/bangumi_view.html:52
 msgid "Episode "
 msgstr "Епізод "
 
-#: templates/themes/modern/bangumi_view.html:78
+#: templates/themes/modern/bangumi_view.html:80
 msgid "Searching Nyaa..."
 msgstr "Пошук на Nyaa..."
 
-#: templates/themes/modern/bangumi_view.html:88
+#: templates/themes/modern/bangumi_view.html:90
 msgid "Nyaa Magnet Resources"
 msgstr "Магніт-ресурси Nyaa"
 
-#: templates/themes/modern/bangumi_view.html:137
+#: templates/themes/modern/bangumi_view.html:139
 msgid "Failed to load Nyaa resources"
 msgstr "Не вдалося завантажити ресурси Nyaa"
 
@@ -385,7 +381,7 @@ msgstr "суфікс."
 #: templates/themes/modern/home.html:58 templates/themes/modern/search.html:87
 #: templates/themes/modern/space.html:107
 #: templates/themes/modern/video.html:137
-#: templates/themes/modern/video_listen.html:128
+#: templates/themes/modern/video_listen.html:126
 #: templates/themes/modern/zone.html:49
 msgid "Watch on Bilibili"
 msgstr "Дивитися на Bilibili"
@@ -423,11 +419,12 @@ msgstr "Перетворення на традиційну китайську"
 msgid "Convert content to Traditional Chinese with OpenCC"
 msgstr "Перетворювати вміст на традиційну китайську за допомогою OpenCC"
 
-#: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
 #: templates/themes/modern/pref.html:41 templates/themes/modern/pref.html:53
-#: templates/themes/modern/video.html:466
-#: templates/themes/modern/video_listen.html:284
+#: templates/themes/modern/video.html:413
+#: templates/themes/modern/video.html:556
+#: templates/themes/modern/video_listen.html:275
+#: templates/themes/modern/video_listen.html:372
 msgid "Loading..."
 msgstr "Завантаження..."
 
@@ -570,8 +567,8 @@ msgstr "Завантажити"
 
 #: templates/themes/modern/components/meta_part.html:6
 #: templates/themes/modern/video.html:180
-#: templates/themes/modern/video.html:451
-#: templates/themes/modern/video_listen.html:159
+#: templates/themes/modern/video.html:477
+#: templates/themes/modern/video_listen.html:157
 msgid "Comments"
 msgstr "Коментарі"
 
@@ -589,57 +586,53 @@ msgid "Connecting to chat..."
 msgstr "Підключення до чату..."
 
 #: templates/themes/modern/video.html:312
-#: templates/themes/modern/video_listen.html:204
+#: templates/themes/modern/video_listen.html:208
 msgid "Episodes"
 msgstr "Епізоди"
 
 #: templates/themes/modern/video.html:318
-#: templates/themes/modern/video_listen.html:210
+#: templates/themes/modern/video_listen.html:214
 msgid "Autoplay next"
 msgstr "Автовідтворення наступного"
 
 #: templates/themes/modern/video.html:347
-#: templates/themes/modern/video_listen.html:238
+#: templates/themes/modern/video_listen.html:242
 msgid "Recommended"
 msgstr "Рекомендоване"
 
 #: templates/themes/modern/video.html:367
-#: templates/themes/modern/video_listen.html:257
+#: templates/themes/modern/video_listen.html:261
 msgid "Play"
 msgstr "Відтворити"
 
-#: templates/themes/modern/video.html:411
-#: templates/themes/modern/video_listen.html:269
-#, python-format
-msgid "Loaded %(count)s, click to load more"
-msgstr "Завантажено %(count)s, натисніть, щоб завантажити ще"
-
-#: templates/themes/modern/video.html:451
+#: templates/themes/modern/video.html:477
 msgid "Failed to load comments, please try again later"
 msgstr "Не вдалося завантажити коментарі, спробуйте пізніше"
 
-#: templates/themes/modern/video.html:504
-#: templates/themes/modern/video_listen.html:322
+#: templates/themes/modern/video.html:536
+#: templates/themes/modern/video.html:568
+#: templates/themes/modern/video_listen.html:276
+#: templates/themes/modern/video_listen.html:384
 msgid "Load failed"
 msgstr "Не вдалося завантажити"
 
 #: static/themes/modern/js/audioplayer.js:29
 #: static/themes/modern/js/audioplayer.js:38
-#: templates/themes/modern/video_listen.html:52
+#: templates/themes/modern/video_listen.html:51
 #, python-format
 msgid "Buffering: %(available)s / %(target)s"
 msgstr "Буферизація: %(available)s / %(target)s"
 
-#: templates/themes/modern/video_listen.html:69
+#: templates/themes/modern/video_listen.html:67
 msgid "Video mode"
 msgstr "Відеорежим"
 
-#: templates/themes/modern/video_listen.html:143
+#: templates/themes/modern/video_listen.html:141
 msgid "Download audio"
 msgstr "Завантажити аудіо"
 
 #: templates/themes/modern/components/comment_items.html:25
-#: templates/themes/modern/video_listen.html:184
+#: templates/themes/modern/video_listen.html:186
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
@@ -647,8 +640,8 @@ msgstr[0] "%(count)s відповідь"
 msgstr[1] "%(count)s відповіді"
 msgstr[2] "%(count)s відповідей"
 
-#: templates/themes/modern/components/meta_part.html:14
-#: templates/themes/modern/video_listen.html:193
+#: templates/themes/modern/components/meta_part.html:15
+#: templates/themes/modern/video_listen.html:195
 msgid "No comments yet or failed to load"
 msgstr "Коментарів поки немає або не вдалося завантажити"
 
@@ -656,7 +649,7 @@ msgstr "Коментарів поки немає або не вдалося за
 msgid "Zone"
 msgstr "Зона"
 
-#: templates/themes/modern/components/meta_part.html:12
+#: templates/themes/modern/components/meta_part.html:13
 msgid "Comments are closed by the uploader."
 msgstr "Завантажувач закрив коментарі."
 
@@ -807,15 +800,15 @@ msgstr "Потік завершено"
 msgid "Live stream has ended"
 msgstr "Трансляція завершилася"
 
-#: static/themes/modern/js/player.js:1422
+#: static/themes/modern/js/player.js:1450
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "Авто (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1445
-#: static/themes/modern/js/player.js:1449
-#: static/themes/modern/js/player.js:1480
-#: static/themes/modern/js/player.js:1484
+#: static/themes/modern/js/player.js:1473
+#: static/themes/modern/js/player.js:1477
+#: static/themes/modern/js/player.js:1508
+#: static/themes/modern/js/player.js:1512
 msgid "Auto"
 msgstr "Авто"
 
@@ -920,16 +913,16 @@ msgstr "Наразі немає чого показати — не вдалос�
 msgid "This user has no videos yet."
 msgstr "У цього користувача поки немає відео."
 
-#: static/themes/modern/js/player.js:1610
+#: static/themes/modern/js/player.js:1638
 msgid "Back"
 msgstr "Назад"
 
-#: static/themes/modern/js/player.js:1680
+#: static/themes/modern/js/player.js:1708
 msgid "Audio"
 msgstr "Аудіо"
 
-#: static/themes/modern/js/player.js:1681
-#: static/themes/modern/js/player.js:1750
+#: static/themes/modern/js/player.js:1709
+#: static/themes/modern/js/player.js:1778
 msgid "Playback speed"
 msgstr "Швидкість відтворення"
 
@@ -952,3 +945,31 @@ msgid ""
 "Always play the highest available video track instead of auto-switching "
 "quality"
 msgstr ""
+
+#: templates/themes/modern/author.html:90
+msgid "Read on Bilibili"
+msgstr "Читати на Bilibili"
+
+#: templates/themes/modern/author.html:123
+msgid "This user has no articles yet."
+msgstr "У цього користувача поки немає статей."
+
+#: templates/themes/modern/video.html:411
+#: templates/themes/modern/video_listen.html:273
+msgid "Fold"
+msgstr "Згорнути"
+
+#: templates/themes/modern/video.html:412
+#: templates/themes/modern/video_listen.html:274
+msgid "Load more replies"
+msgstr "Показати ще відповіді"
+
+#~ #: templates/themes/modern/author.html:121
+#~ msgid "No articles yet"
+#~ msgstr "Статей поки немає"
+
+#~ #: templates/themes/modern/video.html:411
+#~ #: templates/themes/modern/video_listen.html:269
+#~ #, python-format
+#~ msgid "Loaded %(count)s, click to load more"
+#~ msgstr "Завантажено %(count)s, натисніть, щоб завантажити ще"

@@ -17,7 +17,7 @@ media-controller {
   background: #000;
 }
 
-#player {
+video#player {
   display: block;
   position: absolute;
   top: 0;
@@ -147,6 +147,61 @@ media-controller[media-user-inactive] #danmaku-container {
 #quality-list button.active {
   background: var(--media-button-icon-color) !important;
   color: #000 !important; /* on-primary color from dark mode */
+}
+
+/* Material You indeterminate circular progress, slotted as the
+   media-loading-indicator icon (its auto show/hide is preserved). */
+.miku-m3-spinner {
+  width: var(--miku-spinner-size, 48px);
+  height: var(--miku-spinner-size, 48px);
+  vertical-align: -0.125em;
+  animation: miku-m3-rotate 1.4s linear infinite;
+}
+.miku-m3-spinner circle {
+  fill: none;
+  /* --media-primary-color lives on media-controller scope; outside it
+     (comments, nyaa sidebar) fall back to the same sakura so the arc is
+     never left with the SVG default stroke:none (= invisible). */
+  stroke: var(--media-primary-color, #ff9fba);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 80px, 200px;
+  stroke-dashoffset: 0;
+  animation: miku-m3-dash 1.4s ease-in-out infinite;
+}
+@keyframes miku-m3-rotate {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes miku-m3-dash {
+  0% {
+    stroke-dasharray: 1px, 200px;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 100px, 200px;
+    stroke-dashoffset: -15px;
+  }
+  100% {
+    stroke-dasharray: 100px, 200px;
+    stroke-dashoffset: -125px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .miku-m3-spinner,
+  .miku-m3-spinner circle {
+    animation: none;
+  }
+}
+
+/* Sub-comment fold chevron (rotates when the thread is expanded). */
+.sub-comment-toggle .sub-toggle-chevron {
+  display: inline-block;
+  transition: transform 0.2s;
+}
+.sub-comment-toggle[data-expanded="1"] .sub-toggle-chevron {
+  transform: rotate(180deg);
 }
 
 /* Fullscreen Specifics */

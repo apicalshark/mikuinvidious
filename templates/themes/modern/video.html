@@ -1,5 +1,5 @@
 {% extends 'themes/modern/base.html' %}
-{% from 'macros.html' import video_player with context %}
+{% from 'macros.html' import video_player, m3_spinner with context %}
 
 {% block head %}
     <meta name="description" content="{{ vinfo['desc'] }}" />
@@ -205,7 +205,7 @@
                                 {% endfor %}
                             {% else %}
                                 <div class="flex flex-col items-center justify-center py-8 space-y-4">
-                                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                    {{ m3_spinner('32px') }}
                                     <p class="text-on-surface-variant">{{ _('Loading comments...') }}</p>
                                 </div>
                             {% endif %}
@@ -408,7 +408,33 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            const MSG_LOADED_MORE = {{ _('Loaded %(count)s, click to load more')|tojson }};
+            const MSG_FOLD = {{ _('Fold')|tojson }};
+            const MSG_MORE_REPLIES = {{ _('Load more replies')|tojson }};
+            const MSG_LOADING_DOTS = {{ _('Loading...')|tojson }};
+            // Full "N replies" label for a thread (used when folding).
+            function repliesLabel(btn) {
+                const c = Number(btn.dataset.count);
+                if (typeof I18n.n === 'function') {
+                    return I18n.n('%(count)s reply', '%(count)s replies', c, {count: c});
+                }
+                return c === 1
+                    ? I18n.t('%(count)s reply', {count: c})
+                    : I18n.t('%(count)s replies', {count: c});
+            }
+            // Paint the sub-comment toggle for expanded/folded state. The
+            // folded label is remembered per thread so folding restores the
+            // exact "N replies" / "Loaded N..." text it had when expanded.
+            function paintSubToggle(btn, slot, expanded) {
+                btn.dataset.expanded = expanded ? '1' : '0';
+                const label = btn.querySelector('span');
+                if (!label) return;
+                if (expanded) {
+                    if (!slot.dataset.foldLabel) slot.dataset.foldLabel = label.textContent;
+                    label.textContent = MSG_FOLD;
+                } else if (slot.dataset.foldLabel) {
+                    label.textContent = slot.dataset.foldLabel;
+                }
+            }
             // Floating download dialog (progress + cancel) instead of a blank tab.
             const dlForm = document.getElementById('download-form');
             if (dlForm && window.MikuDownload) window.MikuDownload.attach(dlForm);
@@ -452,21 +478,12 @@
                         }
                     });
 
-                // Sub-comment expand (YouTube-style)
-                document.addEventListener('click', function(e) {
-                    const btn = e.target.closest('.sub-comment-toggle');
-                    if (!btn) return;
-                    const vid = btn.dataset.vid;
-                    const root = btn.dataset.root;
-                    const slot = btn.closest('.grow').querySelector('.sub-comment-slot');
-                    if (!slot || slot.dataset.loading === '1') return;
-                    if (slot.classList.contains('hidden')) { slot.classList.remove('hidden'); return; }
-                    if (slot.dataset.loaded) { slot.classList.add('hidden'); return; }
-
-                    btn.querySelector('span').textContent = {{ _('Loading...')|tojson }};
-                    slot.dataset.loading = '1';
-                    const page = slot.dataset.nextPage || '1';
-                    fetch(`/api/component/comments/${vid}/${root}?page=${encodeURIComponent(page)}`, { headers })
+                // Sub-comment expand/fold (YouTube-style): the reply-count button
+                // only toggles visibility, so a thread can be folded anytime.
+                // Further pages load through a dedicated button at the end of
+                // the thread, never by re-clicking the toggle.
+                function fetchSubPage(vid, root, page) {
+                    return fetch(`/api/component/comments/${vid}/${root}?page=${encodeURIComponent(page)}`, { headers })
                         .then(r => {
                             if (!r.ok) throw new Error(`HTTP ${r.status}`);
                             return r.text();
@@ -476,29 +493,76 @@
                             tmp.innerHTML = html;
                             const pageEl = tmp.querySelector('.sub-comments-page');
                             if (!pageEl) throw new Error('Invalid sub-comment response');
-                            const existing = new Set(Array.from(slot.querySelectorAll('[data-rpid]'), el => el.dataset.rpid));
-                            let added = 0;
-                            pageEl.querySelectorAll('[data-rpid]').forEach(el => {
-                                if (existing.has(el.dataset.rpid)) el.remove();
-                                else { existing.add(el.dataset.rpid); added += 1; }
+                            return pageEl;
+                        });
+                }
+                function appendSubPage(slot, pageEl) {
+                    const existing = new Set(Array.from(slot.querySelectorAll('[data-rpid]'), el => el.dataset.rpid));
+                    let added = 0;
+                    pageEl.querySelectorAll('[data-rpid]').forEach(el => {
+                        if (existing.has(el.dataset.rpid)) el.remove();
+                        else { existing.add(el.dataset.rpid); added += 1; }
+                    });
+                    const more = slot.querySelector('.sub-more-btn');
+                    slot.insertBefore(pageEl, more || null);
+                    return { added: added, isEnd: pageEl.dataset.isEnd === 'true', page: Number(pageEl.dataset.page) };
+                }
+                function ensureSubMoreBtn(slot, btn) {
+                    if (slot.dataset.loaded === '1' || slot.querySelector('.sub-more-btn')) return;
+                    const more = document.createElement('button');
+                    more.type = 'button';
+                    more.className = 'sub-more-btn mt-2 flex items-center gap-1 text-xs text-on-surface-variant/70 hover:text-primary transition-colors cursor-pointer';
+                    more.dataset.next = '2';
+                    const label = document.createElement('span');
+                    label.textContent = MSG_MORE_REPLIES;
+                    more.appendChild(label);
+                    more.addEventListener('click', () => {
+                        if (more.dataset.loading === '1') return;
+                        more.dataset.loading = '1';
+                        label.textContent = MSG_LOADING_DOTS;
+                        fetchSubPage(btn.dataset.vid, btn.dataset.root, more.dataset.next)
+                            .then(pageEl => {
+                                const st = appendSubPage(slot, pageEl);
+                                more.dataset.next = String(st.page + 1);
+                                if (st.isEnd) {
+                                    slot.dataset.loaded = '1';
+                                    more.remove();
+                                    slot.dataset.foldLabel = repliesLabel(btn);
+                                } else {
+                                    label.textContent = MSG_MORE_REPLIES;
+                                }
+                            })
+                            .catch(() => {
+                                label.textContent = {{ _('Load failed')|tojson }};
+                            })
+                            .finally(() => {
+                                delete more.dataset.loading;
                             });
-                            slot.appendChild(pageEl);
-                            const loadedCount = Number(slot.dataset.loadedCount || 0) + added;
-                            const isEnd = pageEl.dataset.isEnd === 'true';
-                            slot.dataset.loadedCount = String(loadedCount);
-                            slot.dataset.nextPage = String(Number(pageEl.dataset.page) + 1);
-                            if (isEnd) slot.dataset.loaded = '1';
-                            // Reply-count labels via the JS catalog (window.I18N):
-                            // I18n.n() picks the right plural form per locale (the
-                            // typeof guard covers browsers with a cached old helper).
-                            // MSG_LOADED_MORE is a tojson-rendered _() const above.
-                            btn.querySelector('span').textContent = isEnd
-                                ? (typeof I18n.n === 'function'
-                                    ? I18n.n('%(count)s reply', '%(count)s replies', Number(btn.dataset.count), {count: btn.dataset.count})
-                                    : (Number(btn.dataset.count) === 1
-                                        ? I18n.t('%(count)s reply', {count: btn.dataset.count})
-                                        : I18n.t('%(count)s replies', {count: btn.dataset.count})))
-                                : MSG_LOADED_MORE.split('%(count)s').join(String(loadedCount));
+                    });
+                    slot.appendChild(more);
+                }
+                document.addEventListener('click', function(e) {
+                    const btn = e.target.closest('.sub-comment-toggle');
+                    if (!btn) return;
+                    const vid = btn.dataset.vid;
+                    const root = btn.dataset.root;
+                    const slot = btn.closest('.grow').querySelector('.sub-comment-slot');
+                    if (!slot || slot.dataset.loading === '1') return;
+                    if (slot.dataset.page1) {
+                        slot.classList.toggle('hidden');
+                        paintSubToggle(btn, slot, !slot.classList.contains('hidden'));
+                        return;
+                    }
+                    btn.querySelector('span').textContent = {{ _('Loading...')|tojson }};
+                    slot.dataset.loading = '1';
+                    fetchSubPage(vid, root, '1')
+                        .then(pageEl => {
+                            const st = appendSubPage(slot, pageEl);
+                            slot.dataset.page1 = '1';
+                            if (st.isEnd) slot.dataset.loaded = '1';
+                            else ensureSubMoreBtn(slot, btn);
+                            slot.dataset.foldLabel = repliesLabel(btn);
+                            paintSubToggle(btn, slot, true);
                         })
                         .catch(() => {
                             btn.querySelector('span').textContent = {{ _('Load failed')|tojson }};
@@ -508,9 +572,9 @@
                         });
                 });
 
-                    // Infinite scroll for the top-level comment list (mirrors PipePipe's
-                    // scroll-to-end pagination): when the user scrolls the comment box
-                    // to the bottom, fetch the next page via the next-offset cursor.
+                    // Infinite scroll INSIDE the fixed-height comment box (not the
+                    // page): the observer root is the scrollbox, so the page
+                    // never grows while more pages append.
                     let commentsLoading = false;
                     window.loadMoreComments = async function(vid, idx) {
                         if (commentsLoading) return;
@@ -572,7 +636,7 @@
                                 commentIO.unobserve(spy);
                                 window.loadMoreComments(window.current_vid, window.idx);
                             }
-                        }, { rootMargin: '200px' });
+                        }, { root: document.getElementById('comments-scrollbox'), rootMargin: '200px' });
                         window.__commentIO = commentIO;
                         commentIO.observe(spy);
                     };

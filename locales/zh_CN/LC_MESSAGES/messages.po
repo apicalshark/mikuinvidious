@@ -10,44 +10,44 @@ msgstr ""
 msgid "Resolving video URL..."
 msgstr "正在解析视频地址..."
 
-#: static/themes/modern/js/player.js:1679
-#: static/themes/modern/js/player.js:1749 templates/macros.html:68
+#: static/themes/modern/js/player.js:1707
+#: static/themes/modern/js/player.js:1777 templates/macros.html:68
 msgid "Resolution"
 msgstr "解析度"
 
-#: templates/macros.html:86
+#: templates/macros.html:88
 msgid "Click to play"
 msgstr "点击以开始播放"
 
-#: templates/macros.html:87
+#: templates/macros.html:89
 msgid "Browser blocked autoplay"
 msgstr "浏览器已阻止自动播放"
 
-#: templates/macros.html:98
+#: templates/macros.html:100
 msgid "Volume"
 msgstr "音量"
 
-#: templates/macros.html:105
+#: templates/macros.html:107
 msgid "LIVE"
 msgstr "直播"
 
-#: templates/macros.html:112
+#: templates/macros.html:114
 msgid "Toggle danmaku"
 msgstr "切换弹幕"
 
-#: templates/macros.html:116
+#: templates/macros.html:118
 msgid "Switch resolution"
 msgstr "切换解析度"
 
-#: templates/themes/modern/author.html:37 templates/themes/modern/space.html:35
+#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:35
 msgid "This user has no bio yet."
 msgstr "这个人很懒，什么都没有写。"
 
-#: templates/themes/modern/author.html:45 templates/themes/modern/space.html:43
+#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:43
 msgid "Bilibili Space"
 msgstr "哔哩哔哩空间"
 
-#: templates/themes/modern/author.html:50
+#: templates/themes/modern/author.html:48
 #: templates/themes/modern/search.html:12
 #: templates/themes/modern/search_article.html:12
 #: templates/themes/modern/search_user.html:12
@@ -55,7 +55,7 @@ msgstr "哔哩哔哩空间"
 msgid "Videos"
 msgstr "视频"
 
-#: templates/themes/modern/author.html:57 templates/themes/modern/read.html:8
+#: templates/themes/modern/author.html:55 templates/themes/modern/read.html:8
 #: templates/themes/modern/search.html:16
 #: templates/themes/modern/search_article.html:14
 #: templates/themes/modern/search_user.html:14
@@ -63,12 +63,12 @@ msgstr "视频"
 msgid "Articles"
 msgstr "专栏"
 
-#: templates/themes/modern/author.html:96
+#: templates/themes/modern/author.html:99
 #: templates/themes/modern/search_article.html:70
 msgid "reads"
 msgstr "次阅读"
 
-#: templates/themes/modern/author.html:108
+#: templates/themes/modern/author.html:111
 #: templates/themes/modern/bangumi_index.html:114
 #: templates/themes/modern/search.html:108
 #: templates/themes/modern/search_article.html:82
@@ -77,7 +77,7 @@ msgstr "次阅读"
 msgid "Previous page"
 msgstr "上一页"
 
-#: templates/themes/modern/author.html:114
+#: templates/themes/modern/author.html:117
 #: templates/themes/modern/bangumi_index.html:119
 #: templates/themes/modern/search.html:114
 #: templates/themes/modern/search_article.html:88
@@ -85,10 +85,6 @@ msgstr "上一页"
 #: templates/themes/modern/space.html:150 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "下一页"
-
-#: templates/themes/modern/author.html:121
-msgid "No articles yet"
-msgstr "暂无专栏文章"
 
 #: templates/themes/modern/bangumi_index.html:3
 msgid "Bangumi index"
@@ -122,31 +118,31 @@ msgstr "纪录片"
 msgid "Sort"
 msgstr "排序"
 
-#: templates/themes/modern/bangumi_view.html:22
+#: templates/themes/modern/bangumi_view.html:24
 msgid "points"
 msgstr "分"
 
-#: templates/themes/modern/bangumi_view.html:24
+#: templates/themes/modern/bangumi_view.html:26
 msgid "No rating yet"
 msgstr "暂无评分"
 
-#: templates/themes/modern/bangumi_view.html:29
+#: templates/themes/modern/bangumi_view.html:31
 msgid "No synopsis yet"
 msgstr "暂无简介"
 
-#: templates/themes/modern/bangumi_view.html:39
+#: templates/themes/modern/bangumi_view.html:41
 msgid "Episode list"
 msgstr "剧集列表"
 
-#: templates/themes/modern/bangumi_view.html:50
+#: templates/themes/modern/bangumi_view.html:52
 msgid "Episode "
 msgstr "第"
 
-#: templates/themes/modern/bangumi_view.html:78
+#: templates/themes/modern/bangumi_view.html:80
 msgid "Searching Nyaa..."
 msgstr "正在从 Nyaa 搜索资源..."
 
-#: templates/themes/modern/bangumi_view.html:137
+#: templates/themes/modern/bangumi_view.html:139
 msgid "Failed to load Nyaa resources"
 msgstr "无法加载 Nyaa 资源"
 
@@ -257,7 +253,7 @@ msgstr "后面。"
 #: templates/themes/modern/home.html:58 templates/themes/modern/search.html:87
 #: templates/themes/modern/space.html:107
 #: templates/themes/modern/video.html:137
-#: templates/themes/modern/video_listen.html:128
+#: templates/themes/modern/video_listen.html:126
 #: templates/themes/modern/zone.html:49
 msgid "Watch on Bilibili"
 msgstr "在哔哩哔哩上观看"
@@ -299,11 +295,12 @@ msgstr "繁体中文转换"
 msgid "Convert content to Traditional Chinese with OpenCC"
 msgstr "使用 OpenCC 将内容转换为繁体中文"
 
-#: templates/themes/modern/components/meta_part.html:18
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
 #: templates/themes/modern/pref.html:41 templates/themes/modern/pref.html:53
-#: templates/themes/modern/video.html:466
-#: templates/themes/modern/video_listen.html:284
+#: templates/themes/modern/video.html:413
+#: templates/themes/modern/video.html:556
+#: templates/themes/modern/video_listen.html:275
+#: templates/themes/modern/video_listen.html:372
 msgid "Loading..."
 msgstr "加载中..."
 
@@ -450,8 +447,8 @@ msgstr "下载"
 
 #: templates/themes/modern/components/meta_part.html:6
 #: templates/themes/modern/video.html:180
-#: templates/themes/modern/video.html:451
-#: templates/themes/modern/video_listen.html:159
+#: templates/themes/modern/video.html:477
+#: templates/themes/modern/video_listen.html:157
 msgid "Comments"
 msgstr "评论"
 
@@ -469,51 +466,53 @@ msgid "Connecting to chat..."
 msgstr "正在连接到聊天室..."
 
 #: templates/themes/modern/video.html:312
-#: templates/themes/modern/video_listen.html:204
+#: templates/themes/modern/video_listen.html:208
 msgid "Episodes"
 msgstr "选集"
 
 #: templates/themes/modern/video.html:318
-#: templates/themes/modern/video_listen.html:210
+#: templates/themes/modern/video_listen.html:214
 msgid "Autoplay next"
 msgstr "自动连播"
 
 #: templates/themes/modern/video.html:347
-#: templates/themes/modern/video_listen.html:238
+#: templates/themes/modern/video_listen.html:242
 msgid "Recommended"
 msgstr "推荐视频"
 
 #: templates/themes/modern/video.html:367
-#: templates/themes/modern/video_listen.html:257
+#: templates/themes/modern/video_listen.html:261
 msgid "Play"
 msgstr "播放"
 
-#: templates/themes/modern/video.html:451
+#: templates/themes/modern/video.html:477
 msgid "Failed to load comments, please try again later"
 msgstr "评论加载失败，请稍后再试"
 
-#: templates/themes/modern/video.html:504
-#: templates/themes/modern/video_listen.html:322
+#: templates/themes/modern/video.html:536
+#: templates/themes/modern/video.html:568
+#: templates/themes/modern/video_listen.html:276
+#: templates/themes/modern/video_listen.html:384
 msgid "Load failed"
 msgstr "加载失败"
 
-#: templates/themes/modern/video_listen.html:69
+#: templates/themes/modern/video_listen.html:67
 msgid "Video mode"
 msgstr "视频模式"
 
-#: templates/themes/modern/video_listen.html:143
+#: templates/themes/modern/video_listen.html:141
 msgid "Download audio"
 msgstr "下载音频"
 
 #: templates/themes/modern/components/comment_items.html:25
-#: templates/themes/modern/video_listen.html:184
+#: templates/themes/modern/video_listen.html:186
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
 msgstr[0] "%(count)s 条回复"
 
-#: templates/themes/modern/components/meta_part.html:14
-#: templates/themes/modern/video_listen.html:193
+#: templates/themes/modern/components/meta_part.html:15
+#: templates/themes/modern/video_listen.html:195
 msgid "No comments yet or failed to load"
 msgstr "暂无评论或评论加载失败"
 
@@ -521,7 +520,7 @@ msgstr "暂无评论或评论加载失败"
 msgid "Zone"
 msgstr "分区"
 
-#: templates/themes/modern/components/meta_part.html:12
+#: templates/themes/modern/components/meta_part.html:13
 msgid "Comments are closed by the uploader."
 msgstr "UP主已关闭评论区。"
 
@@ -570,19 +569,13 @@ msgstr "Magnet"
 msgid "No collection resources found"
 msgstr "未找到合集资源"
 
-#: templates/themes/modern/bangumi_view.html:88
+#: templates/themes/modern/bangumi_view.html:90
 msgid "Nyaa Magnet Resources"
 msgstr "Nyaa Magnet 资源"
 
-#: templates/themes/modern/video.html:411
-#: templates/themes/modern/video_listen.html:269
-#, python-format
-msgid "Loaded %(count)s, click to load more"
-msgstr "已加载 %(count)s 条，点击加载更多"
-
 #: static/themes/modern/js/audioplayer.js:29
 #: static/themes/modern/js/audioplayer.js:38
-#: templates/themes/modern/video_listen.html:52
+#: templates/themes/modern/video_listen.html:51
 #, python-format
 msgid "Buffering: %(available)s / %(target)s"
 msgstr "缓冲中：%(available)s / %(target)s"
@@ -689,15 +682,15 @@ msgstr "直播流已结束"
 msgid "Live stream has ended"
 msgstr "直播已结束"
 
-#: static/themes/modern/js/player.js:1422
+#: static/themes/modern/js/player.js:1450
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自动 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1445
-#: static/themes/modern/js/player.js:1449
-#: static/themes/modern/js/player.js:1480
-#: static/themes/modern/js/player.js:1484
+#: static/themes/modern/js/player.js:1473
+#: static/themes/modern/js/player.js:1477
+#: static/themes/modern/js/player.js:1508
+#: static/themes/modern/js/player.js:1512
 msgid "Auto"
 msgstr "自动"
 
@@ -899,16 +892,16 @@ msgstr "暂无内容可显示——加载失败，请参见上方通知。"
 msgid "This user has no videos yet."
 msgstr "这个用户还没有视频。"
 
-#: static/themes/modern/js/player.js:1610
+#: static/themes/modern/js/player.js:1638
 msgid "Back"
 msgstr "返回"
 
-#: static/themes/modern/js/player.js:1680
+#: static/themes/modern/js/player.js:1708
 msgid "Audio"
 msgstr "音频"
 
-#: static/themes/modern/js/player.js:1681
-#: static/themes/modern/js/player.js:1750
+#: static/themes/modern/js/player.js:1709
+#: static/themes/modern/js/player.js:1778
 msgid "Playback speed"
 msgstr "播放速度"
 
@@ -931,6 +924,24 @@ msgid ""
 "Always play the highest available video track instead of auto-switching "
 "quality"
 msgstr "始终播放最高可用画质，而非自动切换画质"
+
+#: templates/themes/modern/author.html:90
+msgid "Read on Bilibili"
+msgstr "在哔哩哔哩上阅读"
+
+#: templates/themes/modern/author.html:123
+msgid "This user has no articles yet."
+msgstr "这个用户还没有专栏。"
+
+#: templates/themes/modern/video.html:411
+#: templates/themes/modern/video_listen.html:273
+msgid "Fold"
+msgstr "收起"
+
+#: templates/themes/modern/video.html:412
+#: templates/themes/modern/video_listen.html:274
+msgid "Load more replies"
+msgstr "加载更多回复"
 
 #~ #: templates/themes/modern/pref.html:9
 #~ msgid "Personalization settings"
@@ -955,3 +966,13 @@ msgstr "始终播放最高可用画质，而非自动切换画质"
 #~ #: templates/themes/modern/pref.html:48
 #~ msgid "Save language"
 #~ msgstr "保存语言"
+
+#~ #: templates/themes/modern/author.html:121
+#~ msgid "No articles yet"
+#~ msgstr "暂无专栏文章"
+
+#~ #: templates/themes/modern/video.html:411
+#~ #: templates/themes/modern/video_listen.html:269
+#~ #, python-format
+#~ msgid "Loaded %(count)s, click to load more"
+#~ msgstr "已加载 %(count)s 条，点击加载更多"

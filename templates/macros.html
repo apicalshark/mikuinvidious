@@ -13,7 +13,7 @@
             </div>
         {% elif not supported_src and not is_live %}
             <div class="absolute inset-0 flex flex-col items-center justify-center gap-4 z-50 bg-black">
-                <div class="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin"></div>
+                {{ m3_spinner() }}
                 <p class="text-white/50 text-sm tracking-widest uppercase">{{ _('Resolving video URL...') }}</p>
             </div>
         {% endif %}
@@ -75,7 +75,9 @@
             <media-mute-button media-controller="miku-player" class="bg-transparent hover:bg-white/10 rounded-lg transition-colors scale-90 w-11 p-2.5"></media-mute-button>
             <media-volume-range class="grow mr-2" media-controller="miku-player"></media-volume-range>
         </div>
-        <media-loading-indicator slot="centered-chrome" noautohide class="z-20" style="--media-loading-indicator-icon-width: 4rem; --media-loading-indicator-icon-height: 4rem;"></media-loading-indicator>
+        <media-loading-indicator slot="centered-chrome" noautohide class="z-20" style="--media-loading-indicator-icon-width: 48px; --media-loading-indicator-icon-height: 48px;">
+            {{ m3_spinner(slot='icon') }}
+        </media-loading-indicator>
         <!-- Autoplay Unlock Overlay -->
         <div id="autoplay-overlay"
              class="absolute inset-0 z-[40] flex items-center justify-center bg-black/40 backdrop-blur-xs opacity-0 pointer-events-none transition-opacity duration-300">
@@ -122,4 +124,7 @@
         </media-controller>
         <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }}; window.is_dash = {{ 'true' if is_dash else 'false' }}; window.dash_url = {{ dash_url | tojson }};</script>
     </div>
+{% endmacro %}
+{% macro m3_spinner(size='48px', slot='', cls='') %}
+    <svg{% if slot %} slot="{{ slot }}"{% endif %} class="miku-m3-spinner {{ cls }}" viewBox="0 0 44 44" style="--miku-spinner-size: {{ size }};" aria-hidden="true"><circle cx="22" cy="22" r="20.2" /></svg>
 {% endmacro %}
