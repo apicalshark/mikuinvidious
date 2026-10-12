@@ -21,4 +21,4 @@ A free and open-source frontend for Bilibili, inspired by
   address: `http://localhost:8000`).
 - Understand it: [Architecture](developers/architecture).
 - Source: [apicalshark/mikuinvidious](https://github.com/apicalshark/mikuinvidious)
-  (GNU GPL-3.0).
+  (GNU AGPL-3.0).
