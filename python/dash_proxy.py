@@ -2102,7 +2102,10 @@ async def _failover_dash_conn(
                 # through every mirror: the caller truncates and the player
                 # re-requests. Deliberately not forbidden (a fresh playurl
                 # with the same bad offset 416s again) and not sick-marked
-                # (this is our accounting, not edge health).
+                # (shallow ranges on this host still serve) — instead the
+                # offset is recorded in range-shy memory so later fragments
+                # skip this mirror for deep ranges instead of burning a
+                # failover slot on a repeat 416.
                 total = _parse_416_total(resp_headers.headers.get("content-range"))
                 pending.remove(used)
                 try:
@@ -2113,6 +2116,8 @@ async def _failover_dash_conn(
                     raise _DashUpstreamError(
                         f"resume offset {expected} past EOF (total {total}) for {label}",
                     )
+                if expected is not None:
+                    _note_mirror_range_shy(urlparse(used).hostname or "", expected)
                 print(
                     f"[DashProxy] {label} {urlparse(used).hostname} range rejected "
                     f"(want start={expected}, total={total}), trying next mirror"
@@ -2210,6 +2215,17 @@ def _mirror_last_fail(host: str) -> float:
     return entry[1] if entry is not None else 0.0
 
 
+def _parse_range_start(range_header: str | None) -> int | None:
+    """Parse the start offset of a ``Range: bytes=<start>-<end?>`` header."""
+    m = re.match(r"bytes=(\d+)-\d*$", (range_header or "").strip())
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except (TypeError, ValueError):
+        return None
+
+
 def _mirror_is_sick(host: str | None) -> bool:
     """True when a mirror failed recently and hasn't proven healthy since."""
     if not host:
@@ -2227,6 +2243,47 @@ def _order_urls_by_health(urls: list) -> list:
         (sick if _mirror_is_sick(urlparse(u).hostname or "") else healthy).append(u)
     sick.sort(key=lambda u: _mirror_last_fail(urlparse(u).hostname or ""))
     return healthy + sick
+
+
+# Range-shy mirror memory: a 416 whose offset is NOT past EOF means the edge
+# lacks that range (thin/cold cache on a big object — observed live: one edge
+# 416s deep ranges of a 124MB audio object while reporting the full total),
+# and it will 416 the same offset again. Remember the shallowest rejected
+# offset per host (120s cooldown, same as sick memory) so later fragments
+# try capable mirrors first instead of burning a failover slot on a doomed
+# one. Offset granularity matters: shallow ranges on the same host still
+# serve fine, so unlike sick-marking this never removes the mirror outright.
+# Single worker, so a plain dict is fine.
+_MIRROR_RANGE_SHY_COOLDOWN = 120.0
+_mirror_range_shy: dict = {}  # host -> [shallowest_416_offset, last_monotonic]
+
+
+def _note_mirror_range_shy(host: str | None, offset: int | None):
+    """Record a mid-file 416 for ``host`` at ``offset``."""
+    if not host or offset is None or offset < 0:
+        return
+    now = time.monotonic()
+    entry = _mirror_range_shy.get(host)
+    if entry is None or offset < entry[0]:
+        _mirror_range_shy[host] = [offset, now]
+    else:
+        entry[1] = now
+    if len(_mirror_range_shy) > _MIRROR_HEALTH_MAX:
+        cutoff = now - _MIRROR_RANGE_SHY_COOLDOWN
+        for h in [h for h, (_, last) in _mirror_range_shy.items() if last < cutoff]:
+            del _mirror_range_shy[h]
+
+
+def _mirror_range_shy_at(host: str | None, want: int | None) -> bool:
+    """True when ``host`` recently 416'd at an offset covering ``want``."""
+    if not host or want is None:
+        return False
+    entry = _mirror_range_shy.get(host)
+    if entry is None:
+        return False
+    if time.monotonic() - entry[1] >= _MIRROR_RANGE_SHY_COOLDOWN:
+        return False
+    return want >= entry[0]
 
 
 def _segment_mirror_order(candidates: list, seg_index: int) -> list:
@@ -2267,6 +2324,13 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
     forbidden_seen = False
     handshake_timeout = attempt_timeout or DASH_ATTEMPT_TIMEOUT
     urls = _order_urls_by_health(urls)
+    want = _parse_range_start(headers.get("range"))
+    if want is not None:
+        # Range-shy mirrors (416'd this offset before) go last: they will
+        # 416 again instead of serving. Capable mirrors first.
+        urls = [u for u in urls if not _mirror_range_shy_at(urlparse(u).hostname or "", want)] + [
+            u for u in urls if _mirror_range_shy_at(urlparse(u).hostname or "", want)
+        ]
     for url in urls:
         host = urlparse(url).hostname or url
         try:
@@ -2289,6 +2353,27 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
                 headers = await _refresh_dash_ticket(headers)
                 ticket_refreshed = True
             print(f"[DashProxy] {label} {host} -> {resp_headers.status_code}, trying next mirror")
+            continue
+        if resp_headers.status_code == 416:
+            total = _parse_416_total(resp_headers.headers.get("content-range"))
+            if want is not None and total is not None and want >= total:
+                # Genuinely past EOF: the 416 is the correct signal, forward it.
+                return conn, resp_headers, url, None, None
+            # Mid-file rejection: this mirror lacks the range (thin edge
+            # cache) and will 416 it again — remember and try the next one.
+            # Deliberately not sick-marked (shallow ranges still serve).
+            if want is not None:
+                _note_mirror_range_shy(urlparse(url).hostname or "", want)
+                print(
+                    f"[DashProxy] {label} {host} lacks range at {want} (416, total={total}), trying next mirror"
+                )
+            else:
+                print(f"[DashProxy] {label} {host} -> 416, trying next mirror")
+            try:
+                await conn.close()
+            except Exception:
+                pass
+            last_error = RuntimeError(f"CDN returned 416 for {url}")
             continue
         if resp_headers.status_code in (200, 206):
             content_length, content_range = _dash_response_lengths(resp_headers)
