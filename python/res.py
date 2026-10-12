@@ -66,6 +66,14 @@ async def danmaku_res(vid, idx=0):
     try:
         v = video.Video(bvid=vid, credential=appcred)
         xml = await v.get_danmaku_xml(int(idx))
+        if not xml or not isinstance(xml, str):
+            return jsonify([])
+        # Upstream risk-control block pages are filtered in get_danmaku_xml,
+        # but double-check here (e.g. cached/older callers): HTML is never
+        # danmaku — return empty quietly instead of noisy strict-parse spam.
+        stripped = xml.lstrip().lower()
+        if stripped.startswith("<!doctype") or stripped.startswith("<html"):
+            return jsonify([])
         try:
             return jsonify(danmaku_xml_conv(minidom.parseString(xml)))
         except Exception as parse_exc:

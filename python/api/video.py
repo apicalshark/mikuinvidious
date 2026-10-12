@@ -25,7 +25,7 @@ import json as _json
 import random
 import re
 
-from .client import HEADERS, Api, get_bili_client
+from .client import HEADERS, Api, _get_anonymous_cookies, get_bili_client
 from .credential import Credential
 from .exceptions import ArgsException, ResponseCodeException
 
@@ -364,15 +364,29 @@ class Video:
         return (data.get("subtitle") or {}).get("subtitles") or []
 
     async def get_danmaku_xml(self, page_index=None, cid=None) -> str:
-        """Fetch raw danmaku XML (deflate-compressed, decoded to str)."""
+        """Fetch raw danmaku XML (deflate-compressed, decoded to str).
+
+        Sends the same cookie set as every other API path (anonymous buvid
+        bundle + credential override) with a per-video Referer — i.e. what a
+        real browser tab sends. A cookieless request is a bot tell and makes
+        upstream risk-control block pages more likely.
+        """
         if cid is None:
             if page_index is None:
                 raise ArgsException("Provide at least one of page_index and cid.")
             cid = await self._get_cid_by_index(page_index)
         client = await get_bili_client()
+        cookies = dict(await _get_anonymous_cookies())
+        for k, v in self.credential.get_cookies().items():
+            if v:
+                cookies[k] = v
+        cookies["opus-goback"] = "1"
+        headers = dict(HEADERS)
+        headers["Referer"] = f"https://www.bilibili.com/video/{self._bvid}"
         resp = await client.get(
             f"https://api.bilibili.com/x/v1/dm/list.so?oid={cid}",
-            headers=HEADERS,
+            headers=headers,
+            cookies=cookies,
         )
         import zlib
 
@@ -384,4 +398,17 @@ class Video:
                 decompressed = zlib.decompress(raw)
             except Exception:
                 decompressed = raw
-        return decompressed.decode("utf-8", errors="replace")
+        text = decompressed.decode("utf-8", errors="replace")
+        # Upstream risk-control returns an HTML block page (HTTP 412 / v_voucher
+        # style) on this endpoint instead of danmaku XML. Detect it here so
+        # callers get a clean empty result instead of feeding HTML to the XML
+        # parser (which only produces noisy "mismatched tag" log spam — the
+        # regex fallback can never salvage <d> nodes from a block page).
+        stripped = text.lstrip().lower()
+        if (
+            resp.status_code != 200
+            or stripped.startswith("<!doctype")
+            or stripped.startswith("<html")
+        ):
+            return ""
+        return text
