@@ -1,0 +1,66 @@
+# MicroWARP for the containerized app (shared-network variant).
+#
+# Same tunnel as ../compose.yml.example, but microwarp joins the external
+# warp-net so the miku_app container reaches it at socks5://microwarp:1080
+# with pure container-to-container traffic — no host port exposure involved
+# (the 127.0.0.1 publishes below stay for host-local debugging only).
+#
+# Usage (from the repo root):
+#   docker network create warp-net   # once
+#   cp tools/warp/app/compose.yml.example tools/warp/app/compose.yml
+#   docker compose -f tools/warp/app/compose.yml up -d --build
+#   docker compose -f compose.yml -f tools/warp/app/miku-warp.override.yml.example up -d --build
+#   (second -f file keeps main compose.yml defaults untouched for direct users)
+#
+# Why the local build: upstream policy routing (table 128 = default-only)
+# drops replies to same-subnet docker peers (host drops the hairpinned
+# SYN-ACK as INVALID conntrack), so peers hang. entrypoint-wrap.sh mirrors
+# connected LAN routes into table 128 on every boot. microwarp stays
+# single-homed on warp-net on purpose — a second attached network breaks
+# the return path the same way. Verified end-to-end Oct 2026.
+#
+# Auth: same rule as the base file — ALLOW_NO_AUTH=1 (below) or
+# SOCKS_USER/SOCKS_PASS instead. Never widen the 127.0.0.1 binds in
+# no-auth mode.
+
+services:
+  microwarp:
+    # Local wrapper build around the upstream image (see Dockerfile).
+    # Pull a fresh upstream with: docker compose build --pull
+    build: .
+    image: microwarp-local:latest
+    container_name: microwarp
+    restart: always
+    ports:
+      - "127.0.0.1:1080:1080"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - ALLOW_NO_AUTH=1
+    volumes:
+      - warp_data:/etc/wireguard
+    networks:
+      - warp-net
+
+  # Optional: skip this service if the app uses SOCKS5 directly (it does —
+  # CdnConnection handshake for media + libcurl transport for API calls).
+  # Host-loopback-only; unreachable from other containers by design.
+  microwarp-http:
+    image: gogost/gost:latest
+    container_name: microwarp_http
+    restart: always
+    network_mode: host
+    command: "-L=http://127.0.0.1:1081 -F=socks5://127.0.0.1:1080"
+    depends_on:
+      - microwarp
+
+volumes:
+  warp_data:
+
+networks:
+  # Shared with the app stack. Create once with: docker network create warp-net
+  warp-net:
+    external: true

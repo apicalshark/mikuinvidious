@@ -1,0 +1,21 @@
+# App-side override: route the containerized app through the warp-net
+# MicroWARP tunnel (see compose.yml.example in this folder).
+#
+# Usage (from the repo root, after the warp stack is up):
+#   docker compose -f compose.yml -f tools/warp/app/miku-warp.override.yml up -d --build
+# Kept out of the main compose.yml so direct (proxyless) users are unaffected.
+#
+# The app speaks SOCKS5 natively, so no gost/HTTP hop is needed:
+# HTTP_PROXY=socks5://microwarp:1080 covers API + media traffic.
+services:
+  app:
+    networks:
+      - default
+      - warp-net
+    environment:
+      - HTTP_PROXY=socks5://microwarp:1080
+      - HTTPS_PROXY=socks5://microwarp:1080
+
+networks:
+  warp-net:
+    external: true
