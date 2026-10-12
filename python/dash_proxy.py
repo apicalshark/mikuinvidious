@@ -95,6 +95,13 @@ DASH_BODY_FLOOR_KBPS = 100
 DASH_PLAYBACK_ATTEMPT_TIMEOUT = 4.0
 _PLAYBACK_MAX_MIRRORS = 2
 
+# Same-mirror resume budget per playback request. When the cutting mirror
+# just served bytes but every remaining mirror is range-shy at the resume
+# offset (certain 416), re-requesting the remainder on the SAME mirror banks
+# more bytes instead of burning the slot on a doomed one. Strictly bounded:
+# each resume re-handshakes, and deeper loops outlive client patience.
+_SAME_MIRROR_MAX_RESUMES = 2
+
 # Idle-stall trip for response bodies: no bytes at all for this long means a
 # wedged edge (the cumulative-average watchdog above can't see pure idleness
 # — a 7s stall followed by a dribble reads as merely "slow"). Shared by
@@ -2031,7 +2038,8 @@ class _ResumedDashConn:
 
 async def _failover_dash_conn(
     pending: list, headers: dict, proxy_url: str, label: str, orig_range, yielded: int, downstream_total: int | None = None,
-    attempt_timeout: float | None = None
+    attempt_timeout: float | None = None,
+    retry_url: str | None = None, retry_served: int = 0, retry_budget: int = 0,
 ):
     """Fail over a cut/slow body to the next mirror.
 
@@ -2043,9 +2051,16 @@ async def _failover_dash_conn(
     skipping the already-sent prefix (capped to the downstream remainder),
     because re-requesting cannot change bytes already flushed to the player.
     Mirrors that start past the resume point (gap) or whose body is shorter
-    than the resume point are skipped. Removes the used URL from ``pending``
-    and returns ``(conn, used_url, resp_headers)``; raises ``_DashUpstreamError``
+    than the resume point are skipped. Removes the used URL from ``pending`` and
+    returns ``(conn, used_url, resp_headers)``; raises ``_DashUpstreamError``
     when no mirror is usable. The caller owns ``conn.close()`` (wrapper or raw).
+
+    ``retry_url`` is the just-cut mirror: when it served bytes right up to
+    the cut (``retry_served > 0``) but every remaining candidate is
+    range-shy at the resume offset (certain 416), it is appended as a
+    last-before-doomed candidate — proven partial progress beats certain
+    failure. Bounded by the caller's ``retry_budget`` (each use consumes one;
+    the caller tracks it by comparing the returned URL).
     """
     if yielded:
         headers["range"] = _shift_dash_range(orig_range, yielded) or headers.get("range")
@@ -2053,12 +2068,28 @@ async def _failover_dash_conn(
     remaining = downstream_total - yielded if downstream_total is not None and yielded else None
     if remaining is not None and remaining < 0:
         remaining = 0
+    candidates = list(pending)
+    if (
+        retry_url and retry_budget > 0 and retry_served > 0
+        and expected is not None and candidates
+        and retry_url not in candidates
+        and all(_mirror_range_shy_at(urlparse(u).hostname or "", expected) for u in candidates)
+    ):
+        # Every remaining mirror will 416 this offset; the cutting mirror
+        # just proved it can serve bytes. Health ordering inside
+        # _fetch_dash_track keeps capable mirrors first anyway — this only
+        # outranks the doomed ones via the range-shy partition.
+        candidates.append(retry_url)
     last_error: Exception | None = None
     forbidden_seen = False
-    while pending:
+    def _take(used: str):
+        candidates.remove(used)
+        if used in pending:
+            pending.remove(used)
+    while candidates:
         try:
             conn, resp_headers, used, _, _ = await _fetch_dash_track(
-                pending, headers, proxy_url, label, attempt_timeout=attempt_timeout
+                candidates, headers, proxy_url, label, attempt_timeout=attempt_timeout
             )
         except _DashUpstreamError as exc:
             raise exc
@@ -2071,11 +2102,11 @@ async def _failover_dash_conn(
             if status == 206:
                 start, end, _ = _parse_content_range_full(resp_headers.headers.get("content-range"))
                 if expected is None or start == expected:
-                    pending.remove(used)
+                    _take(used)
                     return conn, used, resp_headers
                 if start is not None and end is not None and expected is not None and start < expected <= end:
                     skip = expected - start
-                    pending.remove(used)
+                    _take(used)
                     print(
                         f"[DashProxy] {label} {urlparse(used).hostname} resume overlap "
                         f"(got {start}-{end}, want {expected}, skipping {skip}), salvaging"
@@ -2086,7 +2117,7 @@ async def _failover_dash_conn(
                     f"(want start={expected}, got status={status} "
                     f"range={resp_headers.headers.get('content-range')}), trying next mirror"
                 )
-                pending.remove(used)
+                _take(used)
                 try:
                     await conn.close()
                 except Exception:
@@ -2107,7 +2138,7 @@ async def _failover_dash_conn(
                 # skip this mirror for deep ranges instead of burning a
                 # failover slot on a repeat 416.
                 total = _parse_416_total(resp_headers.headers.get("content-range"))
-                pending.remove(used)
+                _take(used)
                 try:
                     await conn.close()
                 except Exception:
@@ -2132,7 +2163,7 @@ async def _failover_dash_conn(
                     total = None
                 if total is not None and total > expected:
                     limit = total - expected if remaining is None else min(remaining, total - expected)
-                    pending.remove(used)
+                    _take(used)
                     print(
                         f"[DashProxy] {label} {urlparse(used).hostname} ignored resume Range "
                         f"(200 full body, discarding {expected} prefix), salvaging"
@@ -2143,7 +2174,7 @@ async def _failover_dash_conn(
                     f"(want start={expected}, got status={status} "
                     f"range={resp_headers.headers.get('content-range')}), trying next mirror"
                 )
-                pending.remove(used)
+                _take(used)
                 try:
                     await conn.close()
                 except Exception:
@@ -2155,14 +2186,14 @@ async def _failover_dash_conn(
                 f"(want start={expected}, got status={resp_headers.status_code} "
                 f"range={resp_headers.headers.get('content-range')}), trying next mirror"
             )
-            pending.remove(used)
+            _take(used)
             try:
                 await conn.close()
             except Exception:
                 pass
             last_error = RuntimeError(f"resume offset mismatch on {used}")
             continue
-        pending.remove(used)
+        _take(used)
         return conn, used, resp_headers
     raise _DashUpstreamError(
         f"all mirrors failed for {label}: {last_error}",
@@ -3056,8 +3087,10 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             downstream_total = None
 
         async def generate():
-            nonlocal conn, host, yielded
+            nonlocal conn, host, yielded, used_url
+            same_resumes = 0
             while True:
+                attempt_base = yielded
                 try:
                     # Floor watchdog stays on here: genuine tarpits (<100KB/s
                     # past grace) fail over to the next mirror transparently.
@@ -3094,14 +3127,21 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                         print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}); mirrors exhausted, truncating")
                         return
                     print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}), trying next mirror")
+                    prev_url = used_url
+                    served = yielded - attempt_base
                     try:
                         conn, used, _ = await _failover_dash_conn(
                             pending, headers, proxy_url, label, orig_range, yielded, downstream_total,
                             attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
+                            retry_url=prev_url, retry_served=served,
+                            retry_budget=_SAME_MIRROR_MAX_RESUMES - same_resumes,
                         )
                     except _DashUpstreamError as exc2:
                         print(f"[DashProxy] {label} body failover failed: {exc2}")
                         return
+                    if used == prev_url:
+                        same_resumes += 1
+                    used_url = used
                     host = urlparse(used).hostname or "-"
                     continue
                 try:
