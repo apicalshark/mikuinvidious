@@ -666,8 +666,6 @@ async def render_template_with_theme(fp, **kwargs):
     locale = detect_locale()
     _ = lambda s: gettext_msg(locale, s)  # noqa: E731
 
-    dark_theme = request.cookies.get("dark-theme") == "1"
-
     # Backend UI-string translation at the single render choke point so all
     # error pages (and `message` notices) translate without touching every
     # view call site (call sites stay English canonical msgids). `title` is
@@ -681,7 +679,6 @@ async def render_template_with_theme(fp, **kwargs):
 
     return await render_template(
         f"themes/{t}/{fp}",
-        dark_mode=dark_theme,
         proxy_status=appconf["proxy"],
         locale=locale,
         asset_version=ASSET_VERSION,

@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="{{ locale }}" class="{{ 'dark' if dark_mode else '' }}">
+<html lang="{{ locale }}">
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content="{{ csrf_token }}" />
         <meta name="csp-nonce" content="{{ csp_nonce }}" />
+        <script nonce="{{ csp_nonce }}">try{var __m=localStorage.getItem("dark_mode");if(__m){try{__m=decodeURIComponent(__m);var __p=JSON.parse(__m);if(typeof __p==="string")__m=__p;}catch(__e){}if(__m.length>1&&__m.charAt(0)==='"')__m=__m.slice(1,-1);}else{__m=null;}if(__m!=="dark"&&__m!=="light"){__m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(__m==="dark")document.documentElement.classList.add("dark");}catch(__e){}</script>
         {% block head %}{% endblock %}
         <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
         <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
@@ -350,7 +351,6 @@
         <script nonce="{{ csp_nonce }}">window.I18N={locale:"{{ locale }}",msgs:{{ i18n_catalog | tojson }}};</script>
     </head>
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
-        <span style="display:none" id="dark_mode_pref">{{ 'dark' if dark_mode else 'light' }}</span>
         <!-- Sticky Header with Glassmorphism (No Border) -->
         <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/80 transition-colors duration-200">
             <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">

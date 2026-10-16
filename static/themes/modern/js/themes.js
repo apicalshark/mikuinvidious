@@ -21,19 +21,6 @@ function handleThemeToggle(e) {
   const newTheme = isDarkTheme ? THEME_LIGHT : THEME_DARK;
   setTheme(newTheme);
   helpers.storage.set(STORAGE_KEY_THEME, newTheme);
-
-  // Get CSRF token from meta tag or form
-  const csrfToken =
-    document.querySelector('meta[name="csrf-token"]')?.getAttribute("content") ||
-    document.querySelector('input[name="csrf_token"]')?.value;
-  if (csrfToken) {
-    helpers.xhr(
-      "POST",
-      "/toggle_theme",
-      { payload: `csrf_token=${encodeURIComponent(csrfToken)}` },
-      {}
-    );
-  }
 }
 
 if (toggle_theme) toggle_theme.addEventListener("click", handleThemeToggle);
@@ -157,14 +144,15 @@ function ensureOpenCC() {
 
 // Set preferences on page load
 function initPreferences() {
-  const dark_mode_pref_el = document.getElementById("dark_mode_pref");
-  if (dark_mode_pref_el) {
-    const prefTheme = dark_mode_pref_el.textContent;
-    if (prefTheme) {
-      setTheme(prefTheme);
-      helpers.storage.set(STORAGE_KEY_THEME, prefTheme);
-    }
+  // Client-side theme: localStorage wins. When nothing is stored yet, adopt
+  // the pre-paint default from <head> (OS preference) and persist it so the
+  // toggle and cross-tab sync have a defined state.
+  let storedTheme = helpers.storage.get(STORAGE_KEY_THEME);
+  if (storedTheme !== THEME_DARK && storedTheme !== THEME_LIGHT) {
+    storedTheme = document.documentElement.classList.contains("dark") ? THEME_DARK : THEME_LIGHT;
+    helpers.storage.set(STORAGE_KEY_THEME, storedTheme);
   }
+  setTheme(storedTheme);
 
   const openccPref = (typeof helpers !== "undefined" && helpers.storage.get("opencc")) || getCookie("opencc");
 
@@ -331,8 +319,8 @@ if (document.readyState === "loading") {
 }
 
 // Navbar language switcher: flag button toggles a quality-menu-styled
-// dropdown; picking a language POSTs to /set_lang (same CSRF pattern as
-// the theme toggle) and reloads. Works for both desktop and mobile menus.
+// dropdown; picking a language POSTs to /set_lang (CSRF-protected) and
+// reloads. Works for both desktop and mobile menus.
 function toggleLangMenu(menu, show) {
   if (!menu) return;
   if (show) {

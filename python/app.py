@@ -27,7 +27,7 @@ import views  # noqa: F401
 from api import exceptions
 from csrf import csrf_protect, inject_csrf_token
 from proxy import proxy_bp
-from quart import Response, g, jsonify, make_response, redirect, request, send_from_directory, url_for
+from quart import Response, g, jsonify, redirect, request, send_from_directory, url_for
 from rate_limit import RATE_LIMITS, add_rate_limit_headers, rate_limit
 from shared import (
     Network,
@@ -176,33 +176,11 @@ app.context_processor(inject_csrf_token)
 ##########################################
 
 
-@app.route("/toggle_theme", methods=["POST"])
-@csrf_protect()
-@rate_limit(**RATE_LIMITS["normal"])
-async def toggle_theme_api():
-    old_val = request.cookies.get("dark-theme")
-    if old_val == "1":
-        new_val = "0"
-    else:
-        new_val = "1"
-
-    print(f"[Theme] Toggling from {old_val} to {new_val}")
-    resp = await make_response("OK")
-    # Mirror the hist_id pattern: behind Caddy request.is_secure is always
-    # false, so honor X-Forwarded-Proto for the Secure flag.
-    forwarded = request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower()
-    is_secure = request.is_secure or forwarded == "https"
-    resp.set_cookie(
-        "dark-theme", new_val, path="/", max_age=3600 * 24 * 30, httponly=True, samesite="Lax", secure=is_secure
-    )
-    return resp
-
-
 @app.route("/set_lang", methods=["POST"])
 @csrf_protect()
 @rate_limit(**RATE_LIMITS["normal"])
 async def set_lang_api():
-    """Persist UI locale choice (mirrors /toggle_theme cookie pattern)."""
+    """Persist UI locale choice (server-set cookie, mirrored client-side on reload)."""
     from i18n import normalize_supported
 
     form = await request.form
