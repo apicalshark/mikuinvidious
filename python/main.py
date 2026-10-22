@@ -19,7 +19,7 @@ import sys
 import app as app_module  # noqa: F401
 from granian import Granian
 from granian.constants import Interfaces, Loops, TaskImpl
-from granian.http import HTTP1Settings, HTTP2Settings
+from granian.http import HTTP1Settings
 from shared import appconf
 
 
@@ -47,12 +47,10 @@ def main():
         task_impl=TaskImpl.asyncio,
         reload=debug_mode,
         http1_settings=HTTP1Settings(
-            keep_alive=True,
-            header_read_timeout=10,  # 10 seconds
-        ),
-        http2_settings=HTTP2Settings(
-            keep_alive_interval=5,  # Send ping every 5s
-            keep_alive_timeout=10,  # Timeout ping after 10s
+            # Milliseconds (Granian default 30_000); keep-alive stays on by
+            # default and has no idle timeout. Caddy reaches us over HTTP/1.1,
+            # so HTTP2Settings (tuned or not) would be inert here.
+            header_read_timeout=10_000,  # 10 seconds
         ),
         # Per-request access log (one line per segment/image/poll). Off by
         # default via [server] access_log / SERVER_ACCESS_LOG — it buries the
