@@ -567,7 +567,7 @@ async def space_json_feed(mid):
                 "title": title,
                 "content_text": title,
                 "date_published": datetime.datetime.fromtimestamp(
-                    v.get("created", 0), tz=datetime.timezone.utc
+                    v.get("created", 0), tz=datetime.UTC
                 ).isoformat(),
                 "image": v.get("pic", ""),
             }

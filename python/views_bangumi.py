@@ -1,8 +1,8 @@
 import asyncio
 import json
-import os
 import re
 from datetime import datetime
+from pathlib import Path
 
 import shared
 import zhconv
@@ -15,11 +15,11 @@ from rate_limit import RATE_LIMITS, rate_limit
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
 
 # Load filter configuration
-params_path = os.path.join(os.path.dirname(bangumi.__file__), "data", "bangumi_index_params.json")
+params_path = Path(bangumi.__file__).parent / "data" / "bangumi_index_params.json"
 try:
     with open(params_path, encoding="utf-8") as f:
         INDEX_PARAMS = json.load(f)
-except:
+except Exception:
     INDEX_PARAMS = {}
 
 
@@ -226,7 +226,7 @@ async def bangumi_play(ep_id):
                 if v == "--" or v is None:
                     return default
                 return int(v)
-            except:
+            except (ValueError, TypeError):
                 return default
 
         # Construct vinfo for video.html

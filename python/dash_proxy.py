@@ -1133,7 +1133,7 @@ _RETRYABLE_TRACK_ERRORS = (
     CdnConnectError,
     CdnProtocolError,
     CdnTimeoutError,
-    asyncio.TimeoutError,
+    TimeoutError,
     OSError,  # covers ConnectionResetError / BrokenPipeError
 )
 
@@ -2367,7 +2367,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
         host = urlparse(url).hostname or url
         try:
             conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url, timeout=handshake_timeout)
-        except (asyncio.TimeoutError, TimeoutError) as exc:
+        except TimeoutError as exc:
             last_error = exc
             _note_mirror_bad(urlparse(url).hostname or "")
             print(f"[DashProxy] {label} {host} stalled, trying next mirror")
@@ -2645,14 +2645,7 @@ async def _download_track_segmented(
                     try:
                         resp_headers = await ka_conn.next_request(seg_headers)
                         conn, used = ka_conn, ka_url
-                    except (
-                        CdnConnectError,
-                        CdnProtocolError,
-                        CdnTimeoutError,
-                        OSError,
-                        TimeoutError,
-                        asyncio.TimeoutError,
-                    ) as exc:
+                    except (CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError, TimeoutError) as exc:
                         try:
                             await ka_conn.close()
                         except Exception:

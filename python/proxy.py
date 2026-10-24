@@ -283,11 +283,12 @@ async def proxy_main(subpath):
                     while True:
                         try:
                             # Use a reasonable timeout (15s) for keep-alive
-                            chunk = await asyncio.wait_for(q.get(), timeout=15.0)
+                            async with asyncio.timeout(15.0):
+                                chunk = await q.get()
                             if chunk is None:
                                 break
                             yield chunk
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             # Send a minimal valid FLV Script Data tag if we have already sent headers
                             if stream.header_ready.is_set():
                                 # Type 18, Size 0, Time 0, PrevSize 11

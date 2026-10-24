@@ -132,7 +132,7 @@ class Credential:
             raise ArgsException("Missing ac_time_value parameter")
 
     @staticmethod
-    def from_cookies(cookies: dict = None) -> "Credential":
+    def from_cookies(cookies: dict = None) -> Credential:
         cookies = cookies or {}
         c = Credential()
         c.sessdata = cookies.get("SESSDATA")
@@ -284,11 +284,9 @@ def _ensure_event_loop():
     try:
         return asyncio.get_running_loop()
     except RuntimeError:
-        try:
-            return asyncio.get_event_loop()
-        except RuntimeError:
-            asyncio.set_event_loop(asyncio.new_event_loop())
-            return asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
 
 
 def sync(coroutine):
@@ -301,7 +299,7 @@ def sync(coroutine):
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.new_event_loop().run_until_complete(coroutine)
+        return asyncio.run(coroutine)
     else:
         with ThreadPoolExecutor() as executor:
-            return executor.submit(lambda c: asyncio.new_event_loop().run_until_complete(c), coroutine).result()
+            return executor.submit(asyncio.run, coroutine).result()
