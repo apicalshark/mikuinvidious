@@ -13,7 +13,9 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import toml
+from pathlib import Path
+
+import rtoml
 from api import Credential, sync
 
 
@@ -60,7 +62,7 @@ def write_cookies(cred):
 
 if __name__ == "__main__":
     print("Trying to refresh the cookies...")
-    appconf = toml.load("config.toml")
+    appconf = rtoml.load(Path("config.toml"))
     credstore = appconf["updatedcred"] if "updatedcred" in appconf else appconf["credential"]
     appcred = Credential(
         sessdata=credstore["sessdata"],

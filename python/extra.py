@@ -19,16 +19,15 @@ import asyncio
 import re
 from urllib.parse import urlparse
 
-import bleach
+import nh3
 import orjson
-from bleach.css_sanitizer import CSSSanitizer
 from api.client import Api
 from api.exceptions import ArgsException
 from bs4 import BeautifulSoup
 from shared import Network
 
 # Allowed HTML tags and attributes for article content
-ALLOWED_TAGS = [
+ALLOWED_TAGS = {
     "p",
     "br",
     "strong",
@@ -65,22 +64,22 @@ ALLOWED_TAGS = [
     "mark",
     "del",
     "ins",
-]
-
-ALLOWED_ATTRIBUTES = {
-    "a": ["href", "title"],
-    "img": ["src", "alt", "title", "class", "width", "height"],
-    "code": ["class"],
-    "pre": ["class"],
-    "span": ["style", "class"],
-    "div": ["style", "class"],
-    "p": ["style", "class"],
-    "figure": ["style", "class"],
-    "blockquote": ["style", "class"],
-    "*": ["style", "class"],
 }
 
-ALLOWED_STYLES = [
+ALLOWED_ATTRIBUTES = {
+    "a": {"href", "title"},
+    "img": {"src", "alt", "title", "class", "width", "height"},
+    "code": {"class"},
+    "pre": {"class"},
+    "span": {"style", "class"},
+    "div": {"style", "class"},
+    "p": {"style", "class"},
+    "figure": {"style", "class"},
+    "blockquote": {"style", "class"},
+    "*": {"style", "class"},
+}
+
+ALLOWED_STYLES = {
     "color",
     "background-color",
     "font-weight",
@@ -94,21 +93,18 @@ ALLOWED_STYLES = [
     "height",
     "display",
     "vertical-align",
-]
-
-# Bleach >= 6.1 removed the `styles` kwarg from `clean()`; inline CSS is now
-# sanitized via a `css_sanitizer` (requires the `tinycss2` dependency).
-_css_sanitizer = CSSSanitizer(allowed_css_properties=ALLOWED_STYLES)
+}
 
 
 def sanitize_html(html: str) -> str:
-    """Sanitize HTML to prevent XSS."""
-    return bleach.clean(
+    """Sanitize HTML to prevent XSS using fast Rust-backed nh3 (ammonia)."""
+    return nh3.clean(
         html,
         tags=ALLOWED_TAGS,
         attributes=ALLOWED_ATTRIBUTES,
-        css_sanitizer=_css_sanitizer,
-        strip=True,
+        filter_style_properties=ALLOWED_STYLES,
+        clean_content_tags={"script", "style"},
+        link_rel=None,
     )
 
 
