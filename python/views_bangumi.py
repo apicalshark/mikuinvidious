@@ -5,12 +5,12 @@ from datetime import datetime
 from pathlib import Path
 
 import shared
-import zhconv
 from api import bangumi
 from extra import av2bv
 from nyaa import search_nyaa
 from quart import Blueprint, Response, jsonify, request
 from rate_limit import RATE_LIMITS, rate_limit
+from zhconv_rs import zhconv
 
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
 
@@ -332,7 +332,7 @@ async def bangumi_nyaa_api(ssid):
 
     # Build Simplified/Traditional Chinese variants
     simplified_query = (
-        f"({zhconv.convert(simplified_query, 'zh-hans')})|({zhconv.convert(simplified_query, 'zh-hant')})"
+        f"({zhconv(simplified_query, 'zh-hans')})|({zhconv(simplified_query, 'zh-hant')})"
     )
     print(f"[Bangumi] Search Query: {simplified_query}")
 

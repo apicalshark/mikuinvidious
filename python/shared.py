@@ -3,12 +3,13 @@ import functools
 import os
 import subprocess
 import time
+from pathlib import Path
 
 import httpx
 import nacl.secret
 import orjson
 import redis.asyncio as redis
-import toml
+import rtoml
 from api import Credential
 from api.client import get_bili_ticket, request_settings
 from flask_orjson import OrjsonProvider
@@ -304,9 +305,9 @@ appconf = {
 }
 
 if os.path.exists("config.toml"):
-    deep_update(appconf, toml.load("config.toml"))
+    deep_update(appconf, rtoml.load(Path("config.toml")))
 elif os.path.exists("../config.toml"):
-    deep_update(appconf, toml.load("../config.toml"))
+    deep_update(appconf, rtoml.load(Path("../config.toml")))
 
 # Install the locale allowlist now that config is merged, so locale resolution,
 # /set_lang validation and the template language menus all read the same list.
