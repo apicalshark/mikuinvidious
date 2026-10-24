@@ -84,37 +84,57 @@ class RateLimiter:
         redis_key = f"{self.prefix}{key}"
         member = f"{now}:{time.time_ns()}"
 
-        # Use Redis sorted set for sliding window - atomic pipeline
-        pipe = self.redis.pipeline()
-        # Add current request first
-        pipe.zadd(redis_key, {member: now})
-        # Remove old entries
-        pipe.zremrangebyscore(redis_key, 0, window_start)
-        # Count current requests
-        pipe.zcard(redis_key)
-        # Set expiry
-        pipe.expire(redis_key, window + 1)
-        results = await pipe.execute()
+        try:
+            # Use Redis sorted set for sliding window - atomic pipeline
+            pipe = self.redis.pipeline()
+            # Add current request first
+            pipe.zadd(redis_key, {member: now})
+            # Remove old entries
+            pipe.zremrangebyscore(redis_key, 0, window_start)
+            # Count current requests
+            pipe.zcard(redis_key)
+            # Set expiry
+            pipe.expire(redis_key, window + 1)
+            results = await pipe.execute()
 
-        current_count = results[2]
+            current_count = results[2]
 
-        if current_count > limit:
-            # Remove the blocked request to prevent permanent lockout
-            await self.redis.zrem(redis_key, member)
-            # Get oldest entry to calculate reset time
-            oldest = await self.redis.zrange(redis_key, 0, 0, withscores=True)
-            reset_time = int(oldest[0][1]) + window if oldest else now + window
-            return False, {"remaining": 0, "reset": reset_time, "limit": limit, "retry_after": reset_time - now}
+            if current_count > limit:
+                # Remove the blocked request to prevent permanent lockout
+                try:
+                    await self.redis.zrem(redis_key, member)
+                except Exception:
+                    pass
+                # Get oldest entry to calculate reset time
+                try:
+                    oldest = await self.redis.zrange(redis_key, 0, 0, withscores=True)
+                    reset_time = int(oldest[0][1]) + window if oldest else now + window
+                except Exception:
+                    reset_time = now + window
+                return False, {
+                    "remaining": 0,
+                    "reset": reset_time,
+                    "limit": limit,
+                    "retry_after": max(reset_time - now, 1),
+                }
 
-        return True, {"remaining": limit - current_count, "reset": now + window, "limit": limit}
+            return True, {"remaining": limit - current_count, "reset": now + window, "limit": limit}
+        except Exception as e:
+            # Fail-open: if Redis times out or is unreachable, allow request to avoid 500 error
+            print(f"[RateLimit] Redis error for key {key}: {type(e).__name__}: {e}. Failing open.")
+            return True, {"remaining": limit, "reset": now + window, "limit": limit}
 
     async def get_current_usage(self, key: str, window: int) -> int:
         """Get current request count for a key."""
         now = int(time.time())
         window_start = now - window
         redis_key = f"{self.prefix}{key}"
-        await self.redis.zremrangebyscore(redis_key, 0, window_start)
-        return await self.redis.zcard(redis_key)
+        try:
+            await self.redis.zremrangebyscore(redis_key, 0, window_start)
+            return await self.redis.zcard(redis_key)
+        except Exception as e:
+            print(f"[RateLimit] Redis error in get_current_usage for key {key}: {type(e).__name__}: {e}")
+            return 0
 
 
 # Global rate limiter instance
@@ -155,8 +175,13 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
             else:
                 key = f"{get_client_ip(request)}:{request.path}"
 
-            limiter = get_rate_limiter()
-            allowed, info = await limiter.is_allowed(key, limit, window)
+            try:
+                limiter = get_rate_limiter()
+                allowed, info = await limiter.is_allowed(key, limit, window)
+            except Exception as e:
+                print(f"[RateLimit] Unexpected error checking rate limit: {type(e).__name__}: {e}. Failing open.")
+                allowed = True
+                info = {"remaining": limit, "reset": int(time.time()) + window, "limit": limit}
 
             # Add rate limit headers
             from quart import g
@@ -164,8 +189,9 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
             g.rate_limit_info = info
 
             if not allowed:
-                resp = Response(f"Rate limit exceeded. Try again in {info['retry_after']} seconds.", status=429)
-                resp.headers["Retry-After"] = str(max(info["retry_after"], 0))
+                retry_after = info.get("retry_after", 1)
+                resp = Response(f"Rate limit exceeded. Try again in {retry_after} seconds.", status=429)
+                resp.headers["Retry-After"] = str(max(retry_after, 0))
                 return resp
 
             return await f(*args, **kwargs)

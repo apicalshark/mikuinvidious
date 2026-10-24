@@ -5,11 +5,11 @@ from urllib.parse import urlparse
 
 from live_manager import live_manager
 from quart import Blueprint, Response, request
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
 from shared import (
+    UPSTREAM_RESPONSE_BLACKLIST,
     Network,
     TicketManager,
-    UPSTREAM_RESPONSE_BLACKLIST,
     appconf,
     appredis,
     get_common_headers,
@@ -178,6 +178,22 @@ async def render_proxy_pic(req_path):
         except Exception as e:
             print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
             return Response("Upstream error", status=502)
+
+
+async def _image_rate_key(req) -> str:
+    """One image bucket per client IP.
+
+    The default key is ``ip:path``, which gives every distinct cover URL its
+    own allowance — a gallery flood across unique URLs never hits a limit and
+    each image costs a socket. Keying on the route caps images per IP.
+    """
+    return f"{get_client_ip(req)}:image"
+
+
+@proxy_bp.route("/proxy/pic/<path:subpath>")
+@rate_limit(**RATE_LIMITS["loose"], key_func=_image_rate_key)
+async def proxy_pic(subpath):
+    return await render_proxy_pic(f"/proxy/pic/{subpath}")
 
 
 @proxy_bp.route("/proxy/<path:subpath>")
@@ -470,8 +486,6 @@ async def proxy_main(subpath):
             await conn.close()
             return Response("Upstream error", status=502)
 
-    elif req_path.startswith("/proxy/pic/"):
-        return await render_proxy_pic(req_path)
     else:
         return Response("I'm a teapot", status=418)
 
