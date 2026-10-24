@@ -108,7 +108,8 @@ async def bangumi_view(ssid):
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
     try:
         # Fetch metadata and episode list directly
-        meta_data = await asyncio.wait_for(b.get_meta(), timeout=10.0)
+        async with asyncio.timeout(10.0):
+            meta_data = await b.get_meta()
         if not meta_data:
             raise Exception("Bilibili returned no valid bangumi metadata")
 
@@ -306,7 +307,8 @@ async def bangumi_nyaa_api(ssid):
 
     # 1. Get the title
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
-    meta_data = await asyncio.wait_for(b.get_meta(), timeout=5.0)
+    async with asyncio.timeout(5.0):
+        meta_data = await b.get_meta()
     meta = meta_data.get("media", {}) if meta_data else {}
     raw_title = meta.get("title", "")
 

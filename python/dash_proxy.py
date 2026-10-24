@@ -566,7 +566,8 @@ async def _fetch_single_durl(v, idx: int, qn: int, ep_id=None, cid=None) -> dict
         "high_quality": 1,
     }
     try:
-        res = await asyncio.wait_for(api.request(), timeout=4.0)
+        async with asyncio.timeout(4.0):
+            res = await api.request()
     except Exception as exc:
         # PGC content 404s on the UGC endpoint — retry the PGC playurl.
         if not (hasattr(exc, "code") and exc.code == -404):
@@ -753,10 +754,8 @@ async def _resolve_durl_download(v, vid: str, idx: int, qual: int, play_data: di
             # all qualities are re-fetched fresh.
             node_data = {**node_data, "durl": None}
         try:
-            supported = await asyncio.wait_for(
-                fetch_durl_supported_src(v, vid, idx, play_data=node_data, force=force),
-                timeout=25.0,
-            )
+            async with asyncio.timeout(25.0):
+                supported = await fetch_durl_supported_src(v, vid, idx, play_data=node_data, force=force)
         except Exception as exc:
             print(f"[DashProxy] durl resolve (force={force}) failed for {vid}:{idx}: {exc}")
             if force:
@@ -789,8 +788,9 @@ async def _fetch_and_cache_dash_data(vid, idx, key):
 
     v = video.Video(bvid=vid, credential=appcred)
     try:
-        data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=DASH_FETCH_TIMEOUT)
-    except asyncio.TimeoutError:
+        async with asyncio.timeout(DASH_FETCH_TIMEOUT):
+            data = await video_get_dash_for_qn(v, idx)
+    except TimeoutError:
         print(f"[DashProxy] Fetching dash for {vid}:{idx} timed out")
         data = None
     if not data or not data.get("dash"):
@@ -1278,9 +1278,10 @@ async def _await_track_retry(
         await asyncio.sleep(delay)
         return "retry"
     try:
-        await asyncio.wait_for(cancel_event.wait(), timeout=delay)
+        async with asyncio.timeout(delay):
+            await cancel_event.wait()
         return "cancelled"
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return "retry"
 
 
@@ -1576,7 +1577,8 @@ async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
     except Exception:
         return Response("Bad Request: invalid video ID", status=400)
     try:
-        play_data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=8.0)
+        async with asyncio.timeout(8.0):
+            play_data = await video_get_dash_for_qn(v, idx)
     except Exception as exc:
         print(f"[DashProxy] durl download fetch failed for {vid}:{idx}: {exc}")
         play_data = None
@@ -1779,10 +1781,8 @@ async def _fetch_dash_attempt(url: str, headers: dict, proxy_url: str, timeout: 
     """
     conn = CdnConnection(url, headers=headers, proxy_url=proxy_url)
     try:
-        resp_headers = await asyncio.wait_for(
-            _dash_handshake(conn),
-            timeout=timeout,
-        )
+        async with asyncio.timeout(timeout):
+            resp_headers = await _dash_handshake(conn)
         return conn, resp_headers
     except BaseException:
         await conn.close()
@@ -1908,10 +1908,11 @@ async def _yield_dash_body(conn, label: str, floor_watchdog: bool = True):
     iterator = conn.iter_chunks()
     while True:
         try:
-            chunk = await asyncio.wait_for(iterator.__anext__(), timeout=DASH_BODY_IDLE_TIMEOUT)
+            async with asyncio.timeout(DASH_BODY_IDLE_TIMEOUT):
+                chunk = await iterator.__anext__()
         except StopAsyncIteration:
             return
-        except (asyncio.TimeoutError, TimeoutError):
+        except TimeoutError:
             raise _SlowDashBody(f"no data for {DASH_BODY_IDLE_TIMEOUT:.0f}s (idle stall)")
         got += len(chunk)
         el = time.monotonic() - t0
@@ -2844,9 +2845,10 @@ async def _download_track_segmented(
                         pause = 1.0
                     if cancel_event is not None:
                         try:
-                            await asyncio.wait_for(cancel_event.wait(), timeout=pause)
+                            async with asyncio.timeout(pause):
+                                await cancel_event.wait()
                             return _DOWNLOAD_CANCELLED
-                        except (asyncio.TimeoutError, TimeoutError):
+                        except TimeoutError:
                             pass
                     else:
                         await asyncio.sleep(pause)
@@ -2892,9 +2894,10 @@ async def _download_track_segmented(
                 pause = _pace_delay(slow_streak)
                 if cancel_event is not None:
                     try:
-                        await asyncio.wait_for(cancel_event.wait(), timeout=pause)
+                        async with asyncio.timeout(pause):
+                            await cancel_event.wait()
                         return _DOWNLOAD_CANCELLED
-                    except (asyncio.TimeoutError, TimeoutError):
+                    except TimeoutError:
                         pass
                 else:
                     await asyncio.sleep(pause)
@@ -3617,7 +3620,8 @@ async def _run_durl_job(job: _DownloadJob):
     except Exception:
         raise RuntimeError("invalid video ID") from None
     try:
-        play_data = await asyncio.wait_for(video_get_dash_for_qn(v, job.idx), timeout=DASH_FETCH_TIMEOUT)
+        async with asyncio.timeout(DASH_FETCH_TIMEOUT):
+            play_data = await video_get_dash_for_qn(v, job.idx)
     except Exception as exc:
         print(f"[DashProxy] job {job.job_id} durl fetch failed: {exc}")
         play_data = None
