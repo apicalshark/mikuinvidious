@@ -20,7 +20,7 @@ Minimal drop-in for ``bilibili_api.bangumi`` covering the ``API`` dict,
 MikuInvidious. Also mirrors ``bangumi_index_params.json`` via ``data/``.
 """
 
-import os
+from pathlib import Path
 
 from .client import Api
 from .credential import Credential
@@ -106,7 +106,7 @@ class Bangumi:
         return await Api(**api, credential=self.credential).update_params(**params).result
 
 
-_data_dir = os.path.join(os.path.dirname(__file__), "data")
+_data_dir = Path(__file__).parent / "data"
 
 
 async def get_self_media_list(pn=1, ps=24, credential=None):

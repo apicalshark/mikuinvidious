@@ -17,7 +17,7 @@ sudo apt install python3 python3-venv git curl
 
 ### 核心工具與安裝連結
 
-- **Python 3.14+**: 後端執行所需。
+- **Python 3.15+**: 後端執行所需。
 - **uv**: 推薦的 Python 套件管理器。安裝命令：
   ```bash
   curl -LsSf https://astral.sh/uv/install.sh | sh

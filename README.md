@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/apicalshark/mikuinvidious/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPLv3-ff8fab?style=flat-square" alt="License: AGPLv3" /></a>
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.14+" /></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.15%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.15+" /></a>
   <img src="https://img.shields.io/badge/Quart-ASGI-ff8fab?style=flat-square" alt="Quart ASGI" />
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker ready" />
   <img src="https://img.shields.io/badge/Redis-required-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis required" />
@@ -52,7 +52,7 @@ For users who want to run the application manually, see the [local installation 
 
 ## Tech Stack
 
-- **Backend**: Python 3.14+, Quart (ASGI)
+- **Backend**: Python 3.15+, Quart (ASGI)
 - **Server**: Granian (Rust-powered), Caddy
 - **Cache**: Redis (required)
 - **Frontend**: Tailwind CSS (Modern theme)

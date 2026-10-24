@@ -17,7 +17,7 @@ sudo apt install python3 python3-venv git curl
 
 ### Key Tools & Installation Links
 
-- **Python 3.14+**: Required for the backend.
+- **Python 3.15+**: Required for the backend.
 - **uv**: The recommended Python package manager. Install it via:
   ```bash
   curl -LsSf https://astral.sh/uv/install.sh | sh

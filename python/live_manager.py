@@ -151,9 +151,10 @@ class LiveStream:
                     self.header_ready.clear()
                     self.resp_headers = {}
                     try:
-                        await asyncio.wait_for(self.client_joined.wait(), timeout=5.0)
+                        async with asyncio.timeout(5.0):
+                            await self.client_joined.wait()
                         self.client_joined.clear()
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         if not self.clients:
                             print(f"[LiveManager] No clients for 5s, self-destructing: {self.url[:50]}")
                             return
@@ -186,13 +187,14 @@ class LiveStream:
                     while self.is_running:
                         try:
                             # Use a short timeout to check for client presence periodically
-                            chunk = await asyncio.wait_for(anext(resp_iter), timeout=5.0)
+                            async with asyncio.timeout(5.0):
+                                chunk = await anext(resp_iter)
                         except StopAsyncIteration:
                             print(f"[LiveManager] Upstream reached EOF: {self.url[:50]}")
                             stream_ended_naturally = True
                             self.is_running = False
                             break  # Break into shutdown section
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             # Silence from upstream. Check grace period.
                             if not self.clients and (time.time() - last_signal_time > 5.0):
                                 print("[LiveManager] No clients for 5s during silence. Killing upstream.")
@@ -360,8 +362,9 @@ class LiveStreamManager:
         try:
             # Efficiently wait for headers from the now-active stream
             print(f"[LiveManager] Waiting for headers from upstream: {url[:50]}...")
-            await asyncio.wait_for(stream.header_ready.wait(), timeout=20.0)
-        except asyncio.TimeoutError:
+            async with asyncio.timeout(20.0):
+                await stream.header_ready.wait()
+        except TimeoutError:
             print(f"[LiveManager] Timeout waiting for headers (Returning partial stream): {url[:50]}")
 
         if not stream.is_running and not stream.chunk_buffer:

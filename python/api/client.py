@@ -620,15 +620,15 @@ class Api:
         # set, so the player-parity header injection below is skipped.
         self.curl = curl
 
-    def update_data(self, **kwargs) -> "Api":
+    def update_data(self, **kwargs) -> Api:
         self.data = kwargs
         return self
 
-    def update_params(self, **kwargs) -> "Api":
+    def update_params(self, **kwargs) -> Api:
         self.params = kwargs
         return self
 
-    def update_headers(self, **kwargs) -> "Api":
+    def update_headers(self, **kwargs) -> Api:
         self.headers = kwargs
         return self
 
@@ -722,25 +722,29 @@ class Api:
             return None
         try:
             resp_data = resp.json()
-        except Exception:
-            raise NetworkException(resp.status_code, "JSON parsing failed")
+        except Exception as exc:
+            raise NetworkException(resp.status_code, "JSON parsing failed") from exc
         if not isinstance(resp_data, dict):
             return resp_data
         if raw:
             return resp_data
         if not self.ignore_code:
-            code = resp_data.get("code")
-            if code is None:
-                raise ResponseCodeException(-1, "API response missing code field", resp_data)
-            if code != 0:
-                msg = resp_data.get("msg") or resp_data.get("message") or "API returned no error message"
-                raise ResponseCodeException(code, msg, resp_data)
-        real_data = resp_data
-        if resp_data.get("data") is not None:
-            real_data = resp_data["data"]
-        elif resp_data.get("result") is not None:
-            real_data = resp_data["result"]
-        return real_data
+            match resp_data:
+                case {"code": 0}:
+                    pass
+                case {"code": int(code)}:
+                    msg = resp_data.get("msg") or resp_data.get("message") or "API returned no error message"
+                    raise ResponseCodeException(code, msg, resp_data)
+                case _:
+                    raise ResponseCodeException(-1, "API response missing code field", resp_data)
+
+        match resp_data:
+            case {"data": data} if data is not None:
+                return data
+            case {"result": result} if result is not None:
+                return result
+            case _:
+                return resp_data
 
     @property
     async def result(self):

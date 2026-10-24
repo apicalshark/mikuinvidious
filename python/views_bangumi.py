@@ -1,8 +1,8 @@
 import asyncio
 import json
-import os
 import re
 from datetime import datetime
+from pathlib import Path
 
 import shared
 import zhconv
@@ -15,11 +15,11 @@ from rate_limit import RATE_LIMITS, rate_limit
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
 
 # Load filter configuration
-params_path = os.path.join(os.path.dirname(bangumi.__file__), "data", "bangumi_index_params.json")
+params_path = Path(bangumi.__file__).parent / "data" / "bangumi_index_params.json"
 try:
     with open(params_path, encoding="utf-8") as f:
         INDEX_PARAMS = json.load(f)
-except:
+except Exception:
     INDEX_PARAMS = {}
 
 
@@ -108,7 +108,8 @@ async def bangumi_view(ssid):
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
     try:
         # Fetch metadata and episode list directly
-        meta_data = await asyncio.wait_for(b.get_meta(), timeout=10.0)
+        async with asyncio.timeout(10.0):
+            meta_data = await b.get_meta()
         if not meta_data:
             raise Exception("Bilibili returned no valid bangumi metadata")
 
@@ -225,7 +226,7 @@ async def bangumi_play(ep_id):
                 if v == "--" or v is None:
                     return default
                 return int(v)
-            except:
+            except (ValueError, TypeError):
                 return default
 
         # Construct vinfo for video.html
@@ -306,7 +307,8 @@ async def bangumi_nyaa_api(ssid):
 
     # 1. Get the title
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
-    meta_data = await asyncio.wait_for(b.get_meta(), timeout=5.0)
+    async with asyncio.timeout(5.0):
+        meta_data = await b.get_meta()
     meta = meta_data.get("media", {}) if meta_data else {}
     raw_title = meta.get("title", "")
 

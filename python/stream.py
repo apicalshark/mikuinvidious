@@ -39,33 +39,34 @@ def _parse_cdn_url(url):
 
 
 async def _socks5_handshake(writer, reader, target_host, target_port, timeout):
-    writer.write(b"\x05\x01\x00")
-    await asyncio.wait_for(writer.drain(), timeout=timeout)
-    resp = await asyncio.wait_for(reader.readexactly(2), timeout=timeout)
-    if resp[0] != 5:
-        raise CdnConnectError(f"SOCKS5: bad version {resp[0]}")
-    if resp[1] != 0:
-        raise CdnConnectError(f"SOCKS5: auth method {resp[1]} required")
+    async with asyncio.timeout(timeout):
+        writer.write(b"\x05\x01\x00")
+        await writer.drain()
+        resp = await reader.readexactly(2)
+        if resp[0] != 5:
+            raise CdnConnectError(f"SOCKS5: bad version {resp[0]}")
+        if resp[1] != 0:
+            raise CdnConnectError(f"SOCKS5: auth method {resp[1]} required")
 
-    target_bytes = target_host.encode("idna")
-    msg = b"\x05\x01\x00\x03" + bytes([len(target_bytes)]) + target_bytes + target_port.to_bytes(2, "big")
-    writer.write(msg)
-    await asyncio.wait_for(writer.drain(), timeout=timeout)
-    resp = await asyncio.wait_for(reader.readexactly(4), timeout=timeout)
-    if resp[0] != 5:
-        raise CdnConnectError(f"SOCKS5: bad reply version {resp[0]}")
-    if resp[1] != 0:
-        raise CdnConnectError(f"SOCKS5: connect failed status {resp[1]}")
-    atype = resp[3]
-    if atype == 1:
-        await asyncio.wait_for(reader.readexactly(6), timeout=timeout)
-    elif atype == 3:
-        dlen = (await asyncio.wait_for(reader.readexactly(1), timeout=timeout))[0]
-        await asyncio.wait_for(reader.readexactly(dlen + 2), timeout=timeout)
-    elif atype == 4:
-        await asyncio.wait_for(reader.readexactly(18), timeout=timeout)
-    else:
-        raise CdnConnectError(f"SOCKS5: unknown address type {atype}")
+        target_bytes = target_host.encode("idna")
+        msg = b"\x05\x01\x00\x03" + bytes([len(target_bytes)]) + target_bytes + target_port.to_bytes(2, "big")
+        writer.write(msg)
+        await writer.drain()
+        resp = await reader.readexactly(4)
+        if resp[0] != 5:
+            raise CdnConnectError(f"SOCKS5: bad reply version {resp[0]}")
+        if resp[1] != 0:
+            raise CdnConnectError(f"SOCKS5: connect failed status {resp[1]}")
+        atype = resp[3]
+        if atype == 1:
+            await reader.readexactly(6)
+        elif atype == 3:
+            dlen = (await reader.readexactly(1))[0]
+            await reader.readexactly(dlen + 2)
+        elif atype == 4:
+            await reader.readexactly(18)
+        else:
+            raise CdnConnectError(f"SOCKS5: unknown address type {atype}")
 
 
 async def _http_connect_tunnel(writer, reader, target_host, target_port, timeout):
@@ -75,21 +76,22 @@ async def _http_connect_tunnel(writer, reader, target_host, target_port, timeout
         f"Connection: close\r\n"
         f"\r\n"
     ).encode()
-    writer.write(req)
-    await asyncio.wait_for(writer.drain(), timeout=timeout)
-    line = await asyncio.wait_for(_read_line(reader), timeout=timeout)
-    try:
-        status = int(line.split(b" ")[1])
-    except (ValueError, IndexError):
-        raise CdnProtocolError(f"Bad HTTP CONNECT status line: {line!r}")
-    if status != 200:
-        raise CdnConnectError(f"HTTP CONNECT failed: {line.decode(errors='replace').strip()}")
-    while True:
-        hline = await asyncio.wait_for(_read_line(reader), timeout=timeout)
-        if hline == b"":
-            raise CdnProtocolError("HTTP CONNECT connection closed prematurely")
-        if hline in (b"\r\n", b"\n"):
-            break
+    async with asyncio.timeout(timeout):
+        writer.write(req)
+        await writer.drain()
+        line = await _read_line(reader)
+        try:
+            status = int(line.split(b" ")[1])
+        except (ValueError, IndexError):
+            raise CdnProtocolError(f"Bad HTTP CONNECT status line: {line!r}")
+        if status != 200:
+            raise CdnConnectError(f"HTTP CONNECT failed: {line.decode(errors='replace').strip()}")
+        while True:
+            hline = await _read_line(reader)
+            if hline == b"":
+                raise CdnProtocolError("HTTP CONNECT connection closed prematurely")
+            if hline in (b"\r\n", b"\n"):
+                break
 
 
 async def _read_line(reader):
@@ -127,31 +129,25 @@ class CdnConnection:
         self._response = CdnResponse()
 
     async def connect(self):
-        if self._proxy_url:
-            proxy_scheme, proxy_host, proxy_port = _parse_proxy_url(self._proxy_url)
-            self._reader, self._writer = await asyncio.wait_for(
-                asyncio.open_connection(proxy_host, proxy_port),
-                timeout=self._connect_timeout,
-            )
-            if proxy_scheme.startswith("socks"):
-                await _socks5_handshake(self._writer, self._reader, self._host, self._port, self._connect_timeout)
-            elif proxy_scheme == "http":
-                await _http_connect_tunnel(self._writer, self._reader, self._host, self._port, self._connect_timeout)
-            else:
-                raise CdnConnectError(f"Unsupported proxy scheme: {proxy_scheme}")
+        async with asyncio.timeout(self._connect_timeout):
+            if self._proxy_url:
+                proxy_scheme, proxy_host, proxy_port = _parse_proxy_url(self._proxy_url)
+                self._reader, self._writer = await asyncio.open_connection(proxy_host, proxy_port)
+                if proxy_scheme.startswith("socks"):
+                    await _socks5_handshake(self._writer, self._reader, self._host, self._port, self._connect_timeout)
+                elif proxy_scheme == "http":
+                    await _http_connect_tunnel(self._writer, self._reader, self._host, self._port, self._connect_timeout)
+                else:
+                    raise CdnConnectError(f"Unsupported proxy scheme: {proxy_scheme}")
 
-            if self._use_tls:
-                ctx = ssl.create_default_context()
-                await asyncio.wait_for(
-                    self._writer.start_tls(ctx, server_hostname=self._host),
-                    timeout=self._connect_timeout,
+                if self._use_tls:
+                    ctx = ssl.create_default_context()
+                    await self._writer.start_tls(ctx, server_hostname=self._host)
+            else:
+                ctx = ssl.create_default_context() if self._use_tls else None
+                self._reader, self._writer = await asyncio.open_connection(
+                    self._host, self._port, ssl=ctx, server_hostname=self._host if ctx else None
                 )
-        else:
-            ctx = ssl.create_default_context() if self._use_tls else None
-            self._reader, self._writer = await asyncio.wait_for(
-                asyncio.open_connection(self._host, self._port, ssl=ctx, server_hostname=self._host if ctx else None),
-                timeout=self._connect_timeout,
-            )
 
         self._connected = True
 
@@ -169,7 +165,8 @@ class CdnConnection:
         request = req_line + header_lines + b"\r\n"
 
         self._writer.write(request)
-        await asyncio.wait_for(self._writer.drain(), timeout=self._connect_timeout)
+        async with asyncio.timeout(self._connect_timeout):
+            await self._writer.drain()
 
     async def next_request(self, headers: dict) -> CdnResponse:
         """Send another request on this keep-alive connection.
@@ -187,28 +184,29 @@ class CdnConnection:
     async def read_response_headers(self) -> CdnResponse:
         resp = CdnResponse()
 
-        status_line = await asyncio.wait_for(_read_line(self._reader), timeout=self._read_timeout)
-        parts = status_line.strip().split(b" ", maxsplit=2)
-        if len(parts) < 2:
-            raise CdnProtocolError(f"Bad status line: {status_line!r}")
-        resp.http_version = parts[0].decode()
-        try:
-            resp.status_code = int(parts[1])
-        except ValueError:
-            raise CdnProtocolError(f"Bad status code: {parts[1]!r}")
-        resp.reason = parts[2].decode(errors="replace") if len(parts) > 2 else ""
+        async with asyncio.timeout(self._read_timeout):
+            status_line = await _read_line(self._reader)
+            parts = status_line.strip().split(b" ", maxsplit=2)
+            if len(parts) < 2:
+                raise CdnProtocolError(f"Bad status line: {status_line!r}")
+            resp.http_version = parts[0].decode()
+            try:
+                resp.status_code = int(parts[1])
+            except ValueError:
+                raise CdnProtocolError(f"Bad status code: {parts[1]!r}")
+            resp.reason = parts[2].decode(errors="replace") if len(parts) > 2 else ""
 
-        while True:
-            hline = await asyncio.wait_for(_read_line(self._reader), timeout=self._read_timeout)
-            if hline == b"":
-                raise CdnProtocolError("Connection closed while reading headers")
-            if hline in (b"\r\n", b"\n"):
-                break
-            colon = hline.find(b":")
-            if colon > 0:
-                k = hline[:colon].decode("latin-1").strip()
-                v = hline[colon + 1 :].strip().decode("latin-1").strip()
-                resp.headers[k.lower()] = v
+            while True:
+                hline = await _read_line(self._reader)
+                if hline == b"":
+                    raise CdnProtocolError("Connection closed while reading headers")
+                if hline in (b"\r\n", b"\n"):
+                    break
+                colon = hline.find(b":")
+                if colon > 0:
+                    k = hline[:colon].decode("latin-1").strip()
+                    v = hline[colon + 1 :].strip().decode("latin-1").strip()
+                    resp.headers[k.lower()] = v
 
         self._response = resp
         return resp
@@ -223,11 +221,9 @@ class CdnConnection:
                 raise CdnProtocolError(f"Invalid Content-Length: {content_length!r}")
             while remaining > 0:
                 try:
-                    chunk = await asyncio.wait_for(
-                        self._reader.read(min(self._read_chunk_size, remaining)),
-                        timeout=self._read_timeout,
-                    )
-                except asyncio.TimeoutError:
+                    async with asyncio.timeout(self._read_timeout):
+                        chunk = await self._reader.read(min(self._read_chunk_size, remaining))
+                except TimeoutError:
                     raise CdnTimeoutError(f"Read timeout after {remaining} bytes remaining")
                 if not chunk:
                     raise CdnProtocolError("Upstream connection closed prematurely")
@@ -238,7 +234,8 @@ class CdnConnection:
         transfer_encoding = self._response.headers.get("transfer-encoding", "").lower()
         if transfer_encoding == "chunked":
             while True:
-                line = await asyncio.wait_for(_read_line(self._reader), timeout=self._read_timeout)
+                async with asyncio.timeout(self._read_timeout):
+                    line = await _read_line(self._reader)
                 if line == b"":
                     raise CdnProtocolError("Connection closed prematurely before receiving final chunk")
                 hex_len = line.strip().split(b";")[0]
@@ -249,28 +246,26 @@ class CdnConnection:
                 except ValueError:
                     raise CdnProtocolError(f"Bad chunk size: {hex_len!r}")
                 if chunk_size == 0:
-                    await asyncio.wait_for(_read_line(self._reader), timeout=self._read_timeout)
+                    async with asyncio.timeout(self._read_timeout):
+                        await _read_line(self._reader)
                     break
                 remaining = chunk_size
                 while remaining > 0:
-                    chunk = await asyncio.wait_for(
-                        self._reader.read(min(self._read_chunk_size, remaining)),
-                        timeout=self._read_timeout,
-                    )
+                    async with asyncio.timeout(self._read_timeout):
+                        chunk = await self._reader.read(min(self._read_chunk_size, remaining))
                     if not chunk:
                         raise CdnProtocolError("Truncated chunked body")
                     remaining -= len(chunk)
                     yield chunk
-                await asyncio.wait_for(_read_line(self._reader), timeout=self._read_timeout)
+                async with asyncio.timeout(self._read_timeout):
+                    await _read_line(self._reader)
             return
 
         while True:
             try:
-                chunk = await asyncio.wait_for(
-                    self._reader.read(self._read_chunk_size),
-                    timeout=self._read_timeout,
-                )
-            except asyncio.TimeoutError:
+                async with asyncio.timeout(self._read_timeout):
+                    chunk = await self._reader.read(self._read_chunk_size)
+            except TimeoutError:
                 raise CdnTimeoutError("Read timeout on connection-closed body")
             if not chunk:
                 break
@@ -278,15 +273,17 @@ class CdnConnection:
 
     async def read_debug_body(self, max_bytes: int = 2048, timeout: float = 5.0) -> bytes:
         try:
-            return await asyncio.wait_for(self._reader.read(max_bytes), timeout=timeout)
-        except asyncio.TimeoutError:
+            async with asyncio.timeout(timeout):
+                return await self._reader.read(max_bytes)
+        except TimeoutError:
             return b""
 
     async def close(self):
         if self._writer:
             try:
                 self._writer.close()
-                await asyncio.wait_for(self._writer.wait_closed(), timeout=5.0)
+                async with asyncio.timeout(5.0):
+                    await self._writer.wait_closed()
             except Exception:
                 try:
                     self._writer.transport.abort()
@@ -294,4 +291,4 @@ class CdnConnection:
                     pass
             self._writer = None
             self._reader = None
-            self._connected = False
+        self._connected = False

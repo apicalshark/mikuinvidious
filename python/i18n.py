@@ -31,12 +31,11 @@ comments, danmaku, Bilibili filter vocab, Nyaa titles) is never translated;
 only UI chrome goes through ``_()``.
 """
 
-from __future__ import annotations
-
 import json
 import os
+from pathlib import Path
 
-LOCALES_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "locales")
+LOCALES_DIR = Path(__file__).resolve().parent.parent / "locales"
 
 # Explicit endonym overrides shown in the language menus (a locale is named in
 # its own language, so these are display labels, not translatable strings).
@@ -118,10 +117,10 @@ def discover_available_locales() -> tuple[str, ...]:
     for name in entries:
         if name.startswith((".", "_")):
             continue
-        lc_dir = os.path.join(LOCALES_DIR, name, "LC_MESSAGES")
+        lc_dir = LOCALES_DIR / name / "LC_MESSAGES"
         try:
-            has_po = os.path.isfile(os.path.join(lc_dir, "messages.po"))
-            has_json = os.path.isfile(os.path.join(lc_dir, "messages.json"))
+            has_po = (lc_dir / "messages.po").is_file()
+            has_json = (lc_dir / "messages.json").is_file()
         except OSError:
             continue
         if not (has_po or has_json):
@@ -342,9 +341,9 @@ def get_json_catalog(locale: str) -> dict:
     canonical = normalize_supported(locale) or "en"
     if canonical in _JSON_CACHE:
         return _JSON_CACHE[canonical]
-    path = os.path.join(LOCALES_DIR, _locale_dir(canonical), "LC_MESSAGES", "messages.json")
+    path = LOCALES_DIR / _locale_dir(canonical) / "LC_MESSAGES" / "messages.json"
     try:
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             data = json.load(f)
             catalog = data if isinstance(data, dict) else {}
     except (OSError, ValueError):

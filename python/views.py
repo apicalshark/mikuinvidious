@@ -567,7 +567,7 @@ async def space_json_feed(mid):
                 "title": title,
                 "content_text": title,
                 "date_published": datetime.datetime.fromtimestamp(
-                    v.get("created", 0), tz=datetime.timezone.utc
+                    v.get("created", 0), tz=datetime.UTC
                 ).isoformat(),
                 "image": v.get("pic", ""),
             }
@@ -1105,10 +1105,8 @@ async def _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall, c
     try:
         from dash_proxy import fetch_durl_supported_src
 
-        return await asyncio.wait_for(
-            fetch_durl_supported_src(v, vid, idx, play_data=dash_data, ep_id=ep_id, cid=cid),
-            timeout=20.0,
-        )
+        async with asyncio.timeout(20.0):
+            return await fetch_durl_supported_src(v, vid, idx, play_data=dash_data, ep_id=ep_id, cid=cid)
     except Exception as e:
         print(f"[Player] durl fallback failed for {vid}:{idx}: {e}")
         return []
@@ -1144,7 +1142,8 @@ async def api_component_player(vid, idx):
         try:
             from dash_proxy import video_get_dash_for_qn
 
-            data = await asyncio.wait_for(video_get_dash_for_qn(v, idx, ep_id=ep_id, cid=pgc_cid), timeout=8.0)
+            async with asyncio.timeout(8.0):
+                data = await video_get_dash_for_qn(v, idx, ep_id=ep_id, cid=pgc_cid)
             if _is_final_play_data(data):
                 if isinstance(data, dict) and data.get("dash"):
                     await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
@@ -1258,7 +1257,8 @@ async def _get_subtitles(v, idx) -> list:
 
         if not (_cred and _cred.sessdata):
             return []
-        subs = await asyncio.wait_for(v.get_subtitle_meta(page_index=idx), timeout=6.0)
+        async with asyncio.timeout(6.0):
+            subs = await v.get_subtitle_meta(page_index=idx)
         from res import _subtitle_entries
 
         return _subtitle_entries(subs)
@@ -1280,9 +1280,8 @@ async def api_component_meta(vid, idx):
 
     comments_closed = False
     try:
-        raw_result = await asyncio.wait_for(
-            comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE), 4.0
-        )
+        async with asyncio.timeout(4.0):
+            raw_result = await comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE)
     except Exception as exc:
         debug(f"safe_api exception for vid={vid}: {type(exc).__name__}: {exc}")
         comments_closed = getattr(exc, "code", None) == comment.COMMENTS_CLOSED_CODE
@@ -1314,7 +1313,8 @@ async def api_component_meta_more(vid, idx):
 
     async def safe_api(coro, timeout=4.0):
         try:
-            return await asyncio.wait_for(coro, timeout=timeout)
+            async with asyncio.timeout(timeout):
+                return await coro
         except Exception:
             return None
 
@@ -1348,7 +1348,8 @@ async def api_component_sub_comments(vid, rpid):
 
     async def safe_api(coro, timeout=4.0):
         try:
-            return await asyncio.wait_for(coro, timeout=timeout)
+            async with asyncio.timeout(timeout):
+                return await coro
         except Exception:
             return None
 
@@ -1438,7 +1439,8 @@ async def video_view(vid, idx=0):
     # LIGHTWEIGHT FETCH ONLY
     async def safe_api(coro, timeout=4.0):
         try:
-            return await asyncio.wait_for(coro, timeout=timeout)
+            async with asyncio.timeout(timeout):
+                return await coro
         except Exception:
             return None
 
@@ -1533,15 +1535,14 @@ async def video_view(vid, idx=0):
                 video_get_dash_for_qn,
             )
 
-            data = await asyncio.wait_for(video_get_dash_for_qn(v, idx), timeout=8.0)
+            async with asyncio.timeout(8.0):
+                data = await video_get_dash_for_qn(v, idx)
             if has_valid_dash_tracks(data):
                 await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
             elif data and data.get("durl"):
                 try:
-                    await asyncio.wait_for(
-                        fetch_durl_supported_src(v, vid, idx, play_data=data),
-                        timeout=25.0,
-                    )
+                    async with asyncio.timeout(25.0):
+                        await fetch_durl_supported_src(v, vid, idx, play_data=data)
                 except Exception as e:
                     print(f"[Video] Pre-cache durl fallback failed for {vid}: {e}")
         except Exception as e:

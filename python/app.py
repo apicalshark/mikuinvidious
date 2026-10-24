@@ -55,6 +55,8 @@ async def monitor_fd():
 
 @app.before_serving
 async def start_background_tasks():
+    loop = asyncio.get_running_loop()
+    loop.set_task_factory(asyncio.eager_task_factory)
     if appconf["server"]["monitor_fd"]:
         app.add_background_task(monitor_fd)
 
