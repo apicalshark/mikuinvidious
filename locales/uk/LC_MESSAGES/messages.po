@@ -1,10 +1,13 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-10-26 21:13+0800\n"
+"Language: uk\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: uk\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
+"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
 #: python/i18n_strings.py:30
 msgid "Article does not exist or parse error"
@@ -42,9 +45,38 @@ msgstr "Не вдалося отримати список трансляцій. 
 msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "Не вдалося отримати профіль цього користувача. Спробуйте пізніше."
 
+#: python/i18n_strings.py:39
+msgid ""
+"Failed to load bangumi info. Please check your network or try again later."
+msgstr ""
+"Не вдалося завантажити інформацію про банґумі. Перевірте мережу або "
+"спробуйте пізніше."
+
+#: python/i18n_strings.py:40
+msgid ""
+"Failed to load the live room. Please check your network or try again later."
+msgstr ""
+"Не вдалося завантажити кімнату трансляції. Перевірте мережу або спробуйте "
+"пізніше."
+
 #: python/i18n_strings.py:41
 msgid "Failed to resolve the redirect target."
 msgstr "Не вдалося визначити ціль перенаправлення."
+
+#: python/i18n_strings.py:42
+msgid ""
+"Failed to resolve the short link. Please check your network connection or "
+"proxy settings."
+msgstr ""
+"Не вдалося обробити коротке посилання. Перевірте мережеве з’єднання або "
+"налаштування проксі."
+
+#: python/i18n_strings.py:43
+msgid ""
+"Internal server error. Please try again later or contact the administrator."
+msgstr ""
+"Внутрішня помилка сервера. Спробуйте пізніше або зверніться до "
+"адміністратора."
 
 #: python/i18n_strings.py:44
 msgid "Invalid request parameters. Please check and try again."
@@ -102,6 +134,10 @@ msgstr "Перевірте свій запит і спробуйте знову.
 msgid "Please enter a search keyword and try again."
 msgstr "Введіть ключове слово та спробуйте знову."
 
+#: python/i18n_strings.py:58
+msgid "Please try refreshing the page, or check the server network connection."
+msgstr "Спробуйте оновити сторінку або перевірте мережеве з’єднання сервера."
+
 #: python/i18n_strings.py:59
 msgid "Search failed"
 msgstr "Пошук не вдався"
@@ -114,6 +150,12 @@ msgstr "Помилка сервера"
 msgid "Space load failed"
 msgstr "Не вдалося завантажити простір"
 
+#: python/i18n_strings.py:62
+msgid ""
+"The article you requested most likely does not exist. Please check your "
+"request."
+msgstr "Запитаної статті, найімовірніше, не існує. Перевірте свій запит."
+
 #: python/i18n_strings.py:63
 msgid "The requested page does not exist."
 msgstr "Запитаної сторінки не існує."
@@ -122,9 +164,22 @@ msgstr "Запитаної сторінки не існує."
 msgid "The requested resource does not exist."
 msgstr "Запитаного ресурсу не існує."
 
+#: python/i18n_strings.py:66
+msgid ""
+"This content is usually unavailable in your region or has been removed by "
+"Bilibili. Please try again later."
+msgstr ""
+"Цей вміст зазвичай недоступний у вашому регіоні або його видалено Bilibili. "
+"Спробуйте пізніше."
+
 #: python/i18n_strings.py:69
 msgid "This content may be region-restricted or removed."
 msgstr "Цей вміст може бути обмежено за регіоном або видалено."
+
+#: python/i18n_strings.py:70
+msgid ""
+"This video may have been deleted, is under review, or is region-restricted."
+msgstr "Це відео могли видалити, воно на перевірці або обмежене за регіоном."
 
 #: python/i18n_strings.py:71
 msgid "Video load failed"
@@ -191,6 +246,10 @@ msgstr "Відео"
 msgid "Articles"
 msgstr "Статті"
 
+#: templates/themes/modern/author.html:90
+msgid "Read on Bilibili"
+msgstr "Читати на Bilibili"
+
 #: templates/themes/modern/author.html:99
 #: templates/themes/modern/search_article.html:70
 msgid "reads"
@@ -213,6 +272,10 @@ msgstr "Попередня сторінка"
 #: templates/themes/modern/space.html:150 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "Наступна сторінка"
+
+#: templates/themes/modern/author.html:123
+msgid "This user has no articles yet."
+msgstr "У цього користувача поки немає статей."
 
 #: templates/themes/modern/bangumi_index.html:3
 msgid "Bangumi index"
@@ -282,6 +345,10 @@ msgstr "Не вдалося завантажити ресурси Nyaa"
 msgid "Bangumi"
 msgstr "Банґумі"
 
+#: templates/themes/modern/base.html:369 templates/themes/modern/base.html:422
+msgid "Toggle theme"
+msgstr "Перемкнути тему"
+
 #: templates/themes/modern/base.html:373 templates/themes/modern/base.html:426
 msgid "Language"
 msgstr "Мова"
@@ -312,6 +379,10 @@ msgstr "Сирцевий код"
 msgid "Documentation"
 msgstr "Документація"
 
+#: templates/themes/modern/base.html:476
+msgid "Link converter"
+msgstr ""
+
 #: templates/themes/modern/base.html:482
 msgid "Proudly released under AGPLv3"
 msgstr "Гордо випущено під AGPLv3"
@@ -332,9 +403,87 @@ msgstr "Пожертвувати"
 msgid "Version info unavailable :-("
 msgstr "Інформація про версію недоступна :-("
 
+#: templates/themes/modern/convert.html:2
+#: templates/themes/modern/convert.html:10
+msgid "Link Converter"
+msgstr ""
+
+#: templates/themes/modern/convert.html:12
+msgid ""
+"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links "
+"and MikuInvidious pages."
+msgstr ""
+
+#: templates/themes/modern/convert.html:21
+msgid "Bilibili Link or Share Text"
+msgstr ""
+
+#: templates/themes/modern/convert.html:28
+msgid "Paste a b23.tv shortlink, bilibili.com URL, or app share text..."
+msgstr ""
+
+#: templates/themes/modern/convert.html:41
+msgid "Convert"
+msgstr ""
+
+#: templates/themes/modern/convert.html:45
+msgid "Converting..."
+msgstr ""
+
+#: templates/themes/modern/convert.html:67
+msgid "Resolved Target"
+msgstr ""
+
+#: templates/themes/modern/convert.html:76
+msgid "Clean Bilibili URL (no tracking)"
+msgstr ""
+
+#: templates/themes/modern/convert.html:89
+msgid "Copy clean URL"
+msgstr ""
+
+#: templates/themes/modern/convert.html:92
+#: templates/themes/modern/convert.html:115
+msgid "Copy"
+msgstr ""
+
+#: templates/themes/modern/convert.html:99
+msgid "MikuInvidious Link"
+msgstr ""
+
+#: templates/themes/modern/convert.html:112
+msgid "Copy MikuInvidious link"
+msgstr ""
+
+#: templates/themes/modern/convert.html:123
+msgid "Open"
+msgstr ""
+
+#: templates/themes/modern/convert.html:159
+msgid "Copied!"
+msgstr ""
+
+#: templates/themes/modern/convert.html:235
+msgid "Failed to resolve URL"
+msgstr ""
+
+#: templates/themes/modern/convert.html:258
+msgid "Network error. Please try again."
+msgstr ""
+
 #: templates/themes/modern/error.html:2
 msgid "Error"
 msgstr "Помилка"
+
+#: templates/themes/modern/error.html:14
+msgid ""
+"Check your request. If you believe this is a site issue, contact the "
+"administrator. If you are the administrator, consider reporting it via the "
+"source code link below."
+msgstr ""
+"Перевірте свій запит. Якщо вважаєте, що це проблема сайту, зверніться до "
+"адміністратора. Якщо ви адміністратор, повідомте про це за посиланням на "
+"сирцевий код нижче."
 
 #: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:62
 msgid "Back to home"
@@ -353,6 +502,14 @@ msgstr "Привіт, це MikuInvidious!"
 #: templates/themes/modern/home.html:9
 msgid "MikuInvidious is a free Bilibili frontend."
 msgstr "MikuInvidious — вільний фронтенд Bilibili."
+
+#: templates/themes/modern/home.html:13
+msgid ""
+"This is a MikuInvidious fork that supports pasting Bilibili links directly "
+"into the search box."
+msgstr ""
+"Це форк MikuInvidious, який підтримує вставлення посилань Bilibili прямо в "
+"поле пошуку."
 
 #: templates/themes/modern/home.html:15
 msgid "To convert a Bilibili link to MikuInvidious, replace"
@@ -403,6 +560,14 @@ msgstr "Ліцензії JavaScript"
 msgid "JavaScript license information"
 msgstr "Інформація про ліцензії JavaScript"
 
+#: templates/themes/modern/licenses.html:7
+msgid ""
+"License information for the free JavaScript software used on this site is "
+"listed below."
+msgstr ""
+"Інформація про ліцензії вільного програмного забезпечення JavaScript, "
+"використаного на цьому сайті, наведена нижче."
+
 #: templates/themes/modern/licenses.html:12
 msgid "Script file"
 msgstr "Файл скрипту"
@@ -422,9 +587,9 @@ msgstr "Перетворювати вміст на традиційну кита
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
 #: templates/themes/modern/pref.html:41 templates/themes/modern/pref.html:53
 #: templates/themes/modern/video.html:413
-#: templates/themes/modern/video.html:556
-#: templates/themes/modern/video_listen.html:275
-#: templates/themes/modern/video_listen.html:372
+#: templates/themes/modern/video.html:564
+#: templates/themes/modern/video_listen.html:283
+#: templates/themes/modern/video_listen.html:381
 msgid "Loading..."
 msgstr "Завантаження..."
 
@@ -434,7 +599,29 @@ msgstr "Автоперетворення пошуку на спрощену ки
 
 #: templates/themes/modern/pref.html:25
 msgid "Automatically convert keywords to Simplified Chinese when searching"
-msgstr "Автоматично перетворювати ключові слова на спрощену китайську під час пошуку"
+msgstr ""
+"Автоматично перетворювати ключові слова на спрощену китайську під час пошуку"
+
+#: templates/themes/modern/pref.html:36
+msgid "Pin best audio quality"
+msgstr "Закріпити найкращу якість аудіо"
+
+#: templates/themes/modern/pref.html:37
+msgid ""
+"Always play the highest available audio track instead of following video "
+"quality"
+msgstr ""
+"Завжди відтворювати найкращу доступну аудіодоріжку замість якості відео"
+
+#: templates/themes/modern/pref.html:48
+msgid "Lock video resolution"
+msgstr ""
+
+#: templates/themes/modern/pref.html:49
+msgid ""
+"Always play the highest available video track instead of auto-switching "
+"quality"
+msgstr ""
 
 #: templates/themes/modern/read.html:5
 msgid "Illustrations"
@@ -537,6 +724,35 @@ msgstr "Користувачів не знайдено"
 msgid "RSS Feed"
 msgstr "RSS-стрічка"
 
+#: templates/themes/modern/space.html:65
+msgid ""
+"Video list temporarily unavailable — Bilibili rate-limited this instance. "
+"Profile shown; videos should return in a few minutes."
+msgstr ""
+"Список відео тимчасово недоступний — Bilibili обмежив частоту запитів для "
+"цього інстанса. Профіль показано; відео мають повернутися за кілька хвилин."
+
+#: templates/themes/modern/space.html:69
+msgid ""
+"Video list could not be loaded due to a network error. Profile shown; please "
+"retry shortly."
+msgstr ""
+"Не вдалося завантажити список відео через помилку мережі. Профіль показано; "
+"спробуйте ще раз за мить."
+
+#: templates/themes/modern/space.html:130
+msgid "Nothing to show right now — see notice above."
+msgstr "Наразі немає чого показати — див. повідомлення вище."
+
+#: templates/themes/modern/space.html:132
+msgid "Nothing to show right now — loading failed, see notice above."
+msgstr ""
+"Наразі немає чого показати — не вдалося завантажити, див. повідомлення вище."
+
+#: templates/themes/modern/space.html:134
+msgid "This user has no videos yet."
+msgstr "У цього користувача поки немає відео."
+
 #: templates/themes/modern/video.html:87 templates/themes/modern/video.html:88
 msgid "Online"
 msgstr "Онлайн"
@@ -586,33 +802,51 @@ msgid "Connecting to chat..."
 msgstr "Підключення до чату..."
 
 #: templates/themes/modern/video.html:312
-#: templates/themes/modern/video_listen.html:208
+#: templates/themes/modern/video_listen.html:216
 msgid "Episodes"
 msgstr "Епізоди"
 
 #: templates/themes/modern/video.html:318
-#: templates/themes/modern/video_listen.html:214
+#: templates/themes/modern/video_listen.html:222
 msgid "Autoplay next"
 msgstr "Автовідтворення наступного"
 
 #: templates/themes/modern/video.html:347
-#: templates/themes/modern/video_listen.html:242
+#: templates/themes/modern/video_listen.html:250
 msgid "Recommended"
 msgstr "Рекомендоване"
 
 #: templates/themes/modern/video.html:367
-#: templates/themes/modern/video_listen.html:261
+#: templates/themes/modern/video_listen.html:269
 msgid "Play"
 msgstr "Відтворити"
+
+#: templates/themes/modern/video.html:411
+#: templates/themes/modern/video_listen.html:281
+msgid "Fold"
+msgstr "Згорнути"
+
+#: templates/themes/modern/video.html:412
+#: templates/themes/modern/video_listen.html:282
+msgid "Load more replies"
+msgstr "Показати ще відповіді"
+
+#: templates/themes/modern/components/meta_part.html:25
+#: templates/themes/modern/video.html:414
+#: templates/themes/modern/video_listen.html:205
+#: templates/themes/modern/video_listen.html:285
+msgid "Load more comments"
+msgstr "Завантажити більше коментарів"
 
 #: templates/themes/modern/video.html:477
 msgid "Failed to load comments, please try again later"
 msgstr "Не вдалося завантажити коментарі, спробуйте пізніше"
 
 #: templates/themes/modern/video.html:536
-#: templates/themes/modern/video.html:568
-#: templates/themes/modern/video_listen.html:276
-#: templates/themes/modern/video_listen.html:384
+#: templates/themes/modern/video.html:576
+#: templates/themes/modern/video.html:635
+#: templates/themes/modern/video_listen.html:284
+#: templates/themes/modern/video_listen.html:393
 msgid "Load failed"
 msgstr "Не вдалося завантажити"
 
@@ -632,7 +866,7 @@ msgid "Download audio"
 msgstr "Завантажити аудіо"
 
 #: templates/themes/modern/components/comment_items.html:25
-#: templates/themes/modern/video_listen.html:186
+#: templates/themes/modern/video_listen.html:185
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
@@ -640,8 +874,8 @@ msgstr[0] "%(count)s відповідь"
 msgstr[1] "%(count)s відповіді"
 msgstr[2] "%(count)s відповідей"
 
-#: templates/themes/modern/components/meta_part.html:15
-#: templates/themes/modern/video_listen.html:195
+#: templates/themes/modern/components/meta_part.html:14
+#: templates/themes/modern/video_listen.html:194
 msgid "No comments yet or failed to load"
 msgstr "Коментарів поки немає або не вдалося завантажити"
 
@@ -649,7 +883,7 @@ msgstr "Коментарів поки немає або не вдалося за
 msgid "Zone"
 msgstr "Зона"
 
-#: templates/themes/modern/components/meta_part.html:13
+#: templates/themes/modern/components/meta_part.html:12
 msgid "Comments are closed by the uploader."
 msgstr "Завантажувач закрив коментарі."
 
@@ -717,7 +951,9 @@ msgstr "Підготовка..."
 
 #: static/themes/modern/js/download.js:84
 msgid "If the download does not start automatically, click here to retry"
-msgstr "Якщо завантаження не почалося автоматично, натисніть тут, щоб спробувати знову"
+msgstr ""
+"Якщо завантаження не почалося автоматично, натисніть тут, щоб спробувати "
+"знову"
 
 #: static/themes/modern/js/download.js:87
 msgid "Cancel"
@@ -812,107 +1048,6 @@ msgstr "Авто (%(height)sp)"
 msgid "Auto"
 msgstr "Авто"
 
-#: static/themes/modern/js/themes.js:224 static/themes/modern/js/themes.js:236
-#: static/themes/modern/js/themes.js:252 static/themes/modern/js/themes.js:262
-msgid "On"
-msgstr "Увімк"
-
-#: static/themes/modern/js/themes.js:227 static/themes/modern/js/themes.js:239
-#: static/themes/modern/js/themes.js:249 static/themes/modern/js/themes.js:265
-msgid "Off"
-msgstr "Вимк"
-
-#: python/i18n_strings.py:39
-msgid "Failed to load bangumi info. Please check your network or try again later."
-msgstr "Не вдалося завантажити інформацію про банґумі. Перевірте мережу або спробуйте пізніше."
-
-#: python/i18n_strings.py:40
-msgid ""
-"Failed to load the live room. Please check your network or try again "
-"later."
-msgstr "Не вдалося завантажити кімнату трансляції. Перевірте мережу або спробуйте пізніше."
-
-#: python/i18n_strings.py:42
-msgid ""
-"Failed to resolve the short link. Please check your network connection or"
-" proxy settings."
-msgstr "Не вдалося обробити коротке посилання. Перевірте мережеве з’єднання або налаштування проксі."
-
-#: python/i18n_strings.py:43
-msgid ""
-"Internal server error. Please try again later or contact the "
-"administrator."
-msgstr "Внутрішня помилка сервера. Спробуйте пізніше або зверніться до адміністратора."
-
-#: python/i18n_strings.py:58
-msgid "Please try refreshing the page, or check the server network connection."
-msgstr "Спробуйте оновити сторінку або перевірте мережеве з’єднання сервера."
-
-#: python/i18n_strings.py:62
-msgid ""
-"The article you requested most likely does not exist. Please check your "
-"request."
-msgstr "Запитаної статті, найімовірніше, не існує. Перевірте свій запит."
-
-#: python/i18n_strings.py:66
-msgid ""
-"This content is usually unavailable in your region or has been removed by"
-" Bilibili. Please try again later."
-msgstr "Цей вміст зазвичай недоступний у вашому регіоні або його видалено Bilibili. Спробуйте пізніше."
-
-#: python/i18n_strings.py:70
-msgid ""
-"This video may have been deleted, is under review, or is region-"
-"restricted."
-msgstr "Це відео могли видалити, воно на перевірці або обмежене за регіоном."
-
-#: templates/themes/modern/error.html:14
-msgid ""
-"Check your request. If you believe this is a site issue, contact the "
-"administrator. If you are the administrator, consider reporting it via "
-"the source code link below."
-msgstr "Перевірте свій запит. Якщо вважаєте, що це проблема сайту, зверніться до адміністратора. Якщо ви адміністратор, повідомте про це за посиланням на сирцевий код нижче."
-
-#: templates/themes/modern/home.html:13
-msgid ""
-"This is a MikuInvidious fork that supports pasting Bilibili links "
-"directly into the search box."
-msgstr "Це форк MikuInvidious, який підтримує вставлення посилань Bilibili прямо в поле пошуку."
-
-#: templates/themes/modern/licenses.html:7
-msgid ""
-"License information for the free JavaScript software used on this site is"
-" listed below."
-msgstr "Інформація про ліцензії вільного програмного забезпечення JavaScript, використаного на цьому сайті, наведена нижче."
-
-#: templates/themes/modern/base.html:369 templates/themes/modern/base.html:422
-msgid "Toggle theme"
-msgstr "Перемкнути тему"
-
-#: templates/themes/modern/space.html:65
-msgid ""
-"Video list temporarily unavailable — Bilibili rate-limited this instance."
-" Profile shown; videos should return in a few minutes."
-msgstr "Список відео тимчасово недоступний — Bilibili обмежив частоту запитів для цього інстанса. Профіль показано; відео мають повернутися за кілька хвилин."
-
-#: templates/themes/modern/space.html:69
-msgid ""
-"Video list could not be loaded due to a network error. Profile shown; "
-"please retry shortly."
-msgstr "Не вдалося завантажити список відео через помилку мережі. Профіль показано; спробуйте ще раз за мить."
-
-#: templates/themes/modern/space.html:130
-msgid "Nothing to show right now — see notice above."
-msgstr "Наразі немає чого показати — див. повідомлення вище."
-
-#: templates/themes/modern/space.html:132
-msgid "Nothing to show right now — loading failed, see notice above."
-msgstr "Наразі немає чого показати — не вдалося завантажити, див. повідомлення вище."
-
-#: templates/themes/modern/space.html:134
-msgid "This user has no videos yet."
-msgstr "У цього користувача поки немає відео."
-
 #: static/themes/modern/js/player.js:1638
 msgid "Back"
 msgstr "Назад"
@@ -926,122 +1061,19 @@ msgstr "Аудіо"
 msgid "Playback speed"
 msgstr "Швидкість відтворення"
 
-#: templates/themes/modern/pref.html:36
-msgid "Pin best audio quality"
-msgstr "Закріпити найкращу якість аудіо"
+#: static/themes/modern/js/themes.js:224 static/themes/modern/js/themes.js:236
+#: static/themes/modern/js/themes.js:252 static/themes/modern/js/themes.js:262
+msgid "On"
+msgstr "Увімк"
 
-#: templates/themes/modern/pref.html:37
-msgid ""
-"Always play the highest available audio track instead of following video "
-"quality"
-msgstr "Завжди відтворювати найкращу доступну аудіодоріжку замість якості відео"
+#: static/themes/modern/js/themes.js:227 static/themes/modern/js/themes.js:239
+#: static/themes/modern/js/themes.js:249 static/themes/modern/js/themes.js:265
+msgid "Off"
+msgstr "Вимк"
 
-#: templates/themes/modern/pref.html:48
-msgid "Lock video resolution"
-msgstr ""
-
-#: templates/themes/modern/pref.html:49
-msgid ""
-"Always play the highest available video track instead of auto-switching "
-"quality"
-msgstr ""
-
-#: templates/themes/modern/author.html:90
-msgid "Read on Bilibili"
-msgstr "Читати на Bilibili"
-
-#: templates/themes/modern/author.html:123
-msgid "This user has no articles yet."
-msgstr "У цього користувача поки немає статей."
-
-#: templates/themes/modern/video.html:411
-#: templates/themes/modern/video_listen.html:273
-msgid "Fold"
-msgstr "Згорнути"
-
-#: templates/themes/modern/video.html:412
-#: templates/themes/modern/video_listen.html:274
-msgid "Load more replies"
-msgstr "Показати ще відповіді"
-
-#: templates/themes/modern/base.html:476
-msgid "Link converter"
-msgstr ""
-
-#: templates/themes/modern/convert.html:2
-#: templates/themes/modern/convert.html:10
-msgid "Link Converter"
-msgstr ""
-
-#: templates/themes/modern/convert.html:12
-msgid ""
-"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free "
-"links and MikuInvidious pages."
-msgstr ""
-
-#: templates/themes/modern/convert.html:21
-msgid "Bilibili Link or Share Text"
-msgstr ""
-
-#: templates/themes/modern/convert.html:28
-msgid "Paste a b23.tv shortlink, bilibili.com URL, or app share text..."
-msgstr ""
-
-#: templates/themes/modern/convert.html:41
-msgid "Convert"
-msgstr ""
-
-#: templates/themes/modern/convert.html:45
-msgid "Converting..."
-msgstr ""
-
-#: templates/themes/modern/convert.html:67
-msgid "Resolved Target"
-msgstr ""
-
-#: templates/themes/modern/convert.html:76
-msgid "Clean Bilibili URL (no tracking)"
-msgstr ""
-
-#: templates/themes/modern/convert.html:89
-msgid "Copy clean URL"
-msgstr ""
-
-#: templates/themes/modern/convert.html:92
-#: templates/themes/modern/convert.html:115
-msgid "Copy"
-msgstr ""
-
-#: templates/themes/modern/convert.html:99
-msgid "MikuInvidious Link"
-msgstr ""
-
-#: templates/themes/modern/convert.html:112
-msgid "Copy MikuInvidious link"
-msgstr ""
-
-#: templates/themes/modern/convert.html:123
-msgid "Open"
-msgstr ""
-
-#: templates/themes/modern/convert.html:159
-msgid "Copied!"
-msgstr ""
-
-#: templates/themes/modern/convert.html:235
-msgid "Failed to resolve URL"
-msgstr ""
-
-#: templates/themes/modern/convert.html:258
-msgid "Network error. Please try again."
-msgstr ""
-
-#~ #: templates/themes/modern/author.html:121
 #~ msgid "No articles yet"
 #~ msgstr "Статей поки немає"
 
-#~ #: templates/themes/modern/video.html:411
-#~ #: templates/themes/modern/video_listen.html:269
-#~ #, python-format
+#, python-format
 #~ msgid "Loaded %(count)s, click to load more"
 #~ msgstr "Завантажено %(count)s, натисніть, щоб завантажити ще"

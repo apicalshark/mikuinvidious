@@ -1299,6 +1299,7 @@ async def api_component_meta(vid, idx):
     return await render_template_with_theme(
         "components/meta_part.html",
         vid=vid,
+        idx=idx,
         vcomments=vcomments,
         is_live=False,
         comments_closed=comments_closed,

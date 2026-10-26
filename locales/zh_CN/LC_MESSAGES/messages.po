@@ -1,10 +1,184 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-10-26 21:13+0800\n"
+"Language: zh_CN\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: zh_CN\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+
+#: python/i18n_strings.py:30
+msgid "Article does not exist or parse error"
+msgstr "文章不存在或解析错误"
+
+#: python/i18n_strings.py:31
+msgid "Article not found"
+msgstr "没有找到文章"
+
+#: python/i18n_strings.py:32
+msgid "Audio mode load failed"
+msgstr "音频模式加载失败"
+
+#: python/i18n_strings.py:33
+msgid "Backend server sent an invalid response"
+msgstr "后端服务器发送了无效的回复"
+
+#: python/i18n_strings.py:34
+msgid "Bad request"
+msgstr "请求错误"
+
+#: python/i18n_strings.py:35
+msgid "Bangumi load failed"
+msgstr "番剧加载失败"
+
+#: python/i18n_strings.py:36
+msgid "Bilibili returned empty result (-404)"
+msgstr "B站返回空结果 (-404)"
+
+#: python/i18n_strings.py:37
+msgid "Failed to fetch the live list. Please try again later."
+msgstr "无法获取直播列表，请稍后重试。"
+
+#: python/i18n_strings.py:38
+msgid "Failed to fetch this user's profile. Please try again later."
+msgstr "无法获取该用户的信息，请稍后重试。"
+
+#: python/i18n_strings.py:39
+msgid ""
+"Failed to load bangumi info. Please check your network or try again later."
+msgstr "无法加载番剧信息，请检查网络或稍后重试。"
+
+#: python/i18n_strings.py:40
+msgid ""
+"Failed to load the live room. Please check your network or try again later."
+msgstr "无法加载直播间，请检查网络或稍后重试。"
+
+#: python/i18n_strings.py:41
+msgid "Failed to resolve the redirect target."
+msgstr "无法获取重定向地址。"
+
+#: python/i18n_strings.py:42
+msgid ""
+"Failed to resolve the short link. Please check your network connection or "
+"proxy settings."
+msgstr "无法解析短链接，请检查网络连接或代理设置。"
+
+#: python/i18n_strings.py:43
+msgid ""
+"Internal server error. Please try again later or contact the administrator."
+msgstr "服务器内部错误，请稍后重试或联系管理员。"
+
+#: python/i18n_strings.py:44
+msgid "Invalid request parameters. Please check and try again."
+msgstr "请求参数无效，请检查后重试。"
+
+#: python/i18n_strings.py:45
+msgid "Live list load failed"
+msgstr "直播列表加载失败"
+
+#: python/i18n_strings.py:46
+msgid "Live load failed"
+msgstr "直播加载失败"
+
+#: python/i18n_strings.py:47
+msgid "Network error"
+msgstr "网络错误"
+
+#: python/i18n_strings.py:48
+msgid "No search keyword provided."
+msgstr "没有发送搜索关键字。"
+
+#: python/i18n_strings.py:49
+msgid "No songs found"
+msgstr "没有找到歌曲"
+
+#: python/i18n_strings.py:50
+msgid "Page not found (404)"
+msgstr "未找到页面 (404)"
+
+#: python/i18n_strings.py:51
+msgid "Parse error"
+msgstr "解析错误"
+
+#: python/i18n_strings.py:52
+msgid "Playlist empty"
+msgstr "歌单为空"
+
+#: python/i18n_strings.py:53
+msgid "Please check the URL."
+msgstr "请检查 URL 是否正确。"
+
+#: python/i18n_strings.py:54
+msgid "Please check your network connection or proxy settings."
+msgstr "请检查网络连接或代理设置。"
+
+#: python/i18n_strings.py:55
+msgid "Please check your network or try again later."
+msgstr "请检查网络或稍后重试。"
+
+#: python/i18n_strings.py:56
+msgid "Please check your request and try again."
+msgstr "请检查您的请求并重试。"
+
+#: python/i18n_strings.py:57
+msgid "Please enter a search keyword and try again."
+msgstr "请设置搜索关键字后重试。"
+
+#: python/i18n_strings.py:58
+msgid "Please try refreshing the page, or check the server network connection."
+msgstr "请尝试刷新页面，或检查服务器网络连接。"
+
+#: python/i18n_strings.py:59
+msgid "Search failed"
+msgstr "无法搜索"
+
+#: python/i18n_strings.py:60
+msgid "Server error"
+msgstr "服务器错误"
+
+#: python/i18n_strings.py:61
+msgid "Space load failed"
+msgstr "空间加载失败"
+
+#: python/i18n_strings.py:62
+msgid ""
+"The article you requested most likely does not exist. Please check your "
+"request."
+msgstr "这很可能说明您访问的文章不存在，请检查您的请求。"
+
+#: python/i18n_strings.py:63
+msgid "The requested page does not exist."
+msgstr "您请求的页面不存在。"
+
+#: python/i18n_strings.py:64
+msgid "The requested resource does not exist."
+msgstr "您请求的资源不存在。"
+
+#: python/i18n_strings.py:66
+msgid ""
+"This content is usually unavailable in your region or has been removed by "
+"Bilibili. Please try again later."
+msgstr ""
+"这通常是因为该内容在您所在的地区不可用，或已被 B 站下架。如持续发生请稍后再"
+"试。"
+
+#: python/i18n_strings.py:69
+msgid "This content may be region-restricted or removed."
+msgstr "该内容可能受到地区限制或已被下架。"
+
+#: python/i18n_strings.py:70
+msgid ""
+"This video may have been deleted, is under review, or is region-restricted."
+msgstr "该影片可能已被删除、审核中，或是受到地区限制。"
+
+#: python/i18n_strings.py:71
+msgid "Video load failed"
+msgstr "视频加载出错"
+
+#: python/i18n_strings.py:72
+msgid "You have no browsing history yet."
+msgstr "您还没有浏览历史。"
 
 #: templates/macros.html:17
 msgid "Resolving video URL..."
@@ -63,6 +237,10 @@ msgstr "视频"
 msgid "Articles"
 msgstr "专栏"
 
+#: templates/themes/modern/author.html:90
+msgid "Read on Bilibili"
+msgstr "在哔哩哔哩上阅读"
+
 #: templates/themes/modern/author.html:99
 #: templates/themes/modern/search_article.html:70
 msgid "reads"
@@ -85,6 +263,10 @@ msgstr "上一页"
 #: templates/themes/modern/space.html:150 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "下一页"
+
+#: templates/themes/modern/author.html:123
+msgid "This user has no articles yet."
+msgstr "这个用户还没有专栏。"
 
 #: templates/themes/modern/bangumi_index.html:3
 msgid "Bangumi index"
@@ -142,6 +324,10 @@ msgstr "第"
 msgid "Searching Nyaa..."
 msgstr "正在从 Nyaa 搜索资源..."
 
+#: templates/themes/modern/bangumi_view.html:90
+msgid "Nyaa Magnet Resources"
+msgstr "Nyaa Magnet 资源"
+
 #: templates/themes/modern/bangumi_view.html:139
 msgid "Failed to load Nyaa resources"
 msgstr "无法加载 Nyaa 资源"
@@ -149,6 +335,14 @@ msgstr "无法加载 Nyaa 资源"
 #: templates/themes/modern/base.html:366 templates/themes/modern/base.html:419
 msgid "Bangumi"
 msgstr "番剧"
+
+#: templates/themes/modern/base.html:369 templates/themes/modern/base.html:422
+msgid "Toggle theme"
+msgstr "切换主题"
+
+#: templates/themes/modern/base.html:373 templates/themes/modern/base.html:426
+msgid "Language"
+msgstr "语言"
 
 #: templates/themes/modern/base.html:390 templates/themes/modern/base.html:443
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:9
@@ -176,6 +370,10 @@ msgstr "源代码"
 msgid "Documentation"
 msgstr "文档"
 
+#: templates/themes/modern/base.html:476
+msgid "Link converter"
+msgstr "链接转换器"
+
 #: templates/themes/modern/base.html:482
 msgid "Proudly released under AGPLv3"
 msgstr "自豪地以 AGPLv3 发布"
@@ -196,13 +394,87 @@ msgstr "赞助我们"
 msgid "Version info unavailable :-("
 msgstr "版本信息当前不可用 :-("
 
+#: templates/themes/modern/convert.html:2
+#: templates/themes/modern/convert.html:10
+msgid "Link Converter"
+msgstr "链接转换器"
+
+#: templates/themes/modern/convert.html:12
+msgid ""
+"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links "
+"and MikuInvidious pages."
+msgstr ""
+"将 b23.tv 短链接与哔哩哔哩链接转换为无追踪的干净链接与 MikuInvidious 页面。"
+
+#: templates/themes/modern/convert.html:21
+msgid "Bilibili Link or Share Text"
+msgstr "哔哩哔哩链接或分享文本"
+
+#: templates/themes/modern/convert.html:28
+msgid "Paste a b23.tv shortlink, bilibili.com URL, or app share text..."
+msgstr "粘贴 b23.tv 短链接、bilibili.com 链接或客户端分享文本..."
+
+#: templates/themes/modern/convert.html:41
+msgid "Convert"
+msgstr "转换"
+
+#: templates/themes/modern/convert.html:45
+msgid "Converting..."
+msgstr "正在转换..."
+
+#: templates/themes/modern/convert.html:67
+msgid "Resolved Target"
+msgstr "解析目标"
+
+#: templates/themes/modern/convert.html:76
+msgid "Clean Bilibili URL (no tracking)"
+msgstr "哔哩哔哩干净链接（无追踪）"
+
+#: templates/themes/modern/convert.html:89
+msgid "Copy clean URL"
+msgstr "复制干净链接"
+
+#: templates/themes/modern/convert.html:92
+#: templates/themes/modern/convert.html:115
+msgid "Copy"
+msgstr "复制"
+
+#: templates/themes/modern/convert.html:99
+msgid "MikuInvidious Link"
+msgstr "MikuInvidious 链接"
+
+#: templates/themes/modern/convert.html:112
+msgid "Copy MikuInvidious link"
+msgstr "复制 MikuInvidious 链接"
+
+#: templates/themes/modern/convert.html:123
+msgid "Open"
+msgstr "打开"
+
+#: templates/themes/modern/convert.html:159
+msgid "Copied!"
+msgstr "已复制！"
+
+#: templates/themes/modern/convert.html:235
+msgid "Failed to resolve URL"
+msgstr "解析链接失败"
+
+#: templates/themes/modern/convert.html:258
+msgid "Network error. Please try again."
+msgstr "网络错误，请重试。"
+
 #: templates/themes/modern/error.html:2
 msgid "Error"
 msgstr "错误"
 
 #: templates/themes/modern/error.html:14
-msgid "Check your request. If you believe this is a site issue, contact the administrator. If you are the administrator, consider reporting it via the source code link below."
-msgstr "请检查您的请求。如果您认为这是网站问题，请联系管理员。如果您是管理员，请考虑通过下方源代码链接反馈。"
+msgid ""
+"Check your request. If you believe this is a site issue, contact the "
+"administrator. If you are the administrator, consider reporting it via the "
+"source code link below."
+msgstr ""
+"请检查您的请求。如果您认为这是网站问题，请联系管理员。如果您是管理员，请考虑"
+"通过下方源代码链接反馈。"
 
 #: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:62
 msgid "Back to home"
@@ -223,7 +495,9 @@ msgid "MikuInvidious is a free Bilibili frontend."
 msgstr "MikuInvidious 是自由的哔哩哔哩前端。"
 
 #: templates/themes/modern/home.html:13
-msgid "This is a MikuInvidious fork that supports pasting Bilibili links directly into the search box."
+msgid ""
+"This is a MikuInvidious fork that supports pasting Bilibili links directly "
+"into the search box."
 msgstr "此为 MikuInvidious Fork，支持将哔哩哔哩链接直接粘贴到搜索框。"
 
 #: templates/themes/modern/home.html:15
@@ -276,7 +550,9 @@ msgid "JavaScript license information"
 msgstr "JavaScript 许可证信息"
 
 #: templates/themes/modern/licenses.html:7
-msgid "License information for the free JavaScript software used on this site is listed below."
+msgid ""
+"License information for the free JavaScript software used on this site is "
+"listed below."
 msgstr "本站使用的自由 JavaScript 软件的许可信息如下所列。"
 
 #: templates/themes/modern/licenses.html:12
@@ -298,9 +574,9 @@ msgstr "使用 OpenCC 将内容转换为繁体中文"
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
 #: templates/themes/modern/pref.html:41 templates/themes/modern/pref.html:53
 #: templates/themes/modern/video.html:413
-#: templates/themes/modern/video.html:556
-#: templates/themes/modern/video_listen.html:275
-#: templates/themes/modern/video_listen.html:372
+#: templates/themes/modern/video.html:564
+#: templates/themes/modern/video_listen.html:283
+#: templates/themes/modern/video_listen.html:381
 msgid "Loading..."
 msgstr "加载中..."
 
@@ -312,9 +588,25 @@ msgstr "搜索自动转简体"
 msgid "Automatically convert keywords to Simplified Chinese when searching"
 msgstr "搜索时自动将关键词转换为简体中文"
 
-#: templates/themes/modern/base.html:373 templates/themes/modern/base.html:426
-msgid "Language"
-msgstr "语言"
+#: templates/themes/modern/pref.html:36
+msgid "Pin best audio quality"
+msgstr "锁定最佳音质"
+
+#: templates/themes/modern/pref.html:37
+msgid ""
+"Always play the highest available audio track instead of following video "
+"quality"
+msgstr "始终播放最高可用音轨，而不跟随视频画质"
+
+#: templates/themes/modern/pref.html:48
+msgid "Lock video resolution"
+msgstr "锁定视频分辨率"
+
+#: templates/themes/modern/pref.html:49
+msgid ""
+"Always play the highest available video track instead of auto-switching "
+"quality"
+msgstr "始终播放最高可用画质，而非自动切换画质"
 
 #: templates/themes/modern/read.html:5
 msgid "Illustrations"
@@ -417,6 +709,32 @@ msgstr "没有搜索到相关用户"
 msgid "RSS Feed"
 msgstr "RSS Feed"
 
+#: templates/themes/modern/space.html:65
+msgid ""
+"Video list temporarily unavailable — Bilibili rate-limited this instance. "
+"Profile shown; videos should return in a few minutes."
+msgstr ""
+"视频列表暂时不可用——Bilibili 已限制此站点的请求。个人资料仍正常显示；视频应会"
+"在几分钟后恢复。"
+
+#: templates/themes/modern/space.html:69
+msgid ""
+"Video list could not be loaded due to a network error. Profile shown; please "
+"retry shortly."
+msgstr "因网络错误，无法加载视频列表。个人资料仍正常显示；请稍后再试。"
+
+#: templates/themes/modern/space.html:130
+msgid "Nothing to show right now — see notice above."
+msgstr "暂无内容可显示——请参见上方通知。"
+
+#: templates/themes/modern/space.html:132
+msgid "Nothing to show right now — loading failed, see notice above."
+msgstr "暂无内容可显示——加载失败，请参见上方通知。"
+
+#: templates/themes/modern/space.html:134
+msgid "This user has no videos yet."
+msgstr "这个用户还没有视频。"
+
 #: templates/themes/modern/video.html:87 templates/themes/modern/video.html:88
 msgid "Online"
 msgstr "在线"
@@ -466,35 +784,60 @@ msgid "Connecting to chat..."
 msgstr "正在连接到聊天室..."
 
 #: templates/themes/modern/video.html:312
-#: templates/themes/modern/video_listen.html:208
+#: templates/themes/modern/video_listen.html:216
 msgid "Episodes"
 msgstr "选集"
 
 #: templates/themes/modern/video.html:318
-#: templates/themes/modern/video_listen.html:214
+#: templates/themes/modern/video_listen.html:222
 msgid "Autoplay next"
 msgstr "自动连播"
 
 #: templates/themes/modern/video.html:347
-#: templates/themes/modern/video_listen.html:242
+#: templates/themes/modern/video_listen.html:250
 msgid "Recommended"
 msgstr "推荐视频"
 
 #: templates/themes/modern/video.html:367
-#: templates/themes/modern/video_listen.html:261
+#: templates/themes/modern/video_listen.html:269
 msgid "Play"
 msgstr "播放"
+
+#: templates/themes/modern/video.html:411
+#: templates/themes/modern/video_listen.html:281
+msgid "Fold"
+msgstr "收起"
+
+#: templates/themes/modern/video.html:412
+#: templates/themes/modern/video_listen.html:282
+msgid "Load more replies"
+msgstr "加载更多回复"
+
+#: templates/themes/modern/components/meta_part.html:25
+#: templates/themes/modern/video.html:414
+#: templates/themes/modern/video_listen.html:205
+#: templates/themes/modern/video_listen.html:285
+msgid "Load more comments"
+msgstr "加载更多评论"
 
 #: templates/themes/modern/video.html:477
 msgid "Failed to load comments, please try again later"
 msgstr "评论加载失败，请稍后再试"
 
 #: templates/themes/modern/video.html:536
-#: templates/themes/modern/video.html:568
-#: templates/themes/modern/video_listen.html:276
-#: templates/themes/modern/video_listen.html:384
+#: templates/themes/modern/video.html:576
+#: templates/themes/modern/video.html:635
+#: templates/themes/modern/video_listen.html:284
+#: templates/themes/modern/video_listen.html:393
 msgid "Load failed"
 msgstr "加载失败"
+
+#: static/themes/modern/js/audioplayer.js:29
+#: static/themes/modern/js/audioplayer.js:38
+#: templates/themes/modern/video_listen.html:51
+#, python-format
+msgid "Buffering: %(available)s / %(target)s"
+msgstr "缓冲中：%(available)s / %(target)s"
 
 #: templates/themes/modern/video_listen.html:67
 msgid "Video mode"
@@ -505,14 +848,14 @@ msgid "Download audio"
 msgstr "下载音频"
 
 #: templates/themes/modern/components/comment_items.html:25
-#: templates/themes/modern/video_listen.html:186
+#: templates/themes/modern/video_listen.html:185
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
 msgstr[0] "%(count)s 条回复"
 
-#: templates/themes/modern/components/meta_part.html:15
-#: templates/themes/modern/video_listen.html:195
+#: templates/themes/modern/components/meta_part.html:14
+#: templates/themes/modern/video_listen.html:194
 msgid "No comments yet or failed to load"
 msgstr "暂无评论或评论加载失败"
 
@@ -520,7 +863,7 @@ msgstr "暂无评论或评论加载失败"
 msgid "Zone"
 msgstr "分区"
 
-#: templates/themes/modern/components/meta_part.html:13
+#: templates/themes/modern/components/meta_part.html:12
 msgid "Comments are closed by the uploader."
 msgstr "UP主已关闭评论区。"
 
@@ -568,17 +911,6 @@ msgstr "Magnet"
 #: templates/themes/modern/components/nyaa_sidebar.html:45
 msgid "No collection resources found"
 msgstr "未找到合集资源"
-
-#: templates/themes/modern/bangumi_view.html:90
-msgid "Nyaa Magnet Resources"
-msgstr "Nyaa Magnet 资源"
-
-#: static/themes/modern/js/audioplayer.js:29
-#: static/themes/modern/js/audioplayer.js:38
-#: templates/themes/modern/video_listen.html:51
-#, python-format
-msgid "Buffering: %(available)s / %(target)s"
-msgstr "缓冲中：%(available)s / %(target)s"
 
 #: static/themes/modern/js/download.js:80
 msgid "Download progress"
@@ -694,204 +1026,6 @@ msgstr "自动 (%(height)sp)"
 msgid "Auto"
 msgstr "自动"
 
-#: static/themes/modern/js/themes.js:224 static/themes/modern/js/themes.js:236
-#: static/themes/modern/js/themes.js:252 static/themes/modern/js/themes.js:262
-msgid "On"
-msgstr "已开启"
-
-#: static/themes/modern/js/themes.js:227 static/themes/modern/js/themes.js:239
-#: static/themes/modern/js/themes.js:249 static/themes/modern/js/themes.js:265
-msgid "Off"
-msgstr "已关闭"
-
-#: python/i18n_strings.py:30
-msgid "Article does not exist or parse error"
-msgstr "文章不存在或解析错误"
-
-#: python/i18n_strings.py:31
-msgid "Article not found"
-msgstr "没有找到文章"
-
-#: python/i18n_strings.py:32
-msgid "Audio mode load failed"
-msgstr "音频模式加载失败"
-
-#: python/i18n_strings.py:33
-msgid "Backend server sent an invalid response"
-msgstr "后端服务器发送了无效的回复"
-
-#: python/i18n_strings.py:34
-msgid "Bad request"
-msgstr "请求错误"
-
-#: python/i18n_strings.py:35
-msgid "Bangumi load failed"
-msgstr "番剧加载失败"
-
-#: python/i18n_strings.py:36
-msgid "Bilibili returned empty result (-404)"
-msgstr "B站返回空结果 (-404)"
-
-#: python/i18n_strings.py:37
-msgid "Failed to fetch the live list. Please try again later."
-msgstr "无法获取直播列表，请稍后重试。"
-
-#: python/i18n_strings.py:38
-msgid "Failed to fetch this user's profile. Please try again later."
-msgstr "无法获取该用户的信息，请稍后重试。"
-
-#: python/i18n_strings.py:39
-msgid "Failed to load bangumi info. Please check your network or try again later."
-msgstr "无法加载番剧信息，请检查网络或稍后重试。"
-
-#: python/i18n_strings.py:40
-msgid "Failed to load the live room. Please check your network or try again later."
-msgstr "无法加载直播间，请检查网络或稍后重试。"
-
-#: python/i18n_strings.py:41
-msgid "Failed to resolve the redirect target."
-msgstr "无法获取重定向地址。"
-
-#: python/i18n_strings.py:42
-msgid "Failed to resolve the short link. Please check your network connection or proxy settings."
-msgstr "无法解析短链接，请检查网络连接或代理设置。"
-
-#: python/i18n_strings.py:43
-msgid "Internal server error. Please try again later or contact the administrator."
-msgstr "服务器内部错误，请稍后重试或联系管理员。"
-
-#: python/i18n_strings.py:44
-msgid "Invalid request parameters. Please check and try again."
-msgstr "请求参数无效，请检查后重试。"
-
-#: python/i18n_strings.py:45
-msgid "Live list load failed"
-msgstr "直播列表加载失败"
-
-#: python/i18n_strings.py:46
-msgid "Live load failed"
-msgstr "直播加载失败"
-
-#: python/i18n_strings.py:47
-msgid "Network error"
-msgstr "网络错误"
-
-#: python/i18n_strings.py:48
-msgid "No search keyword provided."
-msgstr "没有发送搜索关键字。"
-
-#: python/i18n_strings.py:49
-msgid "No songs found"
-msgstr "没有找到歌曲"
-
-#: python/i18n_strings.py:50
-msgid "Page not found (404)"
-msgstr "未找到页面 (404)"
-
-#: python/i18n_strings.py:51
-msgid "Parse error"
-msgstr "解析错误"
-
-#: python/i18n_strings.py:52
-msgid "Playlist empty"
-msgstr "歌单为空"
-
-#: python/i18n_strings.py:53
-msgid "Please check the URL."
-msgstr "请检查 URL 是否正确。"
-
-#: python/i18n_strings.py:54
-msgid "Please check your network connection or proxy settings."
-msgstr "请检查网络连接或代理设置。"
-
-#: python/i18n_strings.py:55
-msgid "Please check your network or try again later."
-msgstr "请检查网络或稍后重试。"
-
-#: python/i18n_strings.py:56
-msgid "Please check your request and try again."
-msgstr "请检查您的请求并重试。"
-
-#: python/i18n_strings.py:57
-msgid "Please enter a search keyword and try again."
-msgstr "请设置搜索关键字后重试。"
-
-#: python/i18n_strings.py:58
-msgid "Please try refreshing the page, or check the server network connection."
-msgstr "请尝试刷新页面，或检查服务器网络连接。"
-
-#: python/i18n_strings.py:59
-msgid "Search failed"
-msgstr "无法搜索"
-
-#: python/i18n_strings.py:60
-msgid "Server error"
-msgstr "服务器错误"
-
-#: python/i18n_strings.py:61
-msgid "Space load failed"
-msgstr "空间加载失败"
-
-#: python/i18n_strings.py:62
-msgid "The article you requested most likely does not exist. Please check your request."
-msgstr "这很可能说明您访问的文章不存在，请检查您的请求。"
-
-#: python/i18n_strings.py:63
-msgid "The requested page does not exist."
-msgstr "您请求的页面不存在。"
-
-#: python/i18n_strings.py:64
-msgid "The requested resource does not exist."
-msgstr "您请求的资源不存在。"
-
-#: python/i18n_strings.py:66
-msgid "This content is usually unavailable in your region or has been removed by Bilibili. Please try again later."
-msgstr "这通常是因为该内容在您所在的地区不可用，或已被 B 站下架。如持续发生请稍后再试。"
-
-#: python/i18n_strings.py:69
-msgid "This content may be region-restricted or removed."
-msgstr "该内容可能受到地区限制或已被下架。"
-
-#: python/i18n_strings.py:70
-msgid "This video may have been deleted, is under review, or is region-restricted."
-msgstr "该影片可能已被删除、审核中，或是受到地区限制。"
-
-#: python/i18n_strings.py:71
-msgid "Video load failed"
-msgstr "视频加载出错"
-
-#: python/i18n_strings.py:72
-msgid "You have no browsing history yet."
-msgstr "您还没有浏览历史。"
-
-#: templates/themes/modern/base.html:369 templates/themes/modern/base.html:422
-msgid "Toggle theme"
-msgstr "切换主题"
-
-#: templates/themes/modern/space.html:65
-msgid ""
-"Video list temporarily unavailable — Bilibili rate-limited this instance."
-" Profile shown; videos should return in a few minutes."
-msgstr "视频列表暂时不可用——Bilibili 已限制此站点的请求。个人资料仍正常显示；视频应会在几分钟后恢复。"
-
-#: templates/themes/modern/space.html:69
-msgid ""
-"Video list could not be loaded due to a network error. Profile shown; "
-"please retry shortly."
-msgstr "因网络错误，无法加载视频列表。个人资料仍正常显示；请稍后再试。"
-
-#: templates/themes/modern/space.html:130
-msgid "Nothing to show right now — see notice above."
-msgstr "暂无内容可显示——请参见上方通知。"
-
-#: templates/themes/modern/space.html:132
-msgid "Nothing to show right now — loading failed, see notice above."
-msgstr "暂无内容可显示——加载失败，请参见上方通知。"
-
-#: templates/themes/modern/space.html:134
-msgid "This user has no videos yet."
-msgstr "这个用户还没有视频。"
-
 #: static/themes/modern/js/player.js:1638
 msgid "Back"
 msgstr "返回"
@@ -905,146 +1039,37 @@ msgstr "音频"
 msgid "Playback speed"
 msgstr "播放速度"
 
-#: templates/themes/modern/pref.html:36
-msgid "Pin best audio quality"
-msgstr "锁定最佳音质"
+#: static/themes/modern/js/themes.js:224 static/themes/modern/js/themes.js:236
+#: static/themes/modern/js/themes.js:252 static/themes/modern/js/themes.js:262
+msgid "On"
+msgstr "已开启"
 
-#: templates/themes/modern/pref.html:37
-msgid ""
-"Always play the highest available audio track instead of following video "
-"quality"
-msgstr "始终播放最高可用音轨，而不跟随视频画质"
+#: static/themes/modern/js/themes.js:227 static/themes/modern/js/themes.js:239
+#: static/themes/modern/js/themes.js:249 static/themes/modern/js/themes.js:265
+msgid "Off"
+msgstr "已关闭"
 
-#: templates/themes/modern/pref.html:48
-msgid "Lock video resolution"
-msgstr "锁定视频分辨率"
-
-#: templates/themes/modern/pref.html:49
-msgid ""
-"Always play the highest available video track instead of auto-switching "
-"quality"
-msgstr "始终播放最高可用画质，而非自动切换画质"
-
-#: templates/themes/modern/author.html:90
-msgid "Read on Bilibili"
-msgstr "在哔哩哔哩上阅读"
-
-#: templates/themes/modern/author.html:123
-msgid "This user has no articles yet."
-msgstr "这个用户还没有专栏。"
-
-#: templates/themes/modern/video.html:411
-#: templates/themes/modern/video_listen.html:273
-msgid "Fold"
-msgstr "收起"
-
-#: templates/themes/modern/video.html:412
-#: templates/themes/modern/video_listen.html:274
-msgid "Load more replies"
-msgstr "加载更多回复"
-
-#: templates/themes/modern/base.html:476
-msgid "Link converter"
-msgstr "链接转换器"
-
-#: templates/themes/modern/convert.html:2
-#: templates/themes/modern/convert.html:10
-msgid "Link Converter"
-msgstr "链接转换器"
-
-#: templates/themes/modern/convert.html:12
-msgid ""
-"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free "
-"links and MikuInvidious pages."
-msgstr "将 b23.tv 短链接与哔哩哔哩链接转换为无追踪的干净链接与 MikuInvidious 页面。"
-
-#: templates/themes/modern/convert.html:21
-msgid "Bilibili Link or Share Text"
-msgstr "哔哩哔哩链接或分享文本"
-
-#: templates/themes/modern/convert.html:28
-msgid "Paste a b23.tv shortlink, bilibili.com URL, or app share text..."
-msgstr "粘贴 b23.tv 短链接、bilibili.com 链接或客户端分享文本..."
-
-#: templates/themes/modern/convert.html:41
-msgid "Convert"
-msgstr "转换"
-
-#: templates/themes/modern/convert.html:45
-msgid "Converting..."
-msgstr "正在转换..."
-
-#: templates/themes/modern/convert.html:67
-msgid "Resolved Target"
-msgstr "解析目标"
-
-#: templates/themes/modern/convert.html:76
-msgid "Clean Bilibili URL (no tracking)"
-msgstr "哔哩哔哩干净链接（无追踪）"
-
-#: templates/themes/modern/convert.html:89
-msgid "Copy clean URL"
-msgstr "复制干净链接"
-
-#: templates/themes/modern/convert.html:92
-#: templates/themes/modern/convert.html:115
-msgid "Copy"
-msgstr "复制"
-
-#: templates/themes/modern/convert.html:99
-msgid "MikuInvidious Link"
-msgstr "MikuInvidious 链接"
-
-#: templates/themes/modern/convert.html:112
-msgid "Copy MikuInvidious link"
-msgstr "复制 MikuInvidious 链接"
-
-#: templates/themes/modern/convert.html:123
-msgid "Open"
-msgstr "打开"
-
-#: templates/themes/modern/convert.html:159
-msgid "Copied!"
-msgstr "已复制！"
-
-#: templates/themes/modern/convert.html:235
-msgid "Failed to resolve URL"
-msgstr "解析链接失败"
-
-#: templates/themes/modern/convert.html:258
-msgid "Network error. Please try again."
-msgstr "网络错误，请重试。"
-
-#~ #: templates/themes/modern/pref.html:9
 #~ msgid "Personalization settings"
 #~ msgstr "个性化设置"
 
-#~ #: templates/themes/modern/pref.html:37
 #~ msgid "Choose the interface language"
 #~ msgstr "选择界面语言"
 
-#~ #: templates/themes/modern/pref.html:44
 #~ msgid "Simplified Chinese"
 #~ msgstr "简体中文"
 
-#~ #: templates/themes/modern/pref.html:45
 #~ msgid "Traditional Chinese"
 #~ msgstr "繁体中文"
 
-#~ #: templates/themes/modern/pref.html:46
 #~ msgid "Japanese"
 #~ msgstr "日语"
 
-#~ #: templates/themes/modern/pref.html:48
 #~ msgid "Save language"
 #~ msgstr "保存语言"
 
-#~ #: templates/themes/modern/author.html:121
 #~ msgid "No articles yet"
 #~ msgstr "暂无专栏文章"
 
-#~ #: templates/themes/modern/video.html:411
-#~ #: templates/themes/modern/video_listen.html:269
-#~ #, python-format
+#, python-format
 #~ msgid "Loaded %(count)s, click to load more"
 #~ msgstr "已加载 %(count)s 条，点击加载更多"
