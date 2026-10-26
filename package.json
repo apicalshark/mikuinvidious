@@ -38,7 +38,7 @@
   "dependencies": {
     "danmaku": "^2.0.10",
     "dashjs": "^5.2.1",
-    "hls-video-element": "^1.5.11",
+    "hls-video-element": "^1.5.12",
     "hls.js": "^1.6.15",
     "media-chrome": "^4.19.3",
     "mpegts.js": "^1.8.2",
