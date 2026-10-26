@@ -93,24 +93,12 @@ def clean_bilibili_url(target_url: str) -> dict:
     path = parsed.path
     query = parse_qs(parsed.query, keep_blank_values=False)
 
-    # Filter out tracking query parameters
-    filtered_query = {}
-    for k, v in query.items():
-        k_lower = k.lower()
-        if (
-            k_lower in TRACKING_PARAMS
-            or k_lower.startswith("utm_")
-            or k_lower.startswith("spm")
-            or k_lower.startswith("share_")
-            or k_lower.startswith("track_")
-            or k_lower.startswith("from_")
-        ):
-            continue
-        filtered_query[k] = v
-
-    # Preserve functional params (p, t, etc.)
-    clean_query_str = urlencode(filtered_query, doseq=True)
-    p_val = filtered_query.get("p", [None])[0]
+    # Functional parameter allowlists:
+    # Bilibili resource identities are path-based. Only video uses 'p' (part/page) and 't' (timestamp offset).
+    # All other query parameters across all types are tracking/analytics noise.
+    ALLOWED_PARAMS_BY_TYPE = {
+        "video": {"p", "t"},
+    }
 
     res_type = "unknown"
     res_id = ""
@@ -123,6 +111,7 @@ def clean_bilibili_url(target_url: str) -> dict:
         res_type = "video"
         res_id = m_video.group(1)
         canonical_clean_url = f"https://www.bilibili.com/video/{res_id}"
+        p_val = query.get("p", [None])[0]
         if p_val and p_val.isdigit() and int(p_val) > 1:
             local_path = f"/video/{res_id}:{p_val}"
         else:
@@ -197,6 +186,19 @@ def clean_bilibili_url(target_url: str) -> dict:
             "",
         ))
         local_path = path
+
+    # Strict Allowlist: only preserve functional params for the detected resource type
+    allowed_keys = ALLOWED_PARAMS_BY_TYPE.get(res_type, set())
+    clean_query = {}
+    for k in allowed_keys:
+        if k in query:
+            clean_query[k] = query[k]
+
+    # Don't keep p=1 as p=1 is the default part
+    if clean_query.get("p") == ["1"]:
+        clean_query.pop("p", None)
+
+    clean_query_str = urlencode(clean_query, doseq=True)
 
     # Append clean query string to canonical clean URL if present
     if clean_query_str:
