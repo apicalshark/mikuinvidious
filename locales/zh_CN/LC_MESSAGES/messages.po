@@ -176,23 +176,23 @@ msgstr "源代码"
 msgid "Documentation"
 msgstr "文档"
 
-#: templates/themes/modern/base.html:477
+#: templates/themes/modern/base.html:482
 msgid "Proudly released under AGPLv3"
 msgstr "自豪地以 AGPLv3 发布"
 
-#: templates/themes/modern/base.html:484
+#: templates/themes/modern/base.html:489
 msgid "View JavaScript licenses"
 msgstr "查看 JavaScript 许可证"
 
-#: templates/themes/modern/base.html:489
+#: templates/themes/modern/base.html:494
 msgid "Privacy policy"
 msgstr "隐私条款"
 
-#: templates/themes/modern/base.html:496
+#: templates/themes/modern/base.html:501
 msgid "Donate"
 msgstr "赞助我们"
 
-#: templates/themes/modern/base.html:498
+#: templates/themes/modern/base.html:503
 msgid "Version info unavailable :-("
 msgstr "版本信息当前不可用 :-("
 
@@ -694,13 +694,13 @@ msgstr "自动 (%(height)sp)"
 msgid "Auto"
 msgstr "自动"
 
-#: static/themes/modern/js/themes.js:236 static/themes/modern/js/themes.js:248
-#: static/themes/modern/js/themes.js:264 static/themes/modern/js/themes.js:274
+#: static/themes/modern/js/themes.js:224 static/themes/modern/js/themes.js:236
+#: static/themes/modern/js/themes.js:252 static/themes/modern/js/themes.js:262
 msgid "On"
 msgstr "已开启"
 
-#: static/themes/modern/js/themes.js:239 static/themes/modern/js/themes.js:251
-#: static/themes/modern/js/themes.js:261 static/themes/modern/js/themes.js:277
+#: static/themes/modern/js/themes.js:227 static/themes/modern/js/themes.js:239
+#: static/themes/modern/js/themes.js:249 static/themes/modern/js/themes.js:265
 msgid "Off"
 msgstr "已关闭"
 
@@ -942,6 +942,78 @@ msgstr "收起"
 #: templates/themes/modern/video_listen.html:274
 msgid "Load more replies"
 msgstr "加载更多回复"
+
+#: templates/themes/modern/base.html:476
+msgid "Link converter"
+msgstr "链接转换器"
+
+#: templates/themes/modern/convert.html:2
+#: templates/themes/modern/convert.html:10
+msgid "Link Converter"
+msgstr "链接转换器"
+
+#: templates/themes/modern/convert.html:12
+msgid ""
+"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free "
+"links and MikuInvidious pages."
+msgstr "将 b23.tv 短链接与哔哩哔哩链接转换为无追踪的干净链接与 MikuInvidious 页面。"
+
+#: templates/themes/modern/convert.html:21
+msgid "Bilibili Link or Share Text"
+msgstr "哔哩哔哩链接或分享文本"
+
+#: templates/themes/modern/convert.html:28
+msgid "Paste a b23.tv shortlink, bilibili.com URL, or app share text..."
+msgstr "粘贴 b23.tv 短链接、bilibili.com 链接或客户端分享文本..."
+
+#: templates/themes/modern/convert.html:41
+msgid "Convert"
+msgstr "转换"
+
+#: templates/themes/modern/convert.html:45
+msgid "Converting..."
+msgstr "正在转换..."
+
+#: templates/themes/modern/convert.html:67
+msgid "Resolved Target"
+msgstr "解析目标"
+
+#: templates/themes/modern/convert.html:76
+msgid "Clean Bilibili URL (no tracking)"
+msgstr "哔哩哔哩干净链接（无追踪）"
+
+#: templates/themes/modern/convert.html:89
+msgid "Copy clean URL"
+msgstr "复制干净链接"
+
+#: templates/themes/modern/convert.html:92
+#: templates/themes/modern/convert.html:115
+msgid "Copy"
+msgstr "复制"
+
+#: templates/themes/modern/convert.html:99
+msgid "MikuInvidious Link"
+msgstr "MikuInvidious 链接"
+
+#: templates/themes/modern/convert.html:112
+msgid "Copy MikuInvidious link"
+msgstr "复制 MikuInvidious 链接"
+
+#: templates/themes/modern/convert.html:123
+msgid "Open"
+msgstr "打开"
+
+#: templates/themes/modern/convert.html:159
+msgid "Copied!"
+msgstr "已复制！"
+
+#: templates/themes/modern/convert.html:235
+msgid "Failed to resolve URL"
+msgstr "解析链接失败"
+
+#: templates/themes/modern/convert.html:258
+msgid "Network error. Please try again."
+msgstr "网络错误，请重试。"
 
 #~ #: templates/themes/modern/pref.html:9
 #~ msgid "Personalization settings"

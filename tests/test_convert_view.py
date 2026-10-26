@@ -107,3 +107,19 @@ class TestConvertView(unittest.IsolatedAsyncioTestCase):
             data = await resp.get_json()
             self.assertEqual(data["status"], "error")
             self.assertEqual(data["error"], "No valid b23.tv or Bilibili URL found in input")
+
+    async def test_footer_link_present(self):
+        with patch("views.homepage.get_videos", new=AsyncMock(return_value=[])):
+            resp_en = await self.client.get("/?lang=en")
+            self.assertEqual(resp_en.status_code, 200)
+            text_en = await resp_en.get_data(as_text=True)
+            self.assertIn('<a href="/convert"', text_en)
+            self.assertIn("Link converter", text_en)
+
+            resp_zh = await self.client.get("/?lang=zh-CN")
+            self.assertEqual(resp_zh.status_code, 200)
+            text_zh = await resp_zh.get_data(as_text=True)
+            self.assertIn('<a href="/convert"', text_zh)
+            self.assertIn("链接转换器", text_zh)
+
+
