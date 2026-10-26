@@ -1,9 +1,8 @@
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from quart.sessions import SecureCookieSessionInterface
-
 from app import app
+from quart.sessions import SecureCookieSessionInterface
 
 
 class TestSearchAutoJump(unittest.IsolatedAsyncioTestCase):

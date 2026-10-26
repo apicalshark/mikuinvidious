@@ -1,5 +1,4 @@
 import re
-from typing import Optional
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 # Bilibili analytics / tracking parameters to strip
@@ -43,7 +42,7 @@ def _is_valid_domain(hostname: str, target_domain: str) -> bool:
     return h == target_domain or h.endswith("." + target_domain)
 
 
-def extract_b23_or_bili_url(text: str) -> Optional[str]:
+def extract_b23_or_bili_url(text: str) -> str | None:
     """
     Extract a valid b23.tv or bilibili.com URL from plain text or app share messages.
     Prevents SSRF by strictly checking hostnames against allowed domains.
@@ -224,16 +223,17 @@ async def resolve_b23_target(input_text: str, client=None) -> dict:
             "error": Optional[str],
         }
     """
-    error_ret = lambda err: {
-        "status": "error",
-        "original": input_text or "",
-        "target_url": "",
-        "clean_url": "",
-        "local_path": "",
-        "type": "",
-        "id": "",
-        "error": err,
-    }
+    def error_ret(err: str) -> dict:
+        return {
+            "status": "error",
+            "original": input_text or "",
+            "target_url": "",
+            "clean_url": "",
+            "local_path": "",
+            "type": "",
+            "id": "",
+            "error": err,
+        }
 
     extracted = extract_b23_or_bili_url(input_text)
     if not extracted:

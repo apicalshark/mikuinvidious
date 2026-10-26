@@ -1,10 +1,10 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock
-import httpx
 
+import httpx
 from b23_resolver import (
-    extract_b23_or_bili_url,
     clean_bilibili_url,
+    extract_b23_or_bili_url,
     resolve_b23_target,
 )
 
