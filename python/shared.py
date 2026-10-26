@@ -408,6 +408,17 @@ def _compute_asset_version():
     The value is server-generated and only ever interpolated into our own
     templates — never derived from request input.
     """
+    env_commit = os.getenv("GIT_COMMIT", "").strip()
+    if env_commit:
+        v = "".join(c for c in env_commit[:16] if c.isalnum() or c in "-_")
+        if v:
+            return v
+    env_ver = os.getenv("APP_VERSION", "").strip()
+    if env_ver:
+        clean_v = env_ver.split(" @ ")[0]
+        v = "".join(c for c in clean_v[:16] if c.isalnum() or c in "-_")
+        if v:
+            return v
     try:
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         p = subprocess.run(
@@ -439,6 +450,78 @@ def _compute_asset_version():
 
 
 ASSET_VERSION = _compute_asset_version()
+
+
+def _compute_app_version():
+    """Full application version string and commit hash for footer and diagnostics.
+
+    Prefers APP_VERSION / GIT_COMMIT environment variables (set by Docker / CI);
+    falls back to `git describe --tags --always --dirty` and git branch; then 'dev'.
+    """
+    version = os.getenv("APP_VERSION", "").strip()
+    commit = os.getenv("GIT_COMMIT", "").strip()
+
+    if not version or not commit:
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            if not version:
+                p = subprocess.run(
+                    ["git", "-C", root, "describe", "--tags", "--always", "--dirty"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                if p.returncode == 0 and p.stdout.strip():
+                    version = p.stdout.strip()
+
+                p_b = subprocess.run(
+                    ["git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                if p_b.returncode == 0:
+                    branch = p_b.stdout.strip()
+                    if branch and branch != "HEAD":
+                        version = f"{version} @ {branch}" if version else f"@ {branch}"
+
+            if not commit:
+                p_c = subprocess.run(
+                    ["git", "-C", root, "rev-parse", "--short", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3,
+                )
+                if p_c.returncode == 0 and p_c.stdout.strip():
+                    commit = p_c.stdout.strip()
+        except Exception:
+            pass
+
+    if not version:
+        version = "dev"
+    if not commit:
+        clean_v = version.split(" @ ")[0]
+        if "-g" in clean_v:
+            commit = clean_v.split("-g")[-1].split("-")[0]
+        elif clean_v != "dev":
+            commit = clean_v[:7]
+        else:
+            commit = ""
+
+    return version, commit
+
+
+APP_VERSION, GIT_COMMIT = _compute_app_version()
+
+
+def _compute_commit_url(repo_url: str | None, commit: str) -> str:
+    """Generate commit browser link according to git hosting platform."""
+    if not commit or not repo_url:
+        return ""
+    repo = repo_url.rstrip("/")
+    if "0xacab" in repo or "gitlab" in repo:
+        return f"{repo}/-/commit/{commit}"
+    return f"{repo}/commit/{commit}"
 
 
 async def cache_get(key, max_age_seconds):
@@ -678,11 +761,20 @@ async def render_template_with_theme(fp, **kwargs):
         if isinstance(val, str):
             kwargs[key] = gettext_msg(locale, val)
 
+    repo_url = (
+        appconf["site"].get("site_modified_source_code_url")
+        or "https://0xacab.org/johnxina/mikuinvidious"
+    )
+    commit_url = _compute_commit_url(repo_url, GIT_COMMIT)
+
     return await render_template(
         f"themes/{t}/{fp}",
         proxy_status=appconf["proxy"],
         locale=locale,
         asset_version=ASSET_VERSION,
+        app_version=APP_VERSION,
+        git_commit=GIT_COMMIT,
+        commit_url=commit_url,
         _=_,
         gettext=lambda s: gettext_msg(locale, s),
         ngettext=lambda s, p, n: ngettext_msg(locale, s, p, n),

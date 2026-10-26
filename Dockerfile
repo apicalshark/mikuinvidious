@@ -20,5 +20,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 # Copy application code
 COPY --chown=appuser:appgroup . .
 
+ARG APP_VERSION="dev"
+ARG GIT_COMMIT=""
+ENV APP_VERSION=${APP_VERSION} \
+    GIT_COMMIT=${GIT_COMMIT}
+
 # Run the app from the python directory
 CMD ["uv", "run", "python", "python/main.py"]

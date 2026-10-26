@@ -19,6 +19,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Compute version
+        id: vars
+        run: |
+          DESC=$(git describe --tags --always --dirty 2>/dev/null || echo ${GITHUB_SHA::7})
+          BRANCH="${{ github.ref_name }}"
+          if [ -n "$BRANCH" ] && [ "${{ github.ref_type }}" != "tag" ]; then
+            echo "version=${DESC} @ ${BRANCH}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${DESC}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "sha_short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -50,5 +64,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.vars.outputs.version }}
+            GIT_COMMIT=${{ steps.vars.outputs.sha_short }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
