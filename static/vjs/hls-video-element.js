@@ -8,7 +8,7 @@ const HlsVideoMixin = (superclass) => {
       const { src, ...rest } = attrs;
       return `
         <script type="application/json" id="config">
-          ${JSON.stringify(props.config || {})}
+          ${JSON.stringify(props.config || {}).replace(/</g, "\\u003c")}
         </script>
         ${superclass.getTemplateHTML(rest)}
       `;
