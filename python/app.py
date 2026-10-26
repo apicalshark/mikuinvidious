@@ -28,10 +28,9 @@ from api import exceptions
 from b23_resolver import resolve_b23_target
 from csrf import csrf_protect, inject_csrf_token
 from proxy import proxy_bp
-from quart import Response, g, jsonify, redirect, request, send_from_directory, url_for
+from quart import Response, g, jsonify, redirect, request, send_from_directory
 from rate_limit import RATE_LIMITS, add_rate_limit_headers, rate_limit
 from shared import (
-    Network,
     app,
     appconf,
     close_global_client,

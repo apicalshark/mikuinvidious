@@ -43,7 +43,7 @@ from extra import (
     get_article_info,
     video_get_src_for_qn,
 )
-from quart import Response, g, redirect, request, url_for
+from quart import Response, g, jsonify, redirect, request, url_for
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import (
     Network,
@@ -1798,3 +1798,59 @@ async def history_view():
                 videos.append(card)
 
     return await render_template_with_theme("home.html", videos=videos, title="Browsing history")
+
+
+@app.route("/convert", methods=["GET", "POST"])
+@rate_limit(**RATE_LIMITS["normal"])
+async def convert_view():
+    url = request.args.get("url") or request.args.get("q") or ""
+    result = None
+    error = None
+
+    if request.method == "POST":
+        form = await request.form
+        url = form.get("url", "").strip()
+        if not url:
+            error = "Please provide a Bilibili or b23.tv link"
+        else:
+            result = await resolve_b23_target(url)
+            if result.get("status") == "error":
+                error = result.get("error", "Failed to resolve URL")
+
+    return await render_template_with_theme(
+        "convert.html",
+        url=url,
+        result=result,
+        error=error,
+    )
+
+
+@app.route("/api/convert", methods=["POST"])
+@rate_limit(**RATE_LIMITS["normal"])
+async def api_convert():
+    try:
+        data = await request.get_json()
+    except Exception:
+        data = None
+
+    if not isinstance(data, dict) or not str(data.get("url", "")).strip():
+        return (
+            jsonify({
+                "status": "error",
+                "original": "",
+                "target_url": "",
+                "clean_url": "",
+                "local_path": "",
+                "type": "",
+                "id": "",
+                "error": "Missing or invalid 'url' parameter",
+            }),
+            400,
+        )
+
+    url = str(data.get("url", "")).strip()
+    result = await resolve_b23_target(url)
+    if result.get("status") == "error":
+        return jsonify(result), 400
+
+    return jsonify(result), 200
