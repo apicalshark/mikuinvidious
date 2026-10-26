@@ -1,9 +1,11 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-10-26 21:13+0800\n"
+"Language: ko\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Language: ko\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
 #: python/i18n_strings.py:30
@@ -42,9 +44,38 @@ msgstr "생방송 목록을 가져오지 못했습니다. 나중에 다시 시�
 msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "이 사용자의 프로필을 가져오지 못했습니다. 나중에 다시 시도해 주세요."
 
+#: python/i18n_strings.py:39
+msgid ""
+"Failed to load bangumi info. Please check your network or try again later."
+msgstr ""
+"방구미 정보를 불러오지 못했습니다. 네트워크를 확인하거나 나중에 다시 시도해 "
+"주세요."
+
+#: python/i18n_strings.py:40
+msgid ""
+"Failed to load the live room. Please check your network or try again later."
+msgstr ""
+"생방송 방을 불러오지 못했습니다. 네트워크를 확인하거나 나중에 다시 시도해 주"
+"세요."
+
 #: python/i18n_strings.py:41
 msgid "Failed to resolve the redirect target."
 msgstr "리디렉션 대상을 해석하지 못했습니다."
+
+#: python/i18n_strings.py:42
+msgid ""
+"Failed to resolve the short link. Please check your network connection or "
+"proxy settings."
+msgstr ""
+"단축 링크를 해석하지 못했습니다. 네트워크 연결 또는 프록시 설정을 확인해 주세"
+"요."
+
+#: python/i18n_strings.py:43
+msgid ""
+"Internal server error. Please try again later or contact the administrator."
+msgstr ""
+"내부 서버 오류가 발생했습니다. 나중에 다시 시도하거나 관리자에게 문의해 주세"
+"요."
 
 #: python/i18n_strings.py:44
 msgid "Invalid request parameters. Please check and try again."
@@ -102,6 +133,10 @@ msgstr "요청을 확인하고 다시 시도해 주세요."
 msgid "Please enter a search keyword and try again."
 msgstr "검색 키워드를 입력하고 다시 시도해 주세요."
 
+#: python/i18n_strings.py:58
+msgid "Please try refreshing the page, or check the server network connection."
+msgstr "페이지를 새로고침하거나 서버 네트워크 연결을 확인해 주세요."
+
 #: python/i18n_strings.py:59
 msgid "Search failed"
 msgstr "검색 실패"
@@ -114,6 +149,12 @@ msgstr "서버 오류"
 msgid "Space load failed"
 msgstr "스페이스를 불러오지 못했습니다"
 
+#: python/i18n_strings.py:62
+msgid ""
+"The article you requested most likely does not exist. Please check your "
+"request."
+msgstr "요청하신 기사가 존재하지 않을 가능성이 높습니다. 요청을 확인해 주세요."
+
 #: python/i18n_strings.py:63
 msgid "The requested page does not exist."
 msgstr "요청하신 페이지가 존재하지 않습니다."
@@ -122,9 +163,22 @@ msgstr "요청하신 페이지가 존재하지 않습니다."
 msgid "The requested resource does not exist."
 msgstr "요청하신 리소스가 존재하지 않습니다."
 
+#: python/i18n_strings.py:66
+msgid ""
+"This content is usually unavailable in your region or has been removed by "
+"Bilibili. Please try again later."
+msgstr ""
+"이 콘텐츠는 해당 지역에서 이용할 수 없거나 Bilibili에서 삭제되었을 수 있습니"
+"다. 나중에 다시 시도해 주세요."
+
 #: python/i18n_strings.py:69
 msgid "This content may be region-restricted or removed."
 msgstr "이 콘텐츠는 지역 제한되거나 삭제되었을 수 있습니다."
+
+#: python/i18n_strings.py:70
+msgid ""
+"This video may have been deleted, is under review, or is region-restricted."
+msgstr "이 영상은 삭제되었거나 심사 중이거나 지역 제한되었을 수 있습니다."
 
 #: python/i18n_strings.py:71
 msgid "Video load failed"
@@ -191,6 +245,10 @@ msgstr "영상"
 msgid "Articles"
 msgstr "기사"
 
+#: templates/themes/modern/author.html:90
+msgid "Read on Bilibili"
+msgstr "Bilibili에서 읽기"
+
 #: templates/themes/modern/author.html:99
 #: templates/themes/modern/search_article.html:70
 msgid "reads"
@@ -213,6 +271,10 @@ msgstr "이전 페이지"
 #: templates/themes/modern/space.html:150 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "다음 페이지"
+
+#: templates/themes/modern/author.html:123
+msgid "This user has no articles yet."
+msgstr "이 사용자는 아직 글이 없습니다."
 
 #: templates/themes/modern/bangumi_index.html:3
 msgid "Bangumi index"
@@ -282,6 +344,10 @@ msgstr "Nyaa 리소스를 불러오지 못했습니다"
 msgid "Bangumi"
 msgstr "방구미"
 
+#: templates/themes/modern/base.html:369 templates/themes/modern/base.html:422
+msgid "Toggle theme"
+msgstr "테마 전환"
+
 #: templates/themes/modern/base.html:373 templates/themes/modern/base.html:426
 msgid "Language"
 msgstr "언어"
@@ -312,29 +378,110 @@ msgstr "소스 코드"
 msgid "Documentation"
 msgstr "문서"
 
-#: templates/themes/modern/base.html:477
+#: templates/themes/modern/base.html:476
+msgid "Link converter"
+msgstr ""
+
+#: templates/themes/modern/base.html:482
 msgid "Proudly released under AGPLv3"
 msgstr "AGPLv3 하에 배포됩니다"
 
-#: templates/themes/modern/base.html:484
+#: templates/themes/modern/base.html:489
 msgid "View JavaScript licenses"
 msgstr "JavaScript 라이선스 보기"
 
-#: templates/themes/modern/base.html:489
+#: templates/themes/modern/base.html:494
 msgid "Privacy policy"
 msgstr "개인정보처리방침"
 
-#: templates/themes/modern/base.html:496
+#: templates/themes/modern/base.html:501
 msgid "Donate"
 msgstr "후원"
 
-#: templates/themes/modern/base.html:498
+#: templates/themes/modern/base.html:503
 msgid "Version info unavailable :-("
 msgstr "버전 정보를 사용할 수 없습니다 :-("
+
+#: templates/themes/modern/convert.html:2
+#: templates/themes/modern/convert.html:10
+msgid "Link Converter"
+msgstr ""
+
+#: templates/themes/modern/convert.html:12
+msgid ""
+"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links "
+"and MikuInvidious pages."
+msgstr ""
+
+#: templates/themes/modern/convert.html:21
+msgid "Bilibili Link or Share Text"
+msgstr ""
+
+#: templates/themes/modern/convert.html:28
+msgid "Paste a b23.tv shortlink, bilibili.com URL, or app share text..."
+msgstr ""
+
+#: templates/themes/modern/convert.html:41
+msgid "Convert"
+msgstr ""
+
+#: templates/themes/modern/convert.html:45
+msgid "Converting..."
+msgstr ""
+
+#: templates/themes/modern/convert.html:67
+msgid "Resolved Target"
+msgstr ""
+
+#: templates/themes/modern/convert.html:76
+msgid "Clean Bilibili URL (no tracking)"
+msgstr ""
+
+#: templates/themes/modern/convert.html:89
+msgid "Copy clean URL"
+msgstr ""
+
+#: templates/themes/modern/convert.html:92
+#: templates/themes/modern/convert.html:115
+msgid "Copy"
+msgstr ""
+
+#: templates/themes/modern/convert.html:99
+msgid "MikuInvidious Link"
+msgstr ""
+
+#: templates/themes/modern/convert.html:112
+msgid "Copy MikuInvidious link"
+msgstr ""
+
+#: templates/themes/modern/convert.html:123
+msgid "Open"
+msgstr ""
+
+#: templates/themes/modern/convert.html:159
+msgid "Copied!"
+msgstr ""
+
+#: templates/themes/modern/convert.html:235
+msgid "Failed to resolve URL"
+msgstr ""
+
+#: templates/themes/modern/convert.html:258
+msgid "Network error. Please try again."
+msgstr ""
 
 #: templates/themes/modern/error.html:2
 msgid "Error"
 msgstr "오류"
+
+#: templates/themes/modern/error.html:14
+msgid ""
+"Check your request. If you believe this is a site issue, contact the "
+"administrator. If you are the administrator, consider reporting it via the "
+"source code link below."
+msgstr ""
+"요청을 확인해 주세요. 사이트 문제라고 생각되면 관리자에게 문의하세요. 관리자"
+"인 경우 아래 소스 코드 링크를 통해 보고해 주세요."
 
 #: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:62
 msgid "Back to home"
@@ -353,6 +500,13 @@ msgstr "안녕하세요, MikuInvidious입니다!"
 #: templates/themes/modern/home.html:9
 msgid "MikuInvidious is a free Bilibili frontend."
 msgstr "MikuInvidious는 자유로운 Bilibili 프론트엔드입니다."
+
+#: templates/themes/modern/home.html:13
+msgid ""
+"This is a MikuInvidious fork that supports pasting Bilibili links directly "
+"into the search box."
+msgstr ""
+"이 MikuInvidious 포크는 검색창에 Bilibili 링크를 직접 붙여넣을 수 있습니다."
 
 #: templates/themes/modern/home.html:15
 msgid "To convert a Bilibili link to MikuInvidious, replace"
@@ -403,6 +557,14 @@ msgstr "JavaScript 라이선스"
 msgid "JavaScript license information"
 msgstr "JavaScript 라이선스 정보"
 
+#: templates/themes/modern/licenses.html:7
+msgid ""
+"License information for the free JavaScript software used on this site is "
+"listed below."
+msgstr ""
+"이 사이트에서 사용하는 자유 JavaScript 소프트웨어의 라이선스 정보는 아래에 나"
+"와 있습니다."
+
 #: templates/themes/modern/licenses.html:12
 msgid "Script file"
 msgstr "스크립트 파일"
@@ -422,9 +584,9 @@ msgstr "OpenCC를 사용하여 콘텐츠를 번체자로 변환"
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
 #: templates/themes/modern/pref.html:41 templates/themes/modern/pref.html:53
 #: templates/themes/modern/video.html:413
-#: templates/themes/modern/video.html:556
-#: templates/themes/modern/video_listen.html:275
-#: templates/themes/modern/video_listen.html:372
+#: templates/themes/modern/video.html:564
+#: templates/themes/modern/video_listen.html:283
+#: templates/themes/modern/video_listen.html:381
 msgid "Loading..."
 msgstr "불러오는 중..."
 
@@ -435,6 +597,26 @@ msgstr "검색어를 간체자로 자동 변환"
 #: templates/themes/modern/pref.html:25
 msgid "Automatically convert keywords to Simplified Chinese when searching"
 msgstr "검색 시 키워드를 간체자로 자동 변환합니다"
+
+#: templates/themes/modern/pref.html:36
+msgid "Pin best audio quality"
+msgstr "최고 음질 고정"
+
+#: templates/themes/modern/pref.html:37
+msgid ""
+"Always play the highest available audio track instead of following video "
+"quality"
+msgstr "화질과 관계없이 항상 최고 음질 트랙을 재생"
+
+#: templates/themes/modern/pref.html:48
+msgid "Lock video resolution"
+msgstr ""
+
+#: templates/themes/modern/pref.html:49
+msgid ""
+"Always play the highest available video track instead of auto-switching "
+"quality"
+msgstr ""
 
 #: templates/themes/modern/read.html:5
 msgid "Illustrations"
@@ -537,6 +719,36 @@ msgstr "사용자를 찾을 수 없습니다"
 msgid "RSS Feed"
 msgstr "RSS 피드"
 
+#: templates/themes/modern/space.html:65
+msgid ""
+"Video list temporarily unavailable — Bilibili rate-limited this instance. "
+"Profile shown; videos should return in a few minutes."
+msgstr ""
+"영상 목록을 일시적으로 사용할 수 없습니다——Bilibili에서 이 인스턴스에 속도 제"
+"한을 적용했습니다. 프로필은 표시됩니다. 몇 분 후 영상이 복구될 것입니다."
+
+#: templates/themes/modern/space.html:69
+msgid ""
+"Video list could not be loaded due to a network error. Profile shown; please "
+"retry shortly."
+msgstr ""
+"네트워크 오류로 영상 목록을 불러오지 못했습니다. 프로필은 표시됩니다. 잠시 "
+"후 다시 시도해 주세요."
+
+#: templates/themes/modern/space.html:130
+msgid "Nothing to show right now — see notice above."
+msgstr "현재 표시할 내용이 없습니다——위 안내를 확인해 주세요."
+
+#: templates/themes/modern/space.html:132
+msgid "Nothing to show right now — loading failed, see notice above."
+msgstr ""
+"현재 표시할 내용이 없습니다——불러오기에 실패했습니다. 위 안내를 확인해 주세"
+"요."
+
+#: templates/themes/modern/space.html:134
+msgid "This user has no videos yet."
+msgstr "이 사용자는 아직 영상이 없습니다."
+
 #: templates/themes/modern/video.html:87 templates/themes/modern/video.html:88
 msgid "Online"
 msgstr "온라인"
@@ -586,33 +798,51 @@ msgid "Connecting to chat..."
 msgstr "채팅에 연결하는 중..."
 
 #: templates/themes/modern/video.html:312
-#: templates/themes/modern/video_listen.html:208
+#: templates/themes/modern/video_listen.html:216
 msgid "Episodes"
 msgstr "회차"
 
 #: templates/themes/modern/video.html:318
-#: templates/themes/modern/video_listen.html:214
+#: templates/themes/modern/video_listen.html:222
 msgid "Autoplay next"
 msgstr "다음 자동 재생"
 
 #: templates/themes/modern/video.html:347
-#: templates/themes/modern/video_listen.html:242
+#: templates/themes/modern/video_listen.html:250
 msgid "Recommended"
 msgstr "추천"
 
 #: templates/themes/modern/video.html:367
-#: templates/themes/modern/video_listen.html:261
+#: templates/themes/modern/video_listen.html:269
 msgid "Play"
 msgstr "재생"
+
+#: templates/themes/modern/video.html:411
+#: templates/themes/modern/video_listen.html:281
+msgid "Fold"
+msgstr "접기"
+
+#: templates/themes/modern/video.html:412
+#: templates/themes/modern/video_listen.html:282
+msgid "Load more replies"
+msgstr "답글 더 보기"
+
+#: templates/themes/modern/components/meta_part.html:25
+#: templates/themes/modern/video.html:414
+#: templates/themes/modern/video_listen.html:205
+#: templates/themes/modern/video_listen.html:285
+msgid "Load more comments"
+msgstr "댓글 더 보기"
 
 #: templates/themes/modern/video.html:477
 msgid "Failed to load comments, please try again later"
 msgstr "댓글을 불러오지 못했습니다. 나중에 다시 시도해 주세요"
 
 #: templates/themes/modern/video.html:536
-#: templates/themes/modern/video.html:568
-#: templates/themes/modern/video_listen.html:276
-#: templates/themes/modern/video_listen.html:384
+#: templates/themes/modern/video.html:576
+#: templates/themes/modern/video.html:635
+#: templates/themes/modern/video_listen.html:284
+#: templates/themes/modern/video_listen.html:393
 msgid "Load failed"
 msgstr "불러오기 실패"
 
@@ -632,14 +862,14 @@ msgid "Download audio"
 msgstr "오디오 다운로드"
 
 #: templates/themes/modern/components/comment_items.html:25
-#: templates/themes/modern/video_listen.html:186
+#: templates/themes/modern/video_listen.html:185
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
 msgstr[0] "%(count)s개의 답글"
 
-#: templates/themes/modern/components/meta_part.html:15
-#: templates/themes/modern/video_listen.html:195
+#: templates/themes/modern/components/meta_part.html:14
+#: templates/themes/modern/video_listen.html:194
 msgid "No comments yet or failed to load"
 msgstr "아직 댓글이 없거나 불러오지 못했습니다"
 
@@ -647,7 +877,7 @@ msgstr "아직 댓글이 없거나 불러오지 못했습니다"
 msgid "Zone"
 msgstr "존"
 
-#: templates/themes/modern/components/meta_part.html:13
+#: templates/themes/modern/components/meta_part.html:12
 msgid "Comments are closed by the uploader."
 msgstr "업로더가 댓글을 닫았습니다."
 
@@ -810,107 +1040,6 @@ msgstr "자동 (%(height)sp)"
 msgid "Auto"
 msgstr "자동"
 
-#: static/themes/modern/js/themes.js:236 static/themes/modern/js/themes.js:248
-#: static/themes/modern/js/themes.js:264 static/themes/modern/js/themes.js:274
-msgid "On"
-msgstr "켬"
-
-#: static/themes/modern/js/themes.js:239 static/themes/modern/js/themes.js:251
-#: static/themes/modern/js/themes.js:261 static/themes/modern/js/themes.js:277
-msgid "Off"
-msgstr "끔"
-
-#: python/i18n_strings.py:39
-msgid "Failed to load bangumi info. Please check your network or try again later."
-msgstr "방구미 정보를 불러오지 못했습니다. 네트워크를 확인하거나 나중에 다시 시도해 주세요."
-
-#: python/i18n_strings.py:40
-msgid ""
-"Failed to load the live room. Please check your network or try again "
-"later."
-msgstr "생방송 방을 불러오지 못했습니다. 네트워크를 확인하거나 나중에 다시 시도해 주세요."
-
-#: python/i18n_strings.py:42
-msgid ""
-"Failed to resolve the short link. Please check your network connection or"
-" proxy settings."
-msgstr "단축 링크를 해석하지 못했습니다. 네트워크 연결 또는 프록시 설정을 확인해 주세요."
-
-#: python/i18n_strings.py:43
-msgid ""
-"Internal server error. Please try again later or contact the "
-"administrator."
-msgstr "내부 서버 오류가 발생했습니다. 나중에 다시 시도하거나 관리자에게 문의해 주세요."
-
-#: python/i18n_strings.py:58
-msgid "Please try refreshing the page, or check the server network connection."
-msgstr "페이지를 새로고침하거나 서버 네트워크 연결을 확인해 주세요."
-
-#: python/i18n_strings.py:62
-msgid ""
-"The article you requested most likely does not exist. Please check your "
-"request."
-msgstr "요청하신 기사가 존재하지 않을 가능성이 높습니다. 요청을 확인해 주세요."
-
-#: python/i18n_strings.py:66
-msgid ""
-"This content is usually unavailable in your region or has been removed by"
-" Bilibili. Please try again later."
-msgstr "이 콘텐츠는 해당 지역에서 이용할 수 없거나 Bilibili에서 삭제되었을 수 있습니다. 나중에 다시 시도해 주세요."
-
-#: python/i18n_strings.py:70
-msgid ""
-"This video may have been deleted, is under review, or is region-"
-"restricted."
-msgstr "이 영상은 삭제되었거나 심사 중이거나 지역 제한되었을 수 있습니다."
-
-#: templates/themes/modern/error.html:14
-msgid ""
-"Check your request. If you believe this is a site issue, contact the "
-"administrator. If you are the administrator, consider reporting it via "
-"the source code link below."
-msgstr "요청을 확인해 주세요. 사이트 문제라고 생각되면 관리자에게 문의하세요. 관리자인 경우 아래 소스 코드 링크를 통해 보고해 주세요."
-
-#: templates/themes/modern/home.html:13
-msgid ""
-"This is a MikuInvidious fork that supports pasting Bilibili links "
-"directly into the search box."
-msgstr "이 MikuInvidious 포크는 검색창에 Bilibili 링크를 직접 붙여넣을 수 있습니다."
-
-#: templates/themes/modern/licenses.html:7
-msgid ""
-"License information for the free JavaScript software used on this site is"
-" listed below."
-msgstr "이 사이트에서 사용하는 자유 JavaScript 소프트웨어의 라이선스 정보는 아래에 나와 있습니다."
-
-#: templates/themes/modern/base.html:369 templates/themes/modern/base.html:422
-msgid "Toggle theme"
-msgstr "테마 전환"
-
-#: templates/themes/modern/space.html:65
-msgid ""
-"Video list temporarily unavailable — Bilibili rate-limited this instance."
-" Profile shown; videos should return in a few minutes."
-msgstr "영상 목록을 일시적으로 사용할 수 없습니다——Bilibili에서 이 인스턴스에 속도 제한을 적용했습니다. 프로필은 표시됩니다. 몇 분 후 영상이 복구될 것입니다."
-
-#: templates/themes/modern/space.html:69
-msgid ""
-"Video list could not be loaded due to a network error. Profile shown; "
-"please retry shortly."
-msgstr "네트워크 오류로 영상 목록을 불러오지 못했습니다. 프로필은 표시됩니다. 잠시 후 다시 시도해 주세요."
-
-#: templates/themes/modern/space.html:130
-msgid "Nothing to show right now — see notice above."
-msgstr "현재 표시할 내용이 없습니다——위 안내를 확인해 주세요."
-
-#: templates/themes/modern/space.html:132
-msgid "Nothing to show right now — loading failed, see notice above."
-msgstr "현재 표시할 내용이 없습니다——불러오기에 실패했습니다. 위 안내를 확인해 주세요."
-
-#: templates/themes/modern/space.html:134
-msgid "This user has no videos yet."
-msgstr "이 사용자는 아직 영상이 없습니다."
-
 #: static/themes/modern/js/player.js:1638
 msgid "Back"
 msgstr "뒤로"
@@ -924,50 +1053,19 @@ msgstr "오디오"
 msgid "Playback speed"
 msgstr "재생 속도"
 
-#: templates/themes/modern/pref.html:36
-msgid "Pin best audio quality"
-msgstr "최고 음질 고정"
+#: static/themes/modern/js/themes.js:224 static/themes/modern/js/themes.js:236
+#: static/themes/modern/js/themes.js:252 static/themes/modern/js/themes.js:262
+msgid "On"
+msgstr "켬"
 
-#: templates/themes/modern/pref.html:37
-msgid ""
-"Always play the highest available audio track instead of following video "
-"quality"
-msgstr "화질과 관계없이 항상 최고 음질 트랙을 재생"
+#: static/themes/modern/js/themes.js:227 static/themes/modern/js/themes.js:239
+#: static/themes/modern/js/themes.js:249 static/themes/modern/js/themes.js:265
+msgid "Off"
+msgstr "끔"
 
-#: templates/themes/modern/pref.html:48
-msgid "Lock video resolution"
-msgstr ""
-
-#: templates/themes/modern/pref.html:49
-msgid ""
-"Always play the highest available video track instead of auto-switching "
-"quality"
-msgstr ""
-
-#: templates/themes/modern/author.html:90
-msgid "Read on Bilibili"
-msgstr "Bilibili에서 읽기"
-
-#: templates/themes/modern/author.html:123
-msgid "This user has no articles yet."
-msgstr "이 사용자는 아직 글이 없습니다."
-
-#: templates/themes/modern/video.html:411
-#: templates/themes/modern/video_listen.html:273
-msgid "Fold"
-msgstr "접기"
-
-#: templates/themes/modern/video.html:412
-#: templates/themes/modern/video_listen.html:274
-msgid "Load more replies"
-msgstr "답글 더 보기"
-
-#~ #: templates/themes/modern/author.html:121
 #~ msgid "No articles yet"
 #~ msgstr "아직 기사가 없습니다"
 
-#~ #: templates/themes/modern/video.html:411
-#~ #: templates/themes/modern/video_listen.html:269
-#~ #, python-format
+#, python-format
 #~ msgid "Loaded %(count)s, click to load more"
 #~ msgstr "%(count)s개 불러옴, 클릭하여 더 불러오기"

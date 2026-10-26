@@ -156,8 +156,7 @@
                     <i class="icon ion-ios-chatbubbles"></i>
                     {{ _('Comments') }} ({{ vcomments['page']['count'] }})
                 </h3>
-                <div id="comments-scrollbox" class="overflow-y-auto pr-1 custom-scrollbar" style="max-height: 130vh;">
-                    <div class="space-y-6" id="comments-list">
+                <div class="space-y-6" id="comments-list">
                     <div id="comments-cursor"
                          data-next-offset="{{ vcomments.get('next_offset', '') }}"
                          data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"></div>
@@ -195,7 +194,16 @@
                         <p class="text-center text-on-surface-variant py-8">{{ _('No comments yet or failed to load') }}</p>
                     {% endif %}
                 </div>
-                    <div id="comments-scroll-spy" class="h-px"></div>
+                {% set has_more = vcomments['replies'] and not vcomments.get('is_end', True) and vcomments.get('next_offset') %}
+                <div id="comments-load-more-container" class="text-center pt-6 {{ '' if has_more else 'hidden' }}">
+                    <button id="comments-load-more-btn"
+                            type="button"
+                            data-vid="{{ vid }}"
+                            data-idx="{{ idx }}"
+                            class="md3-button md3-button-tonal w-full sm:w-auto">
+                        <i class="icon ion-ios-arrow-down"></i>
+                        <span>{{ _('Load more comments') }}</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -274,6 +282,7 @@
         var MSG_MORE_REPLIES = {{ _('Load more replies')|tojson }};
         var MSG_LOADING_DOTS = {{ _('Loading...')|tojson }};
         var MSG_LOAD_FAILED = {{ _('Load failed')|tojson }};
+        var MSG_LOAD_MORE_COMMENTS = {{ _('Load more comments')|tojson }};
         function repliesLabel(btn) {
             var c = Number(btn.dataset.count);
             if (typeof I18n.n === 'function') {
@@ -388,7 +397,7 @@
                 });
         });
 
-        // Infinite scroll INSIDE the fixed-height comment box (mirrors video.html).
+        // Load more comments via button click
         (function() {
             const cspNonce = document.querySelector('meta[name="csp-nonce"]')?.getAttribute('content') || '';
             const headers = cspNonce ? { 'X-CSP-Nonce': cspNonce } : {};
@@ -396,15 +405,25 @@
             async function loadMoreComments(vid, idx) {
                 if (commentsLoading) return;
                 const cursorEl = document.getElementById('comments-cursor');
+                const moreContainer = document.getElementById('comments-load-more-container');
+                const moreBtn = document.getElementById('comments-load-more-btn');
+                const label = moreBtn ? moreBtn.querySelector('span') : null;
                 if (!cursorEl) return;
                 const next = cursorEl.dataset.nextOffset;
-                if (!next || cursorEl.dataset.isEnd === 'true') return;
+                if (!next || cursorEl.dataset.isEnd === 'true') {
+                    if (moreContainer) moreContainer.classList.add('hidden');
+                    return;
+                }
+                const previousNext = next;
                 commentsLoading = true;
+                if (moreBtn) moreBtn.disabled = true;
+                if (label) label.textContent = MSG_LOADING_DOTS;
                 try {
                     const r = await fetch(`/api/component/comments/${vid}/${idx}/more?next=${encodeURIComponent(next)}`, { headers });
                     if (!r.ok) throw new Error(`HTTP ${r.status}`);
                     const html = await r.text();
                     const list = document.getElementById('comments-list');
+                    let added = 0;
                     if (list && cursorEl) {
                         const tmp = document.createElement('div');
                         tmp.innerHTML = html;
@@ -415,6 +434,7 @@
                             if (!existing.has(el.dataset.rpid)) {
                                 existing.add(el.dataset.rpid);
                                 list.appendChild(el);
+                                added++;
                             }
                         });
                         if (newCursor) {
@@ -422,34 +442,31 @@
                             cursorEl.dataset.isEnd = newCursor.dataset.isEnd;
                         }
                     }
+                    const cursorRepeated = cursorEl && cursorEl.dataset.nextOffset === previousNext;
+                    const isEnd = !cursorEl || cursorEl.dataset.isEnd === 'true' || !cursorEl.dataset.nextOffset || cursorRepeated;
+                    if (isEnd) {
+                        if (moreContainer) moreContainer.classList.add('hidden');
+                    } else {
+                        if (label) label.textContent = MSG_LOAD_MORE_COMMENTS;
+                        if (moreBtn) moreBtn.disabled = false;
+                    }
                 } catch (err) {
                     console.error('[comments] load more failed:', err);
+                    if (label) label.textContent = MSG_LOAD_FAILED;
+                    if (moreBtn) moreBtn.disabled = false;
                 } finally {
                     commentsLoading = false;
-                    const cur = document.getElementById('comments-cursor');
-                    if (!cur || cur.dataset.isEnd !== 'true') {
-                        window.__commentIO && window.__commentIO.observe(document.getElementById('comments-scroll-spy'));
-                    }
                 }
             }
-            let commentIO = null;
-            function setupCommentInfiniteScroll() {
-                const spy = document.getElementById('comments-scroll-spy');
-                if (!spy || commentIO) return;
-                commentIO = new IntersectionObserver((entries) => {
-                    if (entries[0].isIntersecting) {
-                        commentIO.unobserve(spy);
-                        loadMoreComments(window.current_vid, window.idx);
-                    }
-                }, { root: document.getElementById('comments-scrollbox'), rootMargin: '200px' });
-                window.__commentIO = commentIO;
-                commentIO.observe(spy);
-            }
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', setupCommentInfiniteScroll);
-            } else {
-                setupCommentInfiniteScroll();
-            }
+            window.loadMoreComments = loadMoreComments;
+
+            document.addEventListener('click', function(e) {
+                const btn = e.target.closest('#comments-load-more-btn');
+                if (!btn) return;
+                const vid = btn.dataset.vid || window.current_vid;
+                const idx = btn.dataset.idx !== undefined ? btn.dataset.idx : (window.idx || 0);
+                loadMoreComments(vid, idx);
+            });
         })();
     </script>
 {% endblock %}

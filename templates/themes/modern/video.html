@@ -411,6 +411,7 @@
             const MSG_FOLD = {{ _('Fold')|tojson }};
             const MSG_MORE_REPLIES = {{ _('Load more replies')|tojson }};
             const MSG_LOADING_DOTS = {{ _('Loading...')|tojson }};
+            const MSG_LOAD_MORE_COMMENTS = {{ _('Load more comments')|tojson }};
             // Full "N replies" label for a thread (used when folding).
             function repliesLabel(btn) {
                 const c = Number(btn.dataset.count);
@@ -468,7 +469,6 @@
                         const container = document.getElementById('comments-loader-container');
                         if (!container) return;
                         container.innerHTML = html;
-                        setupCommentInfiniteScroll();
                     })
                     .catch(err => {
                         console.error('[comments] fetch failed:', err);
@@ -542,6 +542,14 @@
                     slot.appendChild(more);
                 }
                 document.addEventListener('click', function(e) {
+                    const moreBtn = e.target.closest('#comments-load-more-btn');
+                    if (moreBtn) {
+                        const vid = moreBtn.dataset.vid || window.current_vid;
+                        const idx = moreBtn.dataset.idx !== undefined ? moreBtn.dataset.idx : (window.idx || 0);
+                        window.loadMoreComments(vid, idx);
+                        return;
+                    }
+
                     const btn = e.target.closest('.sub-comment-toggle');
                     if (!btn) return;
                     const vid = btn.dataset.vid;
@@ -572,78 +580,66 @@
                         });
                 });
 
-                    // Infinite scroll INSIDE the fixed-height comment box (not the
-                    // page): the observer root is the scrollbox, so the page
-                    // never grows while more pages append.
-                    let commentsLoading = false;
-                    window.loadMoreComments = async function(vid, idx) {
-                        if (commentsLoading) return;
-                        const cursorEl = document.getElementById('comments-cursor');
-                        if (!cursorEl) return;
-                        const next = cursorEl.dataset.nextOffset;
-                        if (!next || cursorEl.dataset.isEnd === 'true') return;
+                // Load more top-level comments via button click
+                let commentsLoading = false;
+                window.loadMoreComments = async function(vid, idx) {
+                    if (commentsLoading) return;
+                    const cursorEl = document.getElementById('comments-cursor');
+                    const moreContainer = document.getElementById('comments-load-more-container');
+                    const moreBtn = document.getElementById('comments-load-more-btn');
+                    const label = moreBtn ? moreBtn.querySelector('span') : null;
+                    if (!cursorEl) return;
+                    const next = cursorEl.dataset.nextOffset;
+                    if (!next || cursorEl.dataset.isEnd === 'true') {
+                        if (moreContainer) moreContainer.classList.add('hidden');
+                        return;
+                    }
 
-                        commentsLoading = true;
-                        const spy = document.getElementById('comments-scroll-spy');
-                        const spinner = document.getElementById('comments-load-more');
-                        if (spinner) spinner.classList.remove('hidden');
-                        try {
-                            const r = await fetch(`/api/component/comments/${vid}/${idx}/more?next=${encodeURIComponent(next)}`, { headers });
-                            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                            const html = await r.text();
-                            const list = document.getElementById('comments-list');
-                            if (list && cursorEl) {
-                                // Append the new comment items, then replace the stale
-                                // cursor with the one embedded in the fetched fragment.
-                                const tmp = document.createElement('div');
-                                tmp.innerHTML = html;
-                                const newCursor = tmp.querySelector('#comments-cursor');
-                                const items = tmp.querySelectorAll('[data-rpid]');
-                                const existing = new Set(Array.from(list.querySelectorAll('[data-rpid]'), el => el.dataset.rpid));
-                                items.forEach(el => {
-                                    if (!existing.has(el.dataset.rpid)) {
-                                        existing.add(el.dataset.rpid);
-                                        list.appendChild(el);
-                                    }
-                                });
-                                if (newCursor) {
-                                    cursorEl.dataset.nextOffset = newCursor.dataset.nextOffset;
-                                    cursorEl.dataset.isEnd = newCursor.dataset.isEnd;
+                    const previousNext = next;
+                    commentsLoading = true;
+                    if (moreBtn) moreBtn.disabled = true;
+                    if (label) label.textContent = MSG_LOADING_DOTS;
+
+                    try {
+                        const r = await fetch(`/api/component/comments/${vid}/${idx}/more?next=${encodeURIComponent(next)}`, { headers });
+                        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                        const html = await r.text();
+                        const list = document.getElementById('comments-list');
+                        let added = 0;
+                        if (list && cursorEl) {
+                            const tmp = document.createElement('div');
+                            tmp.innerHTML = html;
+                            const newCursor = tmp.querySelector('#comments-cursor');
+                            const items = tmp.querySelectorAll('[data-rpid]');
+                            const existing = new Set(Array.from(list.querySelectorAll('[data-rpid]'), el => el.dataset.rpid));
+                            items.forEach(el => {
+                                if (!existing.has(el.dataset.rpid)) {
+                                    existing.add(el.dataset.rpid);
+                                    list.appendChild(el);
+                                    added++;
                                 }
-                            }
-                        } catch (err) {
-                            console.error('[comments] load more failed:', err);
-                        } finally {
-                            commentsLoading = false;
-                            if (spinner) spinner.classList.add('hidden');
-                            const cur = document.getElementById('comments-cursor');
-                            if (!cur || cur.dataset.isEnd !== 'true') {
-                                // Re-observe so the spy can trigger again once it's scrolled
-                                // back into view with the newly appended content.
-                                window.__commentIO && window.__commentIO.observe(spy);
+                            });
+                            if (newCursor) {
+                                cursorEl.dataset.nextOffset = newCursor.dataset.nextOffset;
+                                cursorEl.dataset.isEnd = newCursor.dataset.isEnd;
                             }
                         }
-                    };
-
-                    // Re-arm observer after content is replaced on first load.
-                    let commentIO = null;
-                    const setupCommentInfiniteScroll = function() {
-                        const spy = document.getElementById('comments-scroll-spy');
-                        if (!spy) return; // first page not mounted yet; retry later
-                        if (commentIO) return;
-                        commentIO = new IntersectionObserver((entries) => {
-                            if (entries[0].isIntersecting) {
-                                commentIO.unobserve(spy);
-                                window.loadMoreComments(window.current_vid, window.idx);
-                            }
-                        }, { root: document.getElementById('comments-scrollbox'), rootMargin: '200px' });
-                        window.__commentIO = commentIO;
-                        commentIO.observe(spy);
-                    };
-                    setupCommentInfiniteScroll();
-
-                    // Re-arm once more after the (asynchronously loaded) first page mounts.
-                    setTimeout(setupCommentInfiniteScroll, 250);
+                        const cursorRepeated = cursorEl && cursorEl.dataset.nextOffset === previousNext;
+                        const isEnd = !cursorEl || cursorEl.dataset.isEnd === 'true' || !cursorEl.dataset.nextOffset || cursorRepeated;
+                        if (isEnd) {
+                            if (moreContainer) moreContainer.classList.add('hidden');
+                        } else {
+                            if (label) label.textContent = MSG_LOAD_MORE_COMMENTS;
+                            if (moreBtn) moreBtn.disabled = false;
+                        }
+                    } catch (err) {
+                        console.error('[comments] load more failed:', err);
+                        if (label) label.textContent = {{ _('Load failed')|tojson }};
+                        if (moreBtn) moreBtn.disabled = false;
+                    } finally {
+                        commentsLoading = false;
+                    }
+                };
             }
         });
     </script>

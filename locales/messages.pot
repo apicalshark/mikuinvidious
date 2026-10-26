@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-12 21:35+0800\n"
+"POT-Creation-Date: 2026-10-26 21:13+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -379,24 +379,96 @@ msgstr ""
 msgid "Documentation"
 msgstr ""
 
-#: templates/themes/modern/base.html:477
+#: templates/themes/modern/base.html:476
+msgid "Link converter"
+msgstr ""
+
+#: templates/themes/modern/base.html:482
 msgid "Proudly released under AGPLv3"
 msgstr ""
 
-#: templates/themes/modern/base.html:484
+#: templates/themes/modern/base.html:489
 msgid "View JavaScript licenses"
 msgstr ""
 
-#: templates/themes/modern/base.html:489
+#: templates/themes/modern/base.html:494
 msgid "Privacy policy"
 msgstr ""
 
-#: templates/themes/modern/base.html:496
+#: templates/themes/modern/base.html:501
 msgid "Donate"
 msgstr ""
 
-#: templates/themes/modern/base.html:498
+#: templates/themes/modern/base.html:503
 msgid "Version info unavailable :-("
+msgstr ""
+
+#: templates/themes/modern/convert.html:2
+#: templates/themes/modern/convert.html:10
+msgid "Link Converter"
+msgstr ""
+
+#: templates/themes/modern/convert.html:12
+msgid ""
+"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free "
+"links and MikuInvidious pages."
+msgstr ""
+
+#: templates/themes/modern/convert.html:21
+msgid "Bilibili Link or Share Text"
+msgstr ""
+
+#: templates/themes/modern/convert.html:28
+msgid "Paste a b23.tv shortlink, bilibili.com URL, or app share text..."
+msgstr ""
+
+#: templates/themes/modern/convert.html:41
+msgid "Convert"
+msgstr ""
+
+#: templates/themes/modern/convert.html:45
+msgid "Converting..."
+msgstr ""
+
+#: templates/themes/modern/convert.html:67
+msgid "Resolved Target"
+msgstr ""
+
+#: templates/themes/modern/convert.html:76
+msgid "Clean Bilibili URL (no tracking)"
+msgstr ""
+
+#: templates/themes/modern/convert.html:89
+msgid "Copy clean URL"
+msgstr ""
+
+#: templates/themes/modern/convert.html:92
+#: templates/themes/modern/convert.html:115
+msgid "Copy"
+msgstr ""
+
+#: templates/themes/modern/convert.html:99
+msgid "MikuInvidious Link"
+msgstr ""
+
+#: templates/themes/modern/convert.html:112
+msgid "Copy MikuInvidious link"
+msgstr ""
+
+#: templates/themes/modern/convert.html:123
+msgid "Open"
+msgstr ""
+
+#: templates/themes/modern/convert.html:159
+msgid "Copied!"
+msgstr ""
+
+#: templates/themes/modern/convert.html:235
+msgid "Failed to resolve URL"
+msgstr ""
+
+#: templates/themes/modern/convert.html:258
+msgid "Network error. Please try again."
 msgstr ""
 
 #: templates/themes/modern/error.html:2
@@ -508,9 +580,9 @@ msgstr ""
 #: templates/themes/modern/pref.html:18 templates/themes/modern/pref.html:29
 #: templates/themes/modern/pref.html:41 templates/themes/modern/pref.html:53
 #: templates/themes/modern/video.html:413
-#: templates/themes/modern/video.html:556
-#: templates/themes/modern/video_listen.html:275
-#: templates/themes/modern/video_listen.html:372
+#: templates/themes/modern/video.html:564
+#: templates/themes/modern/video_listen.html:283
+#: templates/themes/modern/video_listen.html:381
 msgid "Loading..."
 msgstr ""
 
@@ -716,33 +788,40 @@ msgid "Connecting to chat..."
 msgstr ""
 
 #: templates/themes/modern/video.html:312
-#: templates/themes/modern/video_listen.html:208
+#: templates/themes/modern/video_listen.html:216
 msgid "Episodes"
 msgstr ""
 
 #: templates/themes/modern/video.html:318
-#: templates/themes/modern/video_listen.html:214
+#: templates/themes/modern/video_listen.html:222
 msgid "Autoplay next"
 msgstr ""
 
 #: templates/themes/modern/video.html:347
-#: templates/themes/modern/video_listen.html:242
+#: templates/themes/modern/video_listen.html:250
 msgid "Recommended"
 msgstr ""
 
 #: templates/themes/modern/video.html:367
-#: templates/themes/modern/video_listen.html:261
+#: templates/themes/modern/video_listen.html:269
 msgid "Play"
 msgstr ""
 
 #: templates/themes/modern/video.html:411
-#: templates/themes/modern/video_listen.html:273
+#: templates/themes/modern/video_listen.html:281
 msgid "Fold"
 msgstr ""
 
 #: templates/themes/modern/video.html:412
-#: templates/themes/modern/video_listen.html:274
+#: templates/themes/modern/video_listen.html:282
 msgid "Load more replies"
+msgstr ""
+
+#: templates/themes/modern/components/meta_part.html:25
+#: templates/themes/modern/video.html:414
+#: templates/themes/modern/video_listen.html:205
+#: templates/themes/modern/video_listen.html:285
+msgid "Load more comments"
 msgstr ""
 
 #: templates/themes/modern/video.html:477
@@ -750,9 +829,10 @@ msgid "Failed to load comments, please try again later"
 msgstr ""
 
 #: templates/themes/modern/video.html:536
-#: templates/themes/modern/video.html:568
-#: templates/themes/modern/video_listen.html:276
-#: templates/themes/modern/video_listen.html:384
+#: templates/themes/modern/video.html:576
+#: templates/themes/modern/video.html:635
+#: templates/themes/modern/video_listen.html:284
+#: templates/themes/modern/video_listen.html:393
 msgid "Load failed"
 msgstr ""
 
@@ -772,15 +852,15 @@ msgid "Download audio"
 msgstr ""
 
 #: templates/themes/modern/components/comment_items.html:25
-#: templates/themes/modern/video_listen.html:186
+#: templates/themes/modern/video_listen.html:185
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
 msgstr[0] ""
 msgstr[1] ""
 
-#: templates/themes/modern/components/meta_part.html:15
-#: templates/themes/modern/video_listen.html:195
+#: templates/themes/modern/components/meta_part.html:14
+#: templates/themes/modern/video_listen.html:194
 msgid "No comments yet or failed to load"
 msgstr ""
 
@@ -788,7 +868,7 @@ msgstr ""
 msgid "Zone"
 msgstr ""
 
-#: templates/themes/modern/components/meta_part.html:13
+#: templates/themes/modern/components/meta_part.html:12
 msgid "Comments are closed by the uploader."
 msgstr ""
 
@@ -964,13 +1044,13 @@ msgstr ""
 msgid "Playback speed"
 msgstr ""
 
-#: static/themes/modern/js/themes.js:236 static/themes/modern/js/themes.js:248
-#: static/themes/modern/js/themes.js:264 static/themes/modern/js/themes.js:274
+#: static/themes/modern/js/themes.js:224 static/themes/modern/js/themes.js:236
+#: static/themes/modern/js/themes.js:252 static/themes/modern/js/themes.js:262
 msgid "On"
 msgstr ""
 
-#: static/themes/modern/js/themes.js:239 static/themes/modern/js/themes.js:251
-#: static/themes/modern/js/themes.js:261 static/themes/modern/js/themes.js:277
+#: static/themes/modern/js/themes.js:227 static/themes/modern/js/themes.js:239
+#: static/themes/modern/js/themes.js:249 static/themes/modern/js/themes.js:265
 msgid "Off"
 msgstr ""
 

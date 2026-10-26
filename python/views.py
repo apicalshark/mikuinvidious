@@ -35,6 +35,7 @@ from api import (
     video_zone,
 )
 from api.exceptions import is_risk_error
+from b23_resolver import extract_b23_or_bili_url, resolve_b23_target
 from extra import (
     article_to_any,
     article_to_html,
@@ -42,7 +43,7 @@ from extra import (
     get_article_info,
     video_get_src_for_qn,
 )
-from quart import Response, g, redirect, request, url_for
+from quart import Response, g, jsonify, redirect, request, url_for
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import (
     Network,
@@ -232,6 +233,11 @@ async def search_view():
         ), 400
 
     # URL Jump logic
+    b23_link = extract_b23_or_bili_url(q)
+    if b23_link and "b23.tv" in b23_link:
+        res = await resolve_b23_target(q)
+        if res.get("status") == "ok" and res.get("local_path"):
+            return redirect(res["local_path"])
 
     # 1. Video (BV/av)
     m = re.search(r"(BV[a-zA-Z0-9]{10}|av\d+)", q, re.I)
@@ -1293,6 +1299,7 @@ async def api_component_meta(vid, idx):
     return await render_template_with_theme(
         "components/meta_part.html",
         vid=vid,
+        idx=idx,
         vcomments=vcomments,
         is_live=False,
         comments_closed=comments_closed,
@@ -1324,18 +1331,20 @@ async def api_component_meta_more(vid, idx):
         ),
         4.0,
     )
+    failed = not raw or isinstance(raw, Exception)
     vcomments = (
-        raw
-        if raw and not isinstance(raw, Exception)
-        else {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
+        {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
+        if failed
+        else raw
     )
 
-    return await render_template_with_theme(
+    body = await render_template_with_theme(
         "components/comment_items.html",
         vid=vid,
         vcomments=vcomments,
         is_live=False,
     )
+    return (body, 503) if failed else body
 
 
 @app.route("/api/component/comments/<vid>/<int:rpid>")
@@ -1792,3 +1801,59 @@ async def history_view():
                 videos.append(card)
 
     return await render_template_with_theme("home.html", videos=videos, title="Browsing history")
+
+
+@app.route("/convert", methods=["GET", "POST"])
+@rate_limit(**RATE_LIMITS["normal"])
+async def convert_view():
+    url = request.args.get("url") or request.args.get("q") or ""
+    result = None
+    error = None
+
+    if request.method == "POST":
+        form = await request.form
+        url = form.get("url", "").strip()
+        if not url:
+            error = "Please provide a Bilibili or b23.tv link"
+        else:
+            result = await resolve_b23_target(url)
+            if result.get("status") == "error":
+                error = result.get("error", "Failed to resolve URL")
+
+    return await render_template_with_theme(
+        "convert.html",
+        url=url,
+        result=result,
+        error=error,
+    )
+
+
+@app.route("/api/convert", methods=["POST"])
+@rate_limit(**RATE_LIMITS["normal"])
+async def api_convert():
+    try:
+        data = await request.get_json()
+    except Exception:
+        data = None
+
+    if not isinstance(data, dict) or not str(data.get("url", "")).strip():
+        return (
+            jsonify({
+                "status": "error",
+                "original": "",
+                "target_url": "",
+                "clean_url": "",
+                "local_path": "",
+                "type": "",
+                "id": "",
+                "error": "Missing or invalid 'url' parameter",
+            }),
+            400,
+        )
+
+    url = str(data.get("url", "")).strip()
+    result = await resolve_b23_target(url)
+    if result.get("status") == "error":
+        return jsonify(result), 400
+
+    return jsonify(result), 200

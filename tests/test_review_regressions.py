@@ -94,5 +94,35 @@ class SpaceFetchTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(fetch.await_count, len(responses))
 
 
+class CommentPaginationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_meta_more_returns_503_on_upstream_failure(self):
+        with (
+            patch("views.comment.get_comments", AsyncMock(side_effect=TimeoutError("upstream timeout"))),
+            patch("views.render_template_with_theme", AsyncMock(return_value="rendered_error_comments")),
+        ):
+            async with views.app.test_request_context("/api/component/comments/BV1xx411c7xx/0/more?next=offset1"):
+                result = await views.api_component_meta_more("BV1xx411c7xx", 0)
+                # When failed, returns tuple (body, 503)
+                self.assertIsInstance(result, tuple)
+                self.assertEqual(result[1], 503)
+                self.assertEqual(result[0], "rendered_error_comments")
+
+    async def test_meta_more_returns_200_on_success(self):
+        mock_comments = {
+            "page": {"count": 1},
+            "replies": [{"rpid": 123}],
+            "next_offset": "offset2",
+            "is_end": False,
+        }
+        with (
+            patch("views.comment.get_comments", AsyncMock(return_value=mock_comments)),
+            patch("views.render_template_with_theme", AsyncMock(return_value="rendered_comments")),
+        ):
+            async with views.app.test_request_context("/api/component/comments/BV1xx411c7xx/0/more?next=offset1"):
+                result = await views.api_component_meta_more("BV1xx411c7xx", 0)
+                # When successful, returns body directly
+                self.assertEqual(result, "rendered_comments")
+
+
 if __name__ == "__main__":
     unittest.main()
