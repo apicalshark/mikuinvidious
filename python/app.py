@@ -25,6 +25,7 @@ import filters  # noqa: F401
 import res  # noqa: F401
 import views  # noqa: F401
 from api import exceptions
+from b23_resolver import resolve_b23_target
 from csrf import csrf_protect, inject_csrf_token
 from proxy import proxy_bp
 from quart import Response, g, jsonify, redirect, request, send_from_directory, url_for
@@ -213,56 +214,23 @@ async def set_lang_api():
 @rate_limit(**RATE_LIMITS["normal"])
 async def b32tv_redirect(b32tvid):
     # Validate b32tvid format (base32, typically 6-12 chars)
-    import re
-
     if not re.match(r"^[A-Za-z0-9]{6,12}$", b32tvid):
         return Response("Invalid short link format", status=400)
 
-    client = await Network.get_async_client()
-    req = None
     try:
-        _req = client.build_request("GET", f"https://b23.tv/{b32tvid}")
-        req = await client.send(_req, follow_redirects=False)
-        if req.status_code != 302:
-            try:
-                e = req.json()
-                msg = e.get("message", "Unknown error")
-                code = e.get("code", req.status_code)
-            except Exception:
-                msg = "Page not found" if req.status_code == 404 else "Unknown error"
-                code = req.status_code
+        res = await resolve_b23_target(f"https://b23.tv/{b32tvid}")
+        if res.get("status") == "ok" and res.get("local_path"):
+            return redirect(res["local_path"])
 
-            return await render_template_with_theme(
-                "error.html",
-                status=msg,
-                desc="The requested resource does not exist." if code == 404 else msg,
-                suggest="Please check your request and try again.",
-            ), abs(code)
-
-        location = req.headers.get("Location")
-        if not location:
-            return await render_template_with_theme(
-                "error.html",
-                status="Parse error",
-                desc="Failed to resolve the redirect target.",
-                suggest="Please check the URL.",
-            ), 500
-
-        url = urlparse(location)
-        if url.path.startswith("/read/mobile"):
-            return redirect(url_for("read_view", cid=f"cv{url.path[13:]}"))
-        elif url.path.startswith("/opus/"):
-            return redirect(url_for("read_view", cid=f"opus{url.path[6:]}"))
-        elif url.path.startswith("/video/"):
-            return redirect(url_for("video_view", vid=location.split("/")[-1][:12]))
-        elif "/audio/au" in url.path:
-            return redirect(url_for("audio_view", auid="au" + url.path.split("/audio/au")[-1].split("?")[0]))
-        elif "/audio/am" in url.path:
-            return redirect(url_for("audio_list_view", amid="am" + url.path.split("/audio/am")[-1].split("?")[0]))
+        err_desc = res.get("error") or "Failed to resolve the short link."
+        code = 404 if "404" in err_desc or "not exist" in err_desc.lower() else 500
+        return await render_template_with_theme(
+            "error.html",
+            status="Resolution error",
+            desc=err_desc,
+            suggest="Please check your request and try again.",
+        ), code
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
         print(f"[Redirect] Error redirecting b23.tv/{b32tvid}: {e}")
         return await render_template_with_theme(
             "error.html",
@@ -270,9 +238,6 @@ async def b32tv_redirect(b32tvid):
             desc="Failed to resolve the short link. Please check your network connection or proxy settings.",
             suggest="Please check your network connection or proxy settings.",
         ), 500
-    finally:
-        if req:
-            await req.aclose()
 
 
 @app.route("/download", methods=["POST"])

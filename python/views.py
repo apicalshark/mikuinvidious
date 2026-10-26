@@ -35,6 +35,7 @@ from api import (
     video_zone,
 )
 from api.exceptions import is_risk_error
+from b23_resolver import extract_b23_or_bili_url, resolve_b23_target
 from extra import (
     article_to_any,
     article_to_html,
@@ -232,6 +233,11 @@ async def search_view():
         ), 400
 
     # URL Jump logic
+    b23_link = extract_b23_or_bili_url(q)
+    if b23_link and "b23.tv" in b23_link:
+        res = await resolve_b23_target(q)
+        if res.get("status") == "ok" and res.get("local_path"):
+            return redirect(res["local_path"])
 
     # 1. Video (BV/av)
     m = re.search(r"(BV[a-zA-Z0-9]{10}|av\d+)", q, re.I)
