@@ -68,6 +68,12 @@ class TestCleanBilibiliUrl:
         assert "spm_id_from" not in res["clean_url"]
         assert res["local_path"] == "/video/BV1xx411c7xx:2"
 
+        # User real-world test: spmid without underscore & timestamp
+        user_url = "https://www.bilibili.com/video/BV1e6d7B5Ezk?p=3&spmid=united.player-video-detail.0.0&timestamp=1792950294"
+        res_user = clean_bilibili_url(user_url)
+        assert res_user["clean_url"] == "https://www.bilibili.com/video/BV1e6d7B5Ezk?p=3"
+        assert res_user["local_path"] == "/video/BV1e6d7B5Ezk:3"
+
     def test_classify_video_av(self):
         url = "https://www.bilibili.com/video/av170001?spm_id_from=333"
         res = clean_bilibili_url(url)

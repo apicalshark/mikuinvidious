@@ -15,6 +15,9 @@ TRACKING_PARAMS = {
     "buvid",
     "bbid",
     "ts",
+    "timestamp",
+    "spmid",
+    "from_spmid",
     "unique_k",
     "vd_source",
     "is_story_h5",
@@ -97,9 +100,10 @@ def clean_bilibili_url(target_url: str) -> dict:
         if (
             k_lower in TRACKING_PARAMS
             or k_lower.startswith("utm_")
-            or k_lower.startswith("spm_")
+            or k_lower.startswith("spm")
             or k_lower.startswith("share_")
             or k_lower.startswith("track_")
+            or k_lower.startswith("from_")
         ):
             continue
         filtered_query[k] = v
