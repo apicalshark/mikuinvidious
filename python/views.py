@@ -1331,18 +1331,20 @@ async def api_component_meta_more(vid, idx):
         ),
         4.0,
     )
+    failed = not raw or isinstance(raw, Exception)
     vcomments = (
-        raw
-        if raw and not isinstance(raw, Exception)
-        else {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
+        {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
+        if failed
+        else raw
     )
 
-    return await render_template_with_theme(
+    body = await render_template_with_theme(
         "components/comment_items.html",
         vid=vid,
         vcomments=vcomments,
         is_live=False,
     )
+    return (body, 503) if failed else body
 
 
 @app.route("/api/component/comments/<vid>/<int:rpid>")

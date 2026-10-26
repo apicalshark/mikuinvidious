@@ -207,8 +207,8 @@
     "nplurals": 3,
     "order": [
       "one",
-      "many",
-      "other"
+      "few",
+      "many"
     ]
   },
   "after the instance domain +": "після домену екземпляра +",

@@ -74,6 +74,20 @@ class TestCleanBilibiliUrl:
         assert res_user["clean_url"] == "https://www.bilibili.com/video/BV1e6d7B5Ezk?p=3"
         assert res_user["local_path"] == "/video/BV1e6d7B5Ezk:3"
 
+    def test_non_ascii_digit_p_rejected(self):
+        url = "https://www.bilibili.com/video/BV1xx411c7xx?p=²"
+        res = clean_bilibili_url(url)
+        assert res["local_path"] == "/video/BV1xx411c7xx"
+
+    def test_protocol_relative_path_rejected(self):
+        url1 = "https://www.bilibili.com//evil.com/path"
+        res1 = clean_bilibili_url(url1)
+        assert res1["local_path"] == ""
+
+        url2 = "https://www.bilibili.com/\\evil.com/path"
+        res2 = clean_bilibili_url(url2)
+        assert res2["local_path"] == ""
+
     def test_classify_video_av(self):
         url = "https://www.bilibili.com/video/av170001?spm_id_from=333"
         res = clean_bilibili_url(url)
@@ -223,3 +237,12 @@ class TestResolveB23Target(unittest.IsolatedAsyncioTestCase):
         res = await resolve_b23_target("just plain text without link")
         self.assertEqual(res["status"], "error")
         self.assertIn("No valid", res["error"])
+
+    async def test_resolve_exception_returns_safe_message(self):
+        mock_client = AsyncMock(spec=httpx.AsyncClient)
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("proxy connection failure to 10.0.0.1:8080"))
+
+        res = await resolve_b23_target("https://b23.tv/xyz999", client=mock_client)
+        self.assertEqual(res["status"], "error")
+        self.assertEqual(res["error"], "Failed to reach b23.tv. Please try again later.")
+        self.assertNotIn("proxy connection failure", res["error"])

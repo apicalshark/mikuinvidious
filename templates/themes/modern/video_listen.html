@@ -414,6 +414,7 @@
                     if (moreContainer) moreContainer.classList.add('hidden');
                     return;
                 }
+                const previousNext = next;
                 commentsLoading = true;
                 if (moreBtn) moreBtn.disabled = true;
                 if (label) label.textContent = MSG_LOADING_DOTS;
@@ -441,7 +442,8 @@
                             cursorEl.dataset.isEnd = newCursor.dataset.isEnd;
                         }
                     }
-                    const isEnd = !cursorEl || cursorEl.dataset.isEnd === 'true' || !cursorEl.dataset.nextOffset || added === 0;
+                    const cursorRepeated = cursorEl && cursorEl.dataset.nextOffset === previousNext;
+                    const isEnd = !cursorEl || cursorEl.dataset.isEnd === 'true' || !cursorEl.dataset.nextOffset || cursorRepeated;
                     if (isEnd) {
                         if (moreContainer) moreContainer.classList.add('hidden');
                     } else {

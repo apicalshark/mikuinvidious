@@ -6,15 +6,14 @@
             {{ _('Comments') }} ({{ vcomments['page']['count'] }})
         </h3>
         <div class="space-y-6" id="comments-list">
-            {% if vcomments['replies'] %}
-                {% include "themes/modern/components/comment_items.html" %}
-            {% elif comments_closed %}
+            {% include "themes/modern/components/comment_items.html" %}
+            {% if not vcomments['replies'] and comments_closed %}
                 <p class="text-center text-on-surface-variant py-8">{{ _('Comments are closed by the uploader.') }}</p>
-            {% else %}
+            {% elif not vcomments['replies'] %}
                 <p class="text-center text-on-surface-variant py-8">{{ _('No comments yet or failed to load') }}</p>
             {% endif %}
         </div>
-        {% set has_more = vcomments['replies'] and not vcomments.get('is_end', True) and vcomments.get('next_offset') %}
+        {% set has_more = not vcomments.get('is_end', True) and vcomments.get('next_offset') %}
         <div id="comments-load-more-container" class="text-center pt-6 {{ '' if has_more else 'hidden' }}">
             <button id="comments-load-more-btn"
                     type="button"

@@ -1,33 +1,6 @@
 import re
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
-# Bilibili analytics / tracking parameters to strip
-TRACKING_PARAMS = {
-    "spm_id_from",
-    "from_spmid",
-    "from_source",
-    "from",
-    "share_source",
-    "share_medium",
-    "share_plat",
-    "share_tag",
-    "share_session_id",
-    "buvid",
-    "bbid",
-    "ts",
-    "timestamp",
-    "spmid",
-    "from_spmid",
-    "unique_k",
-    "vd_source",
-    "is_story_h5",
-    "theme",
-    "broadcast_type",
-    "plat_id",
-    "mid",
-    "up_id",
-}
-
 # Regex to find candidate URLs in text
 _URL_CANDIDATE_REGEX = re.compile(
     r"(?:https?://[^\s\u4e00-\u9fa5<>\"']+|(?<![/a-zA-Z0-9@.-])(?:[a-zA-Z0-9-]+\.)*b23\.tv/[a-zA-Z0-9]+)",
@@ -112,7 +85,7 @@ def clean_bilibili_url(target_url: str) -> dict:
         res_id = m_video.group(1)
         canonical_clean_url = f"https://www.bilibili.com/video/{res_id}"
         p_val = query.get("p", [None])[0]
-        if p_val and p_val.isdigit() and int(p_val) > 1:
+        if p_val and p_val.isascii() and p_val.isdigit() and int(p_val) > 1:
             local_path = f"/video/{res_id}:{p_val}"
         else:
             local_path = f"/video/{res_id}"
@@ -185,7 +158,7 @@ def clean_bilibili_url(target_url: str) -> dict:
             "",
             "",
         ))
-        local_path = path
+        local_path = "" if path.startswith(("//", "/\\")) else path
 
     # Strict Allowlist: only preserve functional params for the detected resource type
     allowed_keys = ALLOWED_PARAMS_BY_TYPE.get(res_type, set())
@@ -266,11 +239,11 @@ async def resolve_b23_target(input_text: str, client=None) -> dict:
     if not _is_valid_domain(hostname, "b23.tv"):
         return error_ret(f"Invalid domain: {hostname}")
 
-    if client is None:
-        import shared
-        client = await shared.Network.get_async_client()
-
     try:
+        if client is None:
+            import shared
+            client = await shared.Network.get_async_client()
+
         resp = await client.get(extracted, follow_redirects=False, timeout=10.0)
         if resp.status_code not in (301, 302, 303, 307, 308):
             return error_ret(f"Failed to resolve shortlink: HTTP {resp.status_code}")
@@ -304,4 +277,5 @@ async def resolve_b23_target(input_text: str, client=None) -> dict:
             "error": None,
         }
     except Exception as e:
-        return error_ret(str(e))
+        print(f"[B23] Failed to resolve {extracted}: {type(e).__name__}: {e}")
+        return error_ret("Failed to reach b23.tv. Please try again later.")
