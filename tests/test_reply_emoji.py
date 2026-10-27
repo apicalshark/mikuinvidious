@@ -150,5 +150,20 @@ class RenderReplyContentTests(unittest.TestCase):
         self.assertEqual(render_reply_content({"message": "[doge]"}), "[doge]")
 
 
+class SearchHighlightTests(unittest.TestCase):
+    def test_decodes_entities_once_and_stays_escapable(self):
+        from markupsafe import escape
+
+        from transformers import strip_search_highlight
+
+        out = strip_search_highlight('<em class="keyword">Miku</em> &amp; &quot;Hi&quot; &lt;3')
+        self.assertEqual(out, 'Miku & "Hi" <3')
+        # Encoded payload decodes to text; autoescape renders it inert, once.
+        self.assertEqual(
+            str(escape(strip_search_highlight("&lt;script&gt;x&lt;/script&gt;"))),
+            "&lt;script&gt;x&lt;/script&gt;",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

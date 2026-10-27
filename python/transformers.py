@@ -27,6 +27,11 @@ def strip_search_highlight(text):
     attrs). Exact-string replaces miss those and the raw tag leaks into
     cards (e.g. live search for 原神 showing ``<em class="keyword">原神</em>``).
     Strip any ``<em …>`` / ``</em>`` robustly; non-strings pass through as "".
+
+    The search API also returns fields already HTML-entity-encoded
+    (``&amp;``, ``&lt;``, ``&quot;``). Decode once here so Jinja2's autoescape
+    encodes exactly once (otherwise users see a literal ``&lt;``); the output
+    is plain text and must never be marked ``|safe``.
     """
     if text is None:
         return ""
@@ -34,7 +39,7 @@ def strip_search_highlight(text):
         text = str(text)
     if not text:
         return ""
-    return re.sub(r"</?em[^>]*>", "", text)
+    return html.unescape(re.sub(r"</?em[^>]*>", "", text))
 
 
 def format_description(raw_desc):
