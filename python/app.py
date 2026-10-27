@@ -362,6 +362,10 @@ async def resp_exception_view(e):
 
 @app.errorhandler(Exception)
 async def general_exception_view(e):
+    from werkzeug.exceptions import HTTPException
+
+    if isinstance(e, HTTPException):
+        return Response(e.description or "", status=e.code, headers=dict(e.get_headers()))
     # Log full error internally but show generic message to user
     import traceback
 

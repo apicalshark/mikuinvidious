@@ -124,5 +124,120 @@ class CommentPaginationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(result, "rendered_comments")
 
 
+class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_resumed_conn_skip_longer_than_idle_timeout_does_not_false_stall(self):
+        import asyncio
+        import dash_proxy
+
+        class FakeRawConn:
+            async def iter_chunks(self):
+                # 6 chunks * 0.02s = 0.12s total (> patched idle timeout 0.05s and grace 0.04s)
+                for _ in range(5):
+                    await asyncio.sleep(0.02)
+                    yield b"x" * 10240
+                await asyncio.sleep(0.02)
+                yield b"HELLO_WORLD"
+
+            async def close(self):
+                pass
+
+        resumed = dash_proxy._ResumedDashConn(FakeRawConn(), skip=5 * 10240 + 6, limit=5)
+        with (
+            patch.object(dash_proxy, "DASH_BODY_IDLE_TIMEOUT", 0.05),
+            patch.object(dash_proxy, "DASH_BODY_GRACE", 0.04),
+            patch.object(dash_proxy, "DASH_BODY_FLOOR_KBPS", 100),
+        ):
+            chunks = [c async for c in dash_proxy._yield_dash_body(resumed, "test", floor_watchdog=True)]
+        self.assertEqual(b"".join(chunks), b"WORLD")
+
+    async def test_resumed_conn_tarpit_during_skip_still_trips_floor_watchdog(self):
+        import asyncio
+        import dash_proxy
+
+        class SlowRawConn:
+            async def iter_chunks(self):
+                for _ in range(5):
+                    await asyncio.sleep(0.02)
+                    yield b"x" * 10  # < 1 KB/s
+
+        resumed = dash_proxy._ResumedDashConn(SlowRawConn(), skip=1000, limit=10)
+        with (
+            patch.object(dash_proxy, "DASH_BODY_IDLE_TIMEOUT", 0.5),
+            patch.object(dash_proxy, "DASH_BODY_GRACE", 0.03),
+            patch.object(dash_proxy, "DASH_BODY_FLOOR_KBPS", 100),
+        ):
+            with self.assertRaises(dash_proxy._SlowDashBody):
+                _ = [c async for c in dash_proxy._yield_dash_body(resumed, "test", floor_watchdog=True)]
+
+    async def test_failover_same_mirror_retry_when_pending_first_416s(self):
+        from types import SimpleNamespace
+        import dash_proxy
+
+        dash_proxy._mirror_range_shy.clear()
+        dash_proxy._mirror_health.clear()
+
+        akam_url = "https://upos-hz-mirrorakam.akamaized.net/track.m4s"
+        cosov_url = "https://upos-sz-mirrorcosov.bilivideo.com/track.m4s"
+
+        class FakeConn:
+            async def close(self):
+                pass
+
+        async def fake_attempt(url, headers, proxy_url, timeout=None):
+            if "mirrorcosov" in url:
+                return FakeConn(), SimpleNamespace(
+                    status_code=416,
+                    headers={"content-range": "bytes */7372863"},
+                )
+            return FakeConn(), SimpleNamespace(
+                status_code=206,
+                headers={
+                    "content-range": "bytes 430980-999999/7372863",
+                    "content-length": str(999999 - 430980 + 1),
+                },
+            )
+
+        pending = [cosov_url]
+        with patch.object(dash_proxy, "_fetch_dash_attempt", side_effect=fake_attempt):
+            conn, used, resp = await dash_proxy._failover_dash_conn(
+                pending,
+                {"range": "bytes=136915-999999"},
+                "",
+                "BV151ac6VEQX:0 audio/30232/0",
+                "bytes=136915-999999",
+                294065,
+                863085,
+                retry_url=akam_url,
+                retry_served=294065,
+                retry_budget=2,
+            )
+        self.assertEqual(used, akam_url)
+        self.assertEqual(resp.status_code, 206)
+        self.assertTrue(dash_proxy._mirror_range_shy_at("upos-sz-mirrorcosov.bilivideo.com", 430980))
+
+    async def test_fetch_dash_track_timeout_includes_host_in_error(self):
+        import dash_proxy
+
+        dash_proxy._mirror_health.clear()
+        url = "https://upos-sz-mirrorcosov.bilivideo.com/track.m4s"
+        with patch.object(dash_proxy, "_fetch_dash_attempt", AsyncMock(side_effect=TimeoutError())):
+            with self.assertRaises(dash_proxy._DashUpstreamError) as ctx:
+                await dash_proxy._fetch_dash_track([url], {}, "", "BV1B5Jc6nEYW:0 video/80/12")
+        self.assertIn("upos-sz-mirrorcosov.bilivideo.com stalled", str(ctx.exception))
+
+    async def test_method_not_allowed_returns_405_instead_of_500(self):
+        from app import app
+        from quart.sessions import SecureCookieSessionInterface
+
+        orig = app.session_interface
+        app.session_interface = SecureCookieSessionInterface()
+        try:
+            client = app.test_client()
+            resp = await client.post("/preferences")
+            self.assertEqual(resp.status_code, 405)
+        finally:
+            app.session_interface = orig
+
+
 if __name__ == "__main__":
     unittest.main()

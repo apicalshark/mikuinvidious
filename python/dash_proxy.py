@@ -1905,7 +1905,9 @@ async def _yield_dash_body(conn, label: str, floor_watchdog: bool = True):
     """
     got = 0
     t0 = time.monotonic()
-    iterator = conn.iter_chunks()
+    resumed = isinstance(conn, _ResumedDashConn)
+    raw_conn = conn._conn if resumed else conn
+    iterator = raw_conn.iter_chunks()
     while True:
         try:
             async with asyncio.timeout(DASH_BODY_IDLE_TIMEOUT):
@@ -1918,6 +1920,23 @@ async def _yield_dash_body(conn, label: str, floor_watchdog: bool = True):
         el = time.monotonic() - t0
         if floor_watchdog and el > DASH_BODY_GRACE and got / el < DASH_BODY_FLOOR_KBPS * 1024:
             raise _SlowDashBody(f"{got / el / 1024:.0f} KB/s < {DASH_BODY_FLOOR_KBPS} KB/s after {el:.1f}s")
+        if resumed:
+            if conn._skip > 0:
+                if len(chunk) <= conn._skip:
+                    conn._skip -= len(chunk)
+                    continue
+                chunk = chunk[conn._skip :]
+                conn._skip = 0
+            if conn._limit is not None:
+                if conn._limit <= 0:
+                    return
+                if len(chunk) > conn._limit:
+                    chunk = chunk[: conn._limit]
+                conn._limit -= len(chunk)
+                yield chunk
+                if conn._limit <= 0:
+                    return
+                continue
         yield chunk
 
 
@@ -2069,18 +2088,26 @@ async def _failover_dash_conn(
     remaining = downstream_total - yielded if downstream_total is not None and yielded else None
     if remaining is not None and remaining < 0:
         remaining = 0
+    orig_pending = list(pending)
     candidates = list(pending)
-    if (
-        retry_url and retry_budget > 0 and retry_served > 0
-        and expected is not None and candidates
+    can_retry_same = (
+        bool(retry_url)
+        and retry_budget > 0
+        and retry_served > 0
+        and expected is not None
+        and orig_pending
         and retry_url not in candidates
-        and all(_mirror_range_shy_at(urlparse(u).hostname or "", expected) for u in candidates)
+    )
+    retry_added = False
+    if can_retry_same and all(
+        _mirror_range_shy_at(urlparse(u).hostname or "", expected) for u in orig_pending
     ):
         # Every remaining mirror will 416 this offset; the cutting mirror
         # just proved it can serve bytes. Health ordering inside
         # _fetch_dash_track keeps capable mirrors first anyway — this only
         # outranks the doomed ones via the range-shy partition.
         candidates.append(retry_url)
+        retry_added = True
     last_error: Exception | None = None
     forbidden_seen = False
     def _take(used: str):
@@ -2093,6 +2120,14 @@ async def _failover_dash_conn(
                 candidates, headers, proxy_url, label, attempt_timeout=attempt_timeout
             )
         except _DashUpstreamError as exc:
+            if (
+                can_retry_same
+                and not retry_added
+                and all(_mirror_range_shy_at(urlparse(u).hostname or "", expected) for u in orig_pending)
+            ):
+                candidates = [retry_url]
+                retry_added = True
+                continue
             raise exc
         if resp_headers.status_code in (403, 412, 514):
             # Auth-level rejection (expired signature): remember it for the
@@ -2368,7 +2403,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
         try:
             conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url, timeout=handshake_timeout)
         except TimeoutError as exc:
-            last_error = exc
+            last_error = exc if str(exc) else TimeoutError(f"{host} stalled")
             _note_mirror_bad(urlparse(url).hostname or "")
             print(f"[DashProxy] {label} {host} stalled, trying next mirror")
             continue
@@ -2765,6 +2800,8 @@ async def _download_track_segmented(
                     except Exception:
                         pass
                     continue
+                win_t0 = None
+                win_bytes = 0
                 try:
                     async for chunk in _yield_dash_body(use_conn, seg_label):
                         if cancel_event is not None and cancel_event.is_set():
@@ -2785,8 +2822,10 @@ async def _download_track_segmented(
                         seg_done += len(chunk)
                         if progress_cb is not None:
                             progress_cb(len(chunk))
-                        win_bytes += len(chunk)
                         now_w = time.monotonic()
+                        if win_t0 is None:
+                            win_t0 = now_w
+                        win_bytes += len(chunk)
                         if now_w - win_t0 >= _SLOW_WINDOW:
                             win_el = now_w - win_t0
                             if win_el > 0:
