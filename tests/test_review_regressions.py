@@ -262,5 +262,80 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(unawaited, [])
 
 
+class DashDownloadResumeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_failover_salvage_is_not_wrapped_twice(self):
+        """An overlapping-206 salvage must not be re-wrapped by the caller.
+
+        ``_failover_dash_conn`` already returns a byte-contiguous
+        ``_ResumedDashConn``; validating the same headers again used to nest a
+        second wrapper, and ``_yield_dash_body`` unwraps one level only — the
+        prefix was skipped twice, corrupting the appended bytes (and looping
+        forever on the short body).
+        """
+        import asyncio
+        import os
+        import tempfile
+        from types import SimpleNamespace
+
+        import dash_download_track
+        import dash_proxy
+
+        dash_proxy._mirror_health.clear()
+        dash_proxy._mirror_range_shy.clear()
+
+        mirror_a = "https://upos-sz-mirrorcosov.bilivideo.com/track.m4s"
+        mirror_b = "https://upos-hz-mirrorakam.akamaized.net/track.m4s"
+        body = bytes(range(100))
+        headers_206 = {
+            "content-range": "bytes 0-99/100",
+            "content-length": "100",
+        }
+
+        class CutConn:
+            async def iter_chunks(self):
+                yield body[:40]
+                raise OSError("connection reset")
+
+            async def close(self):
+                pass
+
+        class FullConn:
+            async def iter_chunks(self):
+                # One chunk: any double skip is visible in the written bytes.
+                yield body
+
+            async def close(self):
+                pass
+
+        async def fake_attempt(url, headers, proxy_url, timeout=None):
+            conn = CutConn() if "mirrorcosov" in url else FullConn()
+            return conn, SimpleNamespace(status_code=206, headers=dict(headers_206))
+
+        fd, dest = tempfile.mkstemp()
+        os.close(fd)
+        try:
+            with (
+                patch.object(
+                    dash_download_track,
+                    "_segment_mirror_order",
+                    side_effect=lambda urls, idx: list(urls),
+                ),
+                patch.object(dash_proxy, "_fetch_dash_attempt", side_effect=fake_attempt),
+                patch.object(dash_download_track, "_DOWNLOAD_SEGMENT_SIZE", 100),
+                patch.object(dash_download_track, "_DOWNLOAD_WRITE_BATCH", 1),
+            ):
+                # The double-wrap bug also never finished (wrong byte
+                # accounting, unbounded resume), so bound it.
+                async with asyncio.timeout(5):
+                    written = await dash_download_track._download_track_segmented(
+                        [mirror_a, mirror_b], {}, "", dest, len(body), "test track"
+                    )
+            self.assertEqual(written, len(body))
+            with open(dest, "rb") as f:
+                self.assertEqual(f.read(), body)
+        finally:
+            os.unlink(dest)
+
+
 if __name__ == "__main__":
     unittest.main()

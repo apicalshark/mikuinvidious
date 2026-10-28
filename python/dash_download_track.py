@@ -610,15 +610,20 @@ async def _download_track_segmented(
                 seg_host = urlparse(used).hostname or "-"
                 slow_strikes = 0  # fresh mirror: benefit of the doubt for its first windows
                 exact_206 = False
-                # Validate the mirror answered at the wanted offset. The
-                # resume path inside _failover_dash_conn already guarantees
-                # this for seg_done > 0; this covers the initial fetch, where
-                # an edge may ignore the Range (200) or answer off-offset.
+                # Validate the mirror answered at the wanted offset. A
+                # _ResumedDashConn from _failover_dash_conn is already
+                # byte-contiguous (prefix skipped, remainder capped); checking
+                # it again would wrap it twice and _yield_dash_body unwraps one
+                # level only, skipping the prefix twice. This covers the
+                # initial fetch, where an edge may ignore the Range (200) or
+                # answer off-offset.
                 want = seg_start + seg_done
                 span_left = span - seg_done
                 use_conn = conn
                 status = resp_headers.status_code
-                if status == 206:
+                if isinstance(conn, _ResumedDashConn):
+                    pass
+                elif status == 206:
                     rs, re, _ = _parse_content_range_full(resp_headers.headers.get("content-range"))
                     if rs == want:
                         # Exact length framing is also what makes a response
