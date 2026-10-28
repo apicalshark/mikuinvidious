@@ -651,7 +651,7 @@ msgstr "最多收藏"
 #: templates/themes/modern/search.html:23
 #: templates/themes/modern/search_article.html:21
 msgid "Most comments"
-msgstr "最多評論"
+msgstr "最多留言"
 
 #: templates/themes/modern/search.html:36
 msgid "No results found"
@@ -757,11 +757,11 @@ msgstr "下載"
 #: templates/themes/modern/video.html:478
 #: templates/themes/modern/video_listen.html:158
 msgid "Comments"
-msgstr "評論"
+msgstr "留言"
 
 #: templates/themes/modern/video.html:210
 msgid "Loading comments..."
-msgstr "正在載入評論..."
+msgstr "正在載入留言..."
 
 #: templates/themes/modern/video.html:229
 #: templates/themes/modern/video.html:232
@@ -807,11 +807,11 @@ msgstr "載入更多回覆"
 #: templates/themes/modern/video_listen.html:210
 #: templates/themes/modern/video_listen.html:290
 msgid "Load more comments"
-msgstr "載入更多評論"
+msgstr "載入更多留言"
 
 #: templates/themes/modern/video.html:478
 msgid "Failed to load comments, please try again later"
-msgstr "評論載入失敗，請稍後再試"
+msgstr "留言載入失敗，請稍後再試"
 
 #: templates/themes/modern/video.html:537
 #: templates/themes/modern/video.html:577
@@ -846,7 +846,7 @@ msgstr[0] "%(count)s 則回覆"
 #: templates/themes/modern/components/meta_part.html:13
 #: templates/themes/modern/video_listen.html:198
 msgid "No comments yet or failed to load"
-msgstr "尚無評論或評論載入失敗"
+msgstr "尚無留言或留言載入失敗"
 
 #: templates/themes/modern/zone.html:3
 msgid "Zone"
@@ -854,7 +854,7 @@ msgstr "分區"
 
 #: templates/themes/modern/components/meta_part.html:11
 msgid "Comments are closed by the uploader."
-msgstr "UP主已關閉評論區。"
+msgstr "UP主已關閉留言區。"
 
 #: templates/themes/modern/components/nyaa_part.html:6
 msgid "Nyaa resources"
