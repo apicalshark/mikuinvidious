@@ -95,8 +95,8 @@ graph TD
 - **Application Logic:**
   - `app.py`: Initializes the Quart app, error handlers, and registers blueprints.
   - `views.py`: Facade module synchronizing routes and attributes across submodules (`views_home.py`, `views_space.py`, `views_live.py`, `views_video.py`, `views_audio.py`).
-    - `views_home.py`: Index, feeds, search, b23 resolution, and settings views.
-    - `views_space.py`: User space, author profile, and video listings.
+    - `views_home.py`: Index, zone feeds, search, history, b23 conversion (`/convert`, `/api/convert`), and licenses views.
+    - `views_space.py`: User space, space JSON feed, author profile, and article/opus (`read_view`) routes.
     - `views_live.py`: Live room, categories, and stream views.
     - `views_video.py`: Video detail, related videos, and player components.
     - `views_audio.py`: Audio song, playlist, and audio player routes.
