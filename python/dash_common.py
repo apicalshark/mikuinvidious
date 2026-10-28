@@ -19,8 +19,11 @@ import socket
 import time
 from urllib.parse import urlparse
 
+from quart import Blueprint
 from shared import TicketManager, appconf
 from stream import CdnConnectError, CdnProtocolError, CdnTimeoutError
+
+dash_proxy_bp = Blueprint("dash_proxy", __name__)
 
 DASH_CACHE_TTL = 1800
 DASH_FETCH_TIMEOUT = 8.0
