@@ -279,6 +279,40 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 
     Access at `http://localhost:8888` (or configured port).
 
+### Code Quality, Linting & Verification
+
+Run these verification commands before committing changes:
+
+- **Lint Everything (Python + Frontend):**
+  ```bash
+  npm run lint
+  ```
+  Runs `uv run ruff check python` for Python and `prettier --check` + `uv run djlint templates --check` for frontend templates/assets.
+
+- **Auto-format Code:**
+  ```bash
+  npm run format
+  ```
+  Formats Python with `uv run ruff format python`, JavaScript/CSS with Prettier, and Jinja2 templates with `uv run djlint templates --reformat`.
+
+- **Bytecode Compilation Check (Syntax & Import Errors):**
+  ```bash
+  npm run check:compile
+  ```
+  Forces bytecode compilation across `python/`, `tests/`, and `tools/` using `uv run python -m compileall -f python tests tools`.
+
+- **Run Test Suite:**
+  ```bash
+  npm test
+  ```
+  Runs unittest discovery with `PYTHONPATH=python uv run python -m unittest discover tests`.
+
+- **i18n Verification:**
+  ```bash
+  npm run check:i18n
+  npm run build:i18n  # regenerate if catalogs are stale
+  ```
+
 ## Development Conventions
 
 - **License:** GNU AGPL-3.0.
