@@ -580,14 +580,11 @@ class DashPlayerManager {
     // manifest lists audio worst-first, so without this dash.js would sit on
     // the ~44kbps track forever. A manual pick in the Audio row opts out
     // (sticky, like video picks locking video ABR off).
-    this.player.on(
-      dashjs.MediaPlayer.events.STREAM_INITIALIZED,
-      () => {
-        this._buildAudioMenu();
-        this._applyTierAudio();
-        this._applyLockVideo();
-      }
-    );
+    this.player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+      this._buildAudioMenu();
+      this._applyTierAudio();
+      this._applyLockVideo();
+    });
 
     // Keep the quality menu truthful: highlight whatever is actually
     // being rendered (ABR may start lower or drop down from the top
@@ -722,9 +719,7 @@ class DashPlayerManager {
         const target = this._tierAudioQn(
           this._repQn(this.player.getCurrentRepresentationForType("video"))
         );
-        pick = target != null
-          ? areps.find((r) => this._repQn(r) === target)
-          : null;
+        pick = target != null ? areps.find((r) => this._repQn(r) === target) : null;
       }
       if (!pick) pick = this._bestAudio(areps);
       const cur = this.player.getCurrentRepresentationForType("audio");
@@ -810,7 +805,10 @@ class DashPlayerManager {
         currentId = cur ? cur.id : currentId;
       }
       document.querySelectorAll("#quality-list [data-audio-qn]").forEach((b) => {
-        b.classList.toggle("active", currentId != null && String(b.dataset.audioQn) === String(currentId));
+        b.classList.toggle(
+          "active",
+          currentId != null && String(b.dataset.audioQn) === String(currentId)
+        );
       });
       if (currentId != null) {
         const btn = document.querySelector(`#quality-list [data-audio-qn="${currentId}"]`);
@@ -854,14 +852,21 @@ class DashPlayerManager {
       if (!rep) return;
       // MPD Representation ids are "video_<qn>_<codecid>"
       const m = /_(\d+)_/.exec(String(rep.id || ""));
-      const qn = m ? m[1] : String((window.supported_src || []).find((s) => Number(s.bandwidth) === Number(rep.bandwidth))?.quality ?? "");
+      const qn = m
+        ? m[1]
+        : String(
+            (window.supported_src || []).find((s) => Number(s.bandwidth) === Number(rep.bandwidth))
+              ?.quality ?? ""
+          );
       if (!qn) return;
       const list = document.getElementById("quality-list");
       if (list) {
         const btn = list.querySelector(`button[data-qn="${qn}"]`);
         if (btn) {
           // Scoped to the video group: the audio group keeps its own mark.
-          list.querySelectorAll("button[data-video-qn]").forEach((b) => b.classList.remove("active"));
+          list
+            .querySelectorAll("button[data-video-qn]")
+            .forEach((b) => b.classList.remove("active"));
           btn.classList.add("active");
         }
       }
@@ -888,10 +893,7 @@ class DashPlayerManager {
         if (this._errorHandler)
           this.player.off(dashjs.MediaPlayer.events.ERROR, this._errorHandler);
         if (this._qualityHandler)
-          this.player.off(
-            dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED,
-            this._qualityHandler
-          );
+          this.player.off(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, this._qualityHandler);
         this.player.reset();
       } catch (e) {
         console.error("[DashManager] Error during destroy:", e);
@@ -1088,10 +1090,7 @@ async function initMikuPlayer() {
   const isFirefox = /Firefox\/\d/.test(_ua) && !/Seamonkey\/\d/i.test(_ua);
   if (!window.is_live && isFirefox && !video._zeroSeekClamped) {
     try {
-      const protoDesc = Object.getOwnPropertyDescriptor(
-        HTMLMediaElement.prototype,
-        "currentTime"
-      );
+      const protoDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "currentTime");
       if (protoDesc && typeof protoDesc.set === "function") {
         Object.defineProperty(video, "currentTime", {
           get() {
@@ -1099,10 +1098,7 @@ async function initMikuPlayer() {
           },
           set(v) {
             const t = Number(v);
-            protoDesc.set.call(
-              this,
-              t <= 0 && Number(this.duration) > 1 ? 0.1 : v
-            );
+            protoDesc.set.call(this, t <= 0 && Number(this.duration) > 1 ? 0.1 : v);
           },
           configurable: true,
         });
@@ -1425,15 +1421,11 @@ function setupLivePlayer(video, list, label) {
         if (data.fatal) {
           switch (data.type) {
             case Hls.ErrorTypes.NETWORK_ERROR:
-              console.warn(
-                "[Player] Fatal HLS network error, attempting to recover..."
-              );
+              console.warn("[Player] Fatal HLS network error, attempting to recover...");
               hls.startLoad();
               break;
             case Hls.ErrorTypes.MEDIA_ERROR:
-              console.warn(
-                "[Player] Fatal HLS media error, attempting to recover..."
-              );
+              console.warn("[Player] Fatal HLS media error, attempting to recover...");
               hls.recoverMediaError();
               break;
             default:
@@ -1589,116 +1581,115 @@ function setupVodQuality(video, list, label) {
   const staticTitle = menu ? menu.querySelector("[data-menu-title]") : null;
   if (staticTitle) staticTitle.style.display = "none";
   const showView = (name, dir) => {
-      // FLIP the shell: switch views synchronously (no paint lands
-      // mid-task), then animate #quality-list from the old box to the new
-      // one so width/height glide instead of snapping. Content slides via
-      // the CSS enter animation in parallel.
-      const reduce =
-        window.matchMedia &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const prevW = list.offsetWidth;
-      const prevH = list.offsetHeight;
-      list.querySelectorAll("[data-menu-view]").forEach((v) => {
-        const on = v.dataset.menuView === name;
-        v.hidden = !on;
-        if (on) v.dataset.menuDir = dir || "forward";
-      });
-      if (!reduce) {
-        const nextW = list.offsetWidth;
-        const nextH = list.offsetHeight;
-        if (nextW !== prevW || nextH !== prevH) {
-          list.animate(
-            [
-              { width: `${prevW}px`, height: `${prevH}px` },
-              { width: `${nextW}px`, height: `${nextH}px` },
-            ],
-            { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }
-          );
-        }
+    // FLIP the shell: switch views synchronously (no paint lands
+    // mid-task), then animate #quality-list from the old box to the new
+    // one so width/height glide instead of snapping. Content slides via
+    // the CSS enter animation in parallel.
+    const reduce =
+      window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const prevW = list.offsetWidth;
+    const prevH = list.offsetHeight;
+    list.querySelectorAll("[data-menu-view]").forEach((v) => {
+      const on = v.dataset.menuView === name;
+      v.hidden = !on;
+      if (on) v.dataset.menuDir = dir || "forward";
+    });
+    if (!reduce) {
+      const nextW = list.offsetWidth;
+      const nextH = list.offsetHeight;
+      if (nextW !== prevW || nextH !== prevH) {
+        list.animate(
+          [
+            { width: `${prevW}px`, height: `${prevH}px` },
+            { width: `${nextW}px`, height: `${nextH}px` },
+          ],
+          { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }
+        );
       }
+    }
+  };
+  const rowClass =
+    "w-full px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3";
+  const optClass =
+    "w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between group";
+  const checkIcon = () => {
+    const icon = document.createElement("i");
+    icon.className = "icon ion-md-checkmark opacity-0 group-[.active]:opacity-100";
+    return icon;
+  };
+  const backBtn = (target) => {
+    const b = document.createElement("button");
+    b.className = rowClass + " text-white/50";
+    const l = document.createElement("span");
+    l.className = "flex items-center gap-1";
+    const arrow = document.createElement("i");
+    arrow.className = "icon ion-ios-arrow-back";
+    l.appendChild(arrow);
+    const t = document.createElement("span");
+    t.textContent = I18n.t("Back");
+    l.appendChild(t);
+    b.appendChild(l);
+    b.onclick = (e) => {
+      e.stopPropagation();
+      showView(target, "back");
     };
-    const rowClass =
-      "w-full px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3";
-    const optClass =
-      "w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between group";
-    const checkIcon = () => {
-      const icon = document.createElement("i");
-      icon.className = "icon ion-md-checkmark opacity-0 group-[.active]:opacity-100";
-      return icon;
+    return b;
+  };
+  const menuRow = (labelText, valueAttr, target) => {
+    const b = document.createElement("button");
+    b.className = rowClass;
+    const l = document.createElement("span");
+    l.textContent = labelText;
+    b.appendChild(l);
+    const r = document.createElement("span");
+    r.className = "flex items-center gap-1 text-white/50";
+    const v = document.createElement("span");
+    v.setAttribute(valueAttr, "1");
+    r.appendChild(v);
+    const chev = document.createElement("i");
+    chev.className = "icon ion-ios-arrow-forward";
+    r.appendChild(chev);
+    b.appendChild(r);
+    b.onclick = (e) => {
+      e.stopPropagation();
+      showView(target, "forward");
     };
-    const backBtn = (target) => {
-      const b = document.createElement("button");
-      b.className = rowClass + " text-white/50";
-      const l = document.createElement("span");
-      l.className = "flex items-center gap-1";
-      const arrow = document.createElement("i");
-      arrow.className = "icon ion-ios-arrow-back";
-      l.appendChild(arrow);
-      const t = document.createElement("span");
-      t.textContent = I18n.t("Back");
-      l.appendChild(t);
-      b.appendChild(l);
-      b.onclick = (e) => {
+    return b;
+  };
+  // Speed sub-view (Bilibili's rate set), shared by DASH and
+  // progressive menus. Static list, synced on open.
+  const buildSpeedView = () => {
+    const speedView = document.createElement("div");
+    speedView.dataset.menuView = "speed";
+    speedView.className = "flex flex-col gap-px";
+    speedView.hidden = true;
+    speedView.appendChild(backBtn("main"));
+    for (const rate of [2, 1.5, 1.25, 1, 0.75, 0.5]) {
+      const btn = document.createElement("button");
+      btn.className = optClass + " text-left group";
+      btn.dataset.speedRate = String(rate);
+      const span = document.createElement("span");
+      span.textContent = `${rate}x`;
+      btn.appendChild(span);
+      btn.appendChild(checkIcon());
+      btn.onclick = (e) => {
         e.stopPropagation();
-        showView(target, "back");
+        video.playbackRate = rate;
+        syncSpeedMenu();
+        toggleQualityMenu(false, null, document.getElementById("quality-menu"));
       };
-      return b;
-    };
-    const menuRow = (labelText, valueAttr, target) => {
-      const b = document.createElement("button");
-      b.className = rowClass;
-      const l = document.createElement("span");
-      l.textContent = labelText;
-      b.appendChild(l);
-      const r = document.createElement("span");
-      r.className = "flex items-center gap-1 text-white/50";
-      const v = document.createElement("span");
-      v.setAttribute(valueAttr, "1");
-      r.appendChild(v);
-      const chev = document.createElement("i");
-      chev.className = "icon ion-ios-arrow-forward";
-      r.appendChild(chev);
-      b.appendChild(r);
-      b.onclick = (e) => {
-        e.stopPropagation();
-        showView(target, "forward");
-      };
-      return b;
-    };
-    // Speed sub-view (Bilibili's rate set), shared by DASH and
-    // progressive menus. Static list, synced on open.
-    const buildSpeedView = () => {
-      const speedView = document.createElement("div");
-      speedView.dataset.menuView = "speed";
-      speedView.className = "flex flex-col gap-px";
-      speedView.hidden = true;
-      speedView.appendChild(backBtn("main"));
-      for (const rate of [2, 1.5, 1.25, 1, 0.75, 0.5]) {
-        const btn = document.createElement("button");
-        btn.className = optClass + " text-left group";
-        btn.dataset.speedRate = String(rate);
-        const span = document.createElement("span");
-        span.textContent = `${rate}x`;
-        btn.appendChild(span);
-        btn.appendChild(checkIcon());
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          video.playbackRate = rate;
-          syncSpeedMenu();
-          toggleQualityMenu(false, null, document.getElementById("quality-menu"));
-        };
-        speedView.appendChild(btn);
-      }
-      return speedView;
-    };
-    const syncSpeedMenu = () => {
-      const cur = video.playbackRate || 1;
-      list.querySelectorAll("button[data-speed-rate]").forEach((b) => {
-        b.classList.toggle("active", Number(b.dataset.speedRate) === cur);
-      });
-      const sv = list.querySelector("[data-speed-value]");
-      if (sv) sv.textContent = `${cur}x`;
-    };
+      speedView.appendChild(btn);
+    }
+    return speedView;
+  };
+  const syncSpeedMenu = () => {
+    const cur = video.playbackRate || 1;
+    list.querySelectorAll("button[data-speed-rate]").forEach((b) => {
+      b.classList.toggle("active", Number(b.dataset.speedRate) === cur);
+    });
+    const sv = list.querySelector("[data-speed-value]");
+    if (sv) sv.textContent = `${cur}x`;
+  };
   if (window.is_dash) {
     // Main view: navigation rows with live values.
     const main = document.createElement("div");

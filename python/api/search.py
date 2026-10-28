@@ -213,11 +213,7 @@ def _headers_for(url: str, params: dict) -> dict:
             referer=f"{_SEARCH_ORIGIN}/all?keyword={quote(str(keyword))}",
         )
     if host == "s.search.bilibili.com" or host.endswith(".s.search.bilibili.com"):
-        referer = (
-            f"{_SEARCH_ORIGIN}/all?keyword={quote(str(keyword))}"
-            if keyword
-            else _SEARCH_ORIGIN + "/"
-        )
+        referer = f"{_SEARCH_ORIGIN}/all?keyword={quote(str(keyword))}" if keyword else _SEARCH_ORIGIN + "/"
         return build_chrome_headers(origin=_SEARCH_ORIGIN, referer=referer)
     return build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
 

@@ -33,9 +33,7 @@ _SPACE_ORIGIN = "https://space.bilibili.com"
 
 def _space_headers(mid) -> dict:
     """Browser-exact headers for space pages (origin + profile referer)."""
-    return build_chrome_headers(
-        origin=_SPACE_ORIGIN, referer=f"{_SPACE_ORIGIN}/{mid}"
-    )
+    return build_chrome_headers(origin=_SPACE_ORIGIN, referer=f"{_SPACE_ORIGIN}/{mid}")
 
 
 class VideoOrder(Enum):
@@ -59,7 +57,7 @@ class User:
         if uid is not None:
             try:
                 uid = int(uid)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 pass
             if uid <= 0:
                 raise ArgsException("uid must be greater than 0")
@@ -136,11 +134,11 @@ class User:
             order = order.value
         try:
             pn = int(pn)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             pn = 1
         try:
             ps = int(ps)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             ps = 30
         pn = max(pn, 1)
         ps = max(ps, 1)
@@ -247,7 +245,7 @@ class User:
         page_info = data.get("page") or {}
         try:
             total = int(page_info.get("total") or len(vlist))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             total = len(vlist)
         if vlist:
             self._videos_load_failed = False

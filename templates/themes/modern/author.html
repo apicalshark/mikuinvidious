@@ -1,4 +1,4 @@
-{% extends 'themes/modern/base.html' %}
+{% extends "themes/modern/base.html" %}
 {% block head %}
     <title>{{ uinfo['name'] }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
@@ -17,7 +17,7 @@
 {% endblock %}
 {% block content %}
     <!-- Profile Header -->
-    <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-10 mb-8 shadow-xs relative overflow-hidden ">
+    <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-10 mb-8 shadow-xs relative overflow-hidden">
         <div class="relative flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
             <!-- Avatar -->
             <div class="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface shadow-md overflow-hidden shrink-0 bg-surface">
@@ -40,22 +40,22 @@
                        target="_blank"
                        class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-primary hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
                         <i class="icon ion-logo-youtube"></i>
-                        <span>{{ _('Bilibili Space') }}</span>
+                        <span>{{ _("Bilibili Space") }}</span>
                     </a>
                     <a href="/space/{{ uinfo['mid'] }}"
                        class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-primary hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
                         <i class="icon ion-md-videocam"></i>
-                        <span>{{ _('Videos') }}</span>
+                        <span>{{ _("Videos") }}</span>
                     </a>
                 </div>
             </div>
         </div>
     </div>
     <div class="flex items-center gap-4 mb-6">
-        <h2 class="text-xl font-bold text-on-surface">{{ _('Articles') }}</h2>
+        <h2 class="text-xl font-bold text-on-surface">{{ _("Articles") }}</h2>
         <span class="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary font-bold">{{ uarts['count'] }}</span>
     </div>
-    {% if uarts['articles'] %}
+    {% if uarts["articles"] %}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {% for a in uarts['articles'] %}
                 <div class="group bg-surface dark:bg-surface-variant/20 rounded-2xl overflow-hidden hover:bg-surface-variant/30 flex flex-col transition-all duration-300 hover:shadow-[0_0_20px_rgba(156,65,116,0.15)] dark:hover:shadow-[0_0_20px_rgba(255,177,218,0.1)] hover:-translate-y-1">
@@ -96,7 +96,7 @@
                             </div>
                             <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
                                 <p dir="auto">{{ a['publish_time']|date }}</p>
-                                <p dir="auto">{{ a['stats']['view']|intsep }} {{ _('reads') }}</p>
+                                <p dir="auto">{{ a['stats']['view']|intsep }} {{ _("reads") }}</p>
                             </div>
                         </div>
                     </div>
@@ -105,22 +105,22 @@
         </div>
         <!-- Pagination -->
         <div class="mt-10 flex items-center justify-center gap-4">
-            {% if uarts['pn'] > 1 %}
+            {% if uarts["pn"] > 1 %}
                 <a href="/author/{{ uinfo['mid'] }}?i={{ uarts['pn'] - 1 }}"
                    class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
-                    <i class="icon ion-ios-arrow-back"></i> {{ _('Previous page') }}
+                    <i class="icon ion-ios-arrow-back"></i> {{ _("Previous page") }}
                 </a>
             {% endif %}
-            {% if (uarts['pn']+1)*(uarts['ps']) < uarts['count'] %}
+            {% if (uarts["pn"]+1)*(uarts["ps"]) < uarts["count"] %}
                 <a href="/author/{{ uinfo['mid'] }}?i={{ uarts['pn'] + 1 }}"
                    class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
-                    {{ _('Next page') }} <i class="icon ion-ios-arrow-forward"></i>
+                    {{ _("Next page") }} <i class="icon ion-ios-arrow-forward"></i>
                 </a>
             {% endif %}
         </div>
     {% else %}
         <p class="col-span-full text-center text-sm text-on-surface-variant opacity-70 py-8">
-            {{ _('This user has no articles yet.') }}
+            {{ _("This user has no articles yet.") }}
         </p>
     {% endif %}
 {% endblock %}

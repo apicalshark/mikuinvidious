@@ -346,7 +346,7 @@ def get_json_catalog(locale: str) -> dict:
         with path.open(encoding="utf-8") as f:
             data = json.load(f)
             catalog = data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
+    except OSError, ValueError:
         catalog = {}
     _JSON_CACHE[canonical] = catalog
     return catalog

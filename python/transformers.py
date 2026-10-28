@@ -75,7 +75,9 @@ def transform_video_card(data):
             "title": strip_search_highlight(data.get("title", "")),
             "pic": data.get("pic", "") or data.get("cover", ""),
             "duration": format_duration(data.get("duration") or data.get("length")),
-            "author": strip_search_highlight(data.get("owner", {}).get("name") or data.get("author") or data.get("upname", "Unknown")),
+            "author": strip_search_highlight(
+                data.get("owner", {}).get("name") or data.get("author") or data.get("upname", "Unknown")
+            ),
             "author_id": data.get("owner", {}).get("mid") or data.get("mid") or data.get("upmid", 0),
             "views": data.get("stat", {}).get("view") or data.get("play") or 0,
             "danmaku": data.get("stat", {}).get("danmaku") or data.get("video_review") or 0,
@@ -85,12 +87,7 @@ def transform_video_card(data):
             # comma-separated string e.g. "原神,二次元,...").
             "typename": strip_search_highlight(data.get("typename") or data.get("tname") or ""),
             "tags": [
-                t
-                for t in (
-                    strip_search_highlight(x.strip())
-                    for x in str(data.get("tag") or "").split(",")
-                )
-                if t
+                t for t in (strip_search_highlight(x.strip()) for x in str(data.get("tag") or "").split(",")) if t
             ],
         }
     except Exception:
@@ -184,14 +181,9 @@ def transform_live_room(data):
     _raw_start = room_info.get("live_start_time") or room_info.get("live_time")
     try:
         start_time = int(_raw_start) if _raw_start else None
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         start_time = None
-    pic = (
-        room_info.get("cover")
-        or room_info.get("cover_from_user")
-        or data.get("cover")
-        or ""
-    )
+    pic = room_info.get("cover") or room_info.get("cover_from_user") or data.get("cover") or ""
     if isinstance(pic, str) and pic.startswith("http:"):
         pic = "https:" + pic[4:]
     if isinstance(face, str) and face.startswith("http:"):
@@ -334,7 +326,7 @@ def render_reply_content(content):
             return html.escape(token)
         try:
             size = int((entry.get("meta") or {}).get("size", 1))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             size = 1
         style = _REPLY_EMOTE_SIZE2_STYLE if size == 2 else _REPLY_EMOTE_SIZE1_STYLE
         alt = html.escape(token, quote=True)

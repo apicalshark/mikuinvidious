@@ -102,7 +102,7 @@ def bcc_to_vtt(bcc: dict) -> str:
             start = float(cue.get("from", 0))
             end = float(cue.get("to", 0))
             text = (cue.get("content") or "").replace("\r", "")
-        except (TypeError, ValueError, AttributeError):
+        except TypeError, ValueError, AttributeError:
             continue
         lines.append(str(i + 1))
         lines.append(f"{_vtt_ts(start)} --> {_vtt_ts(end)}")

@@ -47,7 +47,9 @@ def bv2av(x: str) -> int:
         or not re.fullmatch(r"BV[a-zA-Z0-9]{10}", x)
         or any(char not in _itable for char in x[3:])
     ):
-        raise ArgsException("Invalid bvid: must be a 12-character case-sensitive string starting with BV, containing only letters and digits.")
+        raise ArgsException(
+            "Invalid bvid: must be a 12-character case-sensitive string starting with BV, containing only letters and digits."
+        )
     arr = list(x)
     arr[3], arr[9] = arr[9], arr[3]
     arr[4], arr[7] = arr[7], arr[4]
@@ -148,14 +150,16 @@ class Video:
 
     def set_bvid(self, bvid: str) -> None:
         if not re.search(r"^BV[a-zA-Z0-9]{10}$", bvid):
-            raise ArgsException("Invalid bvid: must be a 12-character case-sensitive string starting with BV, containing only letters and digits.")
+            raise ArgsException(
+                "Invalid bvid: must be a 12-character case-sensitive string starting with BV, containing only letters and digits."
+            )
         self._bvid = bvid
         self._aid = bv2av(bvid)
 
     def set_aid(self, aid: int) -> None:
         try:
             aid = int(aid)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             pass
         if aid <= 0:
             raise ArgsException("aid must be greater than 0.")
@@ -405,10 +409,6 @@ class Video:
         # parser (which only produces noisy "mismatched tag" log spam — the
         # regex fallback can never salvage <d> nodes from a block page).
         stripped = text.lstrip().lower()
-        if (
-            resp.status_code != 200
-            or stripped.startswith("<!doctype")
-            or stripped.startswith("<html")
-        ):
+        if resp.status_code != 200 or stripped.startswith("<!doctype") or stripped.startswith("<html"):
             return ""
         return text

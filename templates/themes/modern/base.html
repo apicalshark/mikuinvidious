@@ -8,346 +8,393 @@
         <script nonce="{{ csp_nonce }}">try{var __m=localStorage.getItem("dark_mode");if(__m){try{__m=decodeURIComponent(__m);var __p=JSON.parse(__m);if(typeof __p==="string")__m=__p;}catch(__e){}if(__m.length>1&&__m.charAt(0)==='"')__m=__m.slice(1,-1);}else{__m=null;}if(__m!=="dark"&&__m!=="light"){__m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(__m==="dark")document.documentElement.classList.add("dark");}catch(__e){}</script>
         {% block head %}{% endblock %}
         <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png" />
+        <link rel="icon"
+              type="image/png"
+              sizes="32x32"
+              href="/static/favicon-32x32.png" />
+        <link rel="icon"
+              type="image/png"
+              sizes="16x16"
+              href="/static/favicon-16x16.png" />
+        <link rel="apple-touch-icon"
+              sizes="180x180"
+              href="/static/apple-touch-icon.png" />
         <link rel="manifest" href="/site.webmanifest" />
-        <link rel="stylesheet" href="/static/themes/modern/css/main.css?v={{ asset_version }}" />
+        <link rel="stylesheet"
+              href="/static/themes/modern/css/main.css?v={{ asset_version }}" />
         <style>
             /* Tailwind v4 puts preflight in @layer base and utilities in
                @layer utilities. This theme layer sits between them, so plain
                resets here (a, h1-h6) no longer silence utilities like
                text-primary or text-3xl, while still beating the reset. */
             @layer components {
-            :root {
-                /* === [Theme Master Controls - Light Mode] === */
-                --theme-primary: #a85383;    /* Main brand color used for key interactive elements */
-                --theme-contrast: -10%;        /* Base contrast offset for surfaces */
+                :root {
+                    /* === [Theme Master Controls - Light Mode] === */
+                    --theme-primary: #a85383;
+                    /* Main brand color used for key interactive elements */
+                    --theme-contrast: -10%;
+                    /* Base contrast offset for surfaces */
 
-                /* Material You Sakura Light - Base Mapping */
-                --md-sys-color-primary: var(--theme-primary);                      /* High-emphasis fills and text */
-                --md-sys-color-on-primary: white;                                  /* Text/icons on top of primary */
-                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), white 65%);  /* Less prominent containers (e.g. active tab) */
-                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), black 80%); /* Text/icons on primary-container */
-                
-                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), #605D62 30%);       /* Less prominent accents */
-                --md-sys-color-on-secondary: white;                                                    /* Text/icons on top of secondary */
-                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), white 75%); /* Secondary element backgrounds */
-                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), black 80%); /* Text/icons on secondary-container */
+                    /* Material You Sakura Light - Base Mapping */
+                    --md-sys-color-primary: var(--theme-primary);
+                    /* High-emphasis fills and text */
+                    --md-sys-color-on-primary: white;
+                    /* Text/icons on top of primary */
+                    --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), white 65%);
+                    /* Less prominent containers (e.g. active tab) */
+                    --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), black 80%);
+                    /* Text/icons on primary-container */
 
-                /* Background and Surface colors */
-                --md-sys-color-background: #ffffff;                                                 /* Pure white page */
-                --md-sys-color-on-background: #201A1D;                                             /* Global body text */
-                --md-sys-color-surface: #fdfcfc;                                                     /* Neutral near-white; cards sit lighter than the page wash */
-                --md-sys-color-on-surface: #201A1D;                                                /* Text/icons on neutral surfaces */
+                    --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), #605D62 30%);
+                    /* Less prominent accents */
+                    --md-sys-color-on-secondary: white;
+                    /* Text/icons on top of secondary */
+                    --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), white 75%);
+                    /* Secondary element backgrounds */
+                    --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), black 80%);
+                    /* Text/icons on secondary-container */
 
-                /* Dynamic contrast calculation */
-                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 20%); /* Distinct containers like cards and search bars */
-                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), black 60%);                   /* Lower-emphasis text/icons on surface-variant */
-                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 40%);        /* Decorative elements, borders, and dividers */
+                    /* Background and Surface colors */
+                    --md-sys-color-background: #ffffff;
+                    /* Pure white page */
+                    --md-sys-color-on-background: #201A1D;
+                    /* Global body text */
+                    --md-sys-color-surface: #fdfcfc;
+                    /* Neutral near-white; cards sit lighter than the page wash */
+                    --md-sys-color-on-surface: #201A1D;
+                    /* Text/icons on neutral surfaces */
+
+                    /* Dynamic contrast calculation */
+                    --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 20%);
+                    /* Distinct containers like cards and search bars */
+                    --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), black 60%);
+                    /* Lower-emphasis text/icons on surface-variant */
+                    --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 40%);
+                    /* Decorative elements, borders, and dividers */
+                }
+
+                .dark {
+                    /* === [Theme Master Controls - Dark Mode] === */
+                    --theme-primary: #ff97b5;
+                    /* Primary accent color for dark theme prominence */
+                    --theme-contrast: 10%;
+                    /* Increased contrast for OLED/Dark surfaces */
+
+                    /* Material You Sakura Dark - Base Mapping */
+                    --md-sys-color-primary: var(--theme-primary);
+                    /* Glowing accents and active states */
+                    --md-sys-color-on-primary: color-mix(in srgb, var(--theme-primary), black 75%);
+                    /* Text/icons on top of primary */
+                    --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), black 35%);
+                    /* Subtle accent containers */
+                    --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), white 65%);
+                    /* Text/icons on primary-container */
+
+                    --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), white 40%);
+                    /* Tonal secondary accents */
+                    --md-sys-color-on-secondary: color-mix(in srgb, var(--theme-primary), black 80%);
+                    /* Text/icons on top of secondary */
+                    --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), black 55%);
+                    /* Muted secondary backgrounds */
+                    --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), white 80%);
+                    /* Text/icons on secondary-container */
+
+                    /* Background and Surface colors */
+                    --md-sys-color-background: black;
+                    /* Deep black for OLED power saving */
+                    --md-sys-color-on-background: #ECE0E3;
+                    /* Primary dark mode text */
+                    --md-sys-color-surface: #141414;
+                    /* Neutral lift so cards read on OLED black */
+                    --md-sys-color-on-surface: #ECE0E3;
+                    /* Text/icons on surfaces */
+
+                    /* Dynamic contrast calculation */
+                    --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 20%);
+                    /* Glowing card backgrounds and inputs */
+                    --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), white 80%);
+                    /* High-readability secondary text */
+                    --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 50%);
+                    /* Dividers and structural borders */
+                }
+
+                body {
+                    display: flex;
+                    flex-direction: column;
+                    overflow-y: scroll;
+                    /* Prevent layout shift */
+                }
+
+                #contents {
+                    flex: 1;
+                }
+
+                /* Scrollbar Styling */
+                ::-webkit-scrollbar {
+                    width: 8px;
+                    height: 8px;
+                }
+
+                ::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+
+                ::-webkit-scrollbar-thumb {
+                    background: var(--md-sys-color-surface-variant);
+                    border-radius: 4px;
+                }
+
+                ::-webkit-scrollbar-thumb:hover {
+                    background: var(--md-sys-color-primary);
+                }
+
+                /* Base styles for legacy content compatibility */
+                h1,
+                h2,
+                h3,
+                h4,
+                h5,
+                h6 {
+                    font-size: revert;
+                    font-weight: 700;
+                    line-height: revert;
+                }
+
+                a {
+                    color: inherit;
+                    text-decoration: none;
+                }
+
+                /* Video Player Enforced Dark Theme */
+                .video-js {
+                    background-color: #000 !important;
+                }
+
+                .vjs-control-bar {
+                    background-color: rgba(0, 0, 0, 0.7) !important;
+                    color: #fff !important;
+                }
+
+                /* Remove outlines/borders globally as requested, use focus rings */
+                *:focus {
+                    outline: none !important;
+                }
+
+                /* Material Design 3 (Material You) Icon Button */
+                .md3-icon-button {
+                    width: 44px;
+                    height: 44px;
+                    border-radius: 50%;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: var(--md-sys-color-on-surface-variant);
+                    transition: background-color 250ms cubic-bezier(0.2, 0, 0, 1),
+                        color 250ms,
+                        transform 150ms,
+                        box-shadow 250ms;
+                    flex-shrink: 0;
+                    cursor: pointer;
+                    user-select: none;
+                    -webkit-tap-highlight-color: transparent;
+                    position: relative;
+                }
+
+                .md3-icon-button:hover {
+                    background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 90%);
+                    color: var(--md-sys-color-primary);
+                    box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.1),
+                        0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                }
+
+                .md3-icon-button:focus-visible {
+                    background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 85%);
+                    color: var(--md-sys-color-primary);
+                    box-shadow: 0 0 0 2px var(--md-sys-color-outline);
+                }
+
+                .md3-icon-button:active {
+                    background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 85%);
+                    transform: scale(0.94);
+                    box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+                }
+
+                .md3-icon-button i {
+                    font-size: 24px;
+                }
+
+                .md3-icon-button svg {
+                    width: 24px;
+                    height: 24px;
+                    fill: currentColor;
+                }
+
+                .md3-icon-button-small {
+                    width: 32px;
+                    height: 32px;
+                    border-radius: 50%;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: var(--md-sys-color-on-surface-variant);
+                    transition: background-color 200ms cubic-bezier(0.2, 0, 0, 1),
+                        color 200ms,
+                        transform 100ms;
+                    flex-shrink: 0;
+                    cursor: pointer;
+                    user-select: none;
+                    -webkit-tap-highlight-color: transparent;
+                }
+
+                .md3-icon-button-small:hover {
+                    background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 92%);
+                    color: var(--md-sys-color-primary);
+                }
+
+                .md3-icon-button-small:active {
+                    transform: scale(0.9);
+                    background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 88%);
+                }
+
+                .md3-icon-button-small i {
+                    font-size: 18px;
+                }
+
+                /* MD3 Common Button Base */
+                .md3-button {
+                    height: 40px;
+                    padding: 0 24px;
+                    border-radius: 20px;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 8px;
+                    font-size: 14px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    transition: all 250ms cubic-bezier(0.2, 0, 0, 1);
+                    user-select: none;
+                    -webkit-tap-highlight-color: transparent;
+                    border: none;
+                    outline: none;
+                    flex-shrink: 0;
+                }
+
+                /* MD3 Filled Button */
+                .md3-button-filled {
+                    background-color: var(--md-sys-color-primary);
+                    color: var(--md-sys-color-on-primary);
+                    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+                }
+
+                .md3-button-filled:hover {
+                    background-color: color-mix(in srgb, var(--md-sys-color-primary), white 10%);
+                    box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.2);
+                }
+
+                .md3-button-filled:active {
+                    transform: scale(0.96);
+                }
+
+                .md3-button-filled:disabled {
+                    background-color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 88%);
+                    color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 62%);
+                    box-shadow: none;
+                    cursor: default;
+                }
+
+                /* MD3 Tonal Button (materialsecondary-container with state overlay) */
+                .md3-button-tonal {
+                    background-color: var(--md-sys-color-secondary-container);
+                    color: var(--md-sys-color-on-secondary-container);
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .md3-button-tonal:hover {
+                    background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), var(--md-sys-color-on-secondary-container) 8%);
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+                }
+
+                .md3-button-tonal:focus-visible {
+                    background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), var(--md-sys-color-on-secondary-container) 12%);
+                    box-shadow: 0 0 0 2px var(--md-sys-color-primary);
+                }
+
+                .md3-button-tonal:active {
+                    background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), var(--md-sys-color-on-secondary-container) 12%);
+                    transform: scale(0.96);
+                }
+
+                /* MD3 Tonal Button - On state (filled primary) */
+                .md3-button-tonal.is-on {
+                    background-color: var(--md-sys-color-primary);
+                    color: var(--md-sys-color-on-primary);
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+                }
+
+                .md3-button-tonal.is-on:hover {
+                    background-color: color-mix(in srgb, var(--md-sys-color-primary), white 10%);
+                    box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.2);
+                }
+
+                .md3-button-tonal.is-on:focus-visible {
+                    background-color: color-mix(in srgb, var(--md-sys-color-primary), white 10%);
+                    box-shadow: 0 0 0 2px var(--md-sys-color-primary);
+                }
+
+                .md3-button-tonal.is-on:active {
+                    background-color: color-mix(in srgb, var(--md-sys-color-primary), black 10%);
+                    transform: scale(0.96);
+                }
+
+                .md3-button-tonal:disabled {
+                    background-color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 88%);
+                    color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 62%);
+                    box-shadow: none;
+                    cursor: default;
+                }
+
+                /* MD3 Outlined Button */
+                .md3-button-outlined {
+                    background-color: transparent;
+                    border: 1px solid var(--md-sys-color-outline);
+                    color: var(--md-sys-color-primary);
+                }
+
+                .md3-button-outlined:hover {
+                    background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 92%);
+                }
+
+                .md3-button-outlined:active {
+                    background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 88%);
+                    transform: scale(0.96);
+                }
+
+                /* MD3 Text Button */
+                .md3-button-text {
+                    background-color: transparent;
+                    color: var(--md-sys-color-primary);
+                    padding: 0 12px;
+                }
+
+                .md3-button-text:hover {
+                    background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 92%);
+                }
+
+                .md3-button-text:active {
+                    background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 88%);
+                    transform: scale(0.96);
+                }
             }
 
-            .dark {
-                /* === [Theme Master Controls - Dark Mode] === */
-                --theme-primary: #ff97b5;    /* Primary accent color for dark theme prominence */
-                --theme-contrast: 10%;       /* Increased contrast for OLED/Dark surfaces */
-
-                /* Material You Sakura Dark - Base Mapping */
-                --md-sys-color-primary: var(--theme-primary);                      /* Glowing accents and active states */
-                --md-sys-color-on-primary: color-mix(in srgb, var(--theme-primary), black 75%);   /* Text/icons on top of primary */
-                --md-sys-color-primary-container: color-mix(in srgb, var(--theme-primary), black 35%); /* Subtle accent containers */
-                --md-sys-color-on-primary-container: color-mix(in srgb, var(--theme-primary), white 65%); /* Text/icons on primary-container */
-
-                --md-sys-color-secondary: color-mix(in srgb, var(--theme-primary), white 40%);        /* Tonal secondary accents */
-                --md-sys-color-on-secondary: color-mix(in srgb, var(--theme-primary), black 80%);     /* Text/icons on top of secondary */
-                --md-sys-color-secondary-container: color-mix(in srgb, var(--theme-primary), black 55%); /* Muted secondary backgrounds */
-                --md-sys-color-on-secondary-container: color-mix(in srgb, var(--theme-primary), white 80%); /* Text/icons on secondary-container */
-
-                /* Background and Surface colors */
-                --md-sys-color-background: black;                                                  /* Deep black for OLED power saving */
-                --md-sys-color-on-background: #ECE0E3;                                             /* Primary dark mode text */
-                --md-sys-color-surface: #141414;                                                     /* Neutral lift so cards read on OLED black */
-                --md-sys-color-on-surface: #ECE0E3;                                                /* Text/icons on surfaces */
-
-                /* Dynamic contrast calculation */
-                --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 20%); /* Glowing card backgrounds and inputs */
-                --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), white 80%);                      /* High-readability secondary text */
-                --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 50%);        /* Dividers and structural borders */
-            }
-
-            body {
-                display: flex;
-                flex-direction: column;
-                overflow-y: scroll;
-                /* Prevent layout shift */
-            }
-
-            #contents {
-                flex: 1;
-            }
-
-            /* Scrollbar Styling */
-            ::-webkit-scrollbar {
-                width: 8px;
-                height: 8px;
-            }
-
-            ::-webkit-scrollbar-track {
-                background: transparent;
-            }
-
-            ::-webkit-scrollbar-thumb {
-                background: var(--md-sys-color-surface-variant);
-                border-radius: 4px;
-            }
-
-            ::-webkit-scrollbar-thumb:hover {
-                background: var(--md-sys-color-primary);
-            }
-
-            /* Base styles for legacy content compatibility */
-            h1,
-            h2,
-            h3,
-            h4,
-            h5,
-            h6 {
-                font-size: revert;
-                font-weight: 700;
-                line-height: revert;
-            }
-
-            a {
-                color: inherit;
-                text-decoration: none;
-            }
-
-            /* Video Player Enforced Dark Theme */
-            .video-js {
-                background-color: #000 !important;
-            }
-
-            .vjs-control-bar {
-                background-color: rgba(0, 0, 0, 0.7) !important;
-                color: #fff !important;
-            }
-
-            /* Remove outlines/borders globally as requested, use focus rings */
-            *:focus {
-                outline: none !important;
-            }
-
-            /* Material Design 3 (Material You) Icon Button */
-            .md3-icon-button {
-                width: 44px;
-                height: 44px;
-                border-radius: 50%;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                color: var(--md-sys-color-on-surface-variant);
-                transition: background-color 250ms cubic-bezier(0.2, 0, 0, 1), 
-                            color 250ms, 
-                            transform 150ms, 
-                            box-shadow 250ms;
-                flex-shrink: 0;
-                cursor: pointer;
-                user-select: none;
-                -webkit-tap-highlight-color: transparent;
-                position: relative;
-            }
-
-            .md3-icon-button:hover {
-                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 90%);
-                color: var(--md-sys-color-primary);
-                box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.1), 
-                            0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            }
-
-            .md3-icon-button:focus-visible {
-                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 85%);
-                color: var(--md-sys-color-primary);
-                box-shadow: 0 0 0 2px var(--md-sys-color-outline);
-            }
-
-            .md3-icon-button:active {
-                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 85%);
-                transform: scale(0.94);
-                box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            }
-
-            .md3-icon-button i {
-                font-size: 24px;
-            }
-
-            .md3-icon-button svg {
-                width: 24px;
-                height: 24px;
-                fill: currentColor;
-            }
-
-            .md3-icon-button-small {
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                color: var(--md-sys-color-on-surface-variant);
-                transition: background-color 200ms cubic-bezier(0.2, 0, 0, 1), 
-                            color 200ms, 
-                            transform 100ms;
-                flex-shrink: 0;
-                cursor: pointer;
-                user-select: none;
-                -webkit-tap-highlight-color: transparent;
-            }
-
-            .md3-icon-button-small:hover {
-                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 92%);
-                color: var(--md-sys-color-primary);
-            }
-
-            .md3-icon-button-small:active {
-                transform: scale(0.9);
-                background-color: color-mix(in srgb, var(--md-sys-color-on-surface-variant), transparent 88%);
-            }
-
-            .md3-icon-button-small i {
-                font-size: 18px;
-            }
-
-            /* MD3 Common Button Base */
-            .md3-button {
-                height: 40px;
-                padding: 0 24px;
-                border-radius: 20px;
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                font-size: 14px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: all 250ms cubic-bezier(0.2, 0, 0, 1);
-                user-select: none;
-                -webkit-tap-highlight-color: transparent;
-                border: none;
-                outline: none;
-                flex-shrink: 0;
-            }
-
-            /* MD3 Filled Button */
-            .md3-button-filled {
-                background-color: var(--md-sys-color-primary);
-                color: var(--md-sys-color-on-primary);
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-            }
-
-            .md3-button-filled:hover {
-                background-color: color-mix(in srgb, var(--md-sys-color-primary), white 10%);
-                box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.2);
-            }
-
-            .md3-button-filled:active {
-                transform: scale(0.96);
-            }
-
-            .md3-button-filled:disabled {
-                background-color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 88%);
-                color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 62%);
-                box-shadow: none;
-                cursor: default;
-            }
-
-            /* MD3 Tonal Button (materialsecondary-container with state overlay) */
-            .md3-button-tonal {
-                background-color: var(--md-sys-color-secondary-container);
-                color: var(--md-sys-color-on-secondary-container);
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-                position: relative;
-                overflow: hidden;
-            }
-
-            .md3-button-tonal:hover {
-                background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), var(--md-sys-color-on-secondary-container) 8%);
-                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-            }
-
-            .md3-button-tonal:focus-visible {
-                background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), var(--md-sys-color-on-secondary-container) 12%);
-                box-shadow: 0 0 0 2px var(--md-sys-color-primary);
-            }
-
-            .md3-button-tonal:active {
-                background-color: color-mix(in srgb, var(--md-sys-color-secondary-container), var(--md-sys-color-on-secondary-container) 12%);
-                transform: scale(0.96);
-            }
-
-            /* MD3 Tonal Button - On state (filled primary) */
-            .md3-button-tonal.is-on {
-                background-color: var(--md-sys-color-primary);
-                color: var(--md-sys-color-on-primary);
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-            }
-
-            .md3-button-tonal.is-on:hover {
-                background-color: color-mix(in srgb, var(--md-sys-color-primary), white 10%);
-                box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.2);
-            }
-
-            .md3-button-tonal.is-on:focus-visible {
-                background-color: color-mix(in srgb, var(--md-sys-color-primary), white 10%);
-                box-shadow: 0 0 0 2px var(--md-sys-color-primary);
-            }
-
-            .md3-button-tonal.is-on:active {
-                background-color: color-mix(in srgb, var(--md-sys-color-primary), black 10%);
-                transform: scale(0.96);
-            }
-
-            .md3-button-tonal:disabled {
-                background-color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 88%);
-                color: color-mix(in srgb, var(--md-sys-color-on-surface), transparent 62%);
-                box-shadow: none;
-                cursor: default;
-            }
-
-            /* MD3 Outlined Button */
-            .md3-button-outlined {
-                background-color: transparent;
-                border: 1px solid var(--md-sys-color-outline);
-                color: var(--md-sys-color-primary);
-            }
-
-            .md3-button-outlined:hover {
-                background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 92%);
-            }
-
-            .md3-button-outlined:active {
-                background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 88%);
-                transform: scale(0.96);
-            }
-
-            /* MD3 Text Button */
-            .md3-button-text {
-                background-color: transparent;
-                color: var(--md-sys-color-primary);
-                padding: 0 12px;
-            }
-
-            .md3-button-text:hover {
-                background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 92%);
-            }
-
-            .md3-button-text:active {
-                background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 88%);
-                transform: scale(0.96);
-            }
-            } /* @layer components */
+            /* @layer components */
         </style>
-        <link rel="stylesheet" href="/static/themes/modern/css/ionicons.min.css?v={{ asset_version }}" />
-        <script defer src="/static/themes/modern/js/_helpers.js?v={{ asset_version }}"></script>
+        <link rel="stylesheet"
+              href="/static/themes/modern/css/ionicons.min.css?v={{ asset_version }}" />
+        <script defer
+                src="/static/themes/modern/js/_helpers.js?v={{ asset_version }}"></script>
         <script nonce="{{ csp_nonce }}">window.I18N={locale:"{{ locale }}",msgs:{{ i18n_catalog | tojson }}};</script>
     </head>
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
@@ -356,8 +403,9 @@
             <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">
                 <!-- Brand & Mobile Icons Row -->
                 <div class="w-full md:w-auto flex justify-between items-center">
-                    <a href="/" class="text-2xl font-bold index-link tracking-tight shrink-0 text-sakura-dark dark:text-primary">MikuInvidious</a>
-                    
+                    <a href="/"
+                       class="text-2xl font-bold index-link tracking-tight shrink-0 text-sakura-dark dark:text-primary">MikuInvidious</a>
+
                     <!-- Mobile Action Buttons (Visible only on mobile) -->
                     <div class="flex items-center gap-0.5 md:hidden">
                         <button id="mobile_search_btn" class="md3-icon-button">
@@ -366,35 +414,51 @@
                         <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button">
                             <i class="icon ion-ios-film"></i>
                         </a>
-                        <button type="button" id="toggle_theme_mobile" title="{{ _('Toggle theme') }}" class="md3-icon-button">
+                        <button type="button"
+                                id="toggle_theme_mobile"
+                                title="{{ _('Toggle theme') }}"
+                                class="md3-icon-button">
                             <i class="icon ion-ios-moon"></i>
                         </button>
                         <div class="relative">
-                            <button id="mobile_lang_btn" title="{{ _('Language') }}" class="md3-icon-button" aria-haspopup="true">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-translate" viewBox="0 0 16 16" aria-hidden="true">
-                                    <path d="M4.545 6.714 4.11 8H3l1.862-5h1.284L8 8H6.833l-.435-1.286zm1.634-.736L5.5 3.956h-.049l-.679 2.022z"/>
-                                    <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31"/>
+                            <button id="mobile_lang_btn"
+                                    title="{{ _('Language') }}"
+                                    class="md3-icon-button"
+                                    aria-haspopup="true">
+                                <svg xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     fill="currentColor"
+                                     class="bi bi-translate"
+                                     viewBox="0 0 16 16"
+                                     aria-hidden="true">
+                                    <path d="M4.545 6.714 4.11 8H3l1.862-5h1.284L8 8H6.833l-.435-1.286zm1.634-.736L5.5 3.956h-.049l-.679 2.022z" />
+                                    <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31" />
                                 </svg>
                             </button>
                             <div id="mobile_lang_menu"
                                  class="absolute right-0 top-full mt-2 opacity-0 pointer-events-none scale-95 transition-all origin-top-right z-50 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
                                 <div class="flex flex-col gap-1">
                                     {% for lang_code, lang_label in locale_choices %}
-                                    <button data-lang="{{ lang_code }}" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
-                                        <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
-                                    </button>
+                                        <button data-lang="{{ lang_code }}"
+                                                class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
+                                            <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
+                                        </button>
                                     {% endfor %}
                                 </div>
                             </div>
                         </div>
-                        <a title="{{ _('Preferences') }}" href="/preferences" class="md3-icon-button">
+                        <a title="{{ _('Preferences') }}"
+                           href="/preferences"
+                           class="md3-icon-button">
                             <i class="icon ion-ios-cog"></i>
                         </a>
                     </div>
                 </div>
 
                 <!-- Search Container (Hidden on mobile by default, flex on desktop) -->
-                <div id="search_container" class="hidden md:flex w-full md:flex-1 max-w-2xl searchbar">
+                <div id="search_container"
+                     class="hidden md:flex w-full md:flex-1 max-w-2xl searchbar">
                     <form class="w-full" action="/search" method="get">
                         <div class="relative group">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
@@ -419,28 +483,43 @@
                     <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button">
                         <i class="icon ion-ios-film"></i>
                     </a>
-                    <button type="button" id="toggle_theme" title="{{ _('Toggle theme') }}" class="md3-icon-button">
+                    <button type="button"
+                            id="toggle_theme"
+                            title="{{ _('Toggle theme') }}"
+                            class="md3-icon-button">
                         <i class="icon ion-ios-moon"></i>
                     </button>
                     <div class="relative">
-                        <button id="lang_btn" title="{{ _('Language') }}" class="md3-icon-button" aria-haspopup="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-translate" viewBox="0 0 16 16" aria-hidden="true">
-                                <path d="M4.545 6.714 4.11 8H3l1.862-5h1.284L8 8H6.833l-.435-1.286zm1.634-.736L5.5 3.956h-.049l-.679 2.022z"/>
-                                <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31"/>
+                        <button id="lang_btn"
+                                title="{{ _('Language') }}"
+                                class="md3-icon-button"
+                                aria-haspopup="true">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="24"
+                                 height="24"
+                                 fill="currentColor"
+                                 class="bi bi-translate"
+                                 viewBox="0 0 16 16"
+                                 aria-hidden="true">
+                                <path d="M4.545 6.714 4.11 8H3l1.862-5h1.284L8 8H6.833l-.435-1.286zm1.634-.736L5.5 3.956h-.049l-.679 2.022z" />
+                                <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31" />
                             </svg>
                         </button>
                         <div id="lang_menu"
                              class="absolute right-0 top-full mt-2 opacity-0 pointer-events-none scale-95 transition-all origin-top-right z-50 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
                             <div class="flex flex-col gap-1">
                                 {% for lang_code, lang_label in locale_choices %}
-                                <button data-lang="{{ lang_code }}" class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
-                                    <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
-                                </button>
+                                    <button data-lang="{{ lang_code }}"
+                                            class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
+                                        <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
+                                    </button>
                                 {% endfor %}
                             </div>
                         </div>
                     </div>
-                    <a title="{{ _('Preferences') }}" href="/preferences" class="md3-icon-button">
+                    <a title="{{ _('Preferences') }}"
+                       href="/preferences"
+                       class="md3-icon-button">
                         <i class="icon ion-ios-cog"></i>
                     </a>
                 </div>
@@ -457,48 +536,48 @@
                             <i class="icon ion-logo-github text-xl"></i>
                             {% if site_modified_source_code_url %}
                                 <a href="https://0xacab.org/johnxina/mikuinvidious"
-                                   class="hover:text-primary transition-colors font-medium">{{ _('Original source code') }}</a> /
+                                   class="hover:text-primary transition-colors font-medium">{{ _("Original source code") }}</a> /
                                 <a href="{{ site_modified_source_code_url }}"
-                                   class="hover:text-primary transition-colors font-medium">{{ _('Modified source code') }}</a>
+                                   class="hover:text-primary transition-colors font-medium">{{ _("Modified source code") }}</a>
                             {% else %}
                                 <a href="https://0xacab.org/johnxina/mikuinvidious"
-                                   class="hover:text-primary transition-colors font-medium">{{ _('Source code') }}</a>
+                                   class="hover:text-primary transition-colors font-medium">{{ _("Source code") }}</a>
                             {% endif %}
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-paper text-xl"></i>
                             <a href="https://apicalshark.github.io/mikuinvidious/"
-                               class="hover:text-primary transition-colors font-medium">{{ _('Documentation') }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _("Documentation") }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-link text-xl"></i>
                             <a href="/convert"
-                               class="hover:text-primary transition-colors font-medium">{{ _('Link converter') }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _("Link converter") }}</a>
                         </div>
                     </div>
                     <div class="flex flex-col gap-4">
                         <div>
                             <a href="https://0xacab.org/johnxina/mikuinvidious/-/blob/no-masters/LICENSE"
-                               class="hover:text-primary transition-colors font-medium">{{ _('Proudly released under AGPLv3') }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _("Proudly released under AGPLv3") }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-logo-javascript text-xl"></i>
                             <a rel="jslicense"
                                href="/licenses"
                                rel="jslicense"
-                               class="hover:text-primary transition-colors font-medium">{{ _('View JavaScript licenses') }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _("View JavaScript licenses") }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-paper text-xl"></i>
                             <a href="/privacy"
-                               class="hover:text-primary transition-colors font-medium">{{ _('Privacy policy') }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _("Privacy policy") }}</a>
                         </div>
                     </div>
                     <div class="flex flex-col gap-4">
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-wallet text-xl"></i>
                             <a href="/video/BV1AtQQB2EQ1"
-                               class="hover:text-primary transition-colors font-medium">{{ _('Donate') }}</a>
+                               class="hover:text-primary transition-colors font-medium">{{ _("Donate") }}</a>
                         </div>
                         <div class="flex items-center justify-center md:justify-start gap-2">
                             <i class="icon ion-ios-git-commit text-xl"></i>

@@ -31,7 +31,7 @@ def _jinja2_filter_datetime(ts, fmt="%Y-%m-%d %H:%M"):
         return ""
     try:
         return datetime.fromtimestamp(float(ts)).strftime(fmt)
-    except (ValueError, TypeError, OverflowError, OSError):
+    except ValueError, TypeError, OverflowError, OSError:
         return ""
 
 
@@ -40,7 +40,7 @@ def _jinja2_filter_datetime(ts, fmt="%Y-%m-%d %H:%M"):
 def _jinja2_filter_intsep(i):
     try:
         return f"{int(i):,}"
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return "0"
 
 
@@ -49,7 +49,7 @@ def _jinja2_filter_intsep(i):
 def __jinja2_filter_secdur(delta_t):
     try:
         return str(timedelta(seconds=int(delta_t)))
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return "0:00:00"
 
 

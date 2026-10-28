@@ -31,7 +31,7 @@ def _to_int(value) -> int:
     empty, dashed, or comma-grouped ("1,234"); never raise."""
     try:
         return int(str(value if value is not None else 0).replace(",", "").strip() or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0
 
 

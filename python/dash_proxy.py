@@ -38,22 +38,20 @@ import os
 import re
 import shutil
 import socket
-import subprocess
 import tempfile
 import time
 import uuid
 from collections import deque
 from urllib.parse import parse_qs, urlparse
 
-import aiofiles
 import orjson
 from csrf import csrf_protect
 from quart import Blueprint, Response, jsonify, redirect, request
 from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
 from shared import (
+    UPSTREAM_RESPONSE_BLACKLIST,
     Network,
     TicketManager,
-    UPSTREAM_RESPONSE_BLACKLIST,
     app,
     appconf,
     appcred,
@@ -210,11 +208,11 @@ def _safe_vid(vid: str) -> str:
 def _safe_download_filename(vid: str, idx: int, qn: int, ext: str = ".mp4") -> str:
     try:
         idx = int(idx)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         idx = 0
     try:
         qn = int(qn)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         qn = 0
     ext = ext if ext in (".mp4", ".flv") else ".mp4"
     return f"{_safe_vid(vid) or 'video'}_{idx}_p{qn}{ext}"
@@ -390,7 +388,11 @@ async def _video_get_dash_for_qn_uncached(vi, idx, ep_id=None, cid=None) -> dict
                 # Gaia risk gate survived the avoidance retry (no captcha UI
                 # server-side) — fall through to the PGC fallback below.
                 print(f"[DashProxy] UGC playurl risk-gated (v_voucher) for {v.get_bvid()}; trying PGC fallback")
-            if data and isinstance(data, dict) and (data.get("dash") or data.get("durl") or data.get("support_formats")):
+            if (
+                data
+                and isinstance(data, dict)
+                and (data.get("dash") or data.get("durl") or data.get("support_formats"))
+            ):
                 return {
                     "code": data.get("code", 0),
                     "dash": data.get("dash") or {},
@@ -589,7 +591,7 @@ def _durl_quality_list(play_data: dict | None, max_qualities: int) -> list[tuple
             continue
         try:
             qn = int(f["quality"])
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
         if any(q == qn for q, _ in qualities):
             continue
@@ -600,7 +602,7 @@ def _durl_quality_list(play_data: dict | None, max_qualities: int) -> list[tuple
         fallback_qn = 0
         try:
             fallback_qn = int((play_data or {}).get("quality") or 0)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             fallback_qn = 0
         qualities = [(fallback_qn or 64, str(fallback_qn or 64))]
     return qualities
@@ -618,7 +620,7 @@ async def _cache_durl_entry(vid: str, idx: int, qn: int, desc: str, node: dict |
     actual_qn = node.get("quality", qn)
     try:
         actual_qn = int(actual_qn)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         actual_qn = qn
     await appredis.setex(f"mikuinv_{vid}_{idx}_{actual_qn}", 1800, url)
     backups = durl[0].get("backup_url", []) or []
@@ -640,14 +642,14 @@ def _select_durl_results(results: list, play_data: dict | None) -> list:
     """
     results = [r for r in results if r]
     fmt_desc = {}
-    for f in ((play_data or {}).get("support_formats") or []):
+    for f in (play_data or {}).get("support_formats") or []:
         if not isinstance(f, dict) or f.get("quality") is None:
             continue
         try:
             desc = f.get("new_description") or f.get("display_desc")
             if desc:
                 fmt_desc[int(f["quality"])] = desc
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             continue
     if any(r.get("quality") == r.get("_requested_qn") for r in results):
         by_quality = {}
@@ -700,7 +702,7 @@ async def fetch_durl_supported_src(
     initial_qn = None
     try:
         initial_qn = int((play_data or {}).get("quality") or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         initial_qn = None
 
     async def resolve_one(qn: int, desc: str) -> dict | None:
@@ -895,7 +897,7 @@ def _playurl_url_expiry(url: str | None) -> int | None:
         for raw in params.get(name) or []:
             try:
                 ts = int(str(raw).strip())
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
             if ts > 0:
                 return ts
@@ -1097,7 +1099,7 @@ def _max_download_size_mb() -> int:
     """Hoster-configured per-track download cap in MB (``[site] max_download_size_mb``)."""
     try:
         return max(int(appconf["site"].get("max_download_size_mb", _DEFAULT_MAX_DOWNLOAD_MB)), 1)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return _DEFAULT_MAX_DOWNLOAD_MB
 
 
@@ -1119,6 +1121,7 @@ def _download_size_status(headers: dict) -> int:
     if parsed_content_length > _max_download_track_bytes():
         return _DOWNLOAD_TOO_LARGE
     return 0
+
 
 # Sentinel returned by _download_track_to_file when a job cancel was observed.
 _DOWNLOAD_CANCELLED = -3
@@ -1164,9 +1167,7 @@ async def _build_dash_cdn_headers() -> dict:
     """
     from api.client import build_cdn_headers
 
-    headers = build_cdn_headers(
-        referer=appconf["bili"].get("referer", "https://www.bilibili.com")
-    )
+    headers = build_cdn_headers(referer=appconf["bili"].get("referer", "https://www.bilibili.com"))
     ticket = await TicketManager.get_ticket()
     if ticket:
         headers["x-bili-ticket"] = ticket
@@ -1198,7 +1199,7 @@ def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
     for t in _normalize_track_urls(dash.get("video")):
         try:
             qn = int(t.get("id", 0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             qn = 0
         if qn <= max_video_qn and (video is None or qn > int(video.get("id") or 0)):
             video = t
@@ -1208,7 +1209,7 @@ def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
     for t in _normalize_track_urls(dash.get("audio")):
         try:
             bw = int(t.get("bandwidth") or 0)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             bw = 0
         if bw < 0:
             bw = 0
@@ -1257,7 +1258,7 @@ def _parse_content_range_start(headers) -> int | None:
         return None
     try:
         return int(m.group(1))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -1438,7 +1439,9 @@ async def _fetch_track_attempt(
     try:
         action = _validate_track_response(resp_headers, total, max_bytes)
         if action == "retry":
-            raise CdnProtocolError(f"CDN returned HTTP {resp_headers.status_code} for Range resume (have {total} bytes)")
+            raise CdnProtocolError(
+                f"CDN returned HTTP {resp_headers.status_code} for Range resume (have {total} bytes)"
+            )
         if action == "fatal":
             print(
                 f"[DashProxy] track GET fatal: HTTP {resp_headers.status_code} "
@@ -1554,7 +1557,7 @@ def _choose_durl_entry(supported: list, want: int) -> tuple:
     """
     try:
         want = int(want)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         want = 0
     candidates = [s for s in supported if s["quality"] <= want] if want > 0 else []
     chosen = candidates[0] if candidates else supported[0]
@@ -1642,11 +1645,11 @@ async def proxy_download(vid, idx, qual):
 
     try:
         v_qn = int(video.get("id") or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         v_qn = 0
     try:
         a_qn = int(audio.get("id") or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         a_qn = 0
 
     async def _refresh_legacy_track_urls(media_type: str, qn: int):
@@ -1660,7 +1663,7 @@ async def proxy_download(vid, idx, qual):
         try:
             if int(track.get("id") or -1) != qn:
                 return None
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         urls = _dash_candidate_urls(track)
         checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls))
@@ -1764,7 +1767,7 @@ def _dash_candidate_urls(track: dict) -> list:
         if isinstance(url, str) and url and url not in ordered:
             ordered.append(url)
     # Stable (non-M-CDN) first, M-CDN last as failover-only.
-    ordered.sort(key=lambda u: (1 if _is_mcdn_url(u) else 0))
+    ordered.sort(key=lambda u: 1 if _is_mcdn_url(u) else 0)
     for url in ordered:
         if isinstance(url, str) and url and url not in candidates and _is_safe_dash_url(url):
             candidates.append(url)
@@ -1854,7 +1857,7 @@ def _dash_response_lengths(resp_headers) -> tuple[str | None, str | None]:
     if cl_raw is not None:
         try:
             cl = int(str(cl_raw).strip())
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             cl = None
         if cl is not None and cl < 0:
             cl = None
@@ -1914,8 +1917,8 @@ async def _yield_dash_body(conn, label: str, floor_watchdog: bool = True):
                 chunk = await iterator.__anext__()
         except StopAsyncIteration:
             return
-        except TimeoutError:
-            raise _SlowDashBody(f"no data for {DASH_BODY_IDLE_TIMEOUT:.0f}s (idle stall)")
+        except TimeoutError as e:
+            raise _SlowDashBody(f"no data for {DASH_BODY_IDLE_TIMEOUT:.0f}s (idle stall)") from e
         got += len(chunk)
         el = time.monotonic() - t0
         if floor_watchdog and el > DASH_BODY_GRACE and got / el < DASH_BODY_FLOOR_KBPS * 1024:
@@ -1966,7 +1969,7 @@ def _expected_resume_start(orig_range: str | None, yielded: int) -> int | None:
     if m:
         try:
             return int(m.group(1)) + yielded
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
     if not orig_range:
         # Full-file (no Range) request starting at 0.
@@ -1985,14 +1988,14 @@ def _parse_content_range_full(cr: str | None) -> tuple[int | None, int | None, i
         return None, None, None
     try:
         start, end = int(m.group(1)), int(m.group(2))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None, None, None
     total: int | None = None
     raw_total = m.group(3)
     if raw_total and raw_total != "*":
         try:
             total = int(raw_total)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             total = None
     return start, end, total
 
@@ -2009,7 +2012,7 @@ def _parse_416_total(cr: str | None) -> int | None:
         return None
     try:
         return int(m.group(1))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -2057,9 +2060,17 @@ class _ResumedDashConn:
 
 
 async def _failover_dash_conn(
-    pending: list, headers: dict, proxy_url: str, label: str, orig_range, yielded: int, downstream_total: int | None = None,
+    pending: list,
+    headers: dict,
+    proxy_url: str,
+    label: str,
+    orig_range,
+    yielded: int,
+    downstream_total: int | None = None,
     attempt_timeout: float | None = None,
-    retry_url: str | None = None, retry_served: int = 0, retry_budget: int = 0,
+    retry_url: str | None = None,
+    retry_served: int = 0,
+    retry_budget: int = 0,
 ):
     """Fail over a cut/slow body to the next mirror.
 
@@ -2099,9 +2110,7 @@ async def _failover_dash_conn(
         and retry_url not in candidates
     )
     retry_added = False
-    if can_retry_same and all(
-        _mirror_range_shy_at(urlparse(u).hostname or "", expected) for u in orig_pending
-    ):
+    if can_retry_same and all(_mirror_range_shy_at(urlparse(u).hostname or "", expected) for u in orig_pending):
         # Every remaining mirror will 416 this offset; the cutting mirror
         # just proved it can serve bytes. Health ordering inside
         # _fetch_dash_track keeps capable mirrors first anyway — this only
@@ -2110,10 +2119,12 @@ async def _failover_dash_conn(
         retry_added = True
     last_error: Exception | None = None
     forbidden_seen = False
+
     def _take(used: str):
         candidates.remove(used)
         if used in pending:
             pending.remove(used)
+
     while candidates:
         try:
             conn, resp_headers, used, _, _ = await _fetch_dash_track(
@@ -2195,7 +2206,7 @@ async def _failover_dash_conn(
                 # Server ignored Range: full body from 0, discard the prefix.
                 try:
                     total = int(str(resp_headers.headers.get("content-length") or "").strip())
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     total = None
                 if total is not None and total > expected:
                     limit = total - expected if remaining is None else min(remaining, total - expected)
@@ -2289,7 +2300,7 @@ def _parse_range_start(range_header: str | None) -> int | None:
         return None
     try:
         return int(m.group(1))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -2370,7 +2381,9 @@ def _segment_mirror_order(candidates: list, seg_index: int) -> list:
     return healthy[rot:] + healthy[:rot] + sick + tail
 
 
-async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: str, attempt_timeout: float | None = None):
+async def _fetch_dash_track(
+    urls: list, headers: dict, proxy_url: str, label: str, attempt_timeout: float | None = None
+):
     """Try each candidate mirror in order; return ``(conn, resp_headers, used_url, content_length, content_range)``.
     Stalled edges fail fast (``DASH_ATTEMPT_TIMEOUT``) so playback falls over
     to the next mirror instead of hanging until dash.js abandons the request
@@ -2431,9 +2444,7 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
             # Deliberately not sick-marked (shallow ranges still serve).
             if want is not None:
                 _note_mirror_range_shy(urlparse(url).hostname or "", want)
-                print(
-                    f"[DashProxy] {label} {host} lacks range at {want} (416, total={total}), trying next mirror"
-                )
+                print(f"[DashProxy] {label} {host} lacks range at {want} (416, total={total}), trying next mirror")
             else:
                 print(f"[DashProxy] {label} {host} -> 416, trying next mirror")
             try:
@@ -2459,7 +2470,9 @@ async def _fetch_dash_track(urls: list, headers: dict, proxy_url: str, label: st
     )
 
 
-async def _retry_proxy_with_fresh_playurl(vid, idx, media_type, qn, cid, old_urls, headers, proxy_url, label, attempt_timeout=None):
+async def _retry_proxy_with_fresh_playurl(
+    vid, idx, media_type, qn, cid, old_urls, headers, proxy_url, label, attempt_timeout=None
+):
     """One fresh-playurl retry for a 403-swept track (official player recovery).
 
     Drops the cached playurl (whose signatures likely expired — all mirrors
@@ -2564,7 +2577,7 @@ def _has_exact_content_length(resp_headers, span_left: int) -> bool:
         return False
     try:
         return int(str((resp_headers.headers or {}).get("content-length") or "").strip()) == span_left
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
 
 
@@ -2729,10 +2742,7 @@ async def _download_track_segmented(
                                     if note_cb is not None:
                                         note_cb(None)
                                     continue
-                                print(
-                                    f"[DashProxy] {seg_label} refresh returned same URL stamp, "
-                                    "not retrying refresh"
-                                )
+                                print(f"[DashProxy] {seg_label} refresh returned same URL stamp, not retrying refresh")
                         decision = await _await_track_retry(seg_attempt, cancel_event, note_cb, exc, label=seg_label)
                         if decision == "retry":
                             seg_attempt += 1
@@ -2759,9 +2769,7 @@ async def _download_track_segmented(
                         if _has_exact_content_length(resp_headers, span_left):
                             exact_206 = True
                         else:
-                            print(
-                                f"[DashProxy] {seg_label} 206 without exact length, trying next mirror"
-                            )
+                            print(f"[DashProxy] {seg_label} 206 without exact length, trying next mirror")
                             try:
                                 await conn.close()
                             except Exception:
@@ -2783,7 +2791,7 @@ async def _download_track_segmented(
                 elif status == 200:
                     try:
                         full_len = int(str(resp_headers.headers.get("content-length") or "").strip())
-                    except (TypeError, ValueError):
+                    except TypeError, ValueError:
                         full_len = None
                     if full_len is not None and full_len > want:
                         print(f"[DashProxy] {seg_label} ignored Range, salvaging full body")
@@ -2832,9 +2840,7 @@ async def _download_track_segmented(
                                 win_rate = win_bytes / win_el
                                 if win_rate > win_best:
                                     win_best = win_rate
-                                capable = (
-                                    track_best_bps >= _SLOW_ARM_BPS or win_best >= _SLOW_ARM_BPS
-                                )
+                                capable = track_best_bps >= _SLOW_ARM_BPS or win_best >= _SLOW_ARM_BPS
                                 if win_rate >= _SLOW_WINDOW_KBPS * 1024:
                                     slow_strikes = 0
                                 elif capable:
@@ -2851,7 +2857,14 @@ async def _download_track_segmented(
                             pending_writes.clear()
                             pending_len = 0
                             await asyncio.to_thread(file_obj.write, batch)
-                except (_SlowDashBody, CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError, TimeoutError) as exc:
+                except (
+                    _SlowDashBody,
+                    CdnConnectError,
+                    CdnProtocolError,
+                    CdnTimeoutError,
+                    OSError,
+                    TimeoutError,
+                ) as exc:
                     try:
                         await use_conn.close()
                     except Exception:
@@ -3105,7 +3118,15 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             reason = "forbidden" if exc.forbidden else "expired"
             print(f"[DashProxy] {label} URLs {reason} ({exc}), refreshing playurl once")
             retry = await _retry_proxy_with_fresh_playurl(
-                vid, idx, media_type, qn, cid, urls, headers, proxy_url, label,
+                vid,
+                idx,
+                media_type,
+                qn,
+                cid,
+                urls,
+                headers,
+                proxy_url,
+                label,
                 attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
             )
             if retry is None:
@@ -3118,7 +3139,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         yielded = 0
         try:
             downstream_total = int(str(content_length).strip()) if content_length is not None else None
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             downstream_total = None
 
         async def generate():
@@ -3137,7 +3158,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     async for chunk in _yield_dash_body(conn, label, floor_watchdog=True):
                         yielded += len(chunk)
                         yield chunk
-                except (asyncio.CancelledError, GeneratorExit):
+                except asyncio.CancelledError, GeneratorExit:
                     # Client went away mid-stream: just close upstream.
                     try:
                         await conn.close()
@@ -3145,7 +3166,14 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                         pass
                     print(f"[DashProxy] {label} {host} client disconnected after {yielded} bytes")
                     raise
-                except (_SlowDashBody, CdnProtocolError, CdnTimeoutError, CdnConnectError, OSError, TimeoutError) as exc:
+                except (
+                    _SlowDashBody,
+                    CdnProtocolError,
+                    CdnTimeoutError,
+                    CdnConnectError,
+                    OSError,
+                    TimeoutError,
+                ) as exc:
                     try:
                         await conn.close()
                     except Exception:
@@ -3159,16 +3187,25 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                         # mismatch and dash.js retries the Range — instead
                         # of a 500 + TaskGroup traceback from re-raising
                         # inside the generator.
-                        print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}); mirrors exhausted, truncating")
+                        print(
+                            f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}); mirrors exhausted, truncating"
+                        )
                         return
                     print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}), trying next mirror")
                     prev_url = used_url
                     served = yielded - attempt_base
                     try:
                         conn, used, _ = await _failover_dash_conn(
-                            pending, headers, proxy_url, label, orig_range, yielded, downstream_total,
+                            pending,
+                            headers,
+                            proxy_url,
+                            label,
+                            orig_range,
+                            yielded,
+                            downstream_total,
                             attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
-                            retry_url=prev_url, retry_served=served,
+                            retry_url=prev_url,
+                            retry_served=served,
                             retry_budget=_SAME_MIRROR_MAX_RESUMES - same_resumes,
                         )
                     except _DashUpstreamError as exc2:
@@ -3485,12 +3522,10 @@ async def _peek_content_length(
                 return 0
             try:
                 size = int(cl)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 return 0
             if size > _max_download_track_bytes():
-                raise RuntimeError(
-                    f"this instance maximum allowed download size is {_max_download_size_mb()} MB"
-                )
+                raise RuntimeError(f"this instance maximum allowed download size is {_max_download_size_mb()} MB")
             return max(size, 0)
         finally:
             await conn.close()
@@ -3539,19 +3574,19 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
 
     try:
         v_qn = int(video.get("id") or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         v_qn = 0
     try:
         v_cid = int(video.get("codecid") or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         v_cid = 0
     try:
         a_qn = int(audio.get("id") or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         a_qn = 0
     try:
         a_cid = int(audio.get("codecid") or 0)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         a_cid = 0
 
     async def _refresh_job_track_urls(media_type: str, qn: int, cid: int):
@@ -3577,7 +3612,7 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
                     f"(want {qn}, got {track.get('id')}), declining"
                 )
                 return None
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
         urls = _dash_candidate_urls(track)
         checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls))

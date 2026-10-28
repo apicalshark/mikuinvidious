@@ -5,7 +5,7 @@
     {% set ratio = w / h %}
     <div id="player-wrapper"
          class="relative w-full bg-black md:rounded-xl rounded-none overflow-hidden shadow-2xl aspect-video"
-         style="max-height: 85vh;">
+         style="max-height: 85vh">
         {% if paywall and not is_live %}
             <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 z-50 bg-black px-6 text-center">
                 <p class="text-white/80 text-base">Restricted video</p>
@@ -14,13 +14,10 @@
         {% elif not supported_src and not is_live %}
             <div class="absolute inset-0 flex flex-col items-center justify-center gap-4 z-50 bg-black">
                 {{ m3_spinner() }}
-                <p class="text-white/50 text-sm tracking-widest uppercase">{{ _('Resolving video URL...') }}</p>
+                <p class="text-white/50 text-sm tracking-widest uppercase">{{ _("Resolving video URL...") }}</p>
             </div>
         {% endif %}
-        <media-controller id="miku-player"
-                           class="w-full h-full"
-                           keyboardbackwardseekoffset="5"
-                           keyboardforwardseekoffset="5">
+        <media-controller id="miku-player" class="w-full h-full" keyboardbackwardseekoffset="5" keyboardforwardseekoffset="5">
         {% if is_live %}
             <video slot="media"
                    id="player"
@@ -65,7 +62,8 @@
         <!-- Quality Menu Layer - Direct child -->
         <div id="quality-menu"
              class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-right z-50 p-2 min-w-[140px] rounded-xl shadow-2xl border border-white/10 bg-[#181818] pointer-events-auto">
-            <div data-menu-title class="text-[10px] uppercase tracking-widest text-white/40 px-3 py-2 mb-1 font-bold">{{ _('Resolution') }}</div>
+            <div data-menu-title
+                 class="text-[10px] uppercase tracking-widest text-white/40 px-3 py-2 mb-1 font-bold">{{ _("Resolution") }}</div>
             <div id="quality-list"
                  class="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar"></div>
         </div>
@@ -76,7 +74,7 @@
             <media-volume-range class="grow mr-2" media-controller="miku-player"></media-volume-range>
         </div>
         <media-loading-indicator slot="centered-chrome" noautohide class="z-20" style="--media-loading-indicator-icon-width: 48px; --media-loading-indicator-icon-height: 48px;">
-            {{ m3_spinner(slot='icon') }}
+        {{ m3_spinner(slot='icon') }}
         </media-loading-indicator>
         <!-- Autoplay Unlock Overlay -->
         <div id="autoplay-overlay"
@@ -85,46 +83,58 @@
                     class="md3-button md3-button-filled h-14! px-8! rounded-2xl! shadow-2xl">
                 <i class="icon ion-md-play text-xl"></i>
                 <div class="text-left">
-                    <p class="font-bold text-sm leading-tight">{{ _('Click to play') }}</p>
-                    <p class="text-[10px] opacity-80 mt-1">{{ _('Browser blocked autoplay') }}</p>
+                    <p class="font-bold text-sm leading-tight">{{ _("Click to play") }}</p>
+                    <p class="text-[10px] opacity-80 mt-1">{{ _("Browser blocked autoplay") }}</p>
                 </div>
             </button>
         </div>
         <!-- Control Bar -->
         <media-control-bar class="w-full z-30">
-            <media-play-button class="w-11 p-2.5"></media-play-button>
-            {% if not is_live %}
-                <media-seek-backward-button seekoffset="5" class="w-11 p-2.5"></media-seek-backward-button>
-                <media-seek-forward-button seekoffset="5" class="w-11 p-2.5"></media-seek-forward-button>
-            {% endif %}
-            <button id="volume-btn" title="{{ _('Volume') }}" class="miku-control-btn w-11">
-                <i class="icon ion-md-volume-high"></i>
-            </button>
-            {% if is_live %}
-                <!-- Live Indicator -->
-                <div class="miku-control-btn gap-2 pointer-events-none grow">
-                    <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
-                    <span class="text-[11px] font-bold uppercase tracking-wider text-on-primary-container">{{ _('LIVE') }}</span>
-                </div>
-            {% else %}
-                <media-time-range></media-time-range>
-                <media-time-display showduration class="text-xs"></media-time-display>
-            {% endif %}
-            <!-- Custom buttons -->
-            <button id="danmaku-toggle" title="{{ _('Toggle danmaku') }}" class="miku-control-btn w-11">
-                <i class="icon ion-md-easel"></i>
-            </button>
-            {% if not is_live and subtitles %}<media-captions-button class="w-11 p-2.5"></media-captions-button>{% endif %}
-            <button id="quality-btn" title="{{ _('Switch resolution') }}" class="miku-control-btn w-11">
-                <i class="icon ion-md-settings"></i>
-            </button>
-            {% if not is_live %}<media-playback-rate-button class="w-11 p-2.5"></media-playback-rate-button>{% endif %}
-            <media-fullscreen-button class="w-11 p-2.5"></media-fullscreen-button>
+        <media-play-button class="w-11 p-2.5"></media-play-button>
+        {% if not is_live %}
+            <media-seek-backward-button seekoffset="5" class="w-11 p-2.5"></media-seek-backward-button>
+            <media-seek-forward-button seekoffset="5" class="w-11 p-2.5"></media-seek-forward-button>
+        {% endif %}
+        <button id="volume-btn"
+                title="{{ _('Volume') }}"
+                class="miku-control-btn w-11">
+            <i class="icon ion-md-volume-high"></i>
+        </button>
+        {% if is_live %}
+            <!-- Live Indicator -->
+            <div class="miku-control-btn gap-2 pointer-events-none grow">
+                <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-on-primary-container">{{ _("LIVE") }}</span>
+            </div>
+        {% else %}
+            <media-time-range></media-time-range>
+            <media-time-display showduration class="text-xs"></media-time-display>
+        {% endif %}
+        <!-- Custom buttons -->
+        <button id="danmaku-toggle"
+                title="{{ _('Toggle danmaku') }}"
+                class="miku-control-btn w-11">
+            <i class="icon ion-md-easel"></i>
+        </button>
+        {% if not is_live and subtitles %}<media-captions-button class="w-11 p-2.5"></media-captions-button>{% endif %}
+        <button id="quality-btn"
+                title="{{ _('Switch resolution') }}"
+                class="miku-control-btn w-11">
+            <i class="icon ion-md-settings"></i>
+        </button>
+        {% if not is_live %}<media-playback-rate-button class="w-11 p-2.5"></media-playback-rate-button>{% endif %}
+        <media-fullscreen-button class="w-11 p-2.5"></media-fullscreen-button>
         </media-control-bar>
         </media-controller>
         <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }}; window.is_dash = {{ 'true' if is_dash else 'false' }}; window.dash_url = {{ dash_url | tojson }};</script>
     </div>
 {% endmacro %}
 {% macro m3_spinner(size='48px', slot='', cls='') %}
-    <svg{% if slot %} slot="{{ slot }}"{% endif %} class="miku-m3-spinner {{ cls }}" viewBox="0 0 44 44" style="--miku-spinner-size: {{ size }};" aria-hidden="true"><circle cx="22" cy="22" r="20.2" /></svg>
+    <svg {% if slot %} slot="{{ slot }}"{% endif %}
+         class="miku-m3-spinner {{ cls }}"
+         viewBox="0 0 44 44"
+         style="--miku-spinner-size: {{ size }}"
+         aria-hidden="true">
+        <circle cx="22" cy="22" r="20.2" />
+    </svg>
 {% endmacro %}

@@ -63,7 +63,7 @@ class SecretEncryption:
             plaintext = self._box.decrypt(data)
             return plaintext.decode()
         except (nacl.exceptions.CryptoError, ValueError) as e:
-            raise ValueError(f"Decryption failed: {e}")
+            raise ValueError(f"Decryption failed: {e}") from e
 
     @staticmethod
     def generate_master_key() -> str:

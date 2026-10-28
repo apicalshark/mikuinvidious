@@ -27,6 +27,7 @@ import views  # noqa: F401
 from api import exceptions
 from b23_resolver import resolve_b23_target
 from csrf import csrf_protect, inject_csrf_token
+from dash_proxy import dash_proxy_bp
 from proxy import proxy_bp
 from quart import Response, g, jsonify, redirect, request, send_from_directory
 from rate_limit import RATE_LIMITS, add_rate_limit_headers, rate_limit
@@ -36,6 +37,7 @@ from shared import (
     close_global_client,
     render_template_with_theme,
 )
+from views_bangumi import bangumi_bp
 
 
 async def monitor_fd():
@@ -162,13 +164,7 @@ async def add_security_headers(response):
 
 
 app.register_blueprint(proxy_bp)
-
-from dash_proxy import dash_proxy_bp
-
 app.register_blueprint(dash_proxy_bp)
-
-from views_bangumi import bangumi_bp
-
 app.register_blueprint(bangumi_bp)
 
 app.context_processor(inject_csrf_token)
@@ -374,5 +370,7 @@ async def general_exception_view(e):
     print(f"[ERROR] {error_msg}")
     # Never expose internal error details to users
     return await render_template_with_theme(
-        "error.html", status="Server error", desc="Internal server error. Please try again later or contact the administrator."
+        "error.html",
+        status="Server error",
+        desc="Internal server error. Please try again later or contact the administrator.",
     ), 500

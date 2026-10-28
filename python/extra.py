@@ -115,7 +115,7 @@ def _to_int(value, default=0):
         return default
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 

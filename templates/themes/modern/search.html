@@ -1,28 +1,28 @@
-{% extends 'themes/modern/base.html' %}
+{% extends "themes/modern/base.html" %}
 {% block head %}
-    <title>{{ _('Search') }} - MikuInvidious</title>
+    <title>{{ _("Search") }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
 {% endblock %}
 {% block content %}
     <div class="mb-6 space-y-4">
         <!-- Search Type Tabs -->
         <div class="flex flex-wrap gap-2">
-            <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">{{ _('Search category:') }}</span>
+            <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">{{ _("Search category:") }}</span>
             <a href="/search?q={{ q }}&t=video"
-                class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get("t") == 'video' or not request.args.get('t') else 'md3-button-tonal' }}">{{ _('Videos') }}</a>
+               class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get('t') == 'video' or not request.args.get('t') else 'md3-button-tonal' }}">{{ _("Videos") }}</a>
             <a href="/search?q={{ q }}&t=live"
-                class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get("t") == 'live' else 'md3-button-tonal' }}">{{ _('Live') }}</a>
+               class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get('t') == 'live' else 'md3-button-tonal' }}">{{ _("Live") }}</a>
             <a href="/search?q={{ q }}&t=article"
-                class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get("t") == 'article' else 'md3-button-tonal' }}">{{ _('Articles') }}</a>
+               class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get('t') == 'article' else 'md3-button-tonal' }}">{{ _("Articles") }}</a>
             <a href="/search?q={{ q }}&t=user"
-                class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get("t") == 'user' else 'md3-button-tonal' }}">{{ _('Creators') }}</a>
+               class="md3-button rounded-xl! {{ 'md3-button-filled' if request.args.get('t') == 'user' else 'md3-button-tonal' }}">{{ _("Creators") }}</a>
         </div>
         <!-- Sort Tabs -->
         <div class="flex flex-wrap gap-2">
-            <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">{{ _('Sort by:') }}</span>
+            <span class="px-3 py-1.5 text-sm font-bold text-on-surface-variant flex items-center">{{ _("Sort by:") }}</span>
             {% set sort_opts = [('rank', _('Comprehensive')), ('click', _('Most clicks')), ('pubdate', _('Newest')), ('dm', _('Most danmaku')), ('stow', _('Most favorites')), ('scores', _('Most comments'))] %}
             {% for key, label in sort_opts %}
-                <a href="/search?q={{ q }}&sort={{ key }}&t={{ request.args.get("t") or 'video' }}"
+                <a href="/search?q={{ q }}&sort={{ key }}&t={{ request.args.get('t') or 'video' }}"
                    class="md3-button rounded-xl! {{ 'md3-button-filled' if sort == key or (not sort and key == 'rank') else 'md3-button-tonal' }}">
                     {{ label }}
                 </a>
@@ -30,11 +30,11 @@
         </div>
     </div>
     <!-- Results -->
-    {% if sinfo['numResults'] == 0 and not rs %}
+    {% if sinfo["numResults"] == 0 and not rs %}
         <div class="flex flex-col items-center justify-center py-20 bg-surface-variant/10 rounded-2xl border-2 border-dashed border-surface-variant/30">
             <i class="icon ion-ios-search text-6xl text-on-surface-variant/50 mb-4"></i>
-            <h3 class="text-xl font-bold text-on-surface-variant">{{ _('No results found') }}</h3>
-            <p class="text-on-surface-variant/70 mt-2">{{ _('Try another keyword?') }}</p>
+            <h3 class="text-xl font-bold text-on-surface-variant">{{ _("No results found") }}</h3>
+            <p class="text-on-surface-variant/70 mt-2">{{ _("Try another keyword?") }}</p>
         </div>
     {% else %}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -44,18 +44,21 @@
                 <div class="group bg-surface dark:bg-surface-variant/20 rounded-2xl overflow-hidden hover:bg-surface-variant/30 flex flex-col transition-all duration-300 hover:shadow-[0_0_20px_rgba(156,65,116,0.15)] dark:hover:shadow-[0_0_20px_rgba(255,177,218,0.1)] hover:-translate-y-1">
                     <!-- Thumbnail -->
                     <a href="{{ link }}" class="relative block aspect-video overflow-hidden">
-                        <img loading="lazy" decoding="async" width="320" height="180"
+                        <img loading="lazy"
+                             decoding="async"
+                             width="320"
+                             height="180"
                              class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                              src="{{ (v['pic'] + "@320w_180h.webp" if is_live else v['pic'] + "@320w")|pic }}"
                              alt="" />
                         <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                         </div>
                         <p class="absolute bottom-2 right-2 bg-black/70 backdrop-blur-md text-white text-xs px-2 py-1 rounded-lg font-medium shadow-xs">
-                            {{ (v['online']|intsep ~ ' ' ~ _('watching')) if is_live else v['duration'] }}
+                            {{ (v['online']|intsep ~ ' ' ~ _("watching")) if is_live else v['duration'] }}
                         </p>
                         {% if is_live %}
                             <span class="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded animate-pulse">LIVE</span>
-                        {% elif v.get('typename') %}
+                        {% elif v.get("typename") %}
                             <span class="absolute top-2 left-2 bg-black/70 backdrop-blur-md text-white text-[10px] font-bold px-1.5 py-0.5 rounded">{{ v['typename'] }}</span>
                         {% endif %}
                     </a>
@@ -69,18 +72,23 @@
                         </a>
                         <div class="mt-auto space-y-3">
                             <div class="flex justify-between items-center text-xs text-on-surface-variant">
-                                <a href="/space/{{ v.get("uid") or v.get('author_id') }}"
+                                <a href="/space/{{ v.get('uid') or v.get('author_id') }}"
                                    class="hover:text-primary truncate max-w-[65%] flex items-center gap-1.5 transition-colors">
                                     <div class="w-5 h-5 rounded-full bg-surface-variant/50 flex items-center justify-center overflow-hidden">
-                                        {% if is_live and v.get('face') %}
-                                            <img loading="lazy" decoding="async" width="48" height="48"
+                                        {% if is_live and v.get("face") %}
+                                            <img loading="lazy"
+                                                 decoding="async"
+                                                 width="48"
+                                                 height="48"
                                                  src="{{ (v['face'] + "@48w_48h.webp")|pic }}"
-                                                 class="w-full h-full object-cover" alt="" />
+                                                 class="w-full h-full object-cover"
+                                                 alt="" />
                                         {% else %}
                                             <i class="icon ion-ios-person text-sm"></i>
                                         {% endif %}
                                     </div>
-                                    <span dir="auto" class="font-medium">{{ (v.get("uname") or v.get('author')) }}</span>
+                                    <span dir="auto"
+                                          class="font-medium">{{ (v.get("uname") or v.get('author')) }}</span>
                                 </a>
                                 {% if not is_live %}
                                     <div class="flex gap-1">
@@ -89,11 +97,12 @@
                                            class="md3-icon-button-small">
                                             <i class="icon ion-logo-youtube"></i>
                                         </a>
-                                    </div>                                {% endif %}
+                                    </div>
+                                {% endif %}
                             </div>
                             <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
                                 <p dir="auto">{{ v['area_name'] if is_live else v['published']|date }}</p>
-                                <p dir="auto">{{ (v['online'] if is_live else v['views'])|intsep }} {{ _('popularity') if is_live else _('plays') }}</p>
+                                <p dir="auto">{{ (v['online'] if is_live else v['views'])|intsep }} {{ _("popularity") if is_live else _('plays') }}</p>
                             </div>
                         </div>
                     </div>
@@ -102,16 +111,16 @@
         </div>
         <!-- Pagination -->
         <div class="mt-10 flex items-center justify-center gap-4">
-            {% if sinfo['page'] > 1 %}
-                <a href="/search?q={{ q }}&i={{ sinfo['page']-1 }}&sort={{ sort }}&t={{ request.args.get("t") }}"
+            {% if sinfo["page"] > 1 %}
+                <a href="/search?q={{ q }}&i={{ sinfo['page']-1 }}&sort={{ sort }}&t={{ request.args.get('t') }}"
                    class="md3-button md3-button-tonal">
-                    <i class="icon ion-ios-arrow-back"></i> {{ _('Previous page') }}
+                    <i class="icon ion-ios-arrow-back"></i> {{ _("Previous page") }}
                 </a>
             {% endif %}
-            {% if sinfo['numPages'] > sinfo['page'] %}
-                <a href="/search?q={{ q }}&i={{ sinfo['page']+1 }}&sort={{ sort }}&t={{ request.args.get("t") }}"
+            {% if sinfo["numPages"] > sinfo["page"] %}
+                <a href="/search?q={{ q }}&i={{ sinfo['page']+1 }}&sort={{ sort }}&t={{ request.args.get('t') }}"
                    class="md3-button md3-button-filled">
-                    {{ _('Next page') }} <i class="icon ion-ios-arrow-forward"></i>
+                    {{ _("Next page") }} <i class="icon ion-ios-arrow-forward"></i>
                 </a>
             {% endif %}
         </div>

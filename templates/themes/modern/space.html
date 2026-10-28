@@ -1,4 +1,4 @@
-{% extends 'themes/modern/base.html' %}
+{% extends "themes/modern/base.html" %}
 {% block head %}
     <title>{{ uinfo['name'] }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
@@ -17,7 +17,7 @@
 {% endblock %}
 {% block content %}
     <!-- Profile Header -->
-    <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-10 mb-8 shadow-xs relative overflow-hidden ">
+    <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-10 mb-8 shadow-xs relative overflow-hidden">
         <div class="relative flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
             <!-- Avatar -->
             <div class="w-32 h-32 md:w-40 md:h-40 rounded-full border-4 border-surface shadow-md overflow-hidden shrink-0 bg-surface">
@@ -40,33 +40,33 @@
                        target="_blank"
                        class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-primary hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
                         <i class="icon ion-logo-youtube"></i>
-                        <span>{{ _('Bilibili Space') }}</span>
+                        <span>{{ _("Bilibili Space") }}</span>
                     </a>
                     <a href="/author/{{ uinfo['mid'] }}"
                        class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-primary hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
                         <i class="icon ion-ios-paper"></i>
-                        <span>{{ _('Articles') }}</span>
+                        <span>{{ _("Articles") }}</span>
                     </a>
                     <a href="/space/{{ uinfo['mid'] }}/json"
                        class="px-4 py-2 rounded-full bg-surface-variant/30 hover:bg-primary hover:text-white text-on-surface transition-all text-sm font-medium flex items-center gap-2">
                         <i class="icon ion-logo-rss"></i>
-                        <span>{{ _('RSS Feed') }}</span>
+                        <span>{{ _("RSS Feed") }}</span>
                     </a>
                 </div>
             </div>
         </div>
     </div>
     <div class="flex items-center gap-4 mb-6">
-        <h2 class="text-xl font-bold text-on-surface">{{ _('Videos') }}</h2>
+        <h2 class="text-xl font-bold text-on-surface">{{ _("Videos") }}</h2>
         <span class="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary font-bold">{{ uvids['page']['count'] }}</span>
     </div>
     {% if degraded %}
         <div class="mb-6 px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-sm leading-relaxed">
-            {{ _('Video list temporarily unavailable — Bilibili rate-limited this instance. Profile shown; videos should return in a few minutes.') }}
+            {{ _("Video list temporarily unavailable — Bilibili rate-limited this instance. Profile shown; videos should return in a few minutes.") }}
         </div>
     {% elif load_failed %}
         <div class="mb-6 px-4 py-3 rounded-2xl bg-surface-variant/20 border border-white/10 text-on-surface-variant text-sm leading-relaxed">
-            {{ _('Video list could not be loaded due to a network error. Profile shown; please retry shortly.') }}
+            {{ _("Video list could not be loaded due to a network error. Profile shown; please retry shortly.") }}
         </div>
     {% endif %}
     <!-- Videos Grid -->
@@ -118,36 +118,36 @@
                         </div>
                         <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
                             <p dir="auto">{{ v['created']|date }}</p>
-                            <p dir="auto">{{ v['play']|intsep }} {{ _('plays') }}</p>
+                            <p dir="auto">{{ v['play']|intsep }} {{ _("plays") }}</p>
                         </div>
                     </div>
                 </div>
             </div>
         {% endfor %}
-        {% if not uvids['list']['vlist'] %}
+        {% if not uvids["list"]["vlist"] %}
             <p class="col-span-full text-center text-sm text-on-surface-variant opacity-70 py-8">
                 {% if degraded %}
-                    {{ _('Nothing to show right now — see notice above.') }}
+                    {{ _("Nothing to show right now — see notice above.") }}
                 {% elif load_failed %}
-                    {{ _('Nothing to show right now — loading failed, see notice above.') }}
+                    {{ _("Nothing to show right now — loading failed, see notice above.") }}
                 {% else %}
-                    {{ _('This user has no videos yet.') }}
+                    {{ _("This user has no videos yet.") }}
                 {% endif %}
             </p>
         {% endif %}
     </div>
     <!-- Pagination -->
     <div class="mt-10 flex items-center justify-center gap-4">
-        {% if uvids['page']['pn'] > 1 %}
+        {% if uvids["page"]["pn"] > 1 %}
             <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']-1 }}"
                class="px-4 py-2 rounded-lg bg-surface-variant/30 hover:bg-surface-variant/50 text-on-surface transition-colors flex items-center gap-2">
-                <i class="icon ion-ios-arrow-back"></i> {{ _('Previous page') }}
+                <i class="icon ion-ios-arrow-back"></i> {{ _("Previous page") }}
             </a>
         {% endif %}
-        {% if (uvids['page']['pn']+1)*(uvids['page']['ps']) < uvids['page']['count'] %}
+        {% if (uvids["page"]["pn"]+1)*(uvids["page"]["ps"]) < uvids["page"]["count"] %}
             <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']+1 }}"
                class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
-                {{ _('Next page') }} <i class="icon ion-ios-arrow-forward"></i>
+                {{ _("Next page") }} <i class="icon ion-ios-arrow-forward"></i>
             </a>
         {% endif %}
     </div>

@@ -191,7 +191,6 @@
   "Trusted only": "Лише надійні",
   "Try another keyword?": "Спробувати інше ключове слово?",
   "Variety": "Шоу",
-  "Version info unavailable :-(": "Інформація про версію недоступна :-(",
   "Video list could not be loaded due to a network error. Profile shown; please retry shortly.": "Не вдалося завантажити список відео через помилку мережі. Профіль показано; спробуйте ще раз за мить.",
   "Video list temporarily unavailable — Bilibili rate-limited this instance. Profile shown; videos should return in a few minutes.": "Список відео тимчасово недоступний — Bilibili обмежив частоту запитів для цього інстанса. Профіль показано; відео мають повернутися за кілька хвилин.",
   "Video load failed": "Не вдалося завантажити відео",
@@ -207,8 +206,8 @@
     "nplurals": 3,
     "order": [
       "one",
-      "few",
-      "many"
+      "many",
+      "other"
     ]
   },
   "after the instance domain +": "після домену екземпляра +",

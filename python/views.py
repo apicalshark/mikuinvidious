@@ -124,7 +124,7 @@ async def live_chat_sse(room_id):
                     yield ": heartbeat\n\n"
                 else:
                     yield f"data: {orjson.dumps(msg).decode('utf-8')}\n\n"
-        except (asyncio.CancelledError, GeneratorExit):
+        except asyncio.CancelledError, GeneratorExit:
             print(f"[LiveChat] Client disconnected from room {room_id}")
         except Exception as e:
             print(f"[LiveChat] Unexpected error in event_stream for room {room_id}: {e}")
@@ -177,11 +177,7 @@ async def home_view():
             # 500ing the front page; re-raise only when nothing survived.
             if cache_ttl > 0:
                 stale_data, is_stale = await cache_get_stale("home:data", cache_ttl)
-                if (
-                    is_stale
-                    and isinstance(stale_data, dict)
-                    and isinstance(stale_data.get("payload"), (dict, list))
-                ):
+                if is_stale and isinstance(stale_data, dict) and isinstance(stale_data.get("payload"), (dict, list)):
                     api_res = stale_data["payload"]
                     cache_hit = "STALE"
             if cache_hit != "STALE":
@@ -229,7 +225,10 @@ async def search_view():
     i = request.args.get("i") or 1
     if not q:
         return await render_template_with_theme(
-            "error.html", status="Search failed", desc="No search keyword provided.", suggest="Please enter a search keyword and try again."
+            "error.html",
+            status="Search failed",
+            desc="No search keyword provided.",
+            suggest="Please enter a search keyword and try again.",
         ), 400
 
     # URL Jump logic
@@ -421,7 +420,7 @@ def _space_html_response(html, *, use_cache, cache_hit, degraded, stale=False):
 async def space_view(mid):
     try:
         pn = int(request.args.get("i") or 1)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         pn = 1
     pn = max(pn, 1)
     # Page-1 payload is shared with /space/<mid>/json; deeper pages get
@@ -488,15 +487,15 @@ async def space_view(mid):
     page = uvids.get("page") or {}
     try:
         page["pn"] = int(page.get("pn", 1))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         page["pn"] = 1
     try:
         page["ps"] = int(page.get("ps", 28))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         page["ps"] = 28
     try:
         page["count"] = int(page.get("count", 0))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         page["count"] = 0
     vlist = uvids.get("list", {}).get("vlist", [])
     if pn == 1 and isinstance(vlist, list) and len(vlist) > 28:
@@ -572,9 +571,7 @@ async def space_json_feed(mid):
                 "external_url": f"https://www.bilibili.com/video/{bvid}",
                 "title": title,
                 "content_text": title,
-                "date_published": datetime.datetime.fromtimestamp(
-                    v.get("created", 0), tz=datetime.UTC
-                ).isoformat(),
+                "date_published": datetime.datetime.fromtimestamp(v.get("created", 0), tz=datetime.UTC).isoformat(),
                 "image": v.get("pic", ""),
             }
         )
@@ -597,9 +594,7 @@ async def space_json_feed(mid):
     raw = orjson.dumps(feed)
     # Payload caching already happened via _write_space_data above (healthy
     # payloads only); the feed itself is cheaply rebuilt from cached data.
-    feed_headers = (
-        {"X-Degraded": "risk-control"} if degraded and not items else {}
-    )
+    feed_headers = {"X-Degraded": "risk-control"} if degraded and not items else {}
     if cache_ttl > 0:
         feed_headers["X-Cache"] = "HIT" if cache_hit else "MISS"
     return Response(raw, status=200, content_type="application/feed+json", headers=feed_headers)
@@ -610,7 +605,7 @@ async def space_json_feed(mid):
 async def author_view(mid):
     try:
         pn = int(request.args.get("i") or 1)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         pn = 1
     pn = max(pn, 1)
     # Page-1 payload uses the base key; deeper pages get per-page keys.
@@ -623,11 +618,7 @@ async def author_view(mid):
         data = await cache_get(cache_key, cache_ttl)
         if isinstance(data, dict):
             uinfo, uarticles = data.get("uinfo"), data.get("uarticles")
-            cache_hit = (
-                isinstance(uinfo, dict)
-                and bool(uinfo)
-                and isinstance(uarticles, dict)
-            )
+            cache_hit = isinstance(uinfo, dict) and bool(uinfo) and isinstance(uarticles, dict)
             if not cache_hit:
                 uinfo = uarticles = None
     if not cache_hit:
@@ -730,7 +721,9 @@ async def read_view(cid):
             "error.html",
             status="Article not found" if last_status == 404 else "Server error",
             desc="Backend server sent an invalid response",
-            suggest="The article you requested most likely does not exist. Please check your request." if last_status == 404 else None,
+            suggest="The article you requested most likely does not exist. Please check your request."
+            if last_status == 404
+            else None,
         ), (404 if last_status == 404 else 502)
 
     if want_format is not None:
@@ -928,12 +921,8 @@ async def live_room_view(room_id):
             print(f"[Live] Default room {room_id} QN {_default_qn}: {_default_url[:50]}...")
             await appredis.setex(f"miku_live_{room_id}", 1800, _default_url)
             await appredis.setex(f"miku_live_{room_id}_{_default_qn}", 1800, _default_url)
-            _default_desc = next(
-                (d.get("desc", "Default") for d in qn_list if d.get("qn") == _default_qn), "Default"
-            )
-            supported_src.append(
-                {"quality": _default_qn, "new_description": _default_desc, "url": _default_url}
-            )
+            _default_desc = next((d.get("desc", "Default") for d in qn_list if d.get("qn") == _default_qn), "Default")
+            supported_src.append({"quality": _default_qn, "new_description": _default_desc, "url": _default_url})
 
         async def get_and_cache_qn(qn_val, qn_name):
             try:
@@ -1029,7 +1018,9 @@ async def live_room_view(room_id):
         traceback.print_exc()
         print(f"[ERROR] Live room error: {e}")
         return await render_template_with_theme(
-            "error.html", status="Live load failed", desc="Failed to load the live room. Please check your network or try again later."
+            "error.html",
+            status="Live load failed",
+            desc="Failed to load the live room. Please check your network or try again later.",
         ), 500
 
 
@@ -1071,7 +1062,10 @@ async def video_listen_view(vid, idx=0):
     if isinstance(results[0], Exception) or results[0] is None:
         err_msg = str(results[0]) if results[0] else "Bilibili returned empty data (possibly region-restricted)"
         return await render_template_with_theme(
-            "error.html", status="Audio mode load failed", desc=err_msg, suggest="This content may be region-restricted or removed."
+            "error.html",
+            status="Audio mode load failed",
+            desc=err_msg,
+            suggest="This content may be region-restricted or removed.",
         ), 404
 
     def is_valid(res):
@@ -1228,9 +1222,7 @@ async def api_component_player(vid, idx):
                 "bandwidth": (dash_tracks_by_quality.get(str(f.get("quality"))) or {}).get("bandwidth"),
             }
             for f in (dash_data or {}).get("support_formats") or []
-            if isinstance(f, dict)
-            and f.get("quality") is not None
-            and str(f.get("quality")) in dash_tracks_by_quality
+            if isinstance(f, dict) and f.get("quality") is not None and str(f.get("quality")) in dash_tracks_by_quality
         ]
     else:
         # Progressive (durl) fallback: some UGC uploads return no DASH
@@ -1326,11 +1318,7 @@ async def api_component_meta_more(vid, idx):
     except Exception:
         raw = None
     failed = not raw or isinstance(raw, Exception)
-    vcomments = (
-        {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
-        if failed
-        else raw
-    )
+    vcomments = {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True} if failed else raw
 
     body = await render_template_with_theme(
         "components/comment_items.html",
@@ -1503,7 +1491,10 @@ async def video_view(vid, idx=0):
                 suggest="This video may have been deleted, is under review, or is region-restricted.",
             ), 404
         return await render_template_with_theme(
-            "error.html", status="Video load failed", desc=err_msg, suggest="Please try refreshing the page, or check the server network connection."
+            "error.html",
+            status="Video load failed",
+            desc=err_msg,
+            suggest="Please try refreshing the page, or check the server network connection.",
         ), 500
 
     def is_valid(res):
@@ -1767,11 +1758,15 @@ async def audio_list_view(amid, idx=0):
 async def history_view():
     hist_id = getattr(g, "hist_id", None)
     if not hist_id or getattr(g, "set_hist_cookie", False):
-        return await render_template_with_theme("home.html", videos=[], title="Browsing history", message="You have no browsing history yet.")
+        return await render_template_with_theme(
+            "home.html", videos=[], title="Browsing history", message="You have no browsing history yet."
+        )
 
     bvids = await appredis.lrange(f"miku_hist_{hist_id}", 0, -1)
     if not bvids:
-        return await render_template_with_theme("home.html", videos=[], title="Browsing history", message="You have no browsing history yet.")
+        return await render_template_with_theme(
+            "home.html", videos=[], title="Browsing history", message="You have no browsing history yet."
+        )
 
     async def get_v_info(bvid):
         try:
@@ -1826,16 +1821,18 @@ async def api_convert():
 
     if not isinstance(data, dict) or not str(data.get("url", "")).strip():
         return (
-            jsonify({
-                "status": "error",
-                "original": "",
-                "target_url": "",
-                "clean_url": "",
-                "local_path": "",
-                "type": "",
-                "id": "",
-                "error": "Missing or invalid 'url' parameter",
-            }),
+            jsonify(
+                {
+                    "status": "error",
+                    "original": "",
+                    "target_url": "",
+                    "clean_url": "",
+                    "local_path": "",
+                    "type": "",
+                    "id": "",
+                    "error": "Missing or invalid 'url' parameter",
+                }
+            ),
             400,
         )
 

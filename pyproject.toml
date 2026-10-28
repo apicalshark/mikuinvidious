@@ -45,11 +45,13 @@ select = [
     "W",   # pycodestyle warnings
     "F",   # pyflakes
     "I",   # isort
-    "C",   # flake8-comprehensions
+    "C4",  # flake8-comprehensions
     "B",   # flake8-bugbear
     "UP",  # pyupgrade
 ]
-ignore = []
+ignore = [
+    "E501",  # line too long (handled by formatter / long URLs/UAs)
+]
 
 [tool.ruff.format]
 quote-style = "double"

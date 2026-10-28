@@ -3,25 +3,26 @@
     <div class="bg-surface dark:bg-background rounded-2xl p-4 md:p-6 shadow-xs mb-6">
         <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
             <i class="icon ion-ios-chatbubbles"></i>
-            {{ _('Comments') }} ({{ vcomments['page']['count'] }})
+            {{ _("Comments") }} ({{ vcomments['page']['count'] }})
         </h3>
         <div class="space-y-6" id="comments-list">
             {% include "themes/modern/components/comment_items.html" %}
-            {% if not vcomments['replies'] and comments_closed %}
-                <p class="text-center text-on-surface-variant py-8">{{ _('Comments are closed by the uploader.') }}</p>
-            {% elif not vcomments['replies'] %}
-                <p class="text-center text-on-surface-variant py-8">{{ _('No comments yet or failed to load') }}</p>
+            {% if not vcomments["replies"] and comments_closed %}
+                <p class="text-center text-on-surface-variant py-8">{{ _("Comments are closed by the uploader.") }}</p>
+            {% elif not vcomments["replies"] %}
+                <p class="text-center text-on-surface-variant py-8">{{ _("No comments yet or failed to load") }}</p>
             {% endif %}
         </div>
         {% set has_more = not vcomments.get('is_end', True) and vcomments.get('next_offset') %}
-        <div id="comments-load-more-container" class="text-center pt-6 {{ '' if has_more else 'hidden' }}">
+        <div id="comments-load-more-container"
+             class="text-center pt-6 {{ '' if has_more else 'hidden' }}">
             <button id="comments-load-more-btn"
                     type="button"
                     data-vid="{{ vid }}"
                     data-idx="{{ idx if idx is defined else 0 }}"
                     class="md3-button md3-button-tonal w-full sm:w-auto">
                 <i class="icon ion-ios-arrow-down"></i>
-                <span>{{ _('Load more comments') }}</span>
+                <span>{{ _("Load more comments") }}</span>
             </button>
         </div>
     </div>

@@ -20,11 +20,10 @@ symbols used by the MikuInvidious application under the ``bilibili_api``
 compatible names where practical.
 """
 
-from . import article, audio, comment, homepage, live, live_area, opus, search, user, video, video_zone
-from . import bangumi
+from . import article, audio, bangumi, comment, homepage, live, live_area, opus, search, user, video, video_zone
 from .client import (
-    Api,
     HEADERS,
+    Api,
     RequestSettings,
     get_bili_client,
     get_bili_ticket,

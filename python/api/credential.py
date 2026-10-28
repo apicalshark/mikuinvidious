@@ -156,7 +156,7 @@ class Credential:
         Returns True when Bilibili reports the session should be refreshed.
         Requires the ``pycryptodome`` extra for the refresh flow.
         """
-        from .client import get_bili_client, HEADERS
+        from .client import HEADERS, get_bili_client
 
         client = await get_bili_client()
         resp = await client.get(
@@ -178,14 +178,14 @@ class Credential:
             from Crypto.Cipher import PKCS1_OAEP
             from Crypto.Hash import SHA256
             from Crypto.PublicKey import RSA
-        except ImportError:
-            raise RuntimeError("Cookie refresh requires pycryptodome: uv add pycryptodome")
+        except ImportError as e:
+            raise RuntimeError("Cookie refresh requires pycryptodome: uv add pycryptodome") from e
 
         import binascii
         import time
         import uuid
 
-        from .client import get_bili_client, HEADERS
+        from .client import HEADERS, get_bili_client
 
         self.raise_for_no_bili_jct()
         self.raise_for_no_ac_time_value()
@@ -215,8 +215,8 @@ class Credential:
             raise RuntimeError("Failed to get CSRF for cookie refresh")
         try:
             refresh_csrf = re.findall('<div id="1-name">(.+?)</div>', resp.text)[0]
-        except IndexError:
-            raise RuntimeError("correspondPath expired or invalid")
+        except IndexError as e:
+            raise RuntimeError("correspondPath expired or invalid") from e
 
         # 2. Refresh cookies
         data = {

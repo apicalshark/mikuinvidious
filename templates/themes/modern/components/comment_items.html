@@ -21,7 +21,10 @@
                 {% set rcount = rep.get('rcount', 0) %}
                 {% if rcount > 0 %}
                     <button class="sub-comment-toggle flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
-                            data-vid="{{ vid }}" data-root="{{ rep['rpid'] }}" data-count="{{ rcount }}" data-expanded="0">
+                            data-vid="{{ vid }}"
+                            data-root="{{ rep['rpid'] }}"
+                            data-count="{{ rcount }}"
+                            data-expanded="0">
                         <i class="icon ion-ios-chatboxes"></i> <span>{{ ngettext('%(count)s reply', '%(count)s replies', rcount) % {'count': rcount} }}</span><i class="icon ion-ios-arrow-down sub-toggle-chevron"></i>
                     </button>
                 {% endif %}

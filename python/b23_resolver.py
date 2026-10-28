@@ -150,14 +150,16 @@ def clean_bilibili_url(target_url: str) -> dict:
         local_path = f"/audio_list/{res_id}"
 
     else:
-        canonical_clean_url = urlunparse((
-            parsed.scheme or "https",
-            parsed.netloc or "www.bilibili.com",
-            path,
-            "",
-            "",
-            "",
-        ))
+        canonical_clean_url = urlunparse(
+            (
+                parsed.scheme or "https",
+                parsed.netloc or "www.bilibili.com",
+                path,
+                "",
+                "",
+                "",
+            )
+        )
         local_path = "" if path.startswith(("//", "/\\")) else path
 
     # Strict Allowlist: only preserve functional params for the detected resource type
@@ -202,6 +204,7 @@ async def resolve_b23_target(input_text: str, client=None) -> dict:
             "error": Optional[str],
         }
     """
+
     def error_ret(err: str) -> dict:
         return {
             "status": "error",
@@ -242,6 +245,7 @@ async def resolve_b23_target(input_text: str, client=None) -> dict:
     try:
         if client is None:
             import shared
+
             client = await shared.Network.get_async_client()
 
         resp = await client.get(extracted, follow_redirects=False, timeout=10.0)

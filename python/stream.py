@@ -82,8 +82,8 @@ async def _http_connect_tunnel(writer, reader, target_host, target_port, timeout
         line = await _read_line(reader)
         try:
             status = int(line.split(b" ")[1])
-        except (ValueError, IndexError):
-            raise CdnProtocolError(f"Bad HTTP CONNECT status line: {line!r}")
+        except (ValueError, IndexError) as e:
+            raise CdnProtocolError(f"Bad HTTP CONNECT status line: {line!r}") from e
         if status != 200:
             raise CdnConnectError(f"HTTP CONNECT failed: {line.decode(errors='replace').strip()}")
         while True:
@@ -136,7 +136,9 @@ class CdnConnection:
                 if proxy_scheme.startswith("socks"):
                     await _socks5_handshake(self._writer, self._reader, self._host, self._port, self._connect_timeout)
                 elif proxy_scheme == "http":
-                    await _http_connect_tunnel(self._writer, self._reader, self._host, self._port, self._connect_timeout)
+                    await _http_connect_tunnel(
+                        self._writer, self._reader, self._host, self._port, self._connect_timeout
+                    )
                 else:
                     raise CdnConnectError(f"Unsupported proxy scheme: {proxy_scheme}")
 
@@ -192,8 +194,8 @@ class CdnConnection:
             resp.http_version = parts[0].decode()
             try:
                 resp.status_code = int(parts[1])
-            except ValueError:
-                raise CdnProtocolError(f"Bad status code: {parts[1]!r}")
+            except ValueError as e:
+                raise CdnProtocolError(f"Bad status code: {parts[1]!r}") from e
             resp.reason = parts[2].decode(errors="replace") if len(parts) > 2 else ""
 
             while True:
@@ -217,14 +219,14 @@ class CdnConnection:
         if content_length is not None and str(content_length).strip() != "":
             try:
                 remaining = int(str(content_length).strip())
-            except ValueError:
-                raise CdnProtocolError(f"Invalid Content-Length: {content_length!r}")
+            except ValueError as e:
+                raise CdnProtocolError(f"Invalid Content-Length: {content_length!r}") from e
             while remaining > 0:
                 try:
                     async with asyncio.timeout(self._read_timeout):
                         chunk = await self._reader.read(min(self._read_chunk_size, remaining))
-                except TimeoutError:
-                    raise CdnTimeoutError(f"Read timeout after {remaining} bytes remaining")
+                except TimeoutError as e:
+                    raise CdnTimeoutError(f"Read timeout after {remaining} bytes remaining") from e
                 if not chunk:
                     raise CdnProtocolError("Upstream connection closed prematurely")
                 remaining -= len(chunk)
@@ -243,8 +245,8 @@ class CdnConnection:
                     continue
                 try:
                     chunk_size = int(hex_len, 16)
-                except ValueError:
-                    raise CdnProtocolError(f"Bad chunk size: {hex_len!r}")
+                except ValueError as e:
+                    raise CdnProtocolError(f"Bad chunk size: {hex_len!r}") from e
                 if chunk_size == 0:
                     async with asyncio.timeout(self._read_timeout):
                         await _read_line(self._reader)
@@ -265,8 +267,8 @@ class CdnConnection:
             try:
                 async with asyncio.timeout(self._read_timeout):
                     chunk = await self._reader.read(self._read_chunk_size)
-            except TimeoutError:
-                raise CdnTimeoutError("Read timeout on connection-closed body")
+            except TimeoutError as e:
+                raise CdnTimeoutError("Read timeout on connection-closed body") from e
             if not chunk:
                 break
             yield chunk

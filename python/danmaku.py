@@ -34,7 +34,7 @@ def _danmaku_entry(p_str, text):
         # Modes: 1:RTL, 4:Bottom, 5:Top, 6:LTR.
         # Mode 7 & 8 are advanced/special danmaku, which we don't fully support yet.
         m = ({"6": "ltr", "1": "rtl", "5": "top", "4": "bottom", "7": "rtl", "8": "rtl"})[p[1]]
-    except (KeyError, IndexError):
+    except KeyError, IndexError:
         return {}
 
     if not text:
@@ -43,7 +43,7 @@ def _danmaku_entry(p_str, text):
     try:
         ftsize = int(p[2]) or 25
         ftcolor = hex(int(p[3]))[2:].zfill(6)  # Ensure 6 digits
-    except (ValueError, IndexError):
+    except ValueError, IndexError:
         ftsize = 25
         ftcolor = "ffffff"
 

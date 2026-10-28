@@ -135,7 +135,9 @@ function ensureOpenCC() {
     var s = document.createElement("script");
     s.src = "/static/opencc-js/opencc.js";
     s.defer = true;
-    s.onload = function () { resolve(window.OpenCC); };
+    s.onload = function () {
+      resolve(window.OpenCC);
+    };
     s.onerror = reject;
     document.head.appendChild(s);
   });
@@ -154,13 +156,16 @@ function initPreferences() {
   }
   setTheme(storedTheme);
 
-  const openccPref = (typeof helpers !== "undefined" && helpers.storage.get("opencc")) || getCookie("opencc");
+  const openccPref =
+    (typeof helpers !== "undefined" && helpers.storage.get("opencc")) || getCookie("opencc");
 
   if (openccPref === "1") {
-    ensureOpenCC().then(function () {
-      if (!window.OpenCC) return;
-      initOpenccConvert();
-    }).catch(function () {});
+    ensureOpenCC()
+      .then(function () {
+        if (!window.OpenCC) return;
+        initOpenccConvert();
+      })
+      .catch(function () {});
   }
 
   function initOpenccConvert() {
@@ -271,7 +276,9 @@ function initPreferences() {
     if (searchForm) {
       // Kick off the lazy load immediately, but register the handler NOW so
       // a submit during the load still converts instead of bypassing.
-      var openccReady = ensureOpenCC().catch(function () { return null; });
+      var openccReady = ensureOpenCC().catch(function () {
+        return null;
+      });
       var s2sConverter = null;
       openccReady.then(function (OC) {
         if (OC) s2sConverter = OC.Converter({ from: "tw", to: "cn" });
@@ -342,7 +349,12 @@ async function setLanguage(lang) {
   // Set cookie on client directly so it applies immediately
   const secureFlag = location.protocol === "https:" ? "; Secure" : "";
   document.cookie =
-    "lang=" + encodeURIComponent(lang) + "; path=/; max-age=" + 3600 * 24 * 30 + "; SameSite=Lax" + secureFlag;
+    "lang=" +
+    encodeURIComponent(lang) +
+    "; path=/; max-age=" +
+    3600 * 24 * 30 +
+    "; SameSite=Lax" +
+    secureFlag;
 
   const cleanUrl = () => {
     try {
@@ -386,7 +398,10 @@ async function setLanguage(lang) {
   );
 }
 
-for (const [btnId, menuId] of [["lang_btn", "lang_menu"], ["mobile_lang_btn", "mobile_lang_menu"]]) {
+for (const [btnId, menuId] of [
+  ["lang_btn", "lang_menu"],
+  ["mobile_lang_btn", "mobile_lang_menu"],
+]) {
   const btn = document.getElementById(btnId);
   const menu = document.getElementById(menuId);
   if (btn && menu) {

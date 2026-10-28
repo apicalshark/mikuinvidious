@@ -93,9 +93,7 @@ async def _fetch(url: str, params: dict, cookies: dict) -> dict:
     # See live.py: keep the shared jar empty — any cookie presence here
     # risks the ~3-item truncation documented above.
     client.cookies.clear()
-    resp = await client.get(
-        url, params=params, cookies=cookies or None, headers=headers, timeout=10.0
-    )
+    resp = await client.get(url, params=params, cookies=cookies or None, headers=headers, timeout=10.0)
     if resp.status_code != 200:
         raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
     try:

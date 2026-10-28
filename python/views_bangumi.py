@@ -42,7 +42,7 @@ async def bangumi_home():
     order = request.args.get("order", "3")
     try:
         pn = max(int(request.args.get("page", 1)), 1)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         pn = 1
 
     from api.client import Api
@@ -226,7 +226,7 @@ async def bangumi_play(ep_id):
                 if v == "--" or v is None:
                     return default
                 return int(v)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 return default
 
         # Construct vinfo for video.html
@@ -331,9 +331,7 @@ async def bangumi_nyaa_api(ssid):
         simplified_query = search_query
 
     # Build Simplified/Traditional Chinese variants
-    simplified_query = (
-        f"({zhconv(simplified_query, 'zh-hans')})|({zhconv(simplified_query, 'zh-hant')})"
-    )
+    simplified_query = f"({zhconv(simplified_query, 'zh-hans')})|({zhconv(simplified_query, 'zh-hant')})"
     print(f"[Bangumi] Search Query: {simplified_query}")
 
     # Build a query with Chinese tags (Nyaa supports parenthesized union search)

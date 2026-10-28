@@ -189,7 +189,6 @@
   "Trusted only": "信頼済みのみ",
   "Try another keyword?": "別のキーワードで試してみてください",
   "Variety": "バラエティ",
-  "Version info unavailable :-(": "バージョン情報は現在利用できません :-(",
   "Video list could not be loaded due to a network error. Profile shown; please retry shortly.": "ネットワークエラーのため動画一覧を読み込めませんでした。プロフィールは表示中です。しばらくしてからもう一度お試しください。",
   "Video list temporarily unavailable — Bilibili rate-limited this instance. Profile shown; videos should return in a few minutes.": "動画一覧は一時的に利用できません——Bilibiliによりこのインスタンスがレート制限されています。プロフィールは表示中です。数分後に動画が復旧するはずです。",
   "Video load failed": "動画の読み込みエラー",

@@ -2,7 +2,7 @@
      data-page="{{ sub_comments['page']['num'] }}"
      data-count="{{ sub_comments['page']['count'] }}"
      data-is-end="{{ 'true' if sub_comments['page']['num'] * sub_comments['page']['size'] >= sub_comments['page']['count'] else 'false' }}">
-    {% if sub_comments['replies'] %}
+    {% if sub_comments["replies"] %}
         {% for rep in sub_comments['replies'] %}
             <div class="flex gap-3 group" data-rpid="{{ rep['rpid'] }}">
                 <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
@@ -15,7 +15,7 @@
                     <div class="flex items-baseline gap-2">
                         <a href="/space/{{ rep['member']['mid'] }}"
                            class="font-semibold text-xs text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
-                        {% if rep.get('reply_control', {}).get('time_desc') %}
+                        {% if rep.get("reply_control", {}).get("time_desc") %}
                             <span class="text-xs text-on-surface-variant/60">{{ rep['reply_control']['time_desc'] }}</span>
                         {% endif %}
                     </div>

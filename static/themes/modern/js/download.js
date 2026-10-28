@@ -262,11 +262,7 @@
       var st = await resp.json();
       if (active !== current || active.jobId !== jobId) return;
       current.failures = 0;
-      if (
-        !current.qualitySynced &&
-        st.actual_qn !== null &&
-        st.actual_qn !== undefined
-      ) {
+      if (!current.qualitySynced && st.actual_qn !== null && st.actual_qn !== undefined) {
         current.qualitySynced = true;
         var actualQn = parseInt(st.actual_qn, 10);
         if (!isNaN(actualQn)) {

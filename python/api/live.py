@@ -95,9 +95,7 @@ async def _fetch(url: str, params: dict, referer: str = None) -> dict:
     browser impersonation isn't tripped by generated pseudo-cookies.
     ``default_headers=False`` keeps our header order browser-exact.
     """
-    headers = build_chrome_headers(
-        origin=_LIVE_ORIGIN, referer=referer or _LIVE_ORIGIN + "/"
-    )
+    headers = build_chrome_headers(origin=_LIVE_ORIGIN, referer=referer or _LIVE_ORIGIN + "/")
     client = await get_curl_client()
     # Keep the shared jar empty: response cookies must never leak into these
     # cookie-less calls (risk-control fingerprinting). Clearing the jar does
@@ -151,9 +149,7 @@ class LiveRoom:
 
     def _live_headers(self) -> dict:
         """Browser-exact headers for live pages (origin + room referer)."""
-        return build_chrome_headers(
-            origin=_LIVE_ORIGIN, referer=f"{_LIVE_ORIGIN}/{self.room_display_id}"
-        )
+        return build_chrome_headers(origin=_LIVE_ORIGIN, referer=f"{_LIVE_ORIGIN}/{self.room_display_id}")
 
     async def get_room_play_info(self) -> dict:
         params = {"room_id": self.room_display_id}
@@ -219,7 +215,7 @@ class LiveRoom:
             if room is None:
                 try:
                     room = rooms.get(int(str(self.room_display_id)))
-                except (TypeError, ValueError):
+                except TypeError, ValueError:
                     room = None
         if not room:
             raise ResponseCodeException(-1, "Failed to get live room info")

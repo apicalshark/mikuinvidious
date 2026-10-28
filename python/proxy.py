@@ -87,7 +87,7 @@ async def is_safe_proxy_url(url: str) -> bool:
             addr_infos = await asyncio.to_thread(
                 socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
             )
-            for family, _, _, _, sockaddr in addr_infos:
+            for _family, _, _, _, sockaddr in addr_infos:
                 ip = sockaddr[0]
                 ip_obj = ipaddress.ip_address(ip)
                 if (
@@ -229,7 +229,6 @@ async def proxy_main(subpath):
 
         if isinstance(url, bytes):
             url = url.decode()
-        urlp = urlparse(url)
 
         if not await is_safe_proxy_url(url):
             return Response("Forbidden: Invalid proxy target", status=403)
@@ -249,9 +248,7 @@ async def proxy_main(subpath):
             # hits 404 (e.g. bangumi ep98604).
             from api.client import build_cdn_headers
 
-            headers = build_cdn_headers(
-                referer=appconf["bili"].get("referer", "https://www.bilibili.com")
-            )
+            headers = build_cdn_headers(referer=appconf["bili"].get("referer", "https://www.bilibili.com"))
 
         # Add Bili-Ticket and dynamic session/trace IDs
         ticket = await TicketManager.get_ticket()
@@ -297,7 +294,7 @@ async def proxy_main(subpath):
                             else:
                                 # Still waiting for upstream? Send nothing to avoid corruption
                                 continue
-                except (asyncio.CancelledError, GeneratorExit):
+                except asyncio.CancelledError, GeneratorExit:
                     reason = "Client disconnected"
                     raise
                 except Exception as e:
@@ -392,7 +389,7 @@ async def proxy_main(subpath):
                     QUALITY_ORDER = [64, 32, 16]
                     try:
                         current_qn = int(vqn)
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         print(f"[Proxy] Bad vqn: {vqn!r}")
                         return Response("Bad quality parameter", status=502)
                     fallback_url = None
@@ -425,7 +422,7 @@ async def proxy_main(subpath):
                 try:
                     async for chunk in conn.iter_chunks():
                         yield chunk
-                except (asyncio.CancelledError, GeneratorExit):
+                except asyncio.CancelledError, GeneratorExit:
                     # Client went away mid-stream: close upstream and let
                     # cancellation propagate (no error log — this is normal).
                     raise

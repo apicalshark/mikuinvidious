@@ -1,4 +1,4 @@
-{% extends 'themes/modern/base.html' %}
+{% extends "themes/modern/base.html" %}
 {% block head %}
     <meta name="description" content="{{ vinfo['desc'] }}" />
     <meta name="keywords" content="{{ keywords }}" />
@@ -26,7 +26,8 @@
     <link rel="alternate" href="https://www.bilibili.com/video/{{ vid }}" />
     <title>{{ vinfo['title'] }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
-    <link rel="stylesheet" href="/static/themes/modern/css/player.css?v={{ asset_version }}" />
+    <link rel="stylesheet"
+          href="/static/themes/modern/css/player.css?v={{ asset_version }}" />
     <script nonce="{{ csp_nonce }}">
         window.current_vid = '{{ vid }}';
         window.idx = {{ idx }};
@@ -48,7 +49,7 @@
                          class="h-full w-full object-contain" />
                     <div id="audio-buffering"
                          class="absolute inset-0 bg-black/70 flex items-center justify-center text-white hidden">
-                        <div id="audio-progress-text" class="text-sm font-bold">{{ _('Buffering: %(available)s / %(target)s') % {'available': '0.0s', 'target': '15.0s'} }}</div>
+                        <div id="audio-progress-text" class="text-sm font-bold">{{ _("Buffering: %(available)s / %(target)s") % {'available': '0.0s', 'target': '15.0s'} }}</div>
                     </div>
                     <audio controls
                            preload="auto"
@@ -63,7 +64,7 @@
                         <h1 class="text-lg md:text-xl font-bold text-on-surface leading-tight break-words line-clamp-2">
                             {{ vinfo['title'] }}
                         </h1>
-                        <a id='avswitch'
+                        <a id="avswitch"
                            title="{{ _('Video mode') }}"
                            href="/video/{{ vid }}?listen=0{{ '&ato=1' if ato else '' }}"
                            class="md3-icon-button">
@@ -97,7 +98,7 @@
                             <a href="/vv/{{ vinfo['tid'] }}"
                                class="hover:text-primary transition-colors">{{ vinfo['tname'] }}</a>
                             {% for t in (vtags|default([]))[:10] %}
-                                {% if t.get('tag_name') %}
+                                {% if t.get("tag_name") %}
                                     <a href="/search?q={{ t['tag_name']|urlencode }}"
                                        class="px-2 py-0.5 rounded-full bg-surface-variant/30 text-xs text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors">{{ t['tag_name'] }}</a>
                                 {% endif %}
@@ -123,7 +124,7 @@
                                target="_blank"
                                class="px-4 py-2 rounded-lg bg-surface-variant/30 text-on-surface hover:bg-primary hover:text-white transition-all text-sm font-medium flex items-center gap-2">
                                 <i class="icon ion-logo-youtube"></i>
-                                <span class="hidden sm:inline">{{ _('Watch on Bilibili') }}</span>
+                                <span class="hidden sm:inline">{{ _("Watch on Bilibili") }}</span>
                             </a>
                             {% if site_allow_download %}
                                 <form id="download-form"
@@ -138,14 +139,14 @@
                                     <input type="hidden" name="qual" value="0" />
                                     <button type="submit"
                                             class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-all text-sm font-medium shadow-md hover:shadow-lg flex items-center gap-2">
-                                        <i class="icon ion-md-download"></i> {{ _('Download audio') }}
+                                        <i class="icon ion-md-download"></i> {{ _("Download audio") }}
                                     </button>
                                 </form>
                             {% endif %}
                         </div>
                     </div>
                     <!-- Description -->
-                    <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed  break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
+                    <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
                         {{ vinfo['desc']|format_desc }}
                     </div>
                 </div>
@@ -154,13 +155,13 @@
             <div class="bg-surface dark:bg-background rounded-2xl p-4 md:p-6 shadow-xs">
                 <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
                     <i class="icon ion-ios-chatbubbles"></i>
-                    {{ _('Comments') }} ({{ vcomments['page']['count'] }})
+                    {{ _("Comments") }} ({{ vcomments['page']['count'] }})
                 </h3>
                 <div class="space-y-6" id="comments-list">
                     <div id="comments-cursor"
                          data-next-offset="{{ vcomments.get('next_offset', '') }}"
                          data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"></div>
-                    {% if vcomments['replies'] %}
+                    {% if vcomments["replies"] %}
                         {% for rep in vcomments['replies'] %}
                             <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
                                 <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
@@ -181,7 +182,10 @@
                                         {% set rcount = rep.get('rcount', 0) %}
                                         {% if rcount > 0 %}
                                             <button class="sub-comment-toggle flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
-                                                    data-vid="{{ vid }}" data-root="{{ rep['rpid'] }}" data-count="{{ rcount }}" data-expanded="0">
+                                                    data-vid="{{ vid }}"
+                                                    data-root="{{ rep['rpid'] }}"
+                                                    data-count="{{ rcount }}"
+                                                    data-expanded="0">
                                                 <i class="icon ion-ios-chatboxes"></i> <span>{{ ngettext('%(count)s reply', '%(count)s replies', rcount) % {'count': rcount} }}</span><i class="icon ion-ios-arrow-down sub-toggle-chevron"></i>
                                             </button>
                                         {% endif %}
@@ -191,18 +195,19 @@
                             </div>
                         {% endfor %}
                     {% else %}
-                        <p class="text-center text-on-surface-variant py-8">{{ _('No comments yet or failed to load') }}</p>
+                        <p class="text-center text-on-surface-variant py-8">{{ _("No comments yet or failed to load") }}</p>
                     {% endif %}
                 </div>
                 {% set has_more = vcomments['replies'] and not vcomments.get('is_end', True) and vcomments.get('next_offset') %}
-                <div id="comments-load-more-container" class="text-center pt-6 {{ '' if has_more else 'hidden' }}">
+                <div id="comments-load-more-container"
+                     class="text-center pt-6 {{ '' if has_more else 'hidden' }}">
                     <button id="comments-load-more-btn"
                             type="button"
                             data-vid="{{ vid }}"
                             data-idx="{{ idx }}"
                             class="md3-button md3-button-tonal w-full sm:w-auto">
                         <i class="icon ion-ios-arrow-down"></i>
-                        <span>{{ _('Load more comments') }}</span>
+                        <span>{{ _("Load more comments") }}</span>
                     </button>
                 </div>
             </div>
@@ -213,20 +218,20 @@
             {% if vset|length > 1 %}
                 <div class="bg-surface dark:bg-background rounded-2xl p-4 shadow-xs">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="font-bold text-on-surface">{{ _('Episodes') }} ({{ vset|length }})</h3>
+                        <h3 class="font-bold text-on-surface">{{ _("Episodes") }} ({{ vset|length }})</h3>
                         <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary transition-colors">
                             <input name="continue"
                                    id="continue"
                                    type="checkbox"
                                    class="accent-primary rounded" />
-                             {{ _('Autoplay next') }}
+                            {{ _("Autoplay next") }}
                         </label>
                     </div>
                     <div class="max-h-[60vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                         {% for v in vset %}
                             <a href="/video/{{ vid }}:{{ v['page']-1 }}"
                                class="flex gap-3 p-2 rounded-lg hover:bg-surface-variant/20 transition-colors {{ 'bg-primary/10' if idx == (v['page']-1) else '' }}">
-                                {% if v['first_frame'] %}
+                                {% if v["first_frame"] %}
                                     <div class="w-24 h-14 shrink-0 relative rounded overflow-hidden">
                                         <img loading="lazy"
                                              class="w-full h-full object-cover"
@@ -247,7 +252,7 @@
             {% endif %}
             <!-- Recommendations -->
             <div class="bg-surface dark:bg-background rounded-2xl p-4 shadow-xs">
-                <h3 class="font-bold text-on-surface mb-4">{{ _('Recommended') }}</h3>
+                <h3 class="font-bold text-on-surface mb-4">{{ _("Recommended") }}</h3>
                 <div class="space-y-4">
                     {% for rv in vrelated %}
                         <a href="/video/{{ rv['bvid'] }}?listen=1"
@@ -266,7 +271,7 @@
                                     <span>{{ rv['owner']['name'] }}</span>
                                 </div>
                                 <div class="flex items-center gap-2 text-xs text-on-surface-variant/70">
-                                    <span>{{ rv['stat']['view']|intsep }} {{ _('Play') }}</span>
+                                    <span>{{ rv['stat']['view']|intsep }} {{ _("Play") }}</span>
                                 </div>
                             </div>
                         </a>

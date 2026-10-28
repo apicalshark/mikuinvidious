@@ -1,21 +1,21 @@
-{% extends 'themes/modern/base.html' %}
+{% extends "themes/modern/base.html" %}
 {% block head %}
-    <title>{{ _('Search') }} - MikuInvidious</title>
+    <title>{{ _("Search") }} - MikuInvidious</title>
     <meta name="referrer" content="never" />
 {% endblock %}
 {% block content %}
     <div class="mb-10 p-8 bg-surface dark:bg-background rounded-2xl shadow-xs backdrop-blur-xs">
         <h1 class="text-3xl font-bold mb-4 text-on-surface tracking-tight">
-            {{ _('Hey, this is MikuInvidious!') }}<small class="text-lg font-normal text-on-surface-variant block sm:inline ml-0 sm:ml-3 opacity-80">{{ _('MikuInvidious is a free Bilibili frontend.') }}</small>
+            {{ _("Hey, this is MikuInvidious!") }}<small class="text-lg font-normal text-on-surface-variant block sm:inline ml-0 sm:ml-3 opacity-80">{{ _("MikuInvidious is a free Bilibili frontend.") }}</small>
         </h1>
         <div class="space-y-3 text-on-surface-variant/90 leading-relaxed">
             <p>
-                {{ _('This is a MikuInvidious fork that supports pasting Bilibili links directly into the search box.') }}
+                {{ _("This is a MikuInvidious fork that supports pasting Bilibili links directly into the search box.") }}
                 <p>
-                    {{ _('To convert a Bilibili link to MikuInvidious, replace') }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">www.bilibili.com</code> {{ _('and') }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">b23.tv</code> {{ _('with this MikuInvidious instance’s domain.') }}
+                    {{ _("To convert a Bilibili link to MikuInvidious, replace") }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">www.bilibili.com</code> {{ _("and") }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">b23.tv</code> {{ _("with this MikuInvidious instance’s domain.") }}
                 </p>
                 <p>
-                    {{ _('For user spaces, paste the number after') }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">space.bilibili.com</code> {{ _('after the instance domain +') }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">/space/</code> {{ _('suffix.') }}
+                    {{ _("For user spaces, paste the number after") }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">space.bilibili.com</code> {{ _("after the instance domain +") }} <code class="bg-surface-variant/50 px-1.5 py-0.5 rounded-md text-sm font-mono text-primary">/space/</code> {{ _("suffix.") }}
                 </p>
             </div>
         </div>
@@ -69,11 +69,11 @@
                             </div>
                             <div class="flex justify-between items-center text-xs text-on-surface-variant/70 pt-3 border-surface-variant/10">
                                 <p dir="auto">{{ v['published']|date }}</p>
-                                <p dir="auto">{{ v['views']|intsep }} {{ _('views') }}</p>
+                                <p dir="auto">{{ v['views']|intsep }} {{ _("views") }}</p>
                             </div>
                         </div>
                     </div>
                 </div>
             {% endfor %}
         </div>
-    {% endblock %}
+{% endblock %}

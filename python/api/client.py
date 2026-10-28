@@ -21,7 +21,6 @@ subset this project uses.
 """
 
 import asyncio
-import base64
 import hashlib
 import hmac
 import random
@@ -31,7 +30,7 @@ import urllib.parse
 import httpx
 
 from .credential import Credential
-from .exceptions import ArgsException, NetworkException, ResponseCodeException
+from .exceptions import NetworkException, ResponseCodeException
 
 __all__ = [
     "Api",
@@ -53,8 +52,7 @@ __all__ = [
 
 # Fixed UA — do not randomize (triggers risk control).
 FIXED_CHROME_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
 )
 
 
@@ -77,8 +75,7 @@ HEADERS: dict[str, str] = {
 # fingerprint contradict each other (same reason FIXED_CHROME_UA exists).
 CURL_IMPERSONATE = "chrome150"
 CURL_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
 )
 _CURL_SEC_CH_UA = '"Chromium";v="150", "Not-A.Brand";v="24", "Google Chrome";v="150"'
 _CURL_ACCEPT_LANGUAGE = "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7,ja;q=0.6"
@@ -124,8 +121,7 @@ def build_chrome_headers(
 # Version intentionally differs from CURL_UA (150, pinned to the impersonation
 # target): CDN edges only check "browser-like", and 152 is battle-tested here.
 CDN_CHROME_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
 )
 
 
@@ -137,6 +133,7 @@ def build_cdn_headers(referer: str = "https://www.bilibili.com") -> dict[str, st
         "Origin": "https://www.bilibili.com",
         "Accept": "*/*",
     }
+
 
 # OE permutation table used to derive the wbi mixin key.
 OE = [

@@ -189,7 +189,6 @@
   "Trusted only": "신뢰만",
   "Try another keyword?": "다른 키워드로 시도해 보세요?",
   "Variety": "예능",
-  "Version info unavailable :-(": "버전 정보를 사용할 수 없습니다 :-(",
   "Video list could not be loaded due to a network error. Profile shown; please retry shortly.": "네트워크 오류로 영상 목록을 불러오지 못했습니다. 프로필은 표시됩니다. 잠시 후 다시 시도해 주세요.",
   "Video list temporarily unavailable — Bilibili rate-limited this instance. Profile shown; videos should return in a few minutes.": "영상 목록을 일시적으로 사용할 수 없습니다——Bilibili에서 이 인스턴스에 속도 제한을 적용했습니다. 프로필은 표시됩니다. 몇 분 후 영상이 복구될 것입니다.",
   "Video load failed": "영상을 불러오지 못했습니다",
