@@ -19,16 +19,17 @@ This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xaca
 
 ## Application Features
 
+- **Search Bar**: Paste any BiliBili link(even **b23.tv**) into search bar, and jump straight to the video. Zero-tracking for all visitor.
 - **Media Playback**: Support for DASH/FLV, danmaku, and multi-part videos.
 - **Listen Mode**: Bandwidth-saving audio-only interface for any video.
 - **Live Streaming**: Stable proxying with heartbeats and real-time SSE chat.
 - **Content Discovery**: Proxied articles (cv/opus) and global search with filters.
-- **Privacy**: No-account browsing, IP masking via media proxying, and zero tracking.
-- **Languages**: UI in English, Simplified/Traditional Chinese, and Japanese (`?lang=`, cookie, or `Accept-Language`; switcher on `/preferences`). Upstream Bilibili content stays as-is.
+- **Privacy**: No-account browsing, proxying all BiliBili traffic, and zero tracking.
+- **Languages**: UI in English, Simplified/Traditional Chinese, and Japanese. Upstream Bilibili content stays as-is.
 
 ### Demo video:
 
-[![Watch the video](https://img.youtube.com/vi/NEJgOITuNj8/hqdefault.jpg)](https://www.youtube.com/embed/NEJgOITuNj8)
+[![Watch the video](https://img.youtube.com/vi/NEJgOITuNj8/hqdefault.jpg)](https://www.youtube.com/watch?v=NEJgOITuNj8)
 
 ## Quick Start (Docker)
 
@@ -57,9 +58,9 @@ For users who want to run the application manually, see the [local installation 
 ## Tech Stack
 
 - **Backend**: Python 3.15+, Quart (ASGI)
-- **Server**: Granian (Rust-powered), Caddy
+- **Server**: Granian, Caddy
 - **Cache**: Redis (required)
-- **Frontend**: Tailwind CSS (Modern theme)
+- **Frontend**: Tailwind CSS 4
 
 ## Configuration
 
