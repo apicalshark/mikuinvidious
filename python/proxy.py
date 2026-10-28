@@ -176,7 +176,8 @@ async def render_proxy_pic(req_path):
             proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
             return proxy_resp
         except Exception as e:
-            print(f"[Proxy] Error in render_proxy_pic for {url}: {e}")
+            err = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+            print(f"[Proxy] Error in render_proxy_pic for {url}: {err}")
             return Response("Upstream error", status=502)
 
 

@@ -238,6 +238,29 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
         finally:
             app.session_interface = orig
 
+    async def test_cancelled_video_view_leaves_no_unawaited_coroutines(self):
+        import asyncio
+        import gc
+        import warnings
+
+        async def cancel_gather(*coros, **kwargs):
+            for c in coros:
+                c.close()
+            raise asyncio.CancelledError()
+
+        with (
+            patch.object(views, "cache_minutes", return_value=0),
+            patch("views.asyncio.gather", side_effect=cancel_gather),
+            warnings.catch_warnings(record=True) as caught,
+        ):
+            warnings.simplefilter("always", RuntimeWarning)
+            async with views.app.test_request_context("/video/BV1xx411c7xx"):
+                with self.assertRaises(asyncio.CancelledError):
+                    await views.video_view("BV1xx411c7xx", 0)
+            gc.collect()
+        unawaited = [w for w in caught if "was never awaited" in str(w.message)]
+        self.assertEqual(unawaited, [])
+
 
 if __name__ == "__main__":
     unittest.main()

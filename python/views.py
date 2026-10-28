@@ -1318,19 +1318,13 @@ async def api_component_meta_more(vid, idx):
     if not isinstance(next_offset, str) or len(next_offset) > 512:
         next_offset = ""
 
-    async def safe_api(coro, timeout=4.0):
-        try:
-            async with asyncio.timeout(timeout):
-                return await coro
-        except Exception:
-            return None
-
-    raw = await safe_api(
-        comment.get_comments(
-            vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE, next_offset=next_offset
-        ),
-        4.0,
-    )
+    try:
+        async with asyncio.timeout(4.0):
+            raw = await comment.get_comments(
+                vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE, next_offset=next_offset
+            )
+    except Exception:
+        raw = None
     failed = not raw or isinstance(raw, Exception)
     vcomments = (
         {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
@@ -1355,21 +1349,15 @@ async def api_component_sub_comments(vid, rpid):
     if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
         g.csp_nonce = passed_nonce
 
-    async def safe_api(coro, timeout=4.0):
-        try:
-            async with asyncio.timeout(timeout):
-                return await coro
-        except Exception:
-            return None
-
     page = request.args.get("page", 1, type=int)
     if page is None or page < 1:
         page = 1
 
-    result = await safe_api(
-        comment.get_sub_comments(vid, rpid, comment.CommentResourceType.VIDEO.value, page),
-        4.0,
-    )
+    try:
+        async with asyncio.timeout(4.0):
+            result = await comment.get_sub_comments(vid, rpid, comment.CommentResourceType.VIDEO.value, page)
+    except Exception:
+        result = None
     sub = (
         result
         if result and not isinstance(result, Exception)
@@ -1446,18 +1434,18 @@ async def video_view(vid, idx=0):
             return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
 
     # LIGHTWEIGHT FETCH ONLY
-    async def safe_api(coro, timeout=4.0):
+    async def safe_api(fn, *args, timeout=4.0):
         try:
             async with asyncio.timeout(timeout):
-                return await coro
+                return await fn(*args)
         except Exception:
             return None
 
     tasks = [
-        safe_api(v.get_info(), 4.0),
-        safe_api(v.get_tags(idx), 2.0),
-        safe_api(v.get_related(), 5.0),
-        safe_api(v.get_pages(), 4.0),
+        safe_api(v.get_info, timeout=4.0),
+        safe_api(v.get_tags, idx, timeout=2.0),
+        safe_api(v.get_related, timeout=5.0),
+        safe_api(v.get_pages, timeout=4.0),
     ]
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
