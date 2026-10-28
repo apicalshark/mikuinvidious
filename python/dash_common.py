@@ -252,6 +252,10 @@ _RETRYABLE_TRACK_ERRORS = (
 )
 
 
+class _JobCancelled(Exception):
+    """Raised when a download job is cancelled mid-flight."""
+
+
 class _TrackCut(Exception):
     """Internal control flow: connection cut mid-attempt, carries partial progress."""
 
