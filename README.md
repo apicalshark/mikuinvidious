@@ -26,8 +26,6 @@ This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xaca
 - **Privacy**: No-account browsing, IP masking via media proxying, and zero tracking.
 - **Languages**: UI in English, Simplified/Traditional Chinese, and Japanese (`?lang=`, cookie, or `Accept-Language`; switcher on `/preferences`). Upstream Bilibili content stays as-is.
 
-<iframe width="560" height="315" src="https://www.youtube-nocookie.com/embed/NEJgOITuNj8?si=N7XCjsdeMSpP0o3J" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
-
 ## Quick Start (Docker)
 
 1. **Clone the repository:**
