@@ -588,8 +588,10 @@ async def _resolve_durl_download(v, vid: str, idx: int, qual: int, play_data: di
 
 # Per-video in-flight dash fetches (singleflight) + negative-cache window for
 # failed fetches, so concurrent manifest/track hits share one playurl call.
+# Deliberately lock-free: registration and settling are synchronous, so they
+# cannot be interrupted by a cancellation landing on the await, which would
+# otherwise strand joiners on a dead future.
 _dash_inflight: dict[str, asyncio.Future] = {}
-_dash_inflight_lock = asyncio.Lock()
 _DASH_MISS_TTL = 30
 
 
@@ -619,6 +621,8 @@ async def _load_dash_data(vid, idx) -> dict | None:
     Concurrent callers for the same video share one in-flight fetch
     (singleflight), and failed fetches are negative-cached briefly so a
     dead video does not stampede playurl on every manifest/track hit.
+    A cancelled owner still settles joiners (with ``None``) instead of
+    leaving them waiting on a future that will never resolve.
 
     Cached entries whose signed CDN URLs have expired (see
     :func:`_dash_data_urls_stale`, the server-side ``isUrlExpired``) are
@@ -639,21 +643,24 @@ async def _load_dash_data(vid, idx) -> dict | None:
                 return data
     if await appredis.get(f"{key}:miss"):
         return None
-    async with _dash_inflight_lock:
-        fut = _dash_inflight.get(key)
-        if fut is None:
-            fut = _dash_inflight[key] = asyncio.get_running_loop().create_future()
-            fetch = True
-        else:
-            fetch = False
-    if not fetch:
-        return await fut
+    fut = _dash_inflight.get(key)
+    if fut is None:
+        fut = _dash_inflight[key] = asyncio.get_running_loop().create_future()
+    else:
+        # Shield: a cancelled joiner must not cancel the shared future for
+        # the others (and the owner settles it either way).
+        return await asyncio.shield(fut)
+    result = None
     try:
         result = await _fetch_and_cache_dash_data(vid, idx, key)
     except Exception as exc:
         print(f"[DashProxy] dash fetch failed for {vid}:{idx}: {exc}")
         result = None
-    async with _dash_inflight_lock:
+    finally:
+        # Runs on cancellation too: a client disconnect must never leave
+        # joiners waiting on an unsettled future. They get None (no negative
+        # cache was written, so the next request retries) while the
+        # CancelledError keeps propagating.
         _dash_inflight.pop(key, None)
         if not fut.done():
             fut.set_result(result)
