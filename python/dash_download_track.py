@@ -20,9 +20,8 @@ from urllib.parse import urlparse
 
 from dash_common import (
     _CUT_ERRORS,
-    _DEFAULT_MAX_DOWNLOAD_MB,
     _DOWNLOAD_CANCELLED,
-    _DOWNLOAD_TOO_LARGE,
+    _DOWNLOAD_GOOD_BPS,
     _RETRYABLE_TRACK_ERRORS,
     _SLOW_ARM_BPS,
     _SLOW_TRIP_PAUSE,
@@ -31,6 +30,7 @@ from dash_common import (
     _SLOW_WINDOW_STRIKES,
     _TRACK_DOWNLOAD_RETRY_DELAYS,
     _JobCancelled,
+    _max_download_track_bytes,
     _note_mirror_bad,
     _note_mirror_ok,
     _pace_delay,
@@ -47,40 +47,11 @@ from dash_stream import (
     _SlowDashBody,
     _yield_dash_body,
 )
-from shared import TicketManager, appconf
+from shared import TicketManager
 from stream import CdnConnectError, CdnConnection, CdnProtocolError, CdnTimeoutError
 
 _DOWNLOAD_SEGMENT_SIZE = 32 * 1024 * 1024
 _DOWNLOAD_WRITE_BATCH = 1024 * 1024
-_DOWNLOAD_GOOD_BPS = 1024 * 1024
-
-
-def _max_download_size_mb() -> int:
-    """Hoster-configured per-track download cap in MB (``[site] max_download_size_mb``)."""
-    try:
-        return max(int(appconf["site"].get("max_download_size_mb", _DEFAULT_MAX_DOWNLOAD_MB)), 1)
-    except TypeError, ValueError:
-        return _DEFAULT_MAX_DOWNLOAD_MB
-
-
-def _max_download_track_bytes() -> int:
-    """Hoster-configured per-track download cap in bytes."""
-    return _max_download_size_mb() * 1024 * 1024
-
-
-def _download_size_status(headers: dict) -> int:
-    content_length = headers.get("content-length")
-    if content_length is None:
-        return 0
-    try:
-        parsed_content_length = int(content_length)
-    except ValueError:
-        return -1
-    if parsed_content_length < 0:
-        return -1
-    if parsed_content_length > _max_download_track_bytes():
-        return _DOWNLOAD_TOO_LARGE
-    return 0
 
 
 # Sentinel returned by _download_track_to_file when a job cancel was observed.
