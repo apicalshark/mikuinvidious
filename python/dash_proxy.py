@@ -63,6 +63,11 @@ class _DashProxyFacade(types.ModuleType):
 
 
 _facade = _DashProxyFacade(__name__, _SUBMODULES)
+_facade.__file__ = __file__
+_facade.__doc__ = __doc__
+_facade.__package__ = __package__
+_facade.__loader__ = __loader__
+_facade.__spec__ = __spec__
 
 # Re-export Blueprint and submodules
 _facade.dash_proxy_bp = dash_common.dash_proxy_bp

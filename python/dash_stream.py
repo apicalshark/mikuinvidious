@@ -632,33 +632,6 @@ async def _retry_proxy_with_fresh_playurl(
     return fetched, new_urls
 
 
-# Player-style segmented download: fetch the track the way dash.js does.
-#
-# The player never GETs a whole track: it issues small Range requests
-# (sidx/init/media fragments, a few MB each) through ``proxy_dash``, each with
-# its own handshake deadline, mirror failover, and throughput watchdog, plus
-# up to 5 retries per fragment and ABR abandon of slow ones. The old
-# downloader did the opposite — one giant whole-file GET with no speed
-# watchdog, so a tarpit edge dribbling ~100 KB/s never tripped the 30s *idle*
-# read timeout and the job looked "stuck" for tens of minutes while the player
-# sailed past the same edge. This fetches sequential fixed-size segments with
-# the exact same machinery (``_failover_dash_conn`` + ``_yield_dash_body`` +
-# ``_ResumedDashConn``), writing them to ``dest`` instead of the HTTP
-# response, so a sick edge costs one segment — not the file.
-_DOWNLOAD_SEGMENT_SIZE = 32 * 1024 * 1024
-
-# Disk writes are batched to this size: per-64KB-chunk asyncio.to_thread hops
-# cost ~800 threadpool round-trips/sec at speed for zero benefit.
-_DOWNLOAD_WRITE_BATCH = 1024 * 1024
-
-# Adaptive pacing ladder for downloads: dash.js fragment requests arrive seconds
-# apart (buffer-driven), while this loop fires back-to-back at full speed —
-# sustained hammering earns shed load (empty closes) and escalating per-IP
-# throttling that reads as decaying speed (fast start, then clamp). Pauses let
-# the punishment decay: each consecutive slow trip steps down the ladder
-# (4/6/9/12/14s, holding 14s); clean fast segments reset to the base.
-
-
 async def _dash_ip_key(req) -> str:
     """Coarse per-IP bucket across all DASH fragment requests (abuse guard)."""
     return f"{get_client_ip(req)}:dash"

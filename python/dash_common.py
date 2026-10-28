@@ -385,12 +385,14 @@ def _parse_416_total(cr: str | None) -> int | None:
         return None
     try:
         return int(m.group(1))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
 
 
-
-
+# Only transport health is tracked: handshake stalls, connection/protocol
+# errors, mid-body cuts, slow bodies, unusable responses. 403/412/514 are
+# auth-level (dead signatures — handled by the ticket/playurl refresh paths)
+# and never mark a mirror sick. Success clears immediately; failures expire
 # after _MIRROR_SICK_COOLDOWN so recovered edges rejoin automatically.
 # Single worker, so a plain dict is fine.
 _MIRROR_SICK_COOLDOWN = 120.0
@@ -515,8 +517,12 @@ def _segment_mirror_order(candidates: list, seg_index: int) -> list:
     return healthy[rot:] + healthy[:rot] + sick + tail
 
 
-
-
+# Adaptive pacing ladder for downloads: dash.js fragment requests arrive seconds
+# apart (buffer-driven), while this loop fires back-to-back at full speed —
+# sustained hammering earns shed load (empty closes) and escalating per-IP
+# throttling that reads as decaying speed (fast start, then clamp). Pauses let
+# the punishment decay: each consecutive slow trip steps down the ladder
+# (4/6/9/12/14s, holding 14s); clean fast segments reset to the base.
 _DOWNLOAD_PACE_DELAYS = (2.0, 4.0, 6.0, 8.0, 10.0)
 _DOWNLOAD_GOOD_BPS = 1024 * 1024
 

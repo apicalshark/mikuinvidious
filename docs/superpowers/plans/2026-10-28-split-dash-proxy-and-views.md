@@ -171,24 +171,24 @@ git commit -m "refactor: extract dash_stream proxying module"
   - `dash_download_job.py`: `_DownloadJob`, `_download_jobs`, `create_download_job`, `cancel_download_job`, `download_status`, `download_file`, `download_cancel`, legacy `proxy_download`, etc.
   - `dash_proxy.py`: Facade module defining `dash_proxy_bp`, registering routes, and synchronizing attributes with submodules.
 
-- [ ] **Step 1: Create `python/dash_download_track.py` (~750 lines)**
+- [x] **Step 1: Create `python/dash_download_track.py` (~750 lines)**
 Extract segmented track downloader, body streaming, resume retries, and ffmpeg muxing from `python/dash_proxy.py`.
-- [ ] **Step 2: Create `python/dash_download_job.py` (~800 lines)**
+- [x] **Step 2: Create `python/dash_download_job.py` (~800 lines)**
 Extract download job registry, concurrency limiter, job runners, status/file/cancel endpoints, and legacy streaming download route from `python/dash_proxy.py`.
-- [ ] **Step 3: Transform `python/dash_proxy.py` into a Synchronizing Facade (< 150 lines)**
+- [x] **Step 3: Transform `python/dash_proxy.py` into a Synchronizing Facade (< 150 lines)**
 Implement `dash_proxy.py` facade which:
   1. Defines `dash_proxy_bp = Blueprint("dash_proxy", __name__)`.
   2. Registers all routes on `dash_proxy_bp` (`proxy_dash`, `download_status`, `download_file`, `download_cancel`, `proxy_download`).
   3. Re-exports all symbols from `dash_common`, `dash_fetch`, `dash_mpd`, `dash_stream`, `dash_download_track`, and `dash_download_job`.
   4. Overrides `__setattr__` to propagate any patched attributes (e.g. `_mirror_health`, `_mirror_range_shy`, `DASH_BODY_IDLE_TIMEOUT`, `_fetch_dash_attempt`) into the submodules.
   5. Installs the facade instance into `sys.modules["dash_proxy"]`.
-- [ ] **Step 4: Run unit tests for dash proxy and regressions**
+- [x] **Step 4: Run unit tests for dash proxy and regressions**
 Run: `PYTHONPATH=python uv run python -m unittest tests/test_review_regressions.py`
 Expected: PASS (all regression tests pass, including stream body watchdog, failover conn, and mirror shy tests).
-- [ ] **Step 5: Verify line counts and ruff linting**
+- [x] **Step 5: Verify line counts and ruff linting**
 Run: `wc -l python/dash_*.py && uv run ruff check python/dash_*.py`
 Expected: Every `dash_*.py` is < 850 lines, ruff check passes.
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 ```bash
 git add python/dash_download_track.py python/dash_download_job.py python/dash_proxy.py
 git commit -m "refactor: complete dash_proxy modularization with synchronizing facade"
@@ -202,19 +202,19 @@ git commit -m "refactor: complete dash_proxy modularization with synchronizing f
 - Modify: `docs/superpowers/specs/2026-10-28-split-dash-proxy-and-views-design.md` (if any final notes)
 - Test: All test files in `tests/`
 
-- [ ] **Step 1: Check line counts across ALL Python files**
+- [x] **Step 1: Check line counts across ALL Python files**
 Run: `wc -l python/*.py`
 Verify that NO file exceeds 1,000 lines.
-- [ ] **Step 2: Run complete test suite**
+- [x] **Step 2: Run complete test suite**
 Run: `npm run test`
 Expected: Ran 78 tests, all OK (exit code 0).
-- [ ] **Step 3: Run project Python linter**
+- [x] **Step 3: Run project Python linter**
 Run: `npm run lint:python`
 Expected: `All checks passed!` with 0 errors.
-- [ ] **Step 4: Run full compile check**
+- [x] **Step 4: Run full compile check**
 Run: `npm run check:compile`
 Expected: 0 syntax errors or unhandled compile issues.
-- [ ] **Step 5: Commit final verification**
+- [x] **Step 5: Commit final verification**
 ```bash
 git add python/ docs/
 git commit -m "chore: verify file length ceiling and test suite integrity"

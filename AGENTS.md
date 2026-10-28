@@ -94,11 +94,22 @@ graph TD
 
 - **Application Logic:**
   - `app.py`: Initializes the Quart app, error handlers, and registers blueprints.
-  - `views.py`: Main routing logic for home, search, video, space, and author views.
+  - `views.py`: Facade module synchronizing routes and attributes across submodules (`views_home.py`, `views_space.py`, `views_live.py`, `views_video.py`, `views_audio.py`).
+    - `views_home.py`: Index, feeds, search, b23 resolution, and settings views.
+    - `views_space.py`: User space, author profile, and video listings.
+    - `views_live.py`: Live room, categories, and stream views.
+    - `views_video.py`: Video detail, related videos, and player components.
+    - `views_audio.py`: Audio song, playlist, and audio player routes.
   - `views_bangumi.py`: Blueprint for Bangumi (Anime/Show) indexing and playback.
   - `shared.py`: Centralized configuration, `httpx` client management, Redis connection, and theming utilities.
   - `proxy.py`: Progressive (`/proxy/video/`) + image proxying via `CdnConnection`.
-  - `dash_proxy.py`: Canonical DASH stack — playurl fetch, MPD generation, Range-capable track proxy, muxed download.
+  - `dash_proxy.py`: Canonical DASH facade synchronizing attributes across DASH submodules (`dash_common.py`, `dash_fetch.py`, `dash_mpd.py`, `dash_stream.py`, `dash_download_track.py`, `dash_download_job.py`).
+    - `dash_common.py`: Constants, types, mirror health/range-shy caches, and helper functions.
+    - `dash_fetch.py`: Playurl retrieval, Redis caching, signature freshness, and fallback resolution.
+    - `dash_mpd.py`: Dynamic ISO/IEC 23009-1 DASH MPD manifest generation.
+    - `dash_stream.py`: HTTP Range track proxying, multi-mirror failover, and body streaming watchdog.
+    - `dash_download_track.py`: Segmented track downloading, adaptive pacing, slowdown watchdog, and ffmpeg muxing.
+    - `dash_download_job.py`: Download job registry, queue concurrency management, REST API endpoints, and legacy streaming fallback.
   - `live_manager.py`: Manages persistent live stream connections, chunk buffering, and heartbeat (Type 18) injection.
   - `danmaku.py`: Fetches and converts Bilibili danmaku.
   - `nyaa.py`: Scraper and helper for searching Nyaa.si torrents (integrated into Bangumi view).
