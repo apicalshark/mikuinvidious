@@ -63,7 +63,7 @@ jobs:
       - name: Audit Rust dependencies
         uses: actions-rust-lang/audit@v1
         with:
-          cargo-lock: crates/miku_core_rs/Cargo.lock
+          workingDirectory: crates/miku_core_rs
 
   # gitleaks:
   #   name: gitleaks (secret scan)
