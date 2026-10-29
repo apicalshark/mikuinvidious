@@ -29,11 +29,6 @@ from enum import Enum
 import brotli
 from aiohttp import WSMsgType
 
-try:
-    from miku_core_rs import unpack_live_danmaku as _rs_unpack_live_danmaku
-except ImportError:
-    _rs_unpack_live_danmaku = None
-
 from .client import (
     HEADERS,
     Api,
@@ -499,11 +494,6 @@ class LiveDanmaku:
         return ret
 
     def _unpack(self, data: bytes) -> list:
-        if _rs_unpack_live_danmaku is not None and isinstance(data, (bytes, bytearray)):
-            try:
-                return _rs_unpack_live_danmaku(data)
-            except Exception:
-                pass
         return self._unpack_py(data)
 
     async def disconnect(self) -> None:

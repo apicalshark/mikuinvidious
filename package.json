@@ -10,17 +10,13 @@
     "sync:static:maps": "node tools/sync-static.js --with-maps",
     "postinstall": "node tools/sync-static.js",
     "test": "PYTHONPATH=python uv run python -m unittest discover tests",
-    "benchmark": "PYTHONPATH=python uv run python tools/benchmark_core.py",
-    "build:rust": "uv run maturin develop --release --manifest-path crates/miku_core_rs/Cargo.toml",
     "check:compile": "uv run python -m compileall -f python tests tools",
     "lint:python": "uv run ruff check python",
     "format:python": "uv run ruff format python",
     "lint:frontend": "prettier --check \"static/themes/modern/js/*.js\" \"static/themes/modern/css/*.css\" && uv run djlint templates --check",
     "format:frontend": "prettier --write \"static/themes/modern/js/*.js\" \"static/themes/modern/css/*.css\" && uv run djlint templates --reformat",
-    "lint:rust": "if command -v cargo >/dev/null 2>&1; then cargo fmt --manifest-path crates/miku_core_rs/Cargo.toml -- --check && cargo clippy --manifest-path crates/miku_core_rs/Cargo.toml --all-targets -- -D warnings; else echo \"Cargo not found, skipping Rust linting\"; fi",
-    "format:rust": "if command -v cargo >/dev/null 2>&1; then cargo fmt --manifest-path crates/miku_core_rs/Cargo.toml; fi",
-    "lint": "npm run lint:python && npm run lint:frontend && npm run lint:rust",
-    "format": "npm run format:python && npm run format:frontend && npm run format:rust"
+    "lint": "npm run lint:python && npm run lint:frontend",
+    "format": "npm run format:python && npm run format:frontend"
   },
   "repository": {
     "type": "git",

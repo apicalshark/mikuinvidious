@@ -6,7 +6,7 @@ import rtoml
 from zhconv_rs import zhconv
 
 
-class TestRustReplacements(unittest.TestCase):
+class TestDependencies(unittest.TestCase):
     def test_nh3_sanitize_html_xss(self):
         # Disallow dangerous script tags
         dirty = '<div><script>alert("xss")</script><p>Safe content</p></div>'

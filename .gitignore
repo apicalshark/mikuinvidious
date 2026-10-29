@@ -21,7 +21,3 @@ wgcf_data/
 research_repo/
 doc/bili-research-docs/
 .understand-anything/
-
-# Rust build artifacts
-target/
-crates/**/target/

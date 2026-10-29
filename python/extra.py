@@ -97,7 +97,7 @@ ALLOWED_STYLES = {
 
 
 def sanitize_html(html: str) -> str:
-    """Sanitize HTML to prevent XSS using fast Rust-backed nh3 (ammonia)."""
+    """Sanitize HTML to prevent XSS using nh3 (ammonia)."""
     return nh3.clean(
         html,
         tags=ALLOWED_TAGS,

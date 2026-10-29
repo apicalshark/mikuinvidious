@@ -83,6 +83,7 @@ def _dash_candidate_urls(track: dict) -> list:
     for url in [primary, *backups]:
         if isinstance(url, str) and url and url not in ordered:
             ordered.append(url)
+
     # Direct CDN first (0), other stable (1), M-CDN last as failover-only (2).
     def _mirror_rank(u: str) -> int:
         if _is_direct_cdn_url(u):

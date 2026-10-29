@@ -27,28 +27,11 @@ import re
 _DANMAKU_RE = re.compile(r'<d\s+p="([^"]*)">(.*?)</d>', re.S)
 _TAG_RE = re.compile(r"<[^>]+>")
 
-try:
-    from miku_core_rs import parse_danmaku_xml
-except ImportError:
-    parse_danmaku_xml = None
-
 
 def parse_danmaku(xml_text: str | None) -> list[dict]:
-    """Parse danmaku XML into list of dictionaries.
-
-    Uses high-performance Rust parser (with GIL detachment) when available;
-    gracefully falls back to pure Python regex extraction on failure or when
-    the native extension is absent.
-    """
+    """Parse danmaku XML into list of dictionaries."""
     if not xml_text or not isinstance(xml_text, str):
         return []
-
-    if parse_danmaku_xml is not None:
-        try:
-            return parse_danmaku_xml(xml_text)
-        except Exception:
-            pass
-
     return danmaku_xml_fallback(xml_text)
 
 

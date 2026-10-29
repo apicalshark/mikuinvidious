@@ -1,16 +1,7 @@
 import unittest
-from unittest.mock import patch
 from xml.dom import minidom
 
-import danmaku
-from danmaku import danmaku_xml_conv, danmaku_xml_fallback, parse_danmaku
-
-try:
-    import miku_core_rs
-except ModuleNotFoundError as exc:
-    if exc.name != "miku_core_rs":
-        raise
-    miku_core_rs = None
+from danmaku import danmaku_xml_conv, parse_danmaku
 
 
 class TestDanmakuParser(unittest.TestCase):
@@ -72,31 +63,6 @@ class TestDanmakuParser(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0]["text"], "求\n你\n了")
         self.assertEqual(items[0]["mode"], "rtl")
-
-    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
-    def test_rust_danmaku_import(self):
-        self.assertIsNotNone(danmaku.parse_danmaku_xml, "parse_danmaku_xml should be exported by miku_core_rs")
-
-    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
-    def test_native_errors_trigger_fallback_and_preserve_entries(self):
-        valid = '<d p="1,1,25,16777215">Valid &amp; intact</d>'
-        for broken in ("<broken></mismatch>", '<d p="2,1,25,16777215">Unknown &entity;</d>'):
-            with self.subTest(broken=broken):
-                xml = f"<i>{valid}{broken}{valid}</i>"
-                with self.assertRaises(ValueError):
-                    danmaku.parse_danmaku_xml(xml)
-                with patch("danmaku.danmaku_xml_fallback", wraps=danmaku_xml_fallback) as fallback:
-                    items = parse_danmaku(xml)
-                fallback.assert_called_once_with(xml)
-                self.assertEqual(items, danmaku_xml_fallback(xml))
-                self.assertEqual(items[0]["text"], "Valid & intact")
-                self.assertEqual(items[-1]["text"], "Valid & intact")
-
-    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
-    def test_native_normal_eof_salvages_open_entry(self):
-        items = danmaku.parse_danmaku_xml('<i><d p="1,1,25,16777215">Unclosed text')
-        self.assertEqual(len(items), 1)
-        self.assertEqual(items[0]["text"], "Unclosed text")
 
 
 if __name__ == "__main__":

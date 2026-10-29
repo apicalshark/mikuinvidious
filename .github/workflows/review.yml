@@ -57,18 +57,6 @@ jobs:
       - name: Verify package integrity
         run: npm audit signatures
 
-  cargo-audit:
-    name: cargo audit (Rust deps)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Audit Rust dependencies
-        uses: actions-rust-lang/audit@v1
-        with:
-          workingDirectory: crates/miku_core_rs
-
   # gitleaks:
   #   name: gitleaks (secret scan)
   #   runs-on: ubuntu-latest

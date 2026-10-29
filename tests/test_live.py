@@ -5,15 +5,8 @@ import unittest
 import brotli
 from api.live import LiveDanmaku
 
-try:
-    import miku_core_rs
-except ModuleNotFoundError as exc:
-    if exc.name != "miku_core_rs":
-        raise
-    miku_core_rs = None
 
-
-class TestLiveRs(unittest.TestCase):
+class TestLive(unittest.TestCase):
     def setUp(self):
         self.ld = LiveDanmaku(123456)
 
@@ -63,23 +56,6 @@ class TestLiveRs(unittest.TestCase):
         # Should not raise exception
         res = self.ld._unpack(bad_brotli)
         self.assertIsInstance(res, list)
-
-    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
-    def test_rust_live_direct_parity(self):
-        self.assertTrue(hasattr(miku_core_rs, "unpack_live_danmaku"))
-
-        # Test heartbeat
-        header = struct.pack(">IHHII", 20, 16, 1, 3, 1)
-        body = struct.pack(">I", 9999)
-        raw = header + body
-        self.assertEqual(miku_core_rs.unpack_live_danmaku(raw), self.ld._unpack(raw))
-
-        # Test brotli notice
-        notice = json.dumps({"cmd": "DANMU_MSG", "info": ["miku"]}).encode("utf-8")
-        pkt = struct.pack(">IHHII", 16 + len(notice), 16, 0, 5, 1) + notice
-        compressed = brotli.compress(pkt)
-        outer = struct.pack(">IHHII", 16 + len(compressed), 16, 3, 5, 1) + compressed
-        self.assertEqual(miku_core_rs.unpack_live_danmaku(outer), self.ld._unpack(outer))
 
 
 if __name__ == "__main__":

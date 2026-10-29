@@ -5,7 +5,6 @@
 <p align="center">
   <a href="https://github.com/apicalshark/mikuinvidious/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-AGPLv3-ff8fab?style=flat-square" alt="License: AGPLv3" /></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.15%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.15+" /></a>
-  <img src="https://img.shields.io/badge/Rust-PyO3_accelerated-DEA584?style=flat-square&logo=rust&logoColor=white" alt="Rust PyO3 accelerated" />
   <img src="https://img.shields.io/badge/Quart-ASGI-ff8fab?style=flat-square" alt="Quart ASGI" />
   <img src="https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker ready" />
   <img src="https://img.shields.io/badge/Redis-required-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis required" />
@@ -23,7 +22,6 @@ This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xaca
 - **Search Bar**: Paste any Bilibili link (even **b23.tv**) into the search bar to jump straight to the video with zero tracking.
 - **Media Playback**: Full DASH VOD streaming with multi-mirror failover, adaptive pacing, and danmaku overlay. Live streaming with FLV and HLS fallbacks.
 - **Background Downloads**: Resilient multi-track chunk downloading with ffmpeg muxing into downloadable MP4 files.
-- **High Performance**: Optional native Rust PyO3 extension, backed by seamless pure-Python fallbacks.
 - **Listen Mode**: Bandwidth-saving audio-only interface for any video.
 - **Live Streaming**: Stable proxying with heartbeats and real-time SSE chat.
 - **Content Discovery**: Proxied articles (cv/opus) and global search with filters.
@@ -50,19 +48,18 @@ This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xaca
    docker compose up -d
    ```
 
-The application will be available at `http://localhost:8000`. Docker Compose automatically builds the native Rust extension via multi-stage build.
+The application will be available at `http://localhost:8000`.
 
 For detailed setup, configuration, and troubleshooting, see the full documentation: [apicalshark.github.io/mikuinvidious](https://apicalshark.github.io/mikuinvidious/) (English / 正體中文).
 
 ### Local Installation (Without Docker)
 
-For users who want to run the application manually, see the [local installation guide](doc/setup.md). This project uses `uv` for dependency management. To compile the optional Rust extension for maximum performance, see [doc/rust-extension.md](doc/rust-extension.md).
+For users who want to run the application manually, see the [local installation guide](doc/setup.md). This project uses `uv` for dependency management.
 
 ## Tech Stack
 
 - **Backend**: Python 3.15+, Quart (ASGI)
-- **Native Acceleration**: Rust, PyO3 0.30+, Maturin (`miku_core_rs` crate with pure-Python fallback)
-- **Server**: Granian (Rust ASGI server), Caddy
+- **Server**: Granian, Caddy
 - **Cache**: Redis (required)
 - **Frontend**: Tailwind CSS 4, `dash.js` (VOD), `hls.js` + `mpegts.js` (Live)
 

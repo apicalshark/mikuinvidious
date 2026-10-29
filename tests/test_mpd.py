@@ -1,17 +1,9 @@
 import unittest
 
-import dash_mpd
 from dash_mpd import generate_vod_mpd
 
-try:
-    import miku_core_rs
-except ModuleNotFoundError as exc:
-    if exc.name != "miku_core_rs":
-        raise
-    miku_core_rs = None
 
-
-class TestMpdRs(unittest.TestCase):
+class TestMpd(unittest.TestCase):
     def setUp(self):
         self.sample_dash = {
             "dash": {
@@ -120,18 +112,6 @@ class TestMpdRs(unittest.TestCase):
         self.assertTrue(pos_30280 != -1 and pos_30232 != -1 and pos_30216 != -1)
         self.assertLess(pos_30280, pos_30232)
         self.assertLess(pos_30232, pos_30216)
-
-        if miku_core_rs is not None:
-            py_mpd = dash_mpd._generate_vod_mpd_py("BV1xx411c7xx", 0, dash_data)
-            rs_mpd = miku_core_rs.generate_vod_mpd("BV1xx411c7xx", 0, dash_data)
-            self.assertEqual(py_mpd, rs_mpd)
-
-    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
-    def test_rust_mpd_direct_parity(self):
-        self.assertTrue(hasattr(miku_core_rs, "generate_vod_mpd"))
-        py_result = dash_mpd._generate_vod_mpd_py("BV1xx411c7xx", 0, self.sample_dash)
-        rs_result = miku_core_rs.generate_vod_mpd("BV1xx411c7xx", 0, self.sample_dash)
-        self.assertEqual(py_result, rs_result)
 
 
 if __name__ == "__main__":

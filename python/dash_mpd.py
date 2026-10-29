@@ -19,11 +19,6 @@ from quart import Response, request
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import app, appredis
 
-try:
-    from miku_core_rs import generate_vod_mpd as rs_generate_vod_mpd
-except ImportError:
-    rs_generate_vod_mpd = None
-
 
 def _sb_initialization_range(sb: dict) -> str:
     """Extract the ``Initialization`` byte range from a SegmentBase node.
@@ -39,8 +34,8 @@ def _sb_initialization_range(sb: dict) -> str:
     return "0-999"
 
 
-def _generate_vod_mpd_py(vid, idx, dash_data) -> str | None:
-    """Generate an ``isoff-on-demand`` MPD for dash.js playback (Python fallback)."""
+def generate_vod_mpd(vid, idx, dash_data) -> str | None:
+    """Generate an ``isoff-on-demand`` MPD for dash.js playback."""
     if not dash_data or not isinstance(dash_data, dict):
         return None
     dash = dash_data.get("dash") or {}
@@ -143,20 +138,7 @@ def _generate_vod_mpd_py(vid, idx, dash_data) -> str | None:
     return "\n".join(mpd)
 
 
-def generate_vod_mpd(vid, idx, dash_data) -> str | None:
-    """Generate an ``isoff-on-demand`` MPD for dash.js playback.
-
-    Prioritizes the native Rust implementation (miku_core_rs) when available;
-    falls back cleanly to the pure-Python implementation on failure or absence.
-    """
-    if rs_generate_vod_mpd is not None and isinstance(dash_data, dict):
-        try:
-            mpd = rs_generate_vod_mpd(str(vid), int(idx), dash_data)
-            if mpd is not None:
-                return mpd
-        except Exception:
-            pass
-    return _generate_vod_mpd_py(vid, idx, dash_data)
+_generate_vod_mpd_py = generate_vod_mpd
 
 
 # ---------------------------------------------------------------------------

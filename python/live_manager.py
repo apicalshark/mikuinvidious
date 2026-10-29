@@ -166,9 +166,7 @@ class LiveStream:
                 stream_headers = dict(self.headers)
                 if self.cookies:
                     stream_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items() if v)
-                async with client.stream(
-                    "GET", self.url, headers=stream_headers, follow_redirects=True
-                ) as resp:
+                async with client.stream("GET", self.url, headers=stream_headers, follow_redirects=True) as resp:
                     self.status_code = resp.status_code
                     self.resp_headers = dict(resp.headers)
 
