@@ -14,7 +14,7 @@ from api import Credential
 from api.client import get_bili_ticket, request_settings
 from flask_orjson import OrjsonProvider
 from quart import Quart, render_template, request
-from quart_session import Session
+from quart.sessions import SecureCookieSessionInterface
 from secrets_encryption import NACL_AVAILABLE, decrypt_secret
 
 
@@ -336,10 +336,8 @@ app.config["BODY_TIMEOUT"] = 10800
 # This invalidates sessions on restart, which is acceptable for this use case
 app.secret_key = os.urandom(32).hex()
 
-# Configure sessions
-app.config["SESSION_TYPE"] = "redis"
-app.config["SESSION_REDIS"] = appredis
-Session(app)
+# Configure sessions using Quart's built-in secure signed cookies
+app.session_interface = SecureCookieSessionInterface()
 
 
 async def close_global_client():

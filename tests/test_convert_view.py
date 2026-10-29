@@ -2,17 +2,9 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from app import app
-from quart.sessions import SecureCookieSessionInterface
-
-
 class TestConvertView(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self._orig_session_interface = app.session_interface
-        app.session_interface = SecureCookieSessionInterface()
         self.client = app.test_client()
-
-    async def asyncTearDown(self):
-        app.session_interface = self._orig_session_interface
 
     async def test_get_convert_page(self):
         resp = await self.client.get("/convert")

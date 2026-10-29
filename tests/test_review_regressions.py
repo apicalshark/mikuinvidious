@@ -227,16 +227,10 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_method_not_allowed_returns_405_instead_of_500(self):
         from app import app
-        from quart.sessions import SecureCookieSessionInterface
 
-        orig = app.session_interface
-        app.session_interface = SecureCookieSessionInterface()
-        try:
-            client = app.test_client()
-            resp = await client.post("/preferences")
-            self.assertEqual(resp.status_code, 405)
-        finally:
-            app.session_interface = orig
+        client = app.test_client()
+        resp = await client.post("/preferences")
+        self.assertEqual(resp.status_code, 405)
 
     async def test_cancelled_video_view_leaves_no_unawaited_coroutines(self):
         import asyncio

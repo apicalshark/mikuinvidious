@@ -2,17 +2,11 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from app import app
-from quart.sessions import SecureCookieSessionInterface
 
 
 class TestSearchAutoJump(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self._orig_session_interface = app.session_interface
-        app.session_interface = SecureCookieSessionInterface()
         self.client = app.test_client()
-
-    async def asyncTearDown(self):
-        app.session_interface = self._orig_session_interface
 
     async def test_search_b23_url_redirects_to_video(self):
         with patch(
@@ -71,12 +65,7 @@ class TestSearchAutoJump(unittest.IsolatedAsyncioTestCase):
 
 class TestRootB32tvRedirect(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self._orig_session_interface = app.session_interface
-        app.session_interface = SecureCookieSessionInterface()
         self.client = app.test_client()
-
-    async def asyncTearDown(self):
-        app.session_interface = self._orig_session_interface
 
     async def test_root_redirect_video(self):
         with patch(
