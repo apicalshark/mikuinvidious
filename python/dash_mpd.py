@@ -20,6 +20,12 @@ from rate_limit import RATE_LIMITS, rate_limit
 from shared import app, appredis
 
 
+try:
+    from miku_core_rs import generate_vod_mpd as rs_generate_vod_mpd
+except ImportError:
+    rs_generate_vod_mpd = None
+
+
 def _sb_initialization_range(sb: dict) -> str:
     """Extract the ``Initialization`` byte range from a SegmentBase node.
 
@@ -34,14 +40,8 @@ def _sb_initialization_range(sb: dict) -> str:
     return "0-999"
 
 
-def generate_vod_mpd(vid, idx, dash_data) -> str | None:
-    """Generate an ``isoff-on-demand`` MPD for dash.js playback.
-
-    Each track becomes a Representation whose BaseURL points at the local
-    Range-capable proxy (``/proxy/dash/...``). SegmentBase carries the exact
-    ``Initialization`` and ``indexRange`` byte ranges so dash.js can compute
-    segment offsets and issue HTTP Range requests.
-    """
+def _generate_vod_mpd_py(vid, idx, dash_data) -> str | None:
+    """Generate an ``isoff-on-demand`` MPD for dash.js playback (Python fallback)."""
     if not dash_data or not isinstance(dash_data, dict):
         return None
     dash = dash_data.get("dash") or {}
@@ -59,30 +59,17 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     ]
 
     # --- Video adaptation sets (one per codec) ---
-    # Bilibili returns multiple codec variants (AVC/HEVC/AV1) at each quality
-    # level.  Mixing them in one AdaptationSet breaks MSE: the SourceBuffer is
-    # created for the first codec the player picks, and appending data encoded
-    # with a *different* codec triggers CHUNK_DEMUXER_ERROR_APPEND_FAILED
-    # ("Video stream codec hevc doesn't match SourceBuffer codecs.").
-    # Fix: group tracks by their ``codecid`` into separate AdaptationSets
-    # so each SourceBuffer only ever sees one codec family.
     as_id = 1
     videos = _normalize_track_urls(dash.get("video", []))
     if videos:
         from collections import OrderedDict
 
-        # Group by codecid (7=AVC, 12=HEVC, 13=AV1) rather than the full
-        # codecs string — Bilibili uses different HEVC level strings per
-        # resolution (e.g. hvc1.1.6.L150.90 vs hvc1.1.6.L120.90) which would
-        # unnecessarily fragment the groups.
         codec_groups: OrderedDict[int, list] = OrderedDict()
         for video_track in videos:
             codecid = video_track.get("codecid", 0)
             codec_groups.setdefault(codecid, []).append(video_track)
         as_id = 1
         for _codecid, tracks in codec_groups.items():
-            # Use the codecs string from the first track in the group for the
-            # AdaptationSet-level codecs attribute.
             codecs_str = tracks[0].get("codecs") or "avc1.64001F"
             mpd.append(
                 f'    <AdaptationSet id="{as_id}" contentType="video" mimeType="video/mp4"'
@@ -150,6 +137,22 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     mpd.append("  </Period>")
     mpd.append("</MPD>")
     return "\n".join(mpd)
+
+
+def generate_vod_mpd(vid, idx, dash_data) -> str | None:
+    """Generate an ``isoff-on-demand`` MPD for dash.js playback.
+
+    Prioritizes the native Rust implementation (miku_core_rs) when available;
+    falls back cleanly to the pure-Python implementation on failure or absence.
+    """
+    if rs_generate_vod_mpd is not None and isinstance(dash_data, dict):
+        try:
+            mpd = rs_generate_vod_mpd(str(vid), int(idx), dash_data)
+            if mpd is not None:
+                return mpd
+        except Exception:
+            pass
+    return _generate_vod_mpd_py(vid, idx, dash_data)
 
 
 # ---------------------------------------------------------------------------
