@@ -1,6 +1,7 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
+use quick_xml::escape::{resolve_xml_entity, unescape};
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
@@ -21,18 +22,18 @@ pub fn parse_danmaku_internal(xml_str: &str) -> Result<Vec<DanmakuItem>, quick_x
     let mut current_p = String::new();
     let mut current_text = String::new();
 
-    let mut buf = Vec::new();
-
     loop {
-        match reader.read_event_into(&mut buf) {
+        match reader.read_event() {
             Ok(Event::Start(ref e)) => {
-                if e.local_name().as_ref() == b"d" {
+                if e.local_name().as_ref() == "d" {
                     in_d = true;
                     current_p.clear();
                     current_text.clear();
                     for attr in e.attributes().flatten() {
-                        if attr.key.local_name().as_ref() == b"p" {
-                            if let Ok(val) = attr.decode_and_unescape_value(reader.decoder()) {
+                        if attr.key.local_name().as_ref() == "p" {
+                            if let Ok(val) =
+                                attr.normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                            {
                                 current_p = val.into_owned();
                             }
                             break;
@@ -42,18 +43,29 @@ pub fn parse_danmaku_internal(xml_str: &str) -> Result<Vec<DanmakuItem>, quick_x
             }
             Ok(Event::Text(ref e)) => {
                 if in_d {
-                    current_text.push_str(&e.unescape()?);
+                    current_text.push_str(&unescape(e.as_ref())?);
+                }
+            }
+            Ok(Event::GeneralRef(ref e)) => {
+                if in_d {
+                    if let Some(s) = resolve_xml_entity(e.as_ref()) {
+                        current_text.push_str(s);
+                    } else if let Ok(Some(ch)) = e.resolve_char_ref() {
+                        current_text.push(ch);
+                    } else {
+                        return Err(quick_xml::Error::Escape(
+                            quick_xml::escape::EscapeError::UnrecognizedEntity(0..0, e.to_string()),
+                        ));
+                    }
                 }
             }
             Ok(Event::CData(ref e)) => {
                 if in_d {
-                    if let Ok(txt) = std::str::from_utf8(e.as_ref()) {
-                        current_text.push_str(txt);
-                    }
+                    current_text.push_str(e.as_ref());
                 }
             }
             Ok(Event::End(ref e)) => {
-                if e.local_name().as_ref() == b"d" && in_d {
+                if e.local_name().as_ref() == "d" && in_d {
                     in_d = false;
                     if let Some(item) = process_entry(&current_p, &current_text) {
                         items.push(item);
@@ -72,10 +84,28 @@ pub fn parse_danmaku_internal(xml_str: &str) -> Result<Vec<DanmakuItem>, quick_x
             Err(err) => return Err(err),
             _ => {}
         }
-        buf.clear();
     }
 
     Ok(items)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_entities() {
+        let xml = r#"<i><d p="35.00,1,25,16777215">&lt;tag&gt; &amp; &quot;quote&quot; &#x3c;&#62;</d></i>"#;
+        let items = parse_danmaku_internal(xml).expect("parse failed");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].text, "<tag> & \"quote\" <>");
+    }
+
+    #[test]
+    fn test_unknown_entity_error() {
+        let xml = r#"<i><d p="35.00,1,25,16777215">&unknown;</d></i>"#;
+        assert!(parse_danmaku_internal(xml).is_err());
+    }
 }
 
 fn process_entry(p_str: &str, text: &str) -> Option<DanmakuItem> {
