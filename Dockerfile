@@ -3,7 +3,7 @@ LABEL org.opencontainers.image.source=https://github.com/apicalshark/mikuinvidio
 
 WORKDIR /app
 
-ENV UV_COMPILE_BYTECODE=1 UV_NO_CACHE=1
+ENV UV_COMPILE_BYTECODE=1 UV_NO_CACHE=1 UV_NO_DEV=1
 
 # Install ffmpeg (used to mux DASH video+audio into a single downloadable MP4)
 RUN apk add --no-cache ffmpeg
@@ -26,4 +26,4 @@ ENV APP_VERSION=${APP_VERSION} \
     GIT_COMMIT=${GIT_COMMIT}
 
 # Run the app from the python directory
-CMD ["uv", "run", "python", "python/main.py"]
+CMD ["uv", "run", "--no-dev", "python", "python/main.py"]
