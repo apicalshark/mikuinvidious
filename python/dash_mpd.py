@@ -175,4 +175,3 @@ async def video_dash_manifest_view(vid, idx):
     if not mpd_content:
         return Response("Not Found", status=404)
     return Response(mpd_content, content_type="application/dash+xml")
-

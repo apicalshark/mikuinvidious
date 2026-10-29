@@ -142,8 +142,6 @@ class _DashUpstreamError(Exception):
         self.forbidden = forbidden
 
 
-
-
 def _dash_response_lengths(resp_headers) -> tuple[str | None, str | None]:
     """Derive guaranteed ``(Content-Length, Content-Range)`` for a track response.
 
@@ -255,8 +253,6 @@ async def _yield_dash_body(conn, label: str, floor_watchdog: bool = True):
                     return
                 continue
         yield chunk
-
-
 
 
 class _ResumedDashConn:
@@ -892,5 +888,3 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         if conn is not None:
             await conn.close()
         return Response("Upstream error", status=502)
-
-

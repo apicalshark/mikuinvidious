@@ -763,5 +763,3 @@ def _lookup_track(dash_data, media_type: str, qn: int, cid: int) -> dict | None:
         if str(t.get("id")) == str(qn):
             return t
     return None
-
-

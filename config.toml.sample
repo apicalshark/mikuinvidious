@@ -2,8 +2,9 @@
 # The public name of your instance.
 site_name = 'MikuInvidious'
 
-# The public URL of your instance. Used for metadata and links.
-site_url = 'https://example.org'
+# The public URL of your instance, including its actual HTTP/HTTPS scheme.
+# Used for metadata, links, and the default Secure session cookie setting.
+site_url = 'http://localhost:8888'
 
 # You are required to set this if you have any modification to the source code.
 # Learn more at https://www.gnu.org/licenses/agpl-3.0.html.

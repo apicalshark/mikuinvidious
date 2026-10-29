@@ -1,5 +1,9 @@
 version: 2
 updates:
+  - package-ecosystem: "cargo"
+    directory: "/crates/miku_core_rs"
+    schedule:
+      interval: "weekly"
   - package-ecosystem: "pip"
     directory: "/"
     schedule:

@@ -220,5 +220,3 @@ async def audio_list_view(amid, idx=0):
     if cache_ttl > 0:
         return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT" if cache_hit else "MISS"})
     return html
-
-

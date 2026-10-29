@@ -24,6 +24,7 @@ from shared import app, appconf, appcred, appredis, render_template_with_theme
 
 _background_tasks = set()
 
+
 @app.route("/live/chat/<int:room_id>")
 @rate_limit(**RATE_LIMITS["strict"])
 async def live_chat_sse(room_id):
@@ -114,8 +115,6 @@ async def live_chat_sse(room_id):
             "X-Accel-Buffering": "no",
         },
     )
-
-
 
 
 @app.route("/live")
@@ -360,4 +359,3 @@ async def live_room_view(room_id):
             status="Live load failed",
             desc="Failed to load the live room. Please check your network or try again later.",
         ), 500
-

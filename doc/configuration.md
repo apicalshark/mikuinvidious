@@ -10,7 +10,7 @@ Settings related to the site's identity and features.
 | Key | Environment Variable | Default | Description |
 | --- | --- | --- | --- |
 | `site_name` | `SITE_NAME` | `MikuInvidious` | The public name of your instance. |
-| `site_url` | `SITE_URL` | `https://example.org` | The public URL of your instance. Used for metadata and links. |
+| `site_url` | `SITE_URL` | `http://localhost:8888` | The public URL of your instance, including its actual HTTP/HTTPS scheme. Used for metadata, links, and the default Secure session cookie setting. |
 | `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | A boolean (`true`/`false`) to show a link to the modified source code. |
 | `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | A boolean (`true`/`false`) to enable or disable video download buttons. |
 | `max_download_size_mb` | `MAX_DOWNLOAD_SIZE_MB` | `1024` | Maximum allowed size (in MB) per downloaded track. A DASH download fetches a video track plus an audio track; jobs with a track over this limit are rejected with an error stating this instance's limit. |

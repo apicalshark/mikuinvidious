@@ -32,6 +32,13 @@ import httpx
 from .credential import Credential
 from .exceptions import NetworkException, ResponseCodeException
 
+try:
+    from miku_core_rs import mixin_from_keys as _rs_mixin_from_keys
+    from miku_core_rs import sign_wbi_params as _rs_sign_wbi_params
+except ImportError:
+    _rs_mixin_from_keys = None
+    _rs_sign_wbi_params = None
+
 __all__ = [
     "Api",
     "get_bili_client",
@@ -344,11 +351,21 @@ async def _get_mixin_key(credential: Credential = None) -> str:
 
 def _mixin_from_keys(img_key: str, sub_key: str) -> str:
     """Derive the 32-char wbi mixin key from raw img/sub key filenames."""
+    if _rs_mixin_from_keys is not None:
+        try:
+            return _rs_mixin_from_keys(img_key, sub_key)
+        except Exception:
+            pass
     ae = img_key + sub_key
     return "".join(ae[i] for i in OE if i < len(ae))[:32]
 
 
 def _enc_wbi(params: dict, mixin_key: str) -> dict:
+    if _rs_sign_wbi_params is not None:
+        try:
+            return _rs_sign_wbi_params(params, mixin_key)
+        except Exception:
+            pass
     params.pop("w_rid", None)
     params["wts"] = int(time.time())
     if params.get("web_location") is None:

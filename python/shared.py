@@ -14,7 +14,7 @@ from api import Credential
 from api.client import get_bili_ticket, request_settings
 from flask_orjson import OrjsonProvider
 from quart import Quart, render_template, request
-from quart_session import Session
+from quart.sessions import SecureCookieSessionInterface
 from secrets_encryption import NACL_AVAILABLE, decrypt_secret
 
 
@@ -213,7 +213,7 @@ def _int_env(name, default):
 appconf = {
     "site": {
         "site_name": os.environ.get("SITE_NAME", "MikuInvidious"),
-        "site_url": os.environ.get("SITE_URL", "https://example.org"),
+        "site_url": "http://localhost:8888",
         "site_modified_source_code_url": os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "")
         if os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "").lower() not in ["false", ""]
         else False,
@@ -306,6 +306,9 @@ if os.path.exists("config.toml"):
 elif os.path.exists("../config.toml"):
     deep_update(appconf, rtoml.load(Path("../config.toml")))
 
+if "SITE_URL" in os.environ:
+    appconf["site"]["site_url"] = os.environ["SITE_URL"]
+
 # Install the locale allowlist now that config is merged, so locale resolution,
 # /set_lang validation and the template language menus all read the same list.
 from i18n import set_supported_locales  # noqa: E402
@@ -336,10 +339,13 @@ app.config["BODY_TIMEOUT"] = 10800
 # This invalidates sessions on restart, which is acceptable for this use case
 app.secret_key = os.urandom(32).hex()
 
-# Configure sessions
-app.config["SESSION_TYPE"] = "redis"
-app.config["SESSION_REDIS"] = appredis
-Session(app)
+# Configure sessions using Quart's built-in secure signed cookies
+app.session_interface = SecureCookieSessionInterface()
+if "SESSION_COOKIE_SAMESITE" not in appconf["quart"]:
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+if "SESSION_COOKIE_SECURE" not in appconf["quart"]:
+    site_url = str(appconf.get("site", {}).get("site_url", "")).lower()
+    app.config["SESSION_COOKIE_SECURE"] = site_url.startswith("https://")
 
 
 async def close_global_client():

@@ -2,6 +2,72 @@
 
 "use strict";
 
+// Encapsulated MikuPlayer state container
+window.mikuPlayer = window.mikuPlayer || {
+  vodManager: null,
+  dashManager: null,
+  vodBufferController: null,
+  liveManager: null,
+  flvPlayer: null,
+  hls: null,
+  dm: null,
+  dm_status: true,
+  isNativeRecovering: false,
+  lastNativeRecoveryTime: 0,
+  isSettingUp: false,
+};
+
+[
+  "vodManager",
+  "dashManager",
+  "vodBufferController",
+  "liveManager",
+  "flvPlayer",
+  "hls",
+  "dm",
+  "dm_status",
+  "isNativeRecovering",
+  "lastNativeRecoveryTime",
+  "isSettingUp",
+].forEach((prop) => {
+  if (!Object.prototype.hasOwnProperty.call(window, prop)) {
+    Object.defineProperty(window, prop, {
+      get: () => window.mikuPlayer[prop],
+      set: (val) => {
+        window.mikuPlayer[prop] = val;
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+});
+
+function installFirefoxZeroSeekClamp(video) {
+  if (!video || window.is_live || video._zeroSeekClamped) return;
+  const ua = navigator.userAgent || "";
+  const isFirefox = /Firefox\/\d/.test(ua) && !/Seamonkey\/\d/i.test(ua);
+  if (!isFirefox) return;
+
+  try {
+    const protoDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "currentTime");
+    if (protoDesc && typeof protoDesc.set === "function") {
+      Object.defineProperty(video, "currentTime", {
+        get() {
+          return protoDesc.get.call(this);
+        },
+        set(v) {
+          const t = Number(v);
+          protoDesc.set.call(this, t <= 0 && Number(this.duration) > 1 ? 0.1 : v);
+        },
+        configurable: true,
+      });
+      video._zeroSeekClamped = true;
+    }
+  } catch (e) {
+    console.warn("[Player] Could not install zero-seek clamp:", e);
+  }
+}
+
 class LiveStreamManager {
   constructor(videoElement, streamUrl, qualityList, qualityLabel) {
     this.video = videoElement;
@@ -1083,31 +1149,7 @@ async function initMikuPlayer() {
 
   if (!video) return;
 
-  // Firefox-only: its MSE evicts buffered data on seeks to exactly 0
-  // (seeks to 0.1 keep everything). Clamp zero seeks to 0.1s.
-  // Per MDN UA-sniffing guide: Firefox token present, Seamonkey excluded.
-  const _ua = navigator.userAgent || "";
-  const isFirefox = /Firefox\/\d/.test(_ua) && !/Seamonkey\/\d/i.test(_ua);
-  if (!window.is_live && isFirefox && !video._zeroSeekClamped) {
-    try {
-      const protoDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "currentTime");
-      if (protoDesc && typeof protoDesc.set === "function") {
-        Object.defineProperty(video, "currentTime", {
-          get() {
-            return protoDesc.get.call(this);
-          },
-          set(v) {
-            const t = Number(v);
-            protoDesc.set.call(this, t <= 0 && Number(this.duration) > 1 ? 0.1 : v);
-          },
-          configurable: true,
-        });
-        video._zeroSeekClamped = true;
-      }
-    } catch (e) {
-      console.warn("[Player] Could not install zero-seek clamp:", e);
-    }
-  }
+  installFirefoxZeroSeekClamp(video);
 
   // Clean up old buffer controller if it exists
   if (window.vodBufferController) {

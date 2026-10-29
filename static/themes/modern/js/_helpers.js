@@ -4,56 +4,7 @@
 // Contains only auxiliary methods
 // May be included and executed unlimited number of times without any consequences
 
-// Polyfills for IE11
-Array.prototype.find =
-  Array.prototype.find ||
-  function (condition) {
-    return this.filter(condition)[0];
-  };
-Array.from =
-  Array.from ||
-  function (source) {
-    return Array.prototype.slice.call(source);
-  };
-NodeList.prototype.forEach =
-  NodeList.prototype.forEach ||
-  function (callback) {
-    Array.from(this).forEach(callback);
-  };
-String.prototype.includes =
-  String.prototype.includes ||
-  function (searchString) {
-    return this.indexOf(searchString) >= 0;
-  };
-String.prototype.startsWith =
-  String.prototype.startsWith ||
-  function (prefix) {
-    return this.substr(0, prefix.length) === prefix;
-  };
-Math.sign =
-  Math.sign ||
-  function (x) {
-    x = +x;
-    if (!x) return x; // 0 and NaN
-    return x > 0 ? 1 : -1;
-  };
-if (
-  !window.hasOwnProperty("HTMLDetailsElement") &&
-  !window.hasOwnProperty("mockHTMLDetailsElement")
-) {
-  window.mockHTMLDetailsElement = true;
-  const style = "details:not([open]) > :not(summary) {display: none}";
-  document.head.appendChild(document.createElement("style")).textContent = style;
-
-  addEventListener("click", function (e) {
-    if (e.target.nodeName !== "SUMMARY") return;
-    const details = e.target.parentElement;
-    if (details.hasAttribute("open")) details.removeAttribute("open");
-    else details.setAttribute("open", "");
-  });
-}
-
-// Monstrous global variable for handy code
+// Shared helpers for modern browsers
 // Includes: clamp, xhr, storage.{get,set,remove}
 window.helpers = window.helpers || {
   /**
