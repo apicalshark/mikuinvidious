@@ -1,4 +1,5 @@
 use md5::{Digest, Md5};
+use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::fmt::Write;
@@ -44,12 +45,16 @@ fn percent_encode(s: &str) -> String {
 #[pyfunction]
 #[pyo3(signature = (params, mixin_key, wts=None))]
 pub fn sign_wbi_params<'py>(
-    _py: Python<'py>,
+    py: Python<'py>,
     params: &Bound<'py, PyDict>,
     mixin_key: &str,
     wts: Option<i64>,
 ) -> PyResult<Bound<'py, PyDict>> {
-    let _ = params.del_item("w_rid");
+    let k_w_rid = intern!(py, "w_rid");
+    let k_wts = intern!(py, "wts");
+    let k_web_location = intern!(py, "web_location");
+
+    let _ = params.del_item(k_w_rid);
 
     let final_wts = match wts {
         Some(t) => t,
@@ -58,12 +63,12 @@ pub fn sign_wbi_params<'py>(
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0),
     };
-    params.set_item("wts", final_wts)?;
+    params.set_item(k_wts, final_wts)?;
 
-    match params.get_item("web_location")? {
+    match params.get_item(k_web_location)? {
         Some(val) if !val.is_none() => {}
         _ => {
-            params.set_item("web_location", 1315873)?;
+            params.set_item(k_web_location, 1315873)?;
         }
     }
 
@@ -90,8 +95,13 @@ pub fn sign_wbi_params<'py>(
     let mut hasher = Md5::new();
     hasher.update(query.as_bytes());
     let hash = hasher.finalize();
-    let w_rid = hex::encode(hash);
+    let mut w_rid = String::with_capacity(32);
+    const HEX_CHARS: &[u8; 16] = b"0123456789abcdef";
+    for &b in hash.as_slice() {
+        w_rid.push(HEX_CHARS[(b >> 4) as usize] as char);
+        w_rid.push(HEX_CHARS[(b & 0xf) as usize] as char);
+    }
 
-    params.set_item("w_rid", w_rid)?;
+    params.set_item(k_w_rid, w_rid)?;
     Ok(params.clone())
 }

@@ -4,6 +4,8 @@ MikuInvidious includes an optional native Rust extension (`crates/miku_core_rs`)
 
 The extension offloads high-volume, CPU-bound operations from Python to Rust, drastically improving response latency and concurrency under heavy traffic.
 
+For the ongoing migration roadmap, module status, and candidate workloads under evaluation, see [Rust Backend Rewrite & Coexistence Progress](rust-rewrite-progress.md).
+
 ---
 
 ## 1. Accelerated Operations

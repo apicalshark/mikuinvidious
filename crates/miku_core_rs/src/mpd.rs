@@ -1,9 +1,7 @@
-use std::io::Cursor;
+use std::fmt::Write;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
-use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
-use quick_xml::writer::Writer;
 
 fn extract_init_range(sb: &Bound<'_, PyDict>) -> String {
     let init = sb
@@ -263,138 +261,103 @@ pub fn generate_vod_mpd(
 
     let vid_str = vid.to_string();
 
-    // Release GIL during structured XML writing
+    // Release GIL during direct buffered XML construction (zero intermediate allocations)
     let result = py.detach(move || -> String {
-        let mut writer = Writer::new_with_indent(Cursor::new(Vec::with_capacity(4096)), b' ', 2);
-
-        // <MPD ...>
-        let mut mpd_start = BytesStart::new("MPD");
-        mpd_start.push_attribute(("xmlns", "urn:mpeg:dash:schema:mpd:2011"));
-        mpd_start.push_attribute(("profiles", "urn:mpeg:dash:profile:isoff-on-demand:2011"));
-        mpd_start.push_attribute(("type", "static"));
-        let duration_str = format!("PT{}S", duration);
+        let mut mpd = String::with_capacity(3072);
+        mpd.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        mpd.push_str("<MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\" profiles=\"urn:mpeg:dash:profile:isoff-on-demand:2011\" type=\"static\"");
         if duration > 0 {
-            mpd_start.push_attribute(("mediaPresentationDuration", duration_str.as_str()));
+            let _ = write!(mpd, " mediaPresentationDuration=\"PT{}S\"", duration);
         }
-        let min_buffer_str = format!("PT{}S", min_buffer);
-        mpd_start.push_attribute(("minBufferTime", min_buffer_str.as_str()));
-        let _ = writer.write_event(Event::Start(mpd_start));
-
-        // <Period id="1" start="PT0S">
-        let mut period_start = BytesStart::new("Period");
-        period_start.push_attribute(("id", "1"));
-        period_start.push_attribute(("start", "PT0S"));
-        let _ = writer.write_event(Event::Start(period_start));
+        let _ = writeln!(mpd, " minBufferTime=\"PT{}S\">", min_buffer);
+        mpd.push_str("  <Period id=\"1\" start=\"PT0S\">\n");
 
         let mut as_id = 1;
         for (_codecid, codecs_str, tracks) in codec_groups {
-            let mut as_start = BytesStart::new("AdaptationSet");
-            let as_id_str = as_id.to_string();
-            as_start.push_attribute(("id", as_id_str.as_str()));
-            as_start.push_attribute(("contentType", "video"));
-            as_start.push_attribute(("mimeType", "video/mp4"));
-            as_start.push_attribute(("codecs", codecs_str.as_str()));
-            as_start.push_attribute(("segmentAlignment", "true"));
-            as_start.push_attribute(("subsegmentAlignment", "true"));
-            as_start.push_attribute(("startWithSAP", "1"));
-            let _ = writer.write_event(Event::Start(as_start));
+            let _ = writeln!(
+                mpd,
+                "    <AdaptationSet id=\"{}\" contentType=\"video\" mimeType=\"video/mp4\" codecs=\"{}\" segmentAlignment=\"true\" subsegmentAlignment=\"true\" startWithSAP=\"1\">",
+                as_id, codecs_str
+            );
 
             for vt in tracks {
-                let track_codecs = vt.codecs.as_deref().unwrap_or(codecs_str.as_str());
-                let mut rep_start = BytesStart::new("Representation");
-                let rep_id = format!("video_{}_{}", vt.qn, vt.cid);
-                rep_start.push_attribute(("id", rep_id.as_str()));
-                rep_start.push_attribute(("codecs", track_codecs));
-                let bw_str = vt.bandwidth.to_string();
-                rep_start.push_attribute(("bandwidth", bw_str.as_str()));
-                let w_str = vt.width.to_string();
-                rep_start.push_attribute(("width", w_str.as_str()));
-                let h_str = vt.height.to_string();
-                rep_start.push_attribute(("height", h_str.as_str()));
-                rep_start.push_attribute(("frameRate", vt.frame_rate.as_str()));
-                let _ = writer.write_event(Event::Start(rep_start));
-
-                // <BaseURL>
-                let base_url =
-                    format!("/proxy/dash/{}/{}/video/{}/{}", vid_str, idx, vt.qn, vt.cid);
-                let _ = writer.write_event(Event::Start(BytesStart::new("BaseURL")));
-                let _ = writer.write_event(Event::Text(BytesText::new(&base_url)));
-                let _ = writer.write_event(Event::End(BytesEnd::new("BaseURL")));
-
-                // <SegmentBase>
-                let mut sb_start = BytesStart::new("SegmentBase");
-                sb_start.push_attribute(("indexRange", vt.index_range.as_str()));
-                if !vt.index_range.is_empty() {
-                    sb_start.push_attribute(("indexRangeExact", "true"));
-                }
-                let _ = writer.write_event(Event::Start(sb_start));
-
-                // <Initialization>
-                let mut init_start = BytesStart::new("Initialization");
-                init_start.push_attribute(("range", vt.init_range.as_str()));
-                let _ = writer.write_event(Event::Empty(init_start));
-
-                let _ = writer.write_event(Event::End(BytesEnd::new("SegmentBase")));
-                let _ = writer.write_event(Event::End(BytesEnd::new("Representation")));
+                let track_codecs = vt.codecs.as_deref().unwrap_or(&codecs_str);
+                let index_exact = if !vt.index_range.is_empty() {
+                    " indexRangeExact=\"true\""
+                } else {
+                    ""
+                };
+                let _ = writeln!(
+                    mpd,
+                    "      <Representation id=\"video_{}_{}\" codecs=\"{}\" bandwidth=\"{}\" width=\"{}\" height=\"{}\" frameRate=\"{}\">",
+                    vt.qn, vt.cid, track_codecs, vt.bandwidth, vt.width, vt.height, vt.frame_rate
+                );
+                let _ = writeln!(
+                    mpd,
+                    "        <BaseURL>/proxy/dash/{}/{}/video/{}/{}</BaseURL>",
+                    vid_str, idx, vt.qn, vt.cid
+                );
+                let _ = writeln!(
+                    mpd,
+                    "        <SegmentBase indexRange=\"{}\"{}>",
+                    vt.index_range, index_exact
+                );
+                let _ = writeln!(
+                    mpd,
+                    "          <Initialization range=\"{}\"/>",
+                    vt.init_range
+                );
+                mpd.push_str("        </SegmentBase>\n");
+                mpd.push_str("      </Representation>\n");
             }
 
-            let _ = writer.write_event(Event::End(BytesEnd::new("AdaptationSet")));
+            mpd.push_str("    </AdaptationSet>\n");
             as_id += 1;
         }
 
         if !audio_tracks.is_empty() {
-            let mut as_start = BytesStart::new("AdaptationSet");
-            let as_id_str = as_id.to_string();
-            as_start.push_attribute(("id", as_id_str.as_str()));
-            as_start.push_attribute(("contentType", "audio"));
-            as_start.push_attribute(("mimeType", "audio/mp4"));
-            as_start.push_attribute(("segmentAlignment", "true"));
-            as_start.push_attribute(("subsegmentAlignment", "true"));
-            as_start.push_attribute(("startWithSAP", "1"));
-            let _ = writer.write_event(Event::Start(as_start));
+            let _ = writeln!(
+                mpd,
+                "    <AdaptationSet id=\"{}\" contentType=\"audio\" mimeType=\"audio/mp4\" segmentAlignment=\"true\" subsegmentAlignment=\"true\" startWithSAP=\"1\">",
+                as_id
+            );
 
             for at in audio_tracks {
-                let mut rep_start = BytesStart::new("Representation");
-                let rep_id = format!("audio_{}_{}", at.qn, at.cid);
-                rep_start.push_attribute(("id", rep_id.as_str()));
-                rep_start.push_attribute(("codecs", at.codecs.as_str()));
-                let bw_str = at.bandwidth.to_string();
-                rep_start.push_attribute(("bandwidth", bw_str.as_str()));
-                let _ = writer.write_event(Event::Start(rep_start));
-
-                // <BaseURL>
-                let base_url =
-                    format!("/proxy/dash/{}/{}/audio/{}/{}", vid_str, idx, at.qn, at.cid);
-                let _ = writer.write_event(Event::Start(BytesStart::new("BaseURL")));
-                let _ = writer.write_event(Event::Text(BytesText::new(&base_url)));
-                let _ = writer.write_event(Event::End(BytesEnd::new("BaseURL")));
-
-                // <SegmentBase>
-                let mut sb_start = BytesStart::new("SegmentBase");
-                sb_start.push_attribute(("indexRange", at.index_range.as_str()));
-                if !at.index_range.is_empty() {
-                    sb_start.push_attribute(("indexRangeExact", "true"));
-                }
-                let _ = writer.write_event(Event::Start(sb_start));
-
-                // <Initialization>
-                let mut init_start = BytesStart::new("Initialization");
-                init_start.push_attribute(("range", at.init_range.as_str()));
-                let _ = writer.write_event(Event::Empty(init_start));
-
-                let _ = writer.write_event(Event::End(BytesEnd::new("SegmentBase")));
-                let _ = writer.write_event(Event::End(BytesEnd::new("Representation")));
+                let index_exact = if !at.index_range.is_empty() {
+                    " indexRangeExact=\"true\""
+                } else {
+                    ""
+                };
+                let _ = writeln!(
+                    mpd,
+                    "      <Representation id=\"audio_{}_{}\" codecs=\"{}\" bandwidth=\"{}\">",
+                    at.qn, at.cid, at.codecs, at.bandwidth
+                );
+                let _ = writeln!(
+                    mpd,
+                    "        <BaseURL>/proxy/dash/{}/{}/audio/{}/{}</BaseURL>",
+                    vid_str, idx, at.qn, at.cid
+                );
+                let _ = writeln!(
+                    mpd,
+                    "        <SegmentBase indexRange=\"{}\"{}>",
+                    at.index_range, index_exact
+                );
+                let _ = writeln!(
+                    mpd,
+                    "          <Initialization range=\"{}\"/>",
+                    at.init_range
+                );
+                mpd.push_str("        </SegmentBase>\n");
+                mpd.push_str("      </Representation>\n");
             }
 
-            let _ = writer.write_event(Event::End(BytesEnd::new("AdaptationSet")));
+            mpd.push_str("    </AdaptationSet>\n");
         }
 
-        let _ = writer.write_event(Event::End(BytesEnd::new("Period")));
-        let _ = writer.write_event(Event::End(BytesEnd::new("MPD")));
-
-        let inner = writer.into_inner().into_inner();
-        let xml_str = String::from_utf8(inner).unwrap_or_default();
-        format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n{}", xml_str)
+        mpd.push_str("  </Period>\n");
+        mpd.push_str("</MPD>");
+        mpd
     });
 
     Ok(Some(result))

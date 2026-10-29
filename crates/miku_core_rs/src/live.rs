@@ -1,6 +1,7 @@
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 
 use byteorder::{BigEndian, ReadBytesExt};
+use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
@@ -47,19 +48,19 @@ struct ParsedPacket {
 fn json_to_py<'py>(py: Python<'py>, val: &serde_json::Value) -> PyResult<Bound<'py, PyAny>> {
     match val {
         serde_json::Value::Null => Ok(py.None().into_bound(py)),
-        serde_json::Value::Bool(b) => Ok(b.into_pyobject(py)?.to_owned().into_any()),
+        serde_json::Value::Bool(b) => Ok(pyo3::types::PyBool::new(py, *b).to_owned().into_any()),
         serde_json::Value::Number(n) => {
             if let Some(i) = n.as_i64() {
-                Ok(i.into_pyobject(py)?.to_owned().into_any())
+                Ok(i.into_pyobject(py)?.into_any())
             } else if let Some(u) = n.as_u64() {
-                Ok(u.into_pyobject(py)?.to_owned().into_any())
+                Ok(u.into_pyobject(py)?.into_any())
             } else if let Some(f) = n.as_f64() {
-                Ok(f.into_pyobject(py)?.to_owned().into_any())
+                Ok(f.into_pyobject(py)?.into_any())
             } else {
                 Ok(py.None().into_bound(py))
             }
         }
-        serde_json::Value::String(s) => Ok(s.into_pyobject(py)?.to_owned().into_any()),
+        serde_json::Value::String(s) => Ok(pyo3::types::PyString::new(py, s).into_any()),
         serde_json::Value::Array(arr) => {
             let list = PyList::empty(py);
             for item in arr {
@@ -70,7 +71,15 @@ fn json_to_py<'py>(py: Python<'py>, val: &serde_json::Value) -> PyResult<Bound<'
         serde_json::Value::Object(map) => {
             let dict = PyDict::new(py);
             for (k, v) in map {
-                dict.set_item(k, json_to_py(py, v)?)?;
+                let py_val = json_to_py(py, v)?;
+                match k.as_str() {
+                    "cmd" => dict.set_item(intern!(py, "cmd"), py_val)?,
+                    "info" => dict.set_item(intern!(py, "info"), py_val)?,
+                    "data" => dict.set_item(intern!(py, "data"), py_val)?,
+                    "code" => dict.set_item(intern!(py, "code"), py_val)?,
+                    "msg" => dict.set_item(intern!(py, "msg"), py_val)?,
+                    _ => dict.set_item(k, py_val)?,
+                }
             }
             Ok(dict.into_any())
         }
@@ -100,10 +109,10 @@ fn parse_packets_internal(data: &[u8]) -> Vec<ParsedPacket> {
 
     let content = if header.protocol_version == PROTOCOL_VERSION_BROTLI_JSON {
         let mut decompressed = Vec::with_capacity(data.len() * 4);
-        let mut reader = brotli::Decompressor::new(&data[16..], 4096);
-        match reader.read_to_end(&mut decompressed) {
-            Ok(_) => decompressed,
-            Err(_) => data[16..].to_vec(),
+        if brotli::BrotliDecompress(&mut &data[16..], &mut decompressed).is_ok() {
+            decompressed
+        } else {
+            data[16..].to_vec()
         }
     } else {
         data.to_vec()
@@ -125,6 +134,9 @@ fn parse_packets_internal(data: &[u8]) -> Vec<ParsedPacket> {
         let chunk = &content[offset + 16..offset + inner_len];
 
         let pkt_data = if inner_hdr.datapack_type == DATAPACK_TYPE_HEARTBEAT_RESPONSE {
+            if chunk.len() < 4 {
+                break;
+            }
             let mut view_rdr = Cursor::new(chunk);
             let view = match view_rdr.read_u32::<BigEndian>() {
                 Ok(v) => v,
@@ -160,23 +172,28 @@ fn parse_packets_internal(data: &[u8]) -> Vec<ParsedPacket> {
 pub fn unpack_live_danmaku<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Bound<'py, PyList>> {
     let packets = py.detach(|| parse_packets_internal(data));
 
+    let k_proto = intern!(py, "protocol_version");
+    let k_type = intern!(py, "datapack_type");
+    let k_data = intern!(py, "data");
+    let k_view = intern!(py, "view");
+
     let out_list = PyList::empty(py);
     for pkt in packets {
         let dict = PyDict::new(py);
-        dict.set_item("protocol_version", pkt.protocol_version)?;
-        dict.set_item("datapack_type", pkt.datapack_type)?;
+        dict.set_item(k_proto, pkt.protocol_version)?;
+        dict.set_item(k_type, pkt.datapack_type)?;
 
         match pkt.data {
             PacketData::View(view) => {
                 let vdict = PyDict::new(py);
-                vdict.set_item("view", view)?;
-                dict.set_item("data", vdict)?;
+                vdict.set_item(k_view, view)?;
+                dict.set_item(k_data, vdict)?;
             }
             PacketData::Json(ref j) => {
-                dict.set_item("data", json_to_py(py, j)?)?;
+                dict.set_item(k_data, json_to_py(py, j)?)?;
             }
             PacketData::None => {
-                dict.set_item("data", py.None())?;
+                dict.set_item(k_data, py.None())?;
             }
         }
         out_list.append(dict)?;
