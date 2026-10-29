@@ -13,8 +13,10 @@ WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1 UV_NO_CACHE=1 UV_NO_DEV=1
 
-# Install ffmpeg (used to mux DASH video+audio into a single downloadable MP4)
-RUN apk add --no-cache ffmpeg
+# Install ffmpeg (used to mux DASH video+audio into a single downloadable MP4) and mimalloc
+RUN apk add --no-cache ffmpeg mimalloc2
+
+ENV LD_PRELOAD=/usr/lib/libmimalloc.so.2
 
 # Create non-root user
 RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser \
