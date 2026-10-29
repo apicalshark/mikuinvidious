@@ -19,7 +19,6 @@ dependencies = [
     "markupsafe>=3.0.3",
     "pysocks>=1.7.1",
     "quart>=0.20.0",
-    "quart-session>=3.0.0",
     "redis>=7.4.0",
     "uvloop>=0.22.1",
     "werkzeug>=3.1.7",

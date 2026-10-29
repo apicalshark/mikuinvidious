@@ -596,7 +596,6 @@ dependencies = [
     { name = "pyquery" },
     { name = "pysocks" },
     { name = "quart" },
-    { name = "quart-session" },
     { name = "redis" },
     { name = "rtoml" },
     { name = "uvloop" },
@@ -628,7 +627,6 @@ requires-dist = [
     { name = "pyquery", specifier = ">=2.0.1" },
     { name = "pysocks", specifier = ">=1.7.1" },
     { name = "quart", specifier = ">=0.20.0" },
-    { name = "quart-session", specifier = ">=3.0.0" },
     { name = "redis", specifier = ">=7.4.0" },
     { name = "rtoml", specifier = ">=0.14.0" },
     { name = "uvloop", specifier = ">=0.22.1" },
@@ -864,15 +862,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/6b/81/34396f67e09e7a060
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5c/c1/26dca56249da1a889ebb946000ab272712476209234f714ad3e8013ee005/quart-0.23.1-py3-none-any.whl", hash = "sha256:78cf3a7249ab09f9e03d78b0b5e2472c4c09ce4615a99c2b1aa9a35261243b66", size = 79388, upload-time = "2026-08-29T15:58:34.147Z" },
 ]
-
-[[package]]
-name = "quart-session"
-version = "3.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "quart" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/1c/15/87047bb2139166cd8ee7f18148b7d7cf58f60b71d27e978fd47f7db6fd2b/Quart-Session-3.0.0.tar.gz", hash = "sha256:b9c466c705773f13141b210ac6b20381b667c6a518e7aa49bb134cdde80f3bb6", size = 14123, upload-time = "2023-11-24T02:13:05.505Z" }
 
 [[package]]
 name = "redis"
