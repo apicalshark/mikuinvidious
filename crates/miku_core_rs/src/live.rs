@@ -1,5 +1,6 @@
-use std::io::Read;
+use std::io::{Cursor, Read};
 
+use byteorder::{BigEndian, ReadBytesExt};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 
@@ -12,6 +13,29 @@ enum PacketData {
     View(u32),
     Json(serde_json::Value),
     None,
+}
+
+struct PacketHeader {
+    packet_length: u32,
+    _header_length: u16,
+    protocol_version: u16,
+    datapack_type: u32,
+    _sequence_id: u32,
+}
+
+fn read_header(rdr: &mut Cursor<&[u8]>) -> Option<PacketHeader> {
+    let packet_length = rdr.read_u32::<BigEndian>().ok()?;
+    let _header_length = rdr.read_u16::<BigEndian>().ok()?;
+    let protocol_version = rdr.read_u16::<BigEndian>().ok()?;
+    let datapack_type = rdr.read_u32::<BigEndian>().ok()?;
+    let _sequence_id = rdr.read_u32::<BigEndian>().ok()?;
+    Some(PacketHeader {
+        packet_length,
+        _header_length,
+        protocol_version,
+        datapack_type,
+        _sequence_id,
+    })
 }
 
 struct ParsedPacket {
@@ -58,23 +82,23 @@ fn parse_packets_internal(data: &[u8]) -> Vec<ParsedPacket> {
         return Vec::new();
     }
 
-    let protover = u16::from_be_bytes([data[6], data[7]]);
-    let datapack_type = u32::from_be_bytes([data[8], data[9], data[10], data[11]]);
+    let mut rdr = Cursor::new(data);
+    let Some(header) = read_header(&mut rdr) else {
+        return Vec::new();
+    };
 
-    if protover == PROTOCOL_VERSION_HEARTBEAT && datapack_type == DATAPACK_TYPE_HEARTBEAT_RESPONSE {
-        let view = if data.len() >= 20 {
-            u32::from_be_bytes([data[16], data[17], data[18], data[19]])
-        } else {
-            0
-        };
+    if header.protocol_version == PROTOCOL_VERSION_HEARTBEAT
+        && header.datapack_type == DATAPACK_TYPE_HEARTBEAT_RESPONSE
+    {
+        let view = rdr.read_u32::<BigEndian>().unwrap_or(0);
         return vec![ParsedPacket {
-            protocol_version: protover,
-            datapack_type,
+            protocol_version: header.protocol_version,
+            datapack_type: header.datapack_type,
             data: PacketData::View(view),
         }];
     }
 
-    let content = if protover == PROTOCOL_VERSION_BROTLI_JSON {
+    let content = if header.protocol_version == PROTOCOL_VERSION_BROTLI_JSON {
         let mut decompressed = Vec::with_capacity(data.len() * 4);
         let mut reader = brotli::Decompressor::new(&data[16..], 4096);
         match reader.read_to_end(&mut decompressed) {
@@ -88,37 +112,29 @@ fn parse_packets_internal(data: &[u8]) -> Vec<ParsedPacket> {
     let mut packets = Vec::new();
     let mut offset = 0;
     while offset + 16 <= content.len() {
-        let inner_len = u32::from_be_bytes([
-            content[offset],
-            content[offset + 1],
-            content[offset + 2],
-            content[offset + 3],
-        ]) as usize;
+        let mut inner_rdr = Cursor::new(&content[offset..]);
+        let Some(inner_hdr) = read_header(&mut inner_rdr) else {
+            break;
+        };
 
+        let inner_len = inner_hdr.packet_length as usize;
         if inner_len <= 16 || offset + inner_len > content.len() {
             break;
         }
 
-        let inner_proto = u16::from_be_bytes([content[offset + 6], content[offset + 7]]);
-        let inner_type = u32::from_be_bytes([
-            content[offset + 8],
-            content[offset + 9],
-            content[offset + 10],
-            content[offset + 11],
-        ]);
         let chunk = &content[offset + 16..offset + inner_len];
 
-        let pkt_data = if inner_type == DATAPACK_TYPE_HEARTBEAT_RESPONSE {
-            if chunk.len() < 4 {
-                break;
-            }
-            let view = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+        let pkt_data = if inner_hdr.datapack_type == DATAPACK_TYPE_HEARTBEAT_RESPONSE {
+            let mut view_rdr = Cursor::new(chunk);
+            let view = match view_rdr.read_u32::<BigEndian>() {
+                Ok(v) => v,
+                Err(_) => break,
+            };
             PacketData::View(view)
         } else {
             match serde_json::from_slice::<serde_json::Value>(chunk) {
                 Ok(v) => PacketData::Json(v),
                 Err(_) => {
-                    // Try lossy utf-8
                     let s = String::from_utf8_lossy(chunk);
                     match serde_json::from_str::<serde_json::Value>(&s) {
                         Ok(v) => PacketData::Json(v),
@@ -129,8 +145,8 @@ fn parse_packets_internal(data: &[u8]) -> Vec<ParsedPacket> {
         };
 
         packets.push(ParsedPacket {
-            protocol_version: inner_proto,
-            datapack_type: inner_type,
+            protocol_version: inner_hdr.protocol_version,
+            datapack_type: inner_hdr.datapack_type,
             data: pkt_data,
         });
 
