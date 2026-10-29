@@ -16,6 +16,7 @@
 """Server-Side danmaku translation"""
 
 import html
+import json
 import re
 
 # Fallback extractor for payloads the strict XML parser rejects (upstream
@@ -25,6 +26,30 @@ import re
 # stripped so one bad node can't kill the whole file.
 _DANMAKU_RE = re.compile(r'<d\s+p="([^"]*)">(.*?)</d>', re.S)
 _TAG_RE = re.compile(r"<[^>]+>")
+
+try:
+    from miku_core_rs import parse_danmaku_xml
+except ImportError:
+    parse_danmaku_xml = None
+
+
+def parse_danmaku(xml_text: str | None) -> list[dict]:
+    """Parse danmaku XML into list of dictionaries.
+
+    Uses high-performance Rust parser (with GIL detachment) when available;
+    gracefully falls back to pure Python regex extraction on failure or when
+    the native extension is absent.
+    """
+    if not xml_text or not isinstance(xml_text, str):
+        return []
+
+    if parse_danmaku_xml is not None:
+        try:
+            return parse_danmaku_xml(xml_text)
+        except Exception:
+            pass
+
+    return danmaku_xml_fallback(xml_text)
 
 
 def _danmaku_entry(p_str, text):
@@ -36,6 +61,20 @@ def _danmaku_entry(p_str, text):
         m = ({"6": "ltr", "1": "rtl", "5": "top", "4": "bottom", "7": "rtl", "8": "rtl"})[p[1]]
     except KeyError, IndexError:
         return {}
+
+    if not text:
+        return {}
+
+    if len(p) > 1 and p[1] == "7" and text.startswith("["):
+        try:
+            arr = json.loads(text)
+            if isinstance(arr, list):
+                if len(arr) >= 5 and isinstance(arr[4], str):
+                    text = arr[4]
+                elif len(arr) > 0 and isinstance(arr[0], list) and len(arr[0]) >= 5 and isinstance(arr[0][4], str):
+                    text = arr[0][4]
+        except Exception:
+            pass
 
     if not text:
         return {}

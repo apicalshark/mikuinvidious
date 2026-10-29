@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, ng, stable]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint & Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Set up uv & Python
+        uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+          python-version: "3.15"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          uv sync
+          npm ci
+
+      - name: Build native Rust extension
+        run: npm run build:rust
+
+      - name: Run lint checks
+        run: npm run lint
+
+      - name: Check bytecode compilation
+        run: npm run check:compile
+
+      - name: Run unit test suite
+        run: npm test
+
+      - name: Run benchmark sanity check
+        run: uv run python tools/benchmark_danmaku.py

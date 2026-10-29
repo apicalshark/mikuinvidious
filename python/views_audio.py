@@ -71,8 +71,8 @@ async def audio_view(auid):
             get_audio_url(),
             return_exceptions=True,
         )
-        ainfo = results[0] if not isinstance(results[0], Exception) else {}
-        acomments = results[1] if not isinstance(results[1], Exception) else {"page": {"count": 0}, "replies": []}
+        ainfo = results[0] if isinstance(results[0], dict) else {}
+        acomments = results[1] if isinstance(results[1], dict) else {"page": {"count": 0}, "replies": []}
         if cache_ttl > 0 and isinstance(ainfo, dict) and ainfo:
             await cache_set(cache_key, {"ainfo": ainfo}, cache_ttl)
     vinfo = {
@@ -173,10 +173,10 @@ async def audio_list_view(amid, idx=0):
             return_exceptions=True,
         )
         ainfo, list_info = (
-            results[0] if not isinstance(results[0], Exception) else {},
-            results[1] if not isinstance(results[1], Exception) else {},
+            results[0] if isinstance(results[0], dict) else {},
+            results[1] if isinstance(results[1], dict) else {},
         )
-        acomments = results[2] if not isinstance(results[2], Exception) else {"page": {"count": 0}, "replies": []}
+        acomments = results[2] if isinstance(results[2], dict) else {"page": {"count": 0}, "replies": []}
         if cache_ttl > 0 and songs and isinstance(ainfo, dict) and ainfo:
             await cache_set(cache_key, {"songs": songs, "ainfo": ainfo, "list_info": list_info}, cache_ttl)
     vinfo = {
@@ -220,5 +220,3 @@ async def audio_list_view(amid, idx=0):
     if cache_ttl > 0:
         return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT" if cache_hit else "MISS"})
     return html
-
-

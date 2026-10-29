@@ -4,7 +4,7 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 
 ## Core Technologies
 
-- **Language:** Python 3.15+
+- **Language:** Python 3.15+ & Rust (Native PyO3 acceleration module `miku_core_rs`, targeting Stable ABI `abi3-py315`, with complete pure-Python fallbacks)
 - **Web Framework:** [Quart](https://pgjones.gitlab.io/quart/) (Modern asynchronous web framework)
 - **Web Server:** [Caddy](https://caddyserver.com/) (Reverse proxy) + [Granian](https://github.com/emmett-framework/granian) (Rust-powered ASGI server)
 - **Database/Cache:** [Redis](https://redis.io/) (required for caching video URLs, session management, and credential storage)
@@ -16,10 +16,11 @@ MikuInvidious is a free and open-source frontend for Bilibili, inspired by Invid
 
 ### High-Level Design
 
-The system uses **Caddy** as a reverse proxy and static file server, which forwards application requests to **Granian** running the **Quart** (ASGI) application. All logic and proxying are handled within the Quart application using asynchronous I/O.
+The system uses **Caddy** as a reverse proxy and static file server, which forwards application requests to **Granian** running the **Quart** (ASGI) application. All logic and proxying are handled within the Quart application using asynchronous I/O, with compute-heavy paths (Danmaku XML streaming parsing, WBI parameter signing) accelerated by native Rust extensions (`miku_core_rs`) with pure-Python fallbacks.
 
 - **Reverse Proxy (Caddy):** Handles incoming traffic (port 8000), serves static assets, and proxies requests to the ASGI server.
 - **ASGI Server (Granian):** Runs the Quart application (port 8080 in Docker).
+- **Native Acceleration (`crates/miku_core_rs`):** High-performance Rust extension (PyO3 0.30+, Stable ABI `abi3-py315`) for zero-copy Danmaku XML parsing and RFC 3986 WBI parameter signing.
 - **App Logic (`app.py`):** Main entry point for the application, registering blueprints and routes.
 - **Media Proxy (`proxy.py`, `dash_proxy.py`):** Streams video/images via raw-socket `CdnConnection` (direct, or through WARP SOCKS5 when configured). Uses `ProxyResponse` + `ClosingIterator` to prevent file descriptor leaks.
 - **Network Transport:** Optional **Cloudflare WARP** (via SOCKS5) for traffic to Bilibili — required on datacenter IPs (risk-control 412s), unnecessary on residential links (direct fallback).
@@ -94,7 +95,7 @@ graph TD
 
 - **Application Logic:**
   - `app.py`: Initializes the Quart app, error handlers, and registers blueprints.
-  - `views.py`: Facade module synchronizing routes and attributes across submodules (`views_home.py`, `views_space.py`, `views_live.py`, `views_video.py`, `views_audio.py`).
+  - `views.py`: Static re-export facade synchronizing routes and attributes across submodules (`views_home.py`, `views_space.py`, `views_live.py`, `views_video.py`, `views_audio.py`).
     - `views_home.py`: Index, zone feeds, search, history, b23 conversion (`/convert`, `/api/convert`), and licenses views.
     - `views_space.py`: User space, space JSON feed, author profile, and article/opus (`read_view`) routes.
     - `views_live.py`: Live room, categories, and stream views.
@@ -103,7 +104,7 @@ graph TD
   - `views_bangumi.py`: Blueprint for Bangumi (Anime/Show) indexing and playback.
   - `shared.py`: Centralized configuration, `httpx` client management, Redis connection, and theming utilities.
   - `proxy.py`: Progressive (`/proxy/video/`) + image proxying via `CdnConnection`.
-  - `dash_proxy.py`: Canonical DASH facade synchronizing attributes across DASH submodules (`dash_common.py`, `dash_fetch.py`, `dash_mpd.py`, `dash_stream.py`, `dash_download_track.py`, `dash_download_job.py`).
+  - `dash_proxy.py`: Canonical DASH static re-export facade across DASH submodules (`dash_common.py`, `dash_fetch.py`, `dash_mpd.py`, `dash_stream.py`, `dash_download_track.py`, `dash_download_job.py`).
     - `dash_common.py`: Constants, types, mirror health/range-shy caches, and helper functions.
     - `dash_fetch.py`: Playurl retrieval, Redis caching, signature freshness, and fallback resolution.
     - `dash_mpd.py`: Dynamic ISO/IEC 23009-1 DASH MPD manifest generation.
@@ -111,7 +112,7 @@ graph TD
     - `dash_download_track.py`: Segmented track downloading, adaptive pacing, slowdown watchdog, and ffmpeg muxing.
     - `dash_download_job.py`: Download job registry, queue concurrency management, REST API endpoints, and legacy streaming fallback.
   - `live_manager.py`: Manages persistent live stream connections, chunk buffering, and heartbeat (Type 18) injection.
-  - `danmaku.py`: Fetches and converts Bilibili danmaku.
+  - `danmaku.py`: Fetches and converts Bilibili danmaku (native `miku_core_rs` streaming parser with pure-Python fallback).
   - `nyaa.py`: Scraper and helper for searching Nyaa.si torrents (integrated into Bangumi view).
   - `extra.py`: Utilities for article-to-HTML conversion and ID manipulation.
   - `transformers.py`: Data transformation logic to standardize API responses for the frontend.
@@ -120,7 +121,7 @@ graph TD
   - `refresher.py`: Utility to refresh Bilibili credentials.
   - `api/`: Local Bilibili API client.
     - `api/__init__.py`: Exports all public symbols (Credential, video, user, etc.)
-    - `api/client.py`: HTTP client with Wbi signing, bili_ticket, auto-cookies, retry logic
+    - `api/client.py`: HTTP client with Wbi signing (native `miku_core_rs` with Python fallback), bili_ticket, auto-cookies, retry logic
     - `api/credential.py`: Credential class for auth
     - `api/exceptions.py`: ArgsException, ResponseCodeException
     - `api/video.py`: Video class (info, tags, related, pages, cid, playurl, danmaku)
@@ -133,6 +134,12 @@ graph TD
     - `api/article.py`, `api/opus.py`: Article/Opus classes
     - `api/homepage.py`, `api/video_zone.py`: Homepage/zone feeds
     - `data/bangumi_index_params.json`: Copied from bilibili_api package
+
+- **Native Rust Extensions (`crates/miku_core_rs/`):**
+  - High-performance Rust extension using PyO3 0.30+ targeting Python 3.15+ Stable ABI (`abi3-py315`) via Maturin 1.15+.
+  - `src/danmaku.rs`: Zero-copy streaming Danmaku XML parser using `quick-xml 0.42` (`read_event()`, `Event::GeneralRef`, XML 1.0 normalization) with GIL detachment (`py.allow_threads`) (~4.5x faster than pure-Python).
+  - `src/wbi.rs`: Native RFC 3986 parameter signer and MD5 hasher (~3.5x faster than pure-Python).
+  - Optional at runtime: if `miku_core_rs` is not compiled/installed, transparent pure-Python fallbacks activate automatically.
 
 ## Playback & Download Stack
 
@@ -249,11 +256,15 @@ The production infrastructure consists of four orchestrated services defined in 
 | **`redis`** | `redis:alpine` | Persists sessions and caches API responses. |
 | **`warp`** | `caomingjun/warp` | SOCKS5 proxy (port `1080`) for Bilibili API/CDN traffic. Optional — only needed on datacenter IPs; residential links connect directly. |
 
+The `Dockerfile` employs a multi-stage build:
+- **Stage 1 (`rust-builder`):** Compiles the `miku_core_rs` native extension wheel in release mode using `maturin` and `cargo` on Alpine.
+- **Stage 2 (Runtime):** Copies and installs the pre-built wheel alongside Python dependencies into a clean Alpine runtime containing `ffmpeg`, keeping the production image slim and free of compiler dependencies.
+
 ## Configuration
 
 Configuration is managed via `config.toml` (recommended) or Environment Variables.
 
-- **`[site]`**: Metadata, Robots policy, and source code link.
+- **`[site]`**: Metadata, Robots policy, and source code link. `site_url` defaults to `http://localhost:8888` (preventing session cookies from being dropped in local HTTP development). Session cookie `Secure` flag dynamically derives from `site_url.startswith("https://")`, and cookies enforce `SameSite=Lax`. Setting the `SITE_URL` environment variable explicitly overrides `config.toml` `site_url`.
 - **`[server]`**: Host and port settings (Default: 8888 for manual run), plus `access_log`/`SERVER_ACCESS_LOG` (Granian per-request access log, default off — it buries app logs at one line per segment/image/poll).
 - **`[credential]`**: Bilibili cookies (SESSDATA, etc.) for authenticated access.
 - **`[proxy]`**: Global toggle for media proxying.
@@ -275,14 +286,22 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 
 ### Manual Development Setup
 
-1. **Prerequisites:** Python 3.15+, Redis server running.
-2. **Install Dependencies:**
+1. **Prerequisites:** Python 3.15+, Redis server running, optional Rust toolchain (cargo).
+2. **Install Python Dependencies:**
 
     ```bash
     uv sync
     ```
 
-3. **Run:**
+3. **Build Native Rust Extension (Optional):**
+
+    ```bash
+    npm run build:rust
+    ```
+
+    *Note:* If Rust/Cargo is not installed, MikuInvidious runs transparently using pure-Python fallbacks.
+
+4. **Run:**
 
     ```bash
     uv run python/main.py
@@ -294,17 +313,17 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 
 Run these verification commands before committing changes:
 
-- **Lint Everything (Python + Frontend):**
+- **Lint Everything (Python + Frontend + Rust):**
   ```bash
   npm run lint
   ```
-  Runs `uv run ruff check python` for Python and `prettier --check` + `uv run djlint templates --check` for frontend templates/assets.
+  Runs `uv run ruff check python` for Python, `prettier --check` + `uv run djlint templates --check` for frontend, and `cargo fmt --check` + `cargo clippy` (`npm run lint:rust`) for Rust when cargo is installed.
 
 - **Auto-format Code:**
   ```bash
   npm run format
   ```
-  Formats Python with `uv run ruff format python`, JavaScript/CSS with Prettier, and Jinja2 templates with `uv run djlint templates --reformat`.
+  Formats Python with `uv run ruff format python`, JavaScript/CSS with Prettier, Jinja2 templates with `uv run djlint templates --reformat`, and Rust with `cargo fmt` (`npm run format:rust`).
 
 - **Bytecode Compilation Check (Syntax & Import Errors):**
   ```bash
@@ -318,11 +337,23 @@ Run these verification commands before committing changes:
   ```
   Runs unittest discovery with `PYTHONPATH=python uv run python -m unittest discover tests`.
 
+- **Performance Benchmarking:**
+  ```bash
+  uv run python tools/benchmark_danmaku.py
+  ```
+  Benchmarks native Rust `miku_core_rs` vs pure-Python implementations for Danmaku XML parsing (~4.5x faster) and RFC 3986 WBI parameter signing (~3.5x faster).
+
 - **i18n Verification:**
   ```bash
   npm run check:i18n
   npm run build:i18n  # regenerate if catalogs are stale
   ```
+
+### Continuous Integration & Security Auditing
+
+- **CI Pipeline (`.github/workflows/ci.yml`):** Runs on Python 3.15, builds `miku_core_rs` via Maturin, and validates test suites, multi-language linting, bytecode compilation, and benchmarks. Scoped to primary branches with concurrency cancellation to prevent duplicate runs on PR branches.
+- **Security Auditing (`.github/workflows/review.yml`):** Runs automated security vulnerability checks using `pip-audit`, `npm-audit`, and `cargo-audit` (targeting `crates/miku_core_rs`).
+- **Dependabot (`.github/dependabot.yml`):** Configured for GitHub Actions, npm, pip/uv, and cargo ecosystem dependency updates.
 
 ## Development Conventions
 

@@ -83,8 +83,6 @@ _ALLOWED_DASH_DOMAINS = [
 ]
 
 
-
-
 def _is_mcdn_url(url: str) -> bool:
     """Detect Bilibili M-CDN (PCDN) edge nodes (PipePipe b3303f4).
 
@@ -95,12 +93,30 @@ def _is_mcdn_url(url: str) -> bool:
     return "mcdn.bilivideo" in url or "mountaintoys" in url or "os=mcdn" in url
 
 
-def _pick_stable_dash_url(primary: str | None, backups) -> str | None:
-    """Prefer a non-M-CDN URL (PipePipe ``pickStableStreamUrl``).
+def _is_direct_cdn_url(url: str) -> bool:
+    """Detect direct high-speed Bilibili CDN nodes (e.g. *.bilivideo.com, *.acgvideo.com)."""
+    if not url or _is_mcdn_url(url):
+        return False
+    parsed = urlparse(url)
+    h = (parsed.hostname or "").lower()
+    return (
+        h.endswith(".bilivideo.com")
+        or h.endswith(".bilivideo.cn")
+        or h.endswith(".bilibili.com")
+        or h.endswith(".acgvideo.com")
+    )
 
-    Keeps the primary when it is stable; otherwise returns the first stable
-    backup; falls back to the primary when everything is M-CDN.
+
+def _pick_stable_dash_url(primary: str | None, backups) -> str | None:
+    """Prefer a direct high-speed CDN URL, then non-M-CDN (PipePipe ``pickStableStreamUrl``).
+
+    Prefers direct Bilibili CDNs; falls back to non-M-CDN; falls back to primary.
     """
+    if primary and _is_direct_cdn_url(primary):
+        return primary
+    for cand in backups or []:
+        if isinstance(cand, str) and cand and _is_direct_cdn_url(cand):
+            return cand
     if primary and not _is_mcdn_url(primary):
         return primary
     for cand in backups or []:
@@ -197,8 +213,6 @@ async def _extract_ep_id(vi) -> str | None:
     return None
 
 
-
-
 _FREE_DOWNLOAD_MAX_QN = 80
 _DOWNLOAD_TOO_LARGE = -2
 
@@ -269,7 +283,6 @@ class _TrackCut(Exception):
 _CUT_ERRORS = (_TrackCut, *_RETRYABLE_TRACK_ERRORS)
 
 
-
 async def _build_dash_cdn_headers() -> dict:
     """CDN header set for DASH track requests (proxy + download).
 
@@ -297,8 +310,6 @@ async def _build_dash_cdn_headers() -> dict:
     return headers
 
 
-
-
 def _parse_content_range_start(headers) -> int | None:
     """Parse the start offset from a ``Content-Range: bytes <start>-...`` header."""
     cr = (headers or {}).get("content-range") or ""
@@ -311,10 +322,9 @@ def _parse_content_range_start(headers) -> int | None:
         return None
 
 
-
-
 _CONTENT_RANGE_RE = re.compile(r"bytes\s+(\d+)-(\d+)(?:/(\d+|\*))?")
 _RANGE_NOT_SATISFIABLE_RE = re.compile(r"bytes\s+\*/(\d+)")
+
 
 def _shift_dash_range(orig_range: str | None, yielded: int) -> str | None:
     """Remaining Range after ``yielded`` bytes were already sent downstream.
@@ -385,7 +395,7 @@ def _parse_416_total(cr: str | None) -> int | None:
         return None
     try:
         return int(m.group(1))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -550,6 +560,3 @@ _SLOW_WINDOW_STRIKES = 3
 # fresh hammer lands back in the penalty box. Fixed 10s (not escalating —
 # escalation lives in the inter-segment pacing ladder).
 _SLOW_TRIP_PAUSE = 10.0
-
-
-

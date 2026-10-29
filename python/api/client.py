@@ -32,6 +32,13 @@ import httpx
 from .credential import Credential
 from .exceptions import NetworkException, ResponseCodeException
 
+try:
+    from miku_core_rs import mixin_from_keys as _rs_mixin_from_keys
+    from miku_core_rs import sign_wbi_params as _rs_sign_wbi_params
+except ImportError:
+    _rs_mixin_from_keys = None
+    _rs_sign_wbi_params = None
+
 __all__ = [
     "Api",
     "get_bili_client",
@@ -322,10 +329,15 @@ async def get_curl_client() -> httpx.AsyncClient:
 async def _get_mixin_key(credential: Credential = None) -> str:
     credential = credential or Credential()
     client = await get_bili_client()
+    headers = dict(HEADERS)
+    cookies = credential.get_cookies()
+    if cookies:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+        if cookie_str:
+            headers["Cookie"] = cookie_str
     resp = await client.get(
         _NAV_URL,
-        headers=HEADERS,
-        cookies=credential.get_cookies(),
+        headers=headers,
     )
     data = resp.json().get("data") or {}
     wbi_img = data.get("wbi_img") or {}
@@ -344,11 +356,21 @@ async def _get_mixin_key(credential: Credential = None) -> str:
 
 def _mixin_from_keys(img_key: str, sub_key: str) -> str:
     """Derive the 32-char wbi mixin key from raw img/sub key filenames."""
+    if _rs_mixin_from_keys is not None:
+        try:
+            return _rs_mixin_from_keys(img_key, sub_key)
+        except Exception:
+            pass
     ae = img_key + sub_key
     return "".join(ae[i] for i in OE if i < len(ae))[:32]
 
 
 def _enc_wbi(params: dict, mixin_key: str) -> dict:
+    if _rs_sign_wbi_params is not None:
+        try:
+            return _rs_sign_wbi_params(params, mixin_key)
+        except Exception:
+            pass
     params.pop("w_rid", None)
     params["wts"] = int(time.time())
     if params.get("web_location") is None:
@@ -406,11 +428,16 @@ async def _get_bili_ticket(credential: Credential = None) -> str:
         "context[ts]": str(int(time.time())),
         "csrf": "",
     }
+    headers = dict(HEADERS)
+    cookies = credential.get_cookies()
+    if cookies:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+        if cookie_str:
+            headers["Cookie"] = cookie_str
     resp = await client.post(
         _TICKET_URL,
         params=params,
-        headers=HEADERS,
-        cookies=credential.get_cookies(),
+        headers=headers,
     )
     return resp.json()["data"]["ticket"]
 
@@ -676,6 +703,12 @@ class Api:
             cookies["opus-goback"] = "1"
 
             headers = dict(HEADERS) if not self.headers else dict(self.headers)
+            if cookies:
+                cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+                if cookie_str:
+                    existing = headers.get("Cookie") or headers.get("cookie")
+                    headers["Cookie"] = f"{existing}; {cookie_str}" if existing else cookie_str
+
             if not self.curl and (self.wbi or "/x/player/" in self.url):
                 # Player parity: web clients attach device metadata to unified
                 # requests (player_core.*.js `r0` middleware).
@@ -695,7 +728,6 @@ class Api:
                 params=request_params,
                 data=request_data,
                 json=json_content,
-                cookies=cookies,
                 headers=headers,
             )
 

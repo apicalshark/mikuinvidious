@@ -112,9 +112,9 @@ class CdnConnection:
         url: str,
         headers: dict | None = None,
         proxy_url: str | None = None,
-        read_chunk_size: int = 64 * 1024,
+        read_chunk_size: int = 256 * 1024,
         connect_timeout: float = 15.0,
-        read_timeout: float = 30.0,
+        read_timeout: float | None = None,
     ):
         self._url = url
         self._headers = headers or {}
@@ -223,7 +223,10 @@ class CdnConnection:
                 raise CdnProtocolError(f"Invalid Content-Length: {content_length!r}") from e
             while remaining > 0:
                 try:
-                    async with asyncio.timeout(self._read_timeout):
+                    if self._read_timeout:
+                        async with asyncio.timeout(self._read_timeout):
+                            chunk = await self._reader.read(min(self._read_chunk_size, remaining))
+                    else:
                         chunk = await self._reader.read(min(self._read_chunk_size, remaining))
                 except TimeoutError as e:
                     raise CdnTimeoutError(f"Read timeout after {remaining} bytes remaining") from e
@@ -253,8 +256,14 @@ class CdnConnection:
                     break
                 remaining = chunk_size
                 while remaining > 0:
-                    async with asyncio.timeout(self._read_timeout):
-                        chunk = await self._reader.read(min(self._read_chunk_size, remaining))
+                    try:
+                        if self._read_timeout:
+                            async with asyncio.timeout(self._read_timeout):
+                                chunk = await self._reader.read(min(self._read_chunk_size, remaining))
+                        else:
+                            chunk = await self._reader.read(min(self._read_chunk_size, remaining))
+                    except TimeoutError as e:
+                        raise CdnTimeoutError(f"Read timeout after {remaining} bytes remaining") from e
                     if not chunk:
                         raise CdnProtocolError("Truncated chunked body")
                     remaining -= len(chunk)
@@ -265,7 +274,10 @@ class CdnConnection:
 
         while True:
             try:
-                async with asyncio.timeout(self._read_timeout):
+                if self._read_timeout:
+                    async with asyncio.timeout(self._read_timeout):
+                        chunk = await self._reader.read(self._read_chunk_size)
+                else:
                     chunk = await self._reader.read(self._read_chunk_size)
             except TimeoutError as e:
                 raise CdnTimeoutError("Read timeout on connection-closed body") from e

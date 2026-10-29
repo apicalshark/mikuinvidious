@@ -537,14 +537,16 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
 
                 if ep_id:
                     pgc_params["ep_id"] = ep_id
+                pgc_headers = {
+                    "Referer": "https://www.bilibili.com",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+                }
+                if cookies:
+                    pgc_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
                 pgc_res_raw = await client.get(
                     "https://api.bilibili.com/pgc/player/web/playurl",
                     params=pgc_params,
-                    cookies=cookies,
-                    headers={
-                        "Referer": "https://www.bilibili.com",
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
-                    },
+                    headers=pgc_headers,
                     follow_redirects=True,
                 )
                 pgc_res = pgc_res_raw.json()

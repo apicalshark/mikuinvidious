@@ -459,14 +459,20 @@ async def search_manga(keyword: str, page_num: int = 1, page_size: int = 9, cred
     """
     data = {"key_word": keyword, "page_num": page_num, "page_size": page_size}
     client = await get_curl_client()
+    headers = build_chrome_headers(
+        origin="https://manga.bilibili.com",
+        referer="https://manga.bilibili.com/",
+    )
+    if credential is not None:
+        c_dict = credential.get_cookies()
+        if c_dict:
+            cookie_str = "; ".join(f"{k}={v}" for k, v in c_dict.items() if v)
+            if cookie_str:
+                headers["Cookie"] = cookie_str
     resp = await client.post(
         "https://manga.bilibili.com/twirp/comic.v1.Comic/Search?device=pc&platform=web",
         data=data,
-        cookies=credential.get_cookies() if credential is not None else None,
-        headers=build_chrome_headers(
-            origin="https://manga.bilibili.com",
-            referer="https://manga.bilibili.com/",
-        ),
+        headers=headers,
         timeout=10.0,
     )
     if resp.status_code != 200:

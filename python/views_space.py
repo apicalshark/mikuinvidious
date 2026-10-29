@@ -482,5 +482,3 @@ async def read_view(cid):
             desc="Article does not exist or parse error",
             suggest="The article you requested most likely does not exist. Please check your request.",
         ), 404
-
-
