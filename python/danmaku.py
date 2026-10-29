@@ -16,6 +16,7 @@
 """Server-Side danmaku translation"""
 
 import html
+import json
 import re
 
 # Fallback extractor for payloads the strict XML parser rejects (upstream
@@ -60,6 +61,20 @@ def _danmaku_entry(p_str, text):
         m = ({"6": "ltr", "1": "rtl", "5": "top", "4": "bottom", "7": "rtl", "8": "rtl"})[p[1]]
     except KeyError, IndexError:
         return {}
+
+    if not text:
+        return {}
+
+    if len(p) > 1 and p[1] == "7" and text.startswith("["):
+        try:
+            arr = json.loads(text)
+            if isinstance(arr, list):
+                if len(arr) >= 5 and isinstance(arr[4], str):
+                    text = arr[4]
+                elif len(arr) > 0 and isinstance(arr[0], list) and len(arr[0]) >= 5 and isinstance(arr[0][4], str):
+                    text = arr[0][4]
+        except Exception:
+            pass
 
     if not text:
         return {}

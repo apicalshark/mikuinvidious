@@ -66,6 +66,13 @@ class TestDanmakuParser(unittest.TestCase):
         self.assertEqual(parse_danmaku(None), [])
         self.assertEqual(parse_danmaku("not xml at all"), [])
 
+    def test_parse_danmaku_mode_7_json_array(self):
+        xml = '<d p="55.70,7,25,16777214,1732762088,1,fa754e03,1725292457115742464,10">[0.95,0.2,&quot;1-1&quot;,1.8,&quot;求\\n你\\n了&quot;,0,0,0.95,0.2,500,0,0,&quot;FangSong&quot;,0]</d>'
+        items = parse_danmaku(xml)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["text"], "求\n你\n了")
+        self.assertEqual(items[0]["mode"], "rtl")
+
     @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
     def test_rust_danmaku_import(self):
         self.assertIsNotNone(danmaku.parse_danmaku_xml, "parse_danmaku_xml should be exported by miku_core_rs")

@@ -12,6 +12,29 @@ struct ParsedP {
     mode: &'static str,
     ftsize: u32,
     ftcolor: [u8; 6],
+    is_mode_7: bool,
+}
+
+fn extract_mode_7_text(raw_text: &str) -> Option<String> {
+    let trimmed = raw_text.trim();
+    if !trimmed.starts_with('[') {
+        return None;
+    }
+    let value: serde_json::Value = serde_json::from_str(trimmed).ok()?;
+    if let serde_json::Value::Array(ref arr) = value {
+        if arr.len() >= 5 {
+            if let Some(s) = arr[4].as_str() {
+                return Some(s.to_string());
+            }
+        } else if let Some(serde_json::Value::Array(ref inner)) = arr.first() {
+            if inner.len() >= 5 {
+                if let Some(s) = inner[4].as_str() {
+                    return Some(s.to_string());
+                }
+            }
+        }
+    }
+    None
 }
 
 fn parse_p_attr(p_str: &str) -> Option<ParsedP> {
@@ -19,6 +42,7 @@ fn parse_p_attr(p_str: &str) -> Option<ParsedP> {
     let time_str = parts.next()?.trim();
     let mode_str = parts.next()?.trim();
 
+    let is_mode_7 = mode_str == "7";
     let mode = match mode_str {
         "1" => "rtl",
         "4" => "bottom",
@@ -58,6 +82,7 @@ fn parse_p_attr(p_str: &str) -> Option<ParsedP> {
         mode,
         ftsize,
         ftcolor,
+        is_mode_7,
     })
 }
 
@@ -125,13 +150,21 @@ pub fn parse_danmaku_internal(xml_str: &str) -> Result<Vec<DanmakuItem>, quick_x
                     in_d = false;
                     if !current_text.is_empty() {
                         if let Some(p) = current_p.take() {
-                            items.push(DanmakuItem {
-                                text: std::mem::take(&mut current_text),
-                                mode: p.mode,
-                                time: p.time,
-                                ftsize: p.ftsize,
-                                ftcolor: p.ftcolor,
-                            });
+                            let mut text = std::mem::take(&mut current_text);
+                            if p.is_mode_7 {
+                                if let Some(extracted) = extract_mode_7_text(&text) {
+                                    text = extracted;
+                                }
+                            }
+                            if !text.is_empty() {
+                                items.push(DanmakuItem {
+                                    text,
+                                    mode: p.mode,
+                                    time: p.time,
+                                    ftsize: p.ftsize,
+                                    ftcolor: p.ftcolor,
+                                });
+                            }
                         }
                     }
                 }
@@ -140,13 +173,21 @@ pub fn parse_danmaku_internal(xml_str: &str) -> Result<Vec<DanmakuItem>, quick_x
                 // If EOF occurs while inside <d>, salvage if we have valid text
                 if in_d && !current_text.is_empty() {
                     if let Some(p) = current_p.take() {
-                        items.push(DanmakuItem {
-                            text: std::mem::take(&mut current_text),
-                            mode: p.mode,
-                            time: p.time,
-                            ftsize: p.ftsize,
-                            ftcolor: p.ftcolor,
-                        });
+                        let mut text = std::mem::take(&mut current_text);
+                        if p.is_mode_7 {
+                            if let Some(extracted) = extract_mode_7_text(&text) {
+                                text = extracted;
+                            }
+                        }
+                        if !text.is_empty() {
+                            items.push(DanmakuItem {
+                                text,
+                                mode: p.mode,
+                                time: p.time,
+                                ftsize: p.ftsize,
+                                ftcolor: p.ftcolor,
+                            });
+                        }
                     }
                 }
                 break;
@@ -175,6 +216,15 @@ mod tests {
     fn test_unknown_entity_error() {
         let xml = r#"<i><d p="35.00,1,25,16777215">&unknown;</d></i>"#;
         assert!(parse_danmaku_internal(xml).is_err());
+    }
+
+    #[test]
+    fn test_mode_7_json_array() {
+        let xml = r#"<i><d p="55.70000,7,25,16777214">[0.95,0.2,&quot;1-1&quot;,1.8,&quot;求\n你\n了&quot;,0,0,0.95,0.2,500,0,0,&quot;FangSong&quot;,0]</d></i>"#;
+        let items = parse_danmaku_internal(xml).expect("parse failed");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].text, "求\n你\n了");
+        assert_eq!(items[0].mode, "rtl");
     }
 }
 
