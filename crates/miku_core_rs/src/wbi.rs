@@ -90,7 +90,7 @@ pub fn sign_wbi_params<'py>(
     let mut hasher = Md5::new();
     hasher.update(query.as_bytes());
     let hash = hasher.finalize();
-    let w_rid = format!("{:x}", hash);
+    let w_rid = hex::encode(hash);
 
     params.set_item("w_rid", w_rid)?;
     Ok(params.clone())
