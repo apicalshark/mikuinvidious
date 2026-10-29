@@ -82,6 +82,50 @@ class TestMpdRs(unittest.TestCase):
         self.assertIsNone(generate_vod_mpd("BV1xx411c7xx", 0, {}))
         self.assertIsNone(generate_vod_mpd("BV1xx411c7xx", 0, {"dash": {}}))
 
+    def test_audio_tracks_sorted_descending_by_bandwidth(self):
+        dash_data = {
+            "dash": {
+                "duration": 60,
+                "minBufferTime": 1.5,
+                "audio": [
+                    {
+                        "id": 30216,
+                        "codecid": 0,
+                        "bandwidth": 51101,
+                        "codecs": "mp4a.40.5",
+                        "SegmentBase": {"Initialization": "0-942", "indexRange": "943-1682"},
+                    },
+                    {
+                        "id": 30280,
+                        "codecid": 0,
+                        "bandwidth": 320000,
+                        "codecs": "mp4a.40.2",
+                        "SegmentBase": {"Initialization": "0-800", "indexRange": "801-1200"},
+                    },
+                    {
+                        "id": 30232,
+                        "codecid": 0,
+                        "bandwidth": 119790,
+                        "codecs": "mp4a.40.2",
+                        "SegmentBase": {"Initialization": "0-933", "indexRange": "934-1673"},
+                    },
+                ],
+            }
+        }
+        mpd = generate_vod_mpd("BV1xx411c7xx", 0, dash_data)
+        self.assertIsNotNone(mpd)
+        pos_30280 = mpd.find("audio_30280_0")
+        pos_30232 = mpd.find("audio_30232_0")
+        pos_30216 = mpd.find("audio_30216_0")
+        self.assertTrue(pos_30280 != -1 and pos_30232 != -1 and pos_30216 != -1)
+        self.assertLess(pos_30280, pos_30232)
+        self.assertLess(pos_30232, pos_30216)
+
+        if miku_core_rs is not None:
+            py_mpd = dash_mpd._generate_vod_mpd_py("BV1xx411c7xx", 0, dash_data)
+            rs_mpd = miku_core_rs.generate_vod_mpd("BV1xx411c7xx", 0, dash_data)
+            self.assertEqual(py_mpd, rs_mpd)
+
     @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
     def test_rust_mpd_direct_parity(self):
         self.assertTrue(hasattr(miku_core_rs, "generate_vod_mpd"))

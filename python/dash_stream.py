@@ -28,6 +28,7 @@ from dash_common import (
     DASH_PLAYBACK_ATTEMPT_TIMEOUT,
     _build_dash_cdn_headers,
     _expected_resume_start,
+    _is_direct_cdn_url,
     _is_mcdn_url,
     _is_safe_dash_url,
     _is_safe_dash_url_async,
@@ -82,8 +83,15 @@ def _dash_candidate_urls(track: dict) -> list:
     for url in [primary, *backups]:
         if isinstance(url, str) and url and url not in ordered:
             ordered.append(url)
-    # Stable (non-M-CDN) first, M-CDN last as failover-only.
-    ordered.sort(key=lambda u: 1 if _is_mcdn_url(u) else 0)
+    # Direct CDN first (0), other stable (1), M-CDN last as failover-only (2).
+    def _mirror_rank(u: str) -> int:
+        if _is_direct_cdn_url(u):
+            return 0
+        if _is_mcdn_url(u):
+            return 2
+        return 1
+
+    ordered.sort(key=_mirror_rank)
     for url in ordered:
         if isinstance(url, str) and url and url not in candidates and _is_safe_dash_url(url):
             candidates.append(url)
@@ -543,7 +551,7 @@ async def _fetch_dash_track(
             _note_mirror_bad(urlparse(url).hostname or "")
             print(f"[DashProxy] {label} {host} failed ({exc}), trying next mirror")
             continue
-        if resp_headers.status_code in [403, 412, 514]:
+        if resp_headers.status_code in [403, 412, 514, 567]:
             await conn.close()
             forbidden_seen = True
             last_error = RuntimeError(f"CDN returned {resp_headers.status_code}")
@@ -707,6 +715,9 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             if k.lower() in ["range", "if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
                 headers[k.lower()] = v
 
+        if "range" not in headers:
+            headers["range"] = "bytes=0-"
+
         if cookie_jar:
             cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_jar.items())
             existing = headers.get("cookie", "")
@@ -762,14 +773,12 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             while True:
                 attempt_base = yielded
                 try:
-                    # Floor watchdog stays on here: genuine tarpits (<100KB/s
+                    # Floor watchdog stays on for video: genuine tarpits (<100KB/s
                     # past grace) fail over to the next mirror transparently.
-                    # dash.js owns *mild* slowness (abandon + ABR), but it
-                    # cannot cover two silent stalls (no player logs): a big
-                    # top-quality buffer suppresses abandon urgency, and
-                    # pinned audio (ABR off) has no downshift at all. Idle
-                    # wedges still trip.
-                    async for chunk in _yield_dash_body(conn, label, floor_watchdog=True):
+                    # Audio bitrates are far lower (6-15 KB/s) than the 100 KB/s floor,
+                    # so its speed watchdog is disabled (DASH_BODY_IDLE_TIMEOUT 5s
+                    # idle stall watchdog still guards dead stalls for both).
+                    async for chunk in _yield_dash_body(conn, label, floor_watchdog=(media_type == "video")):
                         yielded += len(chunk)
                         yield chunk
                 except asyncio.CancelledError, GeneratorExit:
@@ -868,9 +877,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         proxy_resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
 
         if resp_headers.status_code in [200, 206]:
-            current_ct = proxy_resp.headers.get("Content-Type", "").lower()
-            if not current_ct or "application/octet-stream" in current_ct:
-                proxy_resp.headers["Content-Type"] = "video/mp4" if media_type == "video" else "audio/mp4"
+            proxy_resp.headers["Content-Type"] = "video/mp4" if media_type == "video" else "audio/mp4"
         return proxy_resp
     except asyncio.CancelledError:
         # Client (dash.js/Caddy) abandoned a hung upstream wait. Re-raise so

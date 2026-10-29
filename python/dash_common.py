@@ -93,12 +93,30 @@ def _is_mcdn_url(url: str) -> bool:
     return "mcdn.bilivideo" in url or "mountaintoys" in url or "os=mcdn" in url
 
 
-def _pick_stable_dash_url(primary: str | None, backups) -> str | None:
-    """Prefer a non-M-CDN URL (PipePipe ``pickStableStreamUrl``).
+def _is_direct_cdn_url(url: str) -> bool:
+    """Detect direct high-speed Bilibili CDN nodes (e.g. *.bilivideo.com, *.acgvideo.com)."""
+    if not url or _is_mcdn_url(url):
+        return False
+    parsed = urlparse(url)
+    h = (parsed.hostname or "").lower()
+    return (
+        h.endswith(".bilivideo.com")
+        or h.endswith(".bilivideo.cn")
+        or h.endswith(".bilibili.com")
+        or h.endswith(".acgvideo.com")
+    )
 
-    Keeps the primary when it is stable; otherwise returns the first stable
-    backup; falls back to the primary when everything is M-CDN.
+
+def _pick_stable_dash_url(primary: str | None, backups) -> str | None:
+    """Prefer a direct high-speed CDN URL, then non-M-CDN (PipePipe ``pickStableStreamUrl``).
+
+    Prefers direct Bilibili CDNs; falls back to non-M-CDN; falls back to primary.
     """
+    if primary and _is_direct_cdn_url(primary):
+        return primary
+    for cand in backups or []:
+        if isinstance(cand, str) and cand and _is_direct_cdn_url(cand):
+            return cand
     if primary and not _is_mcdn_url(primary):
         return primary
     for cand in backups or []:

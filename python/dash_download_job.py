@@ -33,6 +33,7 @@ from dash_common import (
     _JobCancelled,
     _max_download_size_mb,
     _max_download_track_bytes,
+    _parse_content_range_full,
     _safe_download_filename,
     dash_proxy_bp,
 )
@@ -432,18 +433,22 @@ async def _peek_content_length(
     """Fetch only response headers to learn a track's size (0 if unknown).
 
     ``url`` may be a single URL or a candidate mirror list; each mirror is
-    tried in order until one answers 200/206 with a Content-Length. Opens a
-    throwaway connection per attempt and closes it without reading the body.
-    Raises RuntimeError if the track exceeds the per-track size cap.
+    tried in order until one answers 200/206 with a Content-Length or
+    Content-Range. Opens a throwaway connection per attempt and closes it
+    without reading the body. Uses Range: bytes=0-0 to prevent EdgeOne WAF 567
+    rejections on .m4s fragments. Raises RuntimeError if the track exceeds the
+    per-track size cap.
     """
     if isinstance(url, (list, tuple)):
         candidates = [u for u in url if isinstance(u, str) and u]
     else:
         candidates = [url] if isinstance(url, str) and url else []
     last_exc: Exception | None = None
+    req_headers = dict(headers)
+    req_headers.setdefault("range", "bytes=0-0")
     for cand in candidates:
         try:
-            conn, resp_headers = await _open_cdn_track(cand, headers, proxy_url)
+            conn, resp_headers = await _open_cdn_track(cand, req_headers, proxy_url)
         except Exception as exc:
             last_exc = exc
             continue
@@ -451,13 +456,18 @@ async def _peek_content_length(
             if resp_headers.status_code not in (200, 206):
                 last_exc = RuntimeError(f"HTTP {resp_headers.status_code}")
                 continue
-            cl = (resp_headers.headers or {}).get("content-length")
-            if not cl:
-                return 0
-            try:
-                size = int(cl)
-            except TypeError, ValueError:
-                return 0
+            size = 0
+            if resp_headers.status_code == 206:
+                _, _, total = _parse_content_range_full(resp_headers.headers.get("content-range"))
+                size = total or 0
+            if not size:
+                cl = (resp_headers.headers or {}).get("content-length")
+                if not cl:
+                    return 0
+                try:
+                    size = int(cl)
+                except TypeError, ValueError:
+                    return 0
             if size > _max_download_track_bytes():
                 raise RuntimeError(f"this instance maximum allowed download size is {_max_download_size_mb()} MB")
             return max(size, 0)

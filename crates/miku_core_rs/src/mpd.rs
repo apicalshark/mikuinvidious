@@ -259,6 +259,9 @@ pub fn generate_vod_mpd(
         }
     }
 
+    // Sort audio tracks descending by bandwidth so dash.js picks the best audio initially
+    audio_tracks.sort_by_key(|a| std::cmp::Reverse(a.bandwidth));
+
     let vid_str = vid.to_string();
 
     // Release GIL during direct buffered XML construction (zero intermediate allocations)

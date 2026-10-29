@@ -109,6 +109,11 @@ def _generate_vod_mpd_py(vid, idx, dash_data) -> str | None:
     if not audios:
         audios = _normalize_track_urls((dash.get("flac") or {}).get("audio", []))
     if audios:
+        audios = sorted(
+            audios,
+            key=lambda a: int(a.get("bandwidth", 0) or 0) if isinstance(a, dict) else 0,
+            reverse=True,
+        )
         mpd.append(
             f'    <AdaptationSet id="{as_id}" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1">'
         )

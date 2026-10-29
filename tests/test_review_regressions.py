@@ -465,5 +465,51 @@ class DashSingleflightCancellationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await asyncio.wait_for(owner, 5), payload)
 
 
+class DashAudioOptimizationTests(unittest.IsolatedAsyncioTestCase):
+    def test_dash_candidate_urls_prioritizes_direct_cdn_over_akamai_and_mcdn(self):
+        from dash_stream import _dash_candidate_urls
+
+        # Simulate Bilibili returning Akamai as primary base_url, with COS and M-CDN backups
+        track = {
+            "base_url": "https://upos-hz-mirrorakam.akamaized.net/track.m4s",
+            "backup_url": [
+                "https://d1.mcdn.bilivideo.cn/track.m4s",
+                "https://upos-sz-mirrorcosov.bilivideo.com/track.m4s",
+            ],
+        }
+        candidates = _dash_candidate_urls(track)
+        self.assertEqual(len(candidates), 3)
+        # Direct high-speed CDN must be ranked first
+        self.assertIn("mirrorcosov.bilivideo.com", candidates[0])
+        # Overseas proxy mirror second
+        self.assertIn("mirrorakam.akamaized.net", candidates[1])
+        # PCDN/M-CDN last
+        self.assertIn("mcdn.bilivideo.cn", candidates[2])
+
+    async def test_peek_content_length_sends_range_zero_and_parses_content_range(self):
+        from types import SimpleNamespace
+        import dash_download_job
+
+        sent_headers = {}
+
+        async def fake_open(url, headers, proxy_url):
+            sent_headers.update(headers)
+            # EdgeOne returns 206 with Content-Range for Range: bytes=0-0
+            return (
+                AsyncMock(),
+                SimpleNamespace(
+                    status_code=206,
+                    headers={"content-range": "bytes 0-0/4389592", "content-length": "1"},
+                ),
+            )
+
+        with patch.object(dash_download_job, "_open_cdn_track", side_effect=fake_open):
+            size = await dash_download_job._peek_content_length(
+                "https://upos-sz-mirrorcosov.bilivideo.com/audio.m4s", {}, ""
+            )
+            self.assertEqual(size, 4389592)
+            self.assertEqual(sent_headers.get("range"), "bytes=0-0")
+
+
 if __name__ == "__main__":
     unittest.main()
