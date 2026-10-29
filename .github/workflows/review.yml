@@ -2,11 +2,15 @@ name: Security audit
 
 on:
   push:
-    branches: ["**"]
+    branches: [main, master, ng, stable]
   pull_request:
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
