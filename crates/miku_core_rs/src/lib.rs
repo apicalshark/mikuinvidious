@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
 
+pub mod bvid;
 pub mod danmaku;
 pub mod wbi;
 
@@ -14,5 +15,7 @@ fn miku_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(danmaku::parse_danmaku_xml, m)?)?;
     m.add_function(wrap_pyfunction!(wbi::mixin_from_keys, m)?)?;
     m.add_function(wrap_pyfunction!(wbi::sign_wbi_params, m)?)?;
+    m.add_function(wrap_pyfunction!(bvid::bv2av, m)?)?;
+    m.add_function(wrap_pyfunction!(bvid::av2bv, m)?)?;
     Ok(())
 }

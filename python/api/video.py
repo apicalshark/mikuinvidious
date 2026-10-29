@@ -40,8 +40,14 @@ _BASE = 58
 _table = "FcwAPNKTMug3GV5Lj7EJnHpWsx4tb8haYeviqBz6rkCy12mUSDQX9RdoZf"
 _itable = {c: i for i, c in enumerate(_table)}
 
+try:
+    from miku_core_rs import av2bv as _rs_av2bv, bv2av as _rs_bv2av
+except ImportError:
+    _rs_av2bv = None
+    _rs_bv2av = None
 
-def bv2av(x: str) -> int:
+
+def _bv2av_py(x: str) -> int:
     if (
         not isinstance(x, str)
         or not re.fullmatch(r"BV[a-zA-Z0-9]{10}", x)
@@ -60,8 +66,19 @@ def bv2av(x: str) -> int:
     return (tmp & _MASK_CODE) ^ _XOR_CODE
 
 
-def av2bv(x: int) -> str:
-    if x <= 0:
+def bv2av(x: str) -> int:
+    if _rs_bv2av is not None and isinstance(x, str):
+        try:
+            return _rs_bv2av(x)
+        except ValueError as e:
+            raise ArgsException(str(e)) from e
+        except Exception:
+            pass
+    return _bv2av_py(x)
+
+
+def _av2bv_py(x: int) -> str:
+    if not isinstance(x, int) or x <= 0:
         raise ArgsException("aid must be greater than 0.")
     tmp = (_MAX_AID | x) ^ _XOR_CODE
     r = list("BV1000000000")
@@ -73,6 +90,17 @@ def av2bv(x: int) -> str:
     r[3], r[9] = r[9], r[3]
     r[4], r[7] = r[7], r[4]
     return "".join(r)
+
+
+def av2bv(x: int) -> str:
+    if _rs_av2bv is not None and isinstance(x, int):
+        try:
+            return _rs_av2bv(x)
+        except ValueError as e:
+            raise ArgsException(str(e)) from e
+        except Exception:
+            pass
+    return _av2bv_py(x)
 
 
 # WebGL fingerprint data for dm_img parameters (anti-bot requirement)
