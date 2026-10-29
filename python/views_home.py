@@ -113,9 +113,7 @@ async def search_view():
     # URL Jump logic
     b23_link = extract_b23_or_bili_url(q)
     if b23_link and "b23.tv" in b23_link:
-        import views
-
-        res = await views.resolve_b23_target(q)
+        res = await resolve_b23_target(q)
         if res.get("status") == "ok" and res.get("local_path"):
             return redirect(res["local_path"])
 
@@ -164,10 +162,7 @@ async def search_view():
         search_type, tmpl = search.SearchObjectType.VIDEO, "search.html"
 
     try:
-        import views
-
-        search_func = getattr(views.search, "search_by_type", search.search_by_type)
-        sinfo = await search_func(
+        sinfo = await search.search_by_type(
             q, page=i, search_type=search_type, order_type=order_map.get(request.args.get("sort"))
         )
     except ResponseCodeException as exc:
@@ -259,9 +254,7 @@ async def convert_view():
         if not url:
             error = "Please provide a Bilibili or b23.tv link"
         else:
-            import views
-
-            result = await views.resolve_b23_target(url)
+            result = await resolve_b23_target(url)
             if result.get("status") == "error":
                 error = result.get("error", "Failed to resolve URL")
 
@@ -299,9 +292,7 @@ async def api_convert():
         )
 
     url = str(data.get("url", "")).strip()
-    import views
-
-    result = await views.resolve_b23_target(url)
+    result = await resolve_b23_target(url)
     if result.get("status") == "error":
         return jsonify(result), 400
 

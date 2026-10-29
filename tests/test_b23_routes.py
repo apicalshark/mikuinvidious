@@ -10,7 +10,7 @@ class TestSearchAutoJump(unittest.IsolatedAsyncioTestCase):
 
     async def test_search_b23_url_redirects_to_video(self):
         with patch(
-            "views.resolve_b23_target",
+            "views_home.resolve_b23_target",
             new=AsyncMock(return_value={"status": "ok", "local_path": "/video/BV1xx411c7xx"}),
         ) as mock_resolve:
             resp = await self.client.get("/search?q=https://b23.tv/abc123")
@@ -20,7 +20,7 @@ class TestSearchAutoJump(unittest.IsolatedAsyncioTestCase):
 
     async def test_search_b23_url_redirects_to_bangumi(self):
         with patch(
-            "views.resolve_b23_target",
+            "views_home.resolve_b23_target",
             new=AsyncMock(return_value={"status": "ok", "local_path": "/bangumi/play/ep12345"}),
         ):
             resp = await self.client.get("/search?q=https://b23.tv/ep12345")
@@ -29,7 +29,7 @@ class TestSearchAutoJump(unittest.IsolatedAsyncioTestCase):
 
     async def test_search_b23_url_with_share_text_redirects(self):
         with patch(
-            "views.resolve_b23_target",
+            "views_home.resolve_b23_target",
             new=AsyncMock(return_value={"status": "ok", "local_path": "/video/BV1yy411c7yy"}),
         ):
             resp = await self.client.get(
@@ -56,7 +56,7 @@ class TestSearchAutoJump(unittest.IsolatedAsyncioTestCase):
             "numPages": 0,
         }
         with patch(
-            "views.resolve_b23_target",
+            "views_home.resolve_b23_target",
             new=AsyncMock(return_value={"status": "error", "error": "Failed to resolve shortlink: HTTP 404"}),
         ), patch("api.search.search_by_type", new=AsyncMock(return_value=mock_search_result)):
             resp = await self.client.get("/search?q=https://b23.tv/notfound123")

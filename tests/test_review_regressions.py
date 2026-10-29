@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import views
 from api import user
 from api.exceptions import ResponseCodeException
-from dash_proxy import _select_durl_results
+from dash_fetch import _select_durl_results
 
 
 def durl_result(actual, requested, description):
@@ -77,14 +77,15 @@ class SpaceFetchTests(unittest.IsolatedAsyncioTestCase):
                         return fetch()
 
                 render = AsyncMock(return_value="space page")
+                import views_space
                 with (
                     patch.object(user, "Api", FakeApi),
                     patch.object(user.User, "get_user_info", AsyncMock(return_value={"name": "Test"})),
-                    patch.object(views, "cache_minutes", return_value=0),
-                    patch.object(views, "render_template_with_theme", render),
+                    patch.object(views_space, "cache_minutes", return_value=0),
+                    patch.object(views_space, "render_template_with_theme", render),
                 ):
                     async with views.app.test_request_context("/space/123"):
-                        response = await views.space_view("123")
+                        response = await views_space.space_view("123")
                 self.assertEqual(response.status_code, 200)
                 context = render.await_args.kwargs
                 self.assertEqual(context["load_failed"], load_failed)
@@ -96,18 +97,22 @@ class SpaceFetchTests(unittest.IsolatedAsyncioTestCase):
 
 class CommentPaginationTests(unittest.IsolatedAsyncioTestCase):
     async def test_meta_more_returns_503_on_upstream_failure(self):
+        import views_video
+
         with (
-            patch("views.comment.get_comments", AsyncMock(side_effect=TimeoutError("upstream timeout"))),
-            patch("views.render_template_with_theme", AsyncMock(return_value="rendered_error_comments")),
+            patch("views_video.comment.get_comments", AsyncMock(side_effect=TimeoutError("upstream timeout"))),
+            patch("views_video.render_template_with_theme", AsyncMock(return_value="rendered_error_comments")),
         ):
             async with views.app.test_request_context("/api/component/comments/BV1xx411c7xx/0/more?next=offset1"):
-                result = await views.api_component_meta_more("BV1xx411c7xx", 0)
+                result = await views_video.api_component_meta_more("BV1xx411c7xx", 0)
                 # When failed, returns tuple (body, 503)
                 self.assertIsInstance(result, tuple)
                 self.assertEqual(result[1], 503)
                 self.assertEqual(result[0], "rendered_error_comments")
 
     async def test_meta_more_returns_200_on_success(self):
+        import views_video
+
         mock_comments = {
             "page": {"count": 1},
             "replies": [{"rpid": 123}],
@@ -115,11 +120,11 @@ class CommentPaginationTests(unittest.IsolatedAsyncioTestCase):
             "is_end": False,
         }
         with (
-            patch("views.comment.get_comments", AsyncMock(return_value=mock_comments)),
-            patch("views.render_template_with_theme", AsyncMock(return_value="rendered_comments")),
+            patch("views_video.comment.get_comments", AsyncMock(return_value=mock_comments)),
+            patch("views_video.render_template_with_theme", AsyncMock(return_value="rendered_comments")),
         ):
             async with views.app.test_request_context("/api/component/comments/BV1xx411c7xx/0/more?next=offset1"):
-                result = await views.api_component_meta_more("BV1xx411c7xx", 0)
+                result = await views_video.api_component_meta_more("BV1xx411c7xx", 0)
                 # When successful, returns body directly
                 self.assertEqual(result, "rendered_comments")
 
@@ -127,7 +132,7 @@ class CommentPaginationTests(unittest.IsolatedAsyncioTestCase):
 class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
     async def test_resumed_conn_skip_longer_than_idle_timeout_does_not_false_stall(self):
         import asyncio
-        import dash_proxy
+        import dash_stream
 
         class FakeRawConn:
             async def iter_chunks(self):
@@ -141,18 +146,18 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
             async def close(self):
                 pass
 
-        resumed = dash_proxy._ResumedDashConn(FakeRawConn(), skip=5 * 10240 + 6, limit=5)
+        resumed = dash_stream._ResumedDashConn(FakeRawConn(), skip=5 * 10240 + 6, limit=5)
         with (
-            patch.object(dash_proxy, "DASH_BODY_IDLE_TIMEOUT", 0.05),
-            patch.object(dash_proxy, "DASH_BODY_GRACE", 0.04),
-            patch.object(dash_proxy, "DASH_BODY_FLOOR_KBPS", 100),
+            patch.object(dash_stream, "DASH_BODY_IDLE_TIMEOUT", 0.05),
+            patch.object(dash_stream, "DASH_BODY_GRACE", 0.04),
+            patch.object(dash_stream, "DASH_BODY_FLOOR_KBPS", 100),
         ):
-            chunks = [c async for c in dash_proxy._yield_dash_body(resumed, "test", floor_watchdog=True)]
+            chunks = [c async for c in dash_stream._yield_dash_body(resumed, "test", floor_watchdog=True)]
         self.assertEqual(b"".join(chunks), b"WORLD")
 
     async def test_resumed_conn_tarpit_during_skip_still_trips_floor_watchdog(self):
         import asyncio
-        import dash_proxy
+        import dash_stream
 
         class SlowRawConn:
             async def iter_chunks(self):
@@ -160,21 +165,22 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.sleep(0.02)
                     yield b"x" * 10  # < 1 KB/s
 
-        resumed = dash_proxy._ResumedDashConn(SlowRawConn(), skip=1000, limit=10)
+        resumed = dash_stream._ResumedDashConn(SlowRawConn(), skip=1000, limit=10)
         with (
-            patch.object(dash_proxy, "DASH_BODY_IDLE_TIMEOUT", 0.5),
-            patch.object(dash_proxy, "DASH_BODY_GRACE", 0.03),
-            patch.object(dash_proxy, "DASH_BODY_FLOOR_KBPS", 100),
+            patch.object(dash_stream, "DASH_BODY_IDLE_TIMEOUT", 0.5),
+            patch.object(dash_stream, "DASH_BODY_GRACE", 0.03),
+            patch.object(dash_stream, "DASH_BODY_FLOOR_KBPS", 100),
         ):
-            with self.assertRaises(dash_proxy._SlowDashBody):
-                _ = [c async for c in dash_proxy._yield_dash_body(resumed, "test", floor_watchdog=True)]
+            with self.assertRaises(dash_stream._SlowDashBody):
+                _ = [c async for c in dash_stream._yield_dash_body(resumed, "test", floor_watchdog=True)]
 
     async def test_failover_same_mirror_retry_when_pending_first_416s(self):
         from types import SimpleNamespace
-        import dash_proxy
+        import dash_common
+        import dash_stream
 
-        dash_proxy._mirror_range_shy.clear()
-        dash_proxy._mirror_health.clear()
+        dash_common._mirror_range_shy.clear()
+        dash_common._mirror_health.clear()
 
         akam_url = "https://upos-hz-mirrorakam.akamaized.net/track.m4s"
         cosov_url = "https://upos-sz-mirrorcosov.bilivideo.com/track.m4s"
@@ -198,8 +204,8 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
             )
 
         pending = [cosov_url]
-        with patch.object(dash_proxy, "_fetch_dash_attempt", side_effect=fake_attempt):
-            conn, used, resp = await dash_proxy._failover_dash_conn(
+        with patch.object(dash_stream, "_fetch_dash_attempt", side_effect=fake_attempt):
+            conn, used, resp = await dash_stream._failover_dash_conn(
                 pending,
                 {"range": "bytes=136915-999999"},
                 "",
@@ -213,16 +219,17 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(used, akam_url)
         self.assertEqual(resp.status_code, 206)
-        self.assertTrue(dash_proxy._mirror_range_shy_at("upos-sz-mirrorcosov.bilivideo.com", 430980))
+        self.assertTrue(dash_common._mirror_range_shy_at("upos-sz-mirrorcosov.bilivideo.com", 430980))
 
     async def test_fetch_dash_track_timeout_includes_host_in_error(self):
-        import dash_proxy
+        import dash_common
+        import dash_stream
 
-        dash_proxy._mirror_health.clear()
+        dash_common._mirror_health.clear()
         url = "https://upos-sz-mirrorcosov.bilivideo.com/track.m4s"
-        with patch.object(dash_proxy, "_fetch_dash_attempt", AsyncMock(side_effect=TimeoutError())):
-            with self.assertRaises(dash_proxy._DashUpstreamError) as ctx:
-                await dash_proxy._fetch_dash_track([url], {}, "", "BV1B5Jc6nEYW:0 video/80/12")
+        with patch.object(dash_stream, "_fetch_dash_attempt", AsyncMock(side_effect=TimeoutError())):
+            with self.assertRaises(dash_stream._DashUpstreamError) as ctx:
+                await dash_stream._fetch_dash_track([url], {}, "", "BV1B5Jc6nEYW:0 video/80/12")
         self.assertIn("upos-sz-mirrorcosov.bilivideo.com stalled", str(ctx.exception))
 
     async def test_method_not_allowed_returns_405_instead_of_500(self):
@@ -236,6 +243,7 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
         import asyncio
         import gc
         import warnings
+        import views_video
 
         async def cancel_gather(*coros, **kwargs):
             for c in coros:
@@ -243,14 +251,14 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
             raise asyncio.CancelledError()
 
         with (
-            patch.object(views, "cache_minutes", return_value=0),
-            patch("views.asyncio.gather", side_effect=cancel_gather),
+            patch.object(views_video, "cache_minutes", return_value=0),
+            patch("views_video.asyncio.gather", side_effect=cancel_gather),
             warnings.catch_warnings(record=True) as caught,
         ):
             warnings.simplefilter("always", RuntimeWarning)
             async with views.app.test_request_context("/video/BV1xx411c7xx"):
                 with self.assertRaises(asyncio.CancelledError):
-                    await views.video_view("BV1xx411c7xx", 0)
+                    await views_video.video_view("BV1xx411c7xx", 0)
             gc.collect()
         unawaited = [w for w in caught if "was never awaited" in str(w.message)]
         self.assertEqual(unawaited, [])
@@ -271,11 +279,12 @@ class DashDownloadResumeTests(unittest.IsolatedAsyncioTestCase):
         import tempfile
         from types import SimpleNamespace
 
+        import dash_common
         import dash_download_track
-        import dash_proxy
+        import dash_stream
 
-        dash_proxy._mirror_health.clear()
-        dash_proxy._mirror_range_shy.clear()
+        dash_common._mirror_health.clear()
+        dash_common._mirror_range_shy.clear()
 
         mirror_a = "https://upos-sz-mirrorcosov.bilivideo.com/track.m4s"
         mirror_b = "https://upos-hz-mirrorakam.akamaized.net/track.m4s"
@@ -314,7 +323,7 @@ class DashDownloadResumeTests(unittest.IsolatedAsyncioTestCase):
                     "_segment_mirror_order",
                     side_effect=lambda urls, idx: list(urls),
                 ),
-                patch.object(dash_proxy, "_fetch_dash_attempt", side_effect=fake_attempt),
+                patch.object(dash_stream, "_fetch_dash_attempt", side_effect=fake_attempt),
                 patch.object(dash_download_track, "_DOWNLOAD_SEGMENT_SIZE", 100),
                 patch.object(dash_download_track, "_DOWNLOAD_WRITE_BATCH", 1),
             ):

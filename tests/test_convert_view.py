@@ -24,7 +24,7 @@ class TestConvertView(unittest.IsolatedAsyncioTestCase):
             "id": "BV1xx411c7xx",
             "error": None,
         }
-        with patch("views.resolve_b23_target", new=AsyncMock(return_value=mock_result)):
+        with patch("views_home.resolve_b23_target", new=AsyncMock(return_value=mock_result)):
             resp = await self.client.post("/convert", form={"url": "https://b23.tv/abc123"})
             self.assertEqual(resp.status_code, 200)
             text = await resp.get_data(as_text=True)
@@ -42,7 +42,7 @@ class TestConvertView(unittest.IsolatedAsyncioTestCase):
             "id": "",
             "error": "No valid b23.tv or Bilibili URL found in input",
         }
-        with patch("views.resolve_b23_target", new=AsyncMock(return_value=mock_result)):
+        with patch("views_home.resolve_b23_target", new=AsyncMock(return_value=mock_result)):
             resp = await self.client.post("/convert", form={"url": "invalid-link"})
             self.assertEqual(resp.status_code, 200)
             text = await resp.get_data(as_text=True)
@@ -59,7 +59,7 @@ class TestConvertView(unittest.IsolatedAsyncioTestCase):
             "id": "BV1xx411c7xx",
             "error": None,
         }
-        with patch("views.resolve_b23_target", new=AsyncMock(return_value=mock_result)):
+        with patch("views_home.resolve_b23_target", new=AsyncMock(return_value=mock_result)):
             resp = await self.client.post("/api/convert", json={"url": "https://b23.tv/abc123"})
             self.assertEqual(resp.status_code, 200)
             data = await resp.get_json()
@@ -93,7 +93,7 @@ class TestConvertView(unittest.IsolatedAsyncioTestCase):
             "id": "",
             "error": "No valid b23.tv or Bilibili URL found in input",
         }
-        with patch("views.resolve_b23_target", new=AsyncMock(return_value=mock_result)):
+        with patch("views_home.resolve_b23_target", new=AsyncMock(return_value=mock_result)):
             resp = await self.client.post("/api/convert", json={"url": "not-a-valid-url"})
             self.assertEqual(resp.status_code, 400)
             data = await resp.get_json()
@@ -101,7 +101,7 @@ class TestConvertView(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(data["error"], "No valid b23.tv or Bilibili URL found in input")
 
     async def test_footer_link_present(self):
-        with patch("views.homepage.get_videos", new=AsyncMock(return_value=[])):
+        with patch("views_home.homepage.get_videos", new=AsyncMock(return_value=[])):
             resp_en = await self.client.get("/?lang=en")
             self.assertEqual(resp_en.status_code, 200)
             text_en = await resp_en.get_data(as_text=True)
