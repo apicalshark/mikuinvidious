@@ -1,5 +1,14 @@
+use std::sync::LazyLock;
+
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use regex::Regex;
+
+static SEARCH_HIGHLIGHT_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)</?em[^>]*>").expect("valid search highlight regex"));
+
+static REPLY_EMOTE_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\[([^\[\]\n\r]{1,50})\]").expect("valid reply emote regex"));
 
 const REPLY_EMOTE_DOMAINS: &[&str] = &[
     ".hdslb.com",
@@ -38,55 +47,27 @@ pub fn strip_search_highlight(text: &str) -> String {
         return String::new();
     }
 
-    let mut cleaned = String::with_capacity(text.len());
-    let mut rest = text;
-
-    while let Some(start_idx) = rest.find('<') {
-        cleaned.push_str(&rest[..start_idx]);
-        let after_lt = &rest[start_idx..];
-        let bytes = after_lt.as_bytes();
-
-        let is_em = (after_lt.starts_with("<em")
-            && (bytes.len() == 3 || bytes[3] == b'>' || bytes[3].is_ascii_whitespace()))
-            || (after_lt.starts_with("</em")
-                && (bytes.len() == 4 || bytes[4] == b'>' || bytes[4].is_ascii_whitespace()));
-
-        if is_em {
-            if let Some(close_idx) = after_lt.find('>') {
-                rest = &after_lt[close_idx + 1..];
-                continue;
-            }
-        }
-
-        cleaned.push('<');
-        rest = &after_lt[1..];
-    }
-    cleaned.push_str(rest);
-
-    html_escape::decode_html_entities(&cleaned).to_string()
+    let stripped = SEARCH_HIGHLIGHT_RE.replace_all(text, "");
+    html_escape::decode_html_entities(&stripped).to_string()
 }
 
 fn proxied_emote_src(raw_url: &str) -> Option<String> {
-    let mut url = raw_url.trim();
+    let trimmed = raw_url.trim();
     let owned;
-    if url.starts_with("//") {
-        owned = format!("https:{}", url);
-        url = &owned;
-    }
+    let url_str = if trimmed.starts_with("//") {
+        owned = format!("https:{}", trimmed);
+        &owned
+    } else {
+        trimmed
+    };
 
-    let scheme_end = url.find("://")?;
-    let scheme = &url[..scheme_end].to_ascii_lowercase();
+    let parsed = url::Url::parse(url_str).ok()?;
+    let scheme = parsed.scheme();
     if scheme != "http" && scheme != "https" {
         return None;
     }
 
-    let after_scheme = &url[scheme_end + 3..];
-    let (authority, path_with_query) = match after_scheme.find('/') {
-        Some(pos) => (&after_scheme[..pos], &after_scheme[pos..]),
-        None => (after_scheme, "/"),
-    };
-
-    let host = authority.split(':').next()?.to_ascii_lowercase();
+    let host = parsed.host_str()?.to_ascii_lowercase();
     if host.is_empty() {
         return None;
     }
@@ -99,11 +80,7 @@ fn proxied_emote_src(raw_url: &str) -> Option<String> {
         return None;
     }
 
-    let path = match path_with_query.find(['?', '#']) {
-        Some(pos) => &path_with_query[..pos],
-        None => path_with_query,
-    };
-
+    let path = parsed.path();
     for b in path.bytes() {
         if b.is_ascii_whitespace()
             || matches!(
@@ -134,79 +111,63 @@ pub fn render_reply_content(message: &str, emote: Option<&Bound<'_, PyDict>>) ->
     };
 
     let mut out = String::with_capacity(message.len() + 64);
-    let mut pos = 0;
+    let mut last_end = 0;
 
-    while let Some(rel_open) = message[pos..].find('[') {
-        let open_idx = pos + rel_open;
-        let after_open = &message[open_idx + 1..];
+    for m in REPLY_EMOTE_RE.find_iter(message) {
+        out.push_str(&py_html_escape(&message[last_end..m.start()]));
+        let token = m.as_str();
 
-        if let Some(rel_close) = after_open.find(']') {
-            if rel_close > 0 && rel_close <= 50 {
-                let inner = &after_open[..rel_close];
-                if !inner.contains('[') && !inner.contains('\n') && !inner.contains('\r') {
-                    let close_idx = open_idx + 1 + rel_close;
-                    let token = &message[open_idx..=close_idx];
+        let mut replaced = false;
+        if let Ok(Some(entry_obj)) = emote_dict.get_item(token) {
+            if let Ok(entry) = entry_obj.cast::<PyDict>() {
+                let raw_url = entry
+                    .get_item("webp_url")
+                    .ok()
+                    .flatten()
+                    .or_else(|| entry.get_item("gif_url").ok().flatten())
+                    .or_else(|| entry.get_item("url").ok().flatten())
+                    .and_then(|v| v.extract::<String>().ok());
 
-                    out.push_str(&py_html_escape(&message[pos..open_idx]));
+                if let Some(raw) = raw_url {
+                    if let Some(src) = proxied_emote_src(&raw) {
+                        let size: i64 = match entry.get_item("meta").ok().flatten() {
+                            Some(meta_obj) => match meta_obj.cast::<PyDict>() {
+                                Ok(meta_dict) => meta_dict
+                                    .get_item("size")
+                                    .ok()
+                                    .flatten()
+                                    .and_then(|s| s.extract::<i64>().ok())
+                                    .unwrap_or(1),
+                                Err(_) => 1,
+                            },
+                            None => 1,
+                        };
 
-                    let mut replaced = false;
-                    if let Ok(Some(entry_obj)) = emote_dict.get_item(token) {
-                        if let Ok(entry) = entry_obj.cast::<PyDict>() {
-                            let raw_url = entry
-                                .get_item("webp_url")
-                                .ok()
-                                .flatten()
-                                .or_else(|| entry.get_item("gif_url").ok().flatten())
-                                .or_else(|| entry.get_item("url").ok().flatten())
-                                .and_then(|v| v.extract::<String>().ok());
-
-                            if let Some(raw) = raw_url {
-                                if let Some(src) = proxied_emote_src(&raw) {
-                                    let size: i64 = match entry.get_item("meta").ok().flatten() {
-                                        Some(meta_obj) => match meta_obj.cast::<PyDict>() {
-                                            Ok(meta_dict) => meta_dict
-                                                .get_item("size")
-                                                .ok()
-                                                .flatten()
-                                                .and_then(|s| s.extract::<i64>().ok())
-                                                .unwrap_or(1),
-                                            Err(_) => 1,
-                                        },
-                                        None => 1,
-                                    };
-
-                                    let style = if size == 2 {
-                                        REPLY_EMOTE_SIZE2_STYLE
-                                    } else {
-                                        REPLY_EMOTE_SIZE1_STYLE
-                                    };
-                                    let alt = py_html_escape(token);
-                                    out.push_str(&format!(
-                                        "<img src=\"{}\" alt=\"{}\" loading=\"lazy\" style=\"{}\">",
-                                        src, alt, style
-                                    ));
-                                    replaced = true;
-                                }
-                            }
-                        }
+                        let style = if size == 2 {
+                            REPLY_EMOTE_SIZE2_STYLE
+                        } else {
+                            REPLY_EMOTE_SIZE1_STYLE
+                        };
+                        let alt = py_html_escape(token);
+                        out.push_str(&format!(
+                            "<img src=\"{}\" alt=\"{}\" loading=\"lazy\" style=\"{}\">",
+                            src, alt, style
+                        ));
+                        replaced = true;
                     }
-
-                    if !replaced {
-                        out.push_str(&py_html_escape(token));
-                    }
-
-                    pos = close_idx + 1;
-                    continue;
                 }
             }
         }
 
-        out.push_str(&py_html_escape(&message[pos..=open_idx]));
-        pos = open_idx + 1;
+        if !replaced {
+            out.push_str(&py_html_escape(token));
+        }
+
+        last_end = m.end();
     }
 
-    if pos < message.len() {
-        out.push_str(&py_html_escape(&message[pos..]));
+    if last_end < message.len() {
+        out.push_str(&py_html_escape(&message[last_end..]));
     }
 
     Ok(out)
