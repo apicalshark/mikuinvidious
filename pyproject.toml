@@ -68,5 +68,7 @@ format_css = true
 
 [dependency-groups]
 dev = [
+    "djlint>=1.47.1",
     "maturin>=1.15.0",
+    "ruff>=0.17.3",
 ]
