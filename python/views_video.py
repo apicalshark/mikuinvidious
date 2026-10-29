@@ -72,7 +72,7 @@ async def video_listen_view(vid, idx=0):
     )
 
     # Core data check
-    if isinstance(results[0], Exception) or results[0] is None:
+    if isinstance(results[0], BaseException) or not isinstance(results[0], dict):
         err_msg = str(results[0]) if results[0] else "Bilibili returned empty data (possibly region-restricted)"
         return await render_template_with_theme(
             "error.html",
@@ -81,14 +81,11 @@ async def video_listen_view(vid, idx=0):
             suggest="This content may be region-restricted or removed.",
         ), 404
 
-    def is_valid(res):
-        return res is not None and not isinstance(res, Exception)
-
     vinfo = results[0]
-    vtags = results[1] if is_valid(results[1]) else []
-    vrelated = results[2] if not isinstance(results[2], Exception) else []
-    vcomments = results[3] if not isinstance(results[3], Exception) else {"page": {"count": 0}, "replies": []}
-    vset = results[4] if not isinstance(results[4], Exception) else [{"page": 1, "part": vid}]
+    vtags = results[1] if isinstance(results[1], list) else []
+    vrelated = results[2] if isinstance(results[2], list) else []
+    vcomments = results[3] if isinstance(results[3], dict) else {"page": {"count": 0}, "replies": []}
+    vset = results[4] if isinstance(results[4], list) else [{"page": 1, "part": vid}]
     return await render_template_with_theme(
         "video_listen.html",
         vid=vid,
@@ -330,7 +327,7 @@ async def api_component_meta_more(vid, idx):
             )
     except Exception:
         raw = None
-    failed = not raw or isinstance(raw, Exception)
+    failed = not isinstance(raw, dict)
     vcomments = {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True} if failed else raw
 
     body = await render_template_with_theme(
@@ -361,7 +358,7 @@ async def api_component_sub_comments(vid, rpid):
         result = None
     sub = (
         result
-        if result and not isinstance(result, Exception)
+        if isinstance(result, dict)
         else {"page": {"count": 0, "num": page, "size": 20}, "replies": []}
     )
 
@@ -452,7 +449,7 @@ async def video_view(vid, idx=0):
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     # Check that core data was fetched successfully
-    if isinstance(results[0], Exception) or results[0] is None:
+    if isinstance(results[0], BaseException) or not isinstance(results[0], dict):
         err_msg = str(results[0]) if results[0] else "Bilibili returned empty data (possibly region-restricted)"
         print(f"[Video] Error fetching info for {vid}: {err_msg}")
         if cache_ttl > 0:
@@ -510,13 +507,10 @@ async def video_view(vid, idx=0):
             suggest="Please try refreshing the page, or check the server network connection.",
         ), 500
 
-    def is_valid(res):
-        return res is not None and not isinstance(res, Exception)
-
     vinfo = results[0]  # results[0] is guaranteed to be valid vinfo data at this point
-    vtags = results[1] if is_valid(results[1]) else []
-    vrelated = results[2] if is_valid(results[2]) else []
-    vset = results[3] if is_valid(results[3]) else [{"page": 1, "part": vid}]
+    vtags = results[1] if isinstance(results[1], list) else []
+    vrelated = results[2] if isinstance(results[2], list) else []
+    vset = results[3] if isinstance(results[3], list) else [{"page": 1, "part": vid}]
 
     # Cache on healthy detail; tags/related/pages may fall back to empty
     # (those sections degrade gracefully, unlike a missing vinfo).

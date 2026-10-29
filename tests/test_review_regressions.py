@@ -263,6 +263,48 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
         unawaited = [w for w in caught if "was never awaited" in str(w.message)]
         self.assertEqual(unawaited, [])
 
+    async def test_video_view_gracefully_handles_cancelled_related_and_tags(self):
+        import asyncio
+        import views_video
+
+        sample_vinfo = {
+            "bvid": "BV1xx411c7xx",
+            "title": "Test Video",
+            "pic": "https://i0.hdslb.com/test.jpg",
+            "owner": {"name": "Test Owner", "mid": 123},
+            "stat": {"view": 100, "danmaku": 10, "reply": 5, "like": 20},
+            "cid": 12345,
+            "duration": 120,
+            "pubdate": 1600000000,
+            "desc": "test desc",
+        }
+
+        fake_results = [
+            sample_vinfo,
+            asyncio.CancelledError(),
+            asyncio.CancelledError(),
+            [{"page": 1, "part": "BV1xx411c7xx"}],
+        ]
+
+        async def fake_gather(*coros, **kwargs):
+            for c in coros:
+                c.close()
+            return fake_results
+
+        with (
+            patch.object(views_video, "cache_minutes", return_value=0),
+            patch("views_video.asyncio.gather", side_effect=fake_gather),
+            patch.object(views_video, "render_template_with_theme", new=AsyncMock(return_value="<html>OK</html>")) as mock_render,
+        ):
+            async with views.app.test_request_context("/video/BV1xx411c7xx"):
+                resp = await views_video.video_view("BV1xx411c7xx", 0)
+                self.assertEqual(resp, "<html>OK</html>")
+                _, kwargs = mock_render.call_args
+                self.assertIsInstance(kwargs["vrelated"], list)
+                self.assertEqual(kwargs["vrelated"], [])
+                self.assertIsInstance(kwargs["vtags"], list)
+                self.assertEqual(kwargs["vtags"], [])
+
 
 class DashDownloadResumeTests(unittest.IsolatedAsyncioTestCase):
     async def test_failover_salvage_is_not_wrapped_twice(self):
