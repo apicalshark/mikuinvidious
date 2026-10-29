@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import patch
 from xml.dom import minidom
 
+import danmaku
 from danmaku import danmaku_xml_conv, danmaku_xml_fallback, parse_danmaku
 
 
@@ -56,6 +58,27 @@ class TestDanmakuParser(unittest.TestCase):
         self.assertEqual(parse_danmaku(""), [])
         self.assertEqual(parse_danmaku(None), [])
         self.assertEqual(parse_danmaku("not xml at all"), [])
+
+    @unittest.skipIf(danmaku.parse_danmaku_xml is None, "miku_core_rs is not installed")
+    def test_native_errors_trigger_fallback_and_preserve_entries(self):
+        valid = '<d p="1,1,25,16777215">Valid &amp; intact</d>'
+        for broken in ("<broken></mismatch>", '<d p="2,1,25,16777215">Unknown &entity;</d>'):
+            with self.subTest(broken=broken):
+                xml = f"<i>{valid}{broken}{valid}</i>"
+                with self.assertRaises(ValueError):
+                    danmaku.parse_danmaku_xml(xml)
+                with patch("danmaku.danmaku_xml_fallback", wraps=danmaku_xml_fallback) as fallback:
+                    items = parse_danmaku(xml)
+                fallback.assert_called_once_with(xml)
+                self.assertEqual(items, danmaku_xml_fallback(xml))
+                self.assertEqual(items[0]["text"], "Valid & intact")
+                self.assertEqual(items[-1]["text"], "Valid & intact")
+
+    @unittest.skipIf(danmaku.parse_danmaku_xml is None, "miku_core_rs is not installed")
+    def test_native_normal_eof_salvages_open_entry(self):
+        items = danmaku.parse_danmaku_xml('<i><d p="1,1,25,16777215">Unclosed text')
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["text"], "Unclosed text")
 
 
 if __name__ == "__main__":

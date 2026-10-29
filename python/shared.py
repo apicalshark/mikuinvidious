@@ -213,7 +213,7 @@ def _int_env(name, default):
 appconf = {
     "site": {
         "site_name": os.environ.get("SITE_NAME", "MikuInvidious"),
-        "site_url": os.environ.get("SITE_URL", "https://example.org"),
+        "site_url": os.environ.get("SITE_URL", "http://localhost:8888"),
         "site_modified_source_code_url": os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "")
         if os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "").lower() not in ["false", ""]
         else False,

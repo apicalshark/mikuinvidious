@@ -1,15 +1,19 @@
 import hashlib
-import time
 import unittest
 import urllib.parse
+from unittest.mock import patch
 
 from api.client import _enc_wbi, _mixin_from_keys
 
 try:
-    from miku_core_rs import mixin_from_keys, sign_wbi_params
-except ImportError:
-    sign_wbi_params = None
-    mixin_from_keys = None
+    import miku_core_rs
+except ModuleNotFoundError as exc:
+    if exc.name != "miku_core_rs":
+        raise
+    miku_core_rs = None
+
+sign_wbi_params = getattr(miku_core_rs, "sign_wbi_params", None)
+mixin_from_keys = getattr(miku_core_rs, "mixin_from_keys", None)
 
 
 class TestWbiSigner(unittest.TestCase):
@@ -18,16 +22,19 @@ class TestWbiSigner(unittest.TestCase):
         self.sub_key = "411145e16d424f39af363d595240d7e3"
         self.mixin_key = _mixin_from_keys(self.img_key, self.sub_key)
 
+    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
     def test_rust_wbi_import(self):
         self.assertIsNotNone(sign_wbi_params, "sign_wbi_params should be exported by miku_core_rs")
         self.assertIsNotNone(mixin_from_keys, "mixin_from_keys should be exported by miku_core_rs")
 
+    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
     def test_mixin_from_keys(self):
         expected = _mixin_from_keys(self.img_key, self.sub_key)
         actual = mixin_from_keys(self.img_key, self.sub_key)
         self.assertEqual(actual, expected)
         self.assertEqual(len(actual), 32)
 
+    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
     def test_sign_wbi_params_matches_python(self):
         fixed_wts = 1700000000
         params = {
@@ -57,6 +64,7 @@ class TestWbiSigner(unittest.TestCase):
         self.assertEqual(rs_params["w_rid"], py_params["w_rid"])
         self.assertEqual(rs_params, py_params)
 
+    @patch("api.client._rs_sign_wbi_params", None)
     def test_sign_wbi_client_enc_wbi_integration(self):
         params = {"bvid": "BV1xx411c7xx", "order": "pubdate"}
         signed = _enc_wbi(params, self.mixin_key)

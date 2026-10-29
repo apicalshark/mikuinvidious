@@ -181,6 +181,7 @@ This approach provides direct control over the environment but requires manual c
    cp config.toml.sample config.toml
    ```
    Edit `config.toml`:
+   - Set `site_url` in `[site]` to `http://localhost:8888` for direct HTTP access, or `http://localhost:8000` through the Caddy configuration above. Use your public HTTPS URL when deploying with TLS; the scheme controls the default Secure session cookie setting.
    - Set `secret_key` in `[server]`.
    - Ensure `url = "redis://localhost:6379"` in `[redis]`.
    - Configure `proxy_url` in `[proxy]` if you are using a SOCKS5/HTTP proxy.

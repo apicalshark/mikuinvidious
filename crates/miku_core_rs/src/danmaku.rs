@@ -1,3 +1,4 @@
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use quick_xml::events::Event;
@@ -11,7 +12,7 @@ pub struct DanmakuItem {
     pub ftcolor: String,
 }
 
-pub fn parse_danmaku_internal(xml_str: &str) -> Vec<DanmakuItem> {
+pub fn parse_danmaku_internal(xml_str: &str) -> Result<Vec<DanmakuItem>, quick_xml::Error> {
     let mut reader = Reader::from_str(xml_str);
     reader.config_mut().trim_text(false);
 
@@ -41,9 +42,7 @@ pub fn parse_danmaku_internal(xml_str: &str) -> Vec<DanmakuItem> {
             }
             Ok(Event::Text(ref e)) => {
                 if in_d {
-                    if let Ok(txt) = e.unescape() {
-                        current_text.push_str(&txt);
-                    }
+                    current_text.push_str(&e.unescape()?);
                 }
             }
             Ok(Event::CData(ref e)) => {
@@ -61,8 +60,8 @@ pub fn parse_danmaku_internal(xml_str: &str) -> Vec<DanmakuItem> {
                     }
                 }
             }
-            Ok(Event::Eof) | Err(_) => {
-                // If EOF or error occurs while inside <d>, attempt to salvage if we have valid text
+            Ok(Event::Eof) => {
+                // If EOF occurs while inside <d>, attempt to salvage if we have valid text
                 if in_d {
                     if let Some(item) = process_entry(&current_p, &current_text) {
                         items.push(item);
@@ -70,12 +69,13 @@ pub fn parse_danmaku_internal(xml_str: &str) -> Vec<DanmakuItem> {
                 }
                 break;
             }
+            Err(err) => return Err(err),
             _ => {}
         }
         buf.clear();
     }
 
-    items
+    Ok(items)
 }
 
 fn process_entry(p_str: &str, text: &str) -> Option<DanmakuItem> {
@@ -126,7 +126,9 @@ fn process_entry(p_str: &str, text: &str) -> Option<DanmakuItem> {
 
 #[pyfunction]
 pub fn parse_danmaku_xml<'py>(py: Python<'py>, xml_str: &str) -> PyResult<Bound<'py, PyList>> {
-    let items = py.detach(|| parse_danmaku_internal(xml_str));
+    let items = py
+        .detach(|| parse_danmaku_internal(xml_str))
+        .map_err(|err| PyValueError::new_err(err.to_string()))?;
 
     let py_list = PyList::empty(py);
     for item in items {
