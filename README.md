@@ -23,7 +23,7 @@ This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xaca
 - **Search Bar**: Paste any Bilibili link (even **b23.tv**) into the search bar to jump straight to the video with zero tracking.
 - **Media Playback**: Full DASH VOD streaming with multi-mirror failover, adaptive pacing, and danmaku overlay. Live streaming with FLV and HLS fallbacks.
 - **Background Downloads**: Resilient multi-track chunk downloading with ffmpeg muxing into downloadable MP4 files.
-- **High Performance**: Optional native Rust PyO3 extension (`miku_core_rs`) accelerates Danmaku XML parsing (4.4x faster with GIL release) and WBI signing (3.4x faster), backed by seamless pure-Python fallbacks.
+- **High Performance**: Optional native Rust PyO3 extension, backed by seamless pure-Python fallbacks.
 - **Listen Mode**: Bandwidth-saving audio-only interface for any video.
 - **Live Streaming**: Stable proxying with heartbeats and real-time SSE chat.
 - **Content Discovery**: Proxied articles (cv/opus) and global search with filters.
