@@ -5,6 +5,13 @@ from xml.dom import minidom
 import danmaku
 from danmaku import danmaku_xml_conv, danmaku_xml_fallback, parse_danmaku
 
+try:
+    import miku_core_rs
+except ModuleNotFoundError as exc:
+    if exc.name != "miku_core_rs":
+        raise
+    miku_core_rs = None
+
 
 class TestDanmakuParser(unittest.TestCase):
     def setUp(self):
@@ -59,7 +66,11 @@ class TestDanmakuParser(unittest.TestCase):
         self.assertEqual(parse_danmaku(None), [])
         self.assertEqual(parse_danmaku("not xml at all"), [])
 
-    @unittest.skipIf(danmaku.parse_danmaku_xml is None, "miku_core_rs is not installed")
+    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
+    def test_rust_danmaku_import(self):
+        self.assertIsNotNone(danmaku.parse_danmaku_xml, "parse_danmaku_xml should be exported by miku_core_rs")
+
+    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
     def test_native_errors_trigger_fallback_and_preserve_entries(self):
         valid = '<d p="1,1,25,16777215">Valid &amp; intact</d>'
         for broken in ("<broken></mismatch>", '<d p="2,1,25,16777215">Unknown &entity;</d>'):
@@ -74,7 +85,7 @@ class TestDanmakuParser(unittest.TestCase):
                 self.assertEqual(items[0]["text"], "Valid & intact")
                 self.assertEqual(items[-1]["text"], "Valid & intact")
 
-    @unittest.skipIf(danmaku.parse_danmaku_xml is None, "miku_core_rs is not installed")
+    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
     def test_native_normal_eof_salvages_open_entry(self):
         items = danmaku.parse_danmaku_xml('<i><d p="1,1,25,16777215">Unclosed text')
         self.assertEqual(len(items), 1)

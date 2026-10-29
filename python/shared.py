@@ -213,7 +213,7 @@ def _int_env(name, default):
 appconf = {
     "site": {
         "site_name": os.environ.get("SITE_NAME", "MikuInvidious"),
-        "site_url": os.environ.get("SITE_URL", "http://localhost:8888"),
+        "site_url": "http://localhost:8888",
         "site_modified_source_code_url": os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "")
         if os.environ.get("SITE_MODIFIED_SOURCE_CODE_URL", "").lower() not in ["false", ""]
         else False,
@@ -305,6 +305,9 @@ if os.path.exists("config.toml"):
     deep_update(appconf, rtoml.load(Path("config.toml")))
 elif os.path.exists("../config.toml"):
     deep_update(appconf, rtoml.load(Path("../config.toml")))
+
+if "SITE_URL" in os.environ:
+    appconf["site"]["site_url"] = os.environ["SITE_URL"]
 
 # Install the locale allowlist now that config is merged, so locale resolution,
 # /set_lang validation and the template language menus all read the same list.
