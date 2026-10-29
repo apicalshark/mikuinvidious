@@ -159,10 +159,13 @@ class Credential:
         from .client import HEADERS, get_bili_client
 
         client = await get_bili_client()
+        headers = dict(HEADERS)
+        cookies = self.get_cookies()
+        if cookies:
+            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
         resp = await client.get(
             "https://passport.bilibili.com/x/passport-login/web/cookie/info",
-            cookies=self.get_cookies(),
-            headers=HEADERS,
+            headers=headers,
         )
         data = resp.json()
         if data.get("code") != 0:
@@ -206,10 +209,12 @@ class Credential:
         ts = round(time.time() * 1000)
         cipher = PKCS1_OAEP.new(rsa, SHA256)
         correspond_path = binascii.b2a_hex(cipher.encrypt(f"refresh_{ts}".encode())).decode()
+        headers = dict(HEADERS)
+        if cookies:
+            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
         resp = await client.get(
             f"https://www.bilibili.com/correspond/1/{correspond_path}",
-            cookies=cookies,
-            headers=HEADERS,
+            headers=headers,
         )
         if resp.status_code != 200:
             raise RuntimeError("Failed to get CSRF for cookie refresh")
@@ -227,11 +232,13 @@ class Credential:
         }
         cookies = self.get_cookies()
         cookies["buvid3"] = str(uuid.uuid1())
+        post_headers = dict(HEADERS)
+        if cookies:
+            post_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
         resp = await client.post(
             "https://passport.bilibili.com/x/passport-login/web/cookie/refresh",
-            cookies=cookies,
             data=data,
-            headers=HEADERS,
+            headers=post_headers,
         )
         if resp.status_code != 200:
             raise RuntimeError("Failed to refresh cookies")
@@ -250,11 +257,14 @@ class Credential:
             "csrf": new_credential.bili_jct,
             "refresh_token": self.ac_time_value,
         }
+        confirm_headers = dict(HEADERS)
+        new_cookies = new_credential.get_cookies()
+        if new_cookies:
+            confirm_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in new_cookies.items() if v)
         await client.post(
             "https://passport.bilibili.com/x/passport-login/web/confirm/refresh",
-            cookies=new_credential.get_cookies(),
             data=conf_data,
-            headers=HEADERS,
+            headers=confirm_headers,
         )
 
         self.sessdata = new_credential.sessdata

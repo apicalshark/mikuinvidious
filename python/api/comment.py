@@ -89,11 +89,15 @@ async def _fetch(url: str, params: dict, cookies: dict) -> dict:
     keeps the header order browser-exact.
     """
     headers = build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
+    if cookies:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+        if cookie_str:
+            headers["Cookie"] = cookie_str
     client = await get_curl_client()
     # See live.py: keep the shared jar empty — any cookie presence here
     # risks the ~3-item truncation documented above.
     client.cookies.clear()
-    resp = await client.get(url, params=params, cookies=cookies or None, headers=headers, timeout=10.0)
+    resp = await client.get(url, params=params, headers=headers, timeout=10.0)
     if resp.status_code != 200:
         raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
     try:

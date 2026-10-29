@@ -227,14 +227,16 @@ async def _video_get_dash_for_qn_uncached(vi, idx, ep_id=None, cid=None) -> dict
             pgc_params["cid"] = cid
         if ep_id:
             pgc_params["ep_id"] = ep_id
+        pgc_headers = {
+            "Referer": "https://www.bilibili.com",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+        }
+        if cookies:
+            pgc_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
         pgc_raw = await client.get(
             "https://api.bilibili.com/pgc/player/web/playurl",
             params=pgc_params,
-            cookies=cookies,
-            headers={
-                "Referer": "https://www.bilibili.com",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
-            },
+            headers=pgc_headers,
             follow_redirects=True,
         )
         pgc = pgc_raw.json()
@@ -305,17 +307,16 @@ async def _fetch_single_durl_pgc(v, base_params: dict, ep_id=None) -> dict | Non
                 pass
         if ep_id:
             pgc_params["ep_id"] = ep_id
+        durl_headers = {
+            "Referer": "https://www.bilibili.com",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+        }
+        if cookies:
+            durl_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
         raw = await client.get(
             "https://api.bilibili.com/pgc/player/web/playurl",
             params=pgc_params,
-            cookies=cookies,
-            headers={
-                "Referer": "https://www.bilibili.com",
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
-                ),
-            },
+            headers=durl_headers,
             follow_redirects=True,
         )
         pgc = raw.json()

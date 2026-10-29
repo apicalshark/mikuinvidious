@@ -416,10 +416,11 @@ class Video:
         cookies["opus-goback"] = "1"
         headers = dict(HEADERS)
         headers["Referer"] = f"https://www.bilibili.com/video/{self._bvid}"
+        if cookies:
+            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
         resp = await client.get(
             f"https://api.bilibili.com/x/v1/dm/list.so?oid={cid}",
             headers=headers,
-            cookies=cookies,
         )
         import zlib
 

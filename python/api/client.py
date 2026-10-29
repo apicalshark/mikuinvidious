@@ -329,10 +329,15 @@ async def get_curl_client() -> httpx.AsyncClient:
 async def _get_mixin_key(credential: Credential = None) -> str:
     credential = credential or Credential()
     client = await get_bili_client()
+    headers = dict(HEADERS)
+    cookies = credential.get_cookies()
+    if cookies:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+        if cookie_str:
+            headers["Cookie"] = cookie_str
     resp = await client.get(
         _NAV_URL,
-        headers=HEADERS,
-        cookies=credential.get_cookies(),
+        headers=headers,
     )
     data = resp.json().get("data") or {}
     wbi_img = data.get("wbi_img") or {}
@@ -423,11 +428,16 @@ async def _get_bili_ticket(credential: Credential = None) -> str:
         "context[ts]": str(int(time.time())),
         "csrf": "",
     }
+    headers = dict(HEADERS)
+    cookies = credential.get_cookies()
+    if cookies:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+        if cookie_str:
+            headers["Cookie"] = cookie_str
     resp = await client.post(
         _TICKET_URL,
         params=params,
-        headers=HEADERS,
-        cookies=credential.get_cookies(),
+        headers=headers,
     )
     return resp.json()["data"]["ticket"]
 
@@ -693,6 +703,12 @@ class Api:
             cookies["opus-goback"] = "1"
 
             headers = dict(HEADERS) if not self.headers else dict(self.headers)
+            if cookies:
+                cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+                if cookie_str:
+                    existing = headers.get("Cookie") or headers.get("cookie")
+                    headers["Cookie"] = f"{existing}; {cookie_str}" if existing else cookie_str
+
             if not self.curl and (self.wbi or "/x/player/" in self.url):
                 # Player parity: web clients attach device metadata to unified
                 # requests (player_core.*.js `r0` middleware).
@@ -712,7 +728,6 @@ class Api:
                 params=request_params,
                 data=request_data,
                 json=json_content,
-                cookies=cookies,
                 headers=headers,
             )
 

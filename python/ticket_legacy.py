@@ -51,8 +51,10 @@ class LegacyTicketManager:
             headers = get_common_headers(appconf["bili"]).copy()
             if appconf["credential"].get("buvid3"):
                 headers["buvid"] = appconf["credential"]["buvid3"]
+            if cookies:
+                headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
 
-            resp = await client.post(url, params=params, cookies=cookies, headers=headers, timeout=10.0)
+            resp = await client.post(url, params=params, headers=headers, timeout=10.0)
             data = resp.json()
             if data.get("code") == 0:
                 return data["data"]
