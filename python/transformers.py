@@ -4,6 +4,17 @@ import html
 import re
 from urllib.parse import urlparse
 
+try:
+    from miku_core_rs import (
+        render_reply_content as _rs_render_reply_content,
+    )
+    from miku_core_rs import (
+        strip_search_highlight as _rs_strip_search_highlight,
+    )
+except ImportError:
+    _rs_render_reply_content = None
+    _rs_strip_search_highlight = None
+
 
 def format_duration(seconds):
     if not seconds:
@@ -39,6 +50,11 @@ def strip_search_highlight(text):
         text = str(text)
     if not text:
         return ""
+    if _rs_strip_search_highlight is not None:
+        try:
+            return _rs_strip_search_highlight(text)
+        except Exception:
+            pass
     return html.unescape(re.sub(r"</?em[^>]*>", "", text))
 
 
@@ -298,23 +314,7 @@ def _proxied_emote_src(raw_url):
     return "/proxy/pic/" + host + path
 
 
-def render_reply_content(content):
-    """Render a comment content dict to safe HTML with proxied emoji.
-
-    Returns an escaped-text string with [...] emote placeholders replaced by
-    same-origin <img> tags. Unknown/blocked placeholders stay as plain text.
-    """
-    if isinstance(content, str):
-        return html.escape(content)
-    if not isinstance(content, dict):
-        return ""
-    message = content.get("message") or ""
-    if not isinstance(message, str):
-        message = str(message)
-    emote = content.get("emote")
-    if not isinstance(emote, dict) or not emote:
-        return html.escape(message)
-
+def _render_reply_content_py(message, emote):
     def _replace(match):
         token = match.group(0)
         entry = emote.get(token)
@@ -343,3 +343,29 @@ def render_reply_content(content):
         pos = m.end()
     out.append(html.escape(message[pos:]))
     return "".join(out)
+
+
+def render_reply_content(content):
+    """Render a comment content dict to safe HTML with proxied emoji.
+
+    Returns an escaped-text string with [...] emote placeholders replaced by
+    same-origin <img> tags. Unknown/blocked placeholders stay as plain text.
+    """
+    if isinstance(content, str):
+        return html.escape(content)
+    if not isinstance(content, dict):
+        return ""
+    message = content.get("message") or ""
+    if not isinstance(message, str):
+        message = str(message)
+    emote = content.get("emote")
+    if not isinstance(emote, dict) or not emote:
+        return html.escape(message)
+
+    if _rs_render_reply_content is not None:
+        try:
+            return _rs_render_reply_content(message, emote)
+        except Exception:
+            pass
+
+    return _render_reply_content_py(message, emote)

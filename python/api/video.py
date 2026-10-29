@@ -41,7 +41,8 @@ _table = "FcwAPNKTMug3GV5Lj7EJnHpWsx4tb8haYeviqBz6rkCy12mUSDQX9RdoZf"
 _itable = {c: i for i, c in enumerate(_table)}
 
 try:
-    from miku_core_rs import av2bv as _rs_av2bv, bv2av as _rs_bv2av
+    from miku_core_rs import av2bv as _rs_av2bv
+    from miku_core_rs import bv2av as _rs_bv2av
 except ImportError:
     _rs_av2bv = None
     _rs_bv2av = None

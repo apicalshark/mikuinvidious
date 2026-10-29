@@ -19,7 +19,6 @@ from quart import Response, request
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import app, appredis
 
-
 try:
     from miku_core_rs import generate_vod_mpd as rs_generate_vod_mpd
 except ImportError:

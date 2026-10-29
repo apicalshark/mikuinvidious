@@ -3,6 +3,7 @@ use pyo3::prelude::*;
 pub mod bvid;
 pub mod danmaku;
 pub mod mpd;
+pub mod text;
 pub mod wbi;
 
 #[pyfunction]
@@ -19,5 +20,7 @@ fn miku_core_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bvid::bv2av, m)?)?;
     m.add_function(wrap_pyfunction!(bvid::av2bv, m)?)?;
     m.add_function(wrap_pyfunction!(mpd::generate_vod_mpd, m)?)?;
+    m.add_function(wrap_pyfunction!(text::strip_search_highlight, m)?)?;
+    m.add_function(wrap_pyfunction!(text::render_reply_content, m)?)?;
     Ok(())
 }
