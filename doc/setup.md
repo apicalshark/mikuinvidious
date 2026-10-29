@@ -26,6 +26,7 @@ sudo apt install python3 python3-venv git curl
 - **Redis**: Required for caching and session storage. [Install Guide](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
 - **Caddy**: High-performance reverse proxy. [Install Guide](https://caddyserver.com/docs/install)
 - **Node.js v18+ & npm**: Required for building CSS and frontend tools. [Install Guide](https://nodejs.org/en/download/package-manager)
+- **Rust & Cargo (Optional)**: Required only if compiling the native `miku_core_rs` acceleration extension. [Install Guide](https://rustup.rs/) (See [doc/rust-extension.md](rust-extension.md)).
 
 ---
 
@@ -41,19 +42,31 @@ If you intend to contribute to MikuInvidious or modify the source code, follow t
    npm install
    ```
 
-2. **Frontend Assets:**
+2. **Build Native Rust Extension (Optional):**
+   MikuInvidious includes an optional Rust extension that accelerates Danmaku XML parsing (4.4x faster with GIL release) and WBI signing (3.4x faster). If you have Rust installed:
+   ```bash
+   npm run build:rust
+   ```
+   *(If skipped, the app automatically runs in pure-Python fallback mode without errors.)*
+
+3. **Frontend Assets:**
    The project uses Tailwind CSS. To build the CSS file:
    ```bash
    npm run build:css
    ```
 
-3. **Running in Debug Mode:**
+4. **Running the Test Suite:**
+   ```bash
+   npm test
+   ```
+
+5. **Running in Debug Mode:**
    For development, it's recommended to enable debug mode for auto-reloading and detailed error messages:
    ```bash
    QUART_DEBUG=true uv run python/main.py
    ```
 
-4. **Linting and Formatting:**
+6. **Linting and Formatting:**
    Before submitting changes, ensure your code follows the project's style:
    ```bash
    # Lint everything

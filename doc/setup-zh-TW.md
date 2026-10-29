@@ -26,6 +26,7 @@ sudo apt install python3 python3-venv git curl
 - **Redis**: 用於快取和工作階段存儲。[安裝指南](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
 - **Caddy**: 高性能反向代理。[安裝指南](https://caddyserver.com/docs/install)
 - **Node.js v18+ & npm**: 建置 CSS 和前端工具所需。[安裝指南](https://nodejs.org/en/download/package-manager)
+- **Rust & Cargo (選用)**: 僅在編譯原生 `miku_core_rs` 效能加速擴充套件時需要。[安裝指南](https://rustup.rs/)（詳見 [doc/rust-extension.md](rust-extension.md)）。
 
 ---
 
@@ -41,19 +42,31 @@ sudo apt install python3 python3-venv git curl
    npm install
    ```
 
-2. **前端資產：**
+2. **編譯原生 Rust 擴充套件（選用）：**
+   MikuInvidious 包含一個可選的 Rust 擴充套件，可顯著加速彈幕 XML 解析（釋放 GIL 且快 4.4 倍）與 WBI 簽名計算（快 3.4 倍）。若已安裝 Rust：
+   ```bash
+   npm run build:rust
+   ```
+   *（如果未編譯，程式將自動以純 Python 回退模式執行，功能完全正常。）*
+
+3. **前端資產：**
    專案使用 Tailwind CSS。要建置 CSS 檔案，請執行：
    ```bash
    npm run build:css
    ```
 
-3. **在偵錯模式下執行：**
+4. **執行測試套件：**
+   ```bash
+   npm test
+   ```
+
+5. **在偵錯模式下執行：**
    對於開發，建議開啟偵錯模式以啟用自動重載和詳細錯誤訊息：
    ```bash
    QUART_DEBUG=true uv run python/main.py
    ```
 
-4. **程式碼檢查與格式化：**
+6. **程式碼檢查與格式化：**
    在提交更改之前，請確保您的程式碼符合專案風格：
    ```bash
    # 檢查所有程式碼
