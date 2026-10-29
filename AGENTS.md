@@ -141,10 +141,6 @@ graph TD
   - `src/wbi.rs`: Native RFC 3986 parameter signer and MD5 hasher (~3.5x faster than pure-Python).
   - Optional at runtime: if `miku_core_rs` is not compiled/installed, transparent pure-Python fallbacks activate automatically.
 
-- **Frontend Architecture:**
-  - `static/themes/modern/js/player.js`: Encapsulates player state and methods under `window.mikuPlayer` with backward-compatible accessors; isolates Firefox MSE 0-seek clamp strictly to `#player`.
-  - `static/themes/modern/js/_helpers.js`: Standalone utility functions without prototype pollution.
-
 ## Playback & Download Stack
 
 DASH is the canonical VOD path; progressive `durl` remains as a fallback for uploads that have no DASH tracks.
