@@ -71,7 +71,7 @@ git commit -m "chore(core): add url, regex, and byteorder crates"
   - `render_reply_content(message: &str, emote: Option<&Bound<'_, PyDict>>) -> PyResult<String>`
 
 - [x] **Step 1: Write static regexes in `text.rs`**
-Define `SEARCH_HIGHLIGHT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)</?em[^>]*>").unwrap());` and `REPLY_EMOTE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\[\]\n\r]{1,50})\]").unwrap());`.
+Define `SEARCH_HIGHLIGHT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"</?em[^>]*>").unwrap());` and `REPLY_EMOTE_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\[\]\n\r]{1,50})\]").unwrap());`.
 
 - [x] **Step 2: Implement `strip_search_highlight` using `SEARCH_HIGHLIGHT_RE`**
 Replace manual loop with `SEARCH_HIGHLIGHT_RE.replace_all(text, "")` and decode HTML entities with `html_escape::decode_html_entities`.

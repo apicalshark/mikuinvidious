@@ -5,7 +5,7 @@ use pyo3::types::PyDict;
 use regex::Regex;
 
 static SEARCH_HIGHLIGHT_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)</?em[^>]*>").expect("valid search highlight regex"));
+    LazyLock::new(|| Regex::new(r"</?em[^>]*>").expect("valid search highlight regex"));
 
 static REPLY_EMOTE_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[([^\[\]\n\r]{1,50})\]").expect("valid reply emote regex"));
@@ -60,6 +60,17 @@ fn proxied_emote_src(raw_url: &str) -> Option<String> {
     } else {
         trimmed
     };
+
+    // Url::parse normalizes dot segments, so check the undecoded path first.
+    let raw_path = url_str
+        .split(['?', '#'])
+        .next()?
+        .splitn(4, '/')
+        .nth(3)
+        .unwrap_or("");
+    if raw_path.split('/').any(|segment| segment == "..") {
+        return None;
+    }
 
     let parsed = url::Url::parse(url_str).ok()?;
     let scheme = parsed.scheme();
@@ -124,7 +135,14 @@ pub fn render_reply_content(message: &str, emote: Option<&Bound<'_, PyDict>>) ->
                     .get_item("webp_url")
                     .ok()
                     .flatten()
-                    .or_else(|| entry.get_item("gif_url").ok().flatten())
+                    .filter(|v| v.is_truthy().unwrap_or(false))
+                    .or_else(|| {
+                        entry
+                            .get_item("gif_url")
+                            .ok()
+                            .flatten()
+                            .filter(|v| v.is_truthy().unwrap_or(false))
+                    })
                     .or_else(|| entry.get_item("url").ok().flatten())
                     .and_then(|v| v.extract::<String>().ok());
 

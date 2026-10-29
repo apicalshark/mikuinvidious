@@ -26,6 +26,23 @@ try:
 except ImportError:
     miku_core_rs = None
 
+# This script compares both implementations; incomplete native builds cannot
+# produce a complete comparison, even when application fallbacks are available.
+_REQUIRED_NATIVE_EXPORTS = (
+    "parse_danmaku_xml",
+    "sign_wbi_params",
+    "bv2av",
+    "av2bv",
+    "generate_vod_mpd",
+    "render_reply_content",
+    "unpack_live_danmaku",
+)
+if miku_core_rs is None:
+    raise SystemExit("Rust comparison requires miku_core_rs. Build it with npm run build:rust.")
+_missing_exports = [name for name in _REQUIRED_NATIVE_EXPORTS if not callable(getattr(miku_core_rs, name, None))]
+if _missing_exports:
+    raise SystemExit(f"Rust comparison requires native exports: {', '.join(_missing_exports)}. Rebuild with npm run build:rust.")
+
 
 def generate_danmaku_xml(count: int = 5000) -> str:
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', "<i>", "    <chatserver>chat.bilibili.com</chatserver>"]
@@ -129,7 +146,7 @@ def benchmark_bvid(iterations: int = 10000):
             _ = miku_core_rs.av2bv(sample_aid)
             times_rs.append((time.perf_counter() - t0) * 1_000_000.0)
         avg_rs = statistics.mean(times_rs)
-        print(f"[Rust BV/AV]   avg={avg_rs:.2f}µs | ops/sec={1_000_000.0 / avg_rs:,.0f}")
+        print(f"[Rust BV/AV]   avg={avg_rs:.2f}µs/pair | pairs/sec={1_000_000.0 / avg_rs:,.0f}")
     else:
         avg_rs = None
 
@@ -140,7 +157,7 @@ def benchmark_bvid(iterations: int = 10000):
         _ = _av2bv_py(sample_aid)
         times_py.append((time.perf_counter() - t0) * 1_000_000.0)
     avg_py = statistics.mean(times_py)
-    print(f"[Python BV/AV] avg={avg_py:.2f}µs | ops/sec={1_000_000.0 / avg_py:,.0f}")
+    print(f"[Python BV/AV] avg={avg_py:.2f}µs/pair | pairs/sec={1_000_000.0 / avg_py:,.0f}")
 
     if avg_rs:
         print(f">> Speedup (Rust vs Python): {avg_py / avg_rs:.1f}x faster")
