@@ -338,6 +338,11 @@ app.secret_key = os.urandom(32).hex()
 
 # Configure sessions using Quart's built-in secure signed cookies
 app.session_interface = SecureCookieSessionInterface()
+if "SESSION_COOKIE_SAMESITE" not in appconf["quart"]:
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+if "SESSION_COOKIE_SECURE" not in appconf["quart"]:
+    site_url = str(appconf.get("site", {}).get("site_url", "")).lower()
+    app.config["SESSION_COOKIE_SECURE"] = site_url.startswith("https://")
 
 
 async def close_global_client():

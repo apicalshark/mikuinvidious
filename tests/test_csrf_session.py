@@ -9,6 +9,8 @@ class TestCsrfSession(unittest.IsolatedAsyncioTestCase):
     async def test_session_interface_is_secure_cookie(self):
         """Verify that the default session interface is SecureCookieSessionInterface."""
         self.assertIsInstance(app.session_interface, SecureCookieSessionInterface)
+        self.assertEqual(app.config.get("SESSION_COOKIE_SAMESITE"), "Lax")
+        self.assertTrue(app.config.get("SESSION_COOKIE_HTTPONLY"))
 
     async def test_csrf_token_lifecycle_with_secure_cookie(self):
         """Verify CSRF token generation and validation across secure cookie session."""
