@@ -10,6 +10,7 @@
     "sync:static:maps": "node tools/sync-static.js --with-maps",
     "postinstall": "node tools/sync-static.js",
     "test": "PYTHONPATH=python uv run python -m unittest discover tests",
+    "benchmark": "PYTHONPATH=python uv run python tools/benchmark_core.py",
     "build:rust": "uv run maturin develop --release --manifest-path crates/miku_core_rs/Cargo.toml",
     "check:compile": "uv run python -m compileall -f python tests tools",
     "lint:python": "uv run ruff check python",
