@@ -1,6 +1,6 @@
 # Rust Extension (`miku_core_rs`)
 
-MikuInvidious includes an optional native Rust extension (`crates/miku_core_rs`) built with [PyO3](https://pyo3.rs/) and [Maturin](https://www.maturin.rs/) (using stable ABI `abi3-py310`).
+MikuInvidious includes an optional native Rust extension (`crates/miku_core_rs`) built with [PyO3](https://pyo3.rs/) and [Maturin](https://www.maturin.rs/) (using stable ABI `abi3-py315` targeting Python 3.15+).
 
 The extension offloads high-volume, CPU-bound operations from Python to Rust, drastically improving response latency and concurrency under heavy traffic.
 
