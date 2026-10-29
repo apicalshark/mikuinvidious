@@ -115,6 +115,21 @@ class TestTextRs(unittest.TestCase):
         self.assertEqual(_render_reply_content_py("[doge]", emote), "[doge]")
         self.assertEqual(miku_core_rs.render_reply_content("[doge]", emote), "[doge]")
 
+    @unittest.skipIf(miku_core_rs is None, "miku_core_rs is not installed")
+    def test_rust_rejects_raw_whitespace_and_prohibited_characters(self):
+        urls = [
+            "https://i0.hdslb.com/bfs/emote/doge test.png",
+            "https://i0.hdslb.com/bfs/emote/doge<script>.png",
+            "https://i0.hdslb.com/bfs/emote/doge\"quote.png",
+            "https://i0.hdslb.com/bfs/emote/doge`tick.png",
+            "https://i0.hdslb.com/bfs/emote/doge{brace}.png",
+        ]
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertIsNone(_proxied_emote_src(url))
+                emote = {"[doge]": {"url": url}}
+                self.assertEqual(miku_core_rs.render_reply_content("[doge]", emote), "[doge]")
+
 
 if __name__ == "__main__":
     unittest.main()

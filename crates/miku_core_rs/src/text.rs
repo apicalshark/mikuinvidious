@@ -61,7 +61,8 @@ fn proxied_emote_src(raw_url: &str) -> Option<String> {
         trimmed
     };
 
-    // Url::parse normalizes dot segments, so check the undecoded path first.
+    // Url::parse normalizes dot segments and percent-encodes characters,
+    // so validate the unencoded raw path first to match Python's urlparse rejection.
     let raw_path = url_str
         .split(['?', '#'])
         .next()?
@@ -70,6 +71,16 @@ fn proxied_emote_src(raw_url: &str) -> Option<String> {
         .unwrap_or("");
     if raw_path.split('/').any(|segment| segment == "..") {
         return None;
+    }
+    for b in raw_path.bytes() {
+        if b.is_ascii_whitespace()
+            || matches!(
+                b,
+                b'"' | b'\'' | b'<' | b'>' | b'\\' | b'^' | b'`' | b'{' | b'|' | b'}'
+            )
+        {
+            return None;
+        }
     }
 
     let parsed = url::Url::parse(url_str).ok()?;
