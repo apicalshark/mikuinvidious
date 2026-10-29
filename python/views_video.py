@@ -572,5 +572,3 @@ async def video_view(vid, idx=0):
     if cache_ttl > 0:
         return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
     return html
-
-

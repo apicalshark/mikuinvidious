@@ -233,8 +233,6 @@ async def proxy_download(vid, idx, qual):
         # already released it; a manual release would corrupt the semaphore.
 
 
-
-
 # ---------------------------------------------------------------------------
 # Background download jobs (floating progress dialog + cancel)
 # ---------------------------------------------------------------------------

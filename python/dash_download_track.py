@@ -62,8 +62,6 @@ _DOWNLOAD_WRITE_BATCH = 1024 * 1024
 # patiently instead of hammering.
 
 
-
-
 def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
     """Pick the best (video, audio) track pair for a muxed download.
 
@@ -128,8 +126,6 @@ async def _open_cdn_track(url: str, headers: dict, proxy_url: str):
             await conn.close()
             raise
     return conn, resp_headers
-
-
 
 
 async def _await_track_retry(
@@ -417,8 +413,6 @@ async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None)
         raise
     if proc.returncode != 0:
         raise RuntimeError("ffmpeg mux failed: " + (stderr or b"").decode(errors="replace")[-600:])
-
-
 
 
 def _has_exact_content_length(resp_headers, span_left: int) -> bool:
@@ -874,5 +868,3 @@ async def _download_track_file(
         note_cb=note_cb,
         rewind_cb=rewind_cb,
     )
-
-

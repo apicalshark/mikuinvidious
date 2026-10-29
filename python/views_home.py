@@ -298,4 +298,14 @@ async def api_convert():
 
     return jsonify(result), 200
 
-__all__ = ["home_view", "zone_id_view", "search_view", "history_view", "convert_view", "api_convert", "static_licenses_view", "resolve_b23_target"]
+
+__all__ = [
+    "home_view",
+    "zone_id_view",
+    "search_view",
+    "history_view",
+    "convert_view",
+    "api_convert",
+    "static_licenses_view",
+    "resolve_b23_target",
+]

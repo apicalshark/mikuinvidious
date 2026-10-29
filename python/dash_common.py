@@ -83,8 +83,6 @@ _ALLOWED_DASH_DOMAINS = [
 ]
 
 
-
-
 def _is_mcdn_url(url: str) -> bool:
     """Detect Bilibili M-CDN (PCDN) edge nodes (PipePipe b3303f4).
 
@@ -197,8 +195,6 @@ async def _extract_ep_id(vi) -> str | None:
     return None
 
 
-
-
 _FREE_DOWNLOAD_MAX_QN = 80
 _DOWNLOAD_TOO_LARGE = -2
 
@@ -269,7 +265,6 @@ class _TrackCut(Exception):
 _CUT_ERRORS = (_TrackCut, *_RETRYABLE_TRACK_ERRORS)
 
 
-
 async def _build_dash_cdn_headers() -> dict:
     """CDN header set for DASH track requests (proxy + download).
 
@@ -297,8 +292,6 @@ async def _build_dash_cdn_headers() -> dict:
     return headers
 
 
-
-
 def _parse_content_range_start(headers) -> int | None:
     """Parse the start offset from a ``Content-Range: bytes <start>-...`` header."""
     cr = (headers or {}).get("content-range") or ""
@@ -311,10 +304,9 @@ def _parse_content_range_start(headers) -> int | None:
         return None
 
 
-
-
 _CONTENT_RANGE_RE = re.compile(r"bytes\s+(\d+)-(\d+)(?:/(\d+|\*))?")
 _RANGE_NOT_SATISFIABLE_RE = re.compile(r"bytes\s+\*/(\d+)")
+
 
 def _shift_dash_range(orig_range: str | None, yielded: int) -> str | None:
     """Remaining Range after ``yielded`` bytes were already sent downstream.
@@ -385,7 +377,7 @@ def _parse_416_total(cr: str | None) -> int | None:
         return None
     try:
         return int(m.group(1))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -550,6 +542,3 @@ _SLOW_WINDOW_STRIKES = 3
 # fresh hammer lands back in the penalty box. Fixed 10s (not escalating —
 # escalation lives in the inter-segment pacing ladder).
 _SLOW_TRIP_PAUSE = 10.0
-
-
-
