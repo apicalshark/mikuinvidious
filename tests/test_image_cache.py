@@ -92,6 +92,21 @@ class TestImageCache(unittest.IsolatedAsyncioTestCase):
         )
         self.assertLessEqual(total_size, 500)
 
+    async def test_unwritable_directory_falls_back_gracefully(self):
+        # Create a read-only directory
+        ro_dir = os.path.join(self.test_dir, "readonly_cache")
+        os.makedirs(ro_dir, mode=0o555)
+
+        cache = ImageCache(cache_dir=ro_dir)
+        # Should detect unwritable directory and fall back to a writable temp directory
+        url = "https://i0.hdslb.com/bfs/archive/fallback.jpg"
+        content = b"fallback_test_image"
+        await cache.set(url, content, "image/jpeg")
+
+        cached = await cache.get(url)
+        self.assertIsNotNone(cached)
+        self.assertEqual(cached[0], content)
+
 
 class TestProxyPicDiskCacheIntegration(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

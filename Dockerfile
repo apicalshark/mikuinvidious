@@ -12,7 +12,8 @@ ENV LD_PRELOAD=/usr/lib/libmimalloc.so.2
 
 # Create non-root user
 RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser \
-    && chown appuser:appgroup /app
+    && mkdir -p /app/data/img_cache \
+    && chown -R appuser:appgroup /app
 
 # Install dependencies using the lockfile
 COPY --chown=appuser:appgroup pyproject.toml uv.lock ./

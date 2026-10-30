@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import os
+import tempfile
 import time
 import uuid
 
@@ -36,7 +37,21 @@ class ImageCache:
 
         self._op_counter = 0
         self._prune_lock = asyncio.Lock()
-        os.makedirs(self.cache_dir, exist_ok=True)
+        self._ensure_writable()
+
+    def _ensure_writable(self) -> None:
+        try:
+            os.makedirs(self.cache_dir, exist_ok=True)
+            test_file = os.path.join(self.cache_dir, f".write_test_{uuid.uuid4().hex}.tmp")
+            with open(test_file, "w") as f:
+                f.write("test")
+            os.remove(test_file)
+        except OSError as e:
+            print(f"[ImageCache] Warning: cache_dir {self.cache_dir} is not writable ({e}).")
+            fallback = os.path.join(tempfile.gettempdir(), "miku_img_cache")
+            print(f"[ImageCache] Falling back to writable temp directory: {fallback}")
+            self.cache_dir = fallback
+            os.makedirs(self.cache_dir, exist_ok=True)
 
     def _url_to_key(self, url: str) -> str:
         """Derive a safe filesystem key from a URL using SHA-256."""
