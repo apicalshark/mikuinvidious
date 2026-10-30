@@ -117,7 +117,7 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_async_client", new=AsyncMock(return_value=client)),
+            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             # Fire 6 concurrent requests through render_proxy_pic against a pool of only 2 connections
             tasks = [render_proxy_pic(f"/proxy/pic/i{i}.hdslb.com/bfs/test_{i}.jpg") for i in range(6)]
@@ -149,7 +149,7 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_async_client", new=AsyncMock(return_value=client)),
+            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/pic.jpg")
             self.assertEqual(resp.status_code, 200)
@@ -172,7 +172,7 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_async_client", new=AsyncMock(return_value=client)),
+            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/face/avatar.webp")
             self.assertEqual(resp.status_code, 200)
@@ -194,7 +194,7 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_async_client", new=AsyncMock(return_value=client)),
+            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/not_an_image.jpg")
             self.assertEqual(resp.status_code, 403)
@@ -230,12 +230,31 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_async_client", new=AsyncMock(return_value=client)),
+            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/huge.jpg")
             self.assertEqual(resp.status_code, 413)
 
         await client.aclose()
+
+    async def test_network_get_image_client_isolation(self):
+        """Validates that Network.get_image_client returns an isolated client with HTTP/2 enabled."""
+        from shared import Network, close_global_client
+
+        try:
+            image_client = await Network.get_image_client()
+            async_client = await Network.get_async_client()
+
+            self.assertIsInstance(image_client, httpx.AsyncClient)
+            self.assertIsInstance(async_client, httpx.AsyncClient)
+            # Must be separate clients with distinct connection pools
+            self.assertIsNot(image_client, async_client)
+
+            # Same client on subsequent calls
+            self.assertIs(await Network.get_image_client(), image_client)
+            self.assertIs(await Network.get_async_client(), async_client)
+        finally:
+            await close_global_client()
 
 
 if __name__ == "__main__":

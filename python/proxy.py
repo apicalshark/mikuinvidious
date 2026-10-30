@@ -122,7 +122,7 @@ async def render_proxy_pic(req_path):
 
         headers = get_common_headers(appconf["bili"]).copy()
 
-        client = await Network.get_async_client()
+        client = await Network.get_image_client()
         resp = None
         try:
             req = client.build_request("GET", url, headers=headers)

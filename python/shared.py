@@ -149,8 +149,10 @@ class TicketManager:
 
 class Network:
     _async_client = None
+    _image_client = None
     _sync_client = None
     _async_lock = asyncio.Lock()
+    _image_lock = asyncio.Lock()
 
     @staticmethod
     def get_proxy():
@@ -170,6 +172,21 @@ class Network:
                         follow_redirects=False,
                     )
         return cls._async_client
+
+    @classmethod
+    async def get_image_client(cls) -> httpx.AsyncClient:
+        if cls._image_client is None or cls._image_client.is_closed:
+            async with cls._image_lock:
+                if cls._image_client is None or cls._image_client.is_closed:
+                    cls._image_client = httpx.AsyncClient(
+                        proxy=cls.get_proxy(),
+                        trust_env=False,
+                        http2=True,
+                        timeout=httpx.Timeout(None, connect=15.0, pool=30.0, read=30.0),
+                        limits=httpx.Limits(max_connections=150, max_keepalive_connections=50),
+                        follow_redirects=False,
+                    )
+        return cls._image_client
 
     @classmethod
     def get_sync_client(cls) -> httpx.Client:
@@ -353,6 +370,9 @@ async def close_global_client():
     if Network._async_client and not Network._async_client.is_closed:
         await Network._async_client.aclose()
         print("[Shutdown] Global async client closed.")
+    if Network._image_client and not Network._image_client.is_closed:
+        await Network._image_client.aclose()
+        print("[Shutdown] Global image async client closed.")
 
 
 def cache_minutes(key, default=5):
