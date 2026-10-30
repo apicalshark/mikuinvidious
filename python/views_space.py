@@ -185,14 +185,14 @@ async def space_view(mid):
     if not isinstance(uvids, dict):
         uvids = {}
     uvids.setdefault("list", {}).setdefault("vlist", [])
-    uvids.setdefault("page", {"count": 0, "pn": 1, "ps": 28})
+    uvids.setdefault("page", {"count": 0, "pn": pn, "ps": 28})
     # Coerce numeric page fields to int so the template's arithmetic/comparisons
     # (e.g. `pn > 1`) never hit str-vs-int errors.
     page = uvids.get("page") or {}
     try:
-        page["pn"] = int(page.get("pn", 1))
+        page["pn"] = int(page.get("pn", pn))
     except TypeError, ValueError:
-        page["pn"] = 1
+        page["pn"] = pn
     try:
         page["ps"] = int(page.get("ps", 28))
     except TypeError, ValueError:

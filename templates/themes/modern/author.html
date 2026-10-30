@@ -111,7 +111,7 @@
                     <i class="icon ion-ios-arrow-back"></i> {{ _("Previous page") }}
                 </a>
             {% endif %}
-            {% if (uarts["pn"]+1)*(uarts["ps"]) < uarts["count"] %}
+            {% if uarts["pn"] * uarts["ps"] < uarts["count"] %}
                 <a href="/author/{{ uinfo['mid'] }}?i={{ uarts['pn'] + 1 }}"
                    class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
                     {{ _("Next page") }} <i class="icon ion-ios-arrow-forward"></i>

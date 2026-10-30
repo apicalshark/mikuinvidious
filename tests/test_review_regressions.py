@@ -511,5 +511,63 @@ class DashAudioOptimizationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sent_headers.get("range"), "bytes=0-0")
 
 
+class PaginationVisibilityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_space_pagination_visibility(self):
+        import filters  # noqa: F401
+        from shared import app, render_template_with_theme
+
+        uinfo = {"mid": 177291194, "name": "DECO27_Official", "sign": "", "face": ""}
+        vlist = [{"bvid": f"BV{i}", "title": f"Video {i}", "pic": "", "duration": "3:00", "author": "DECO27", "mid": 177291194, "created": 1600000000, "play": 100} for i in range(28)]
+
+        # Page 1 of 3 (count=69, ps=28)
+        async with app.test_request_context("/space/177291194?i=1"):
+            uvids = {"list": {"vlist": vlist}, "page": {"count": 69, "pn": 1, "ps": 28}}
+            html1 = await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids, degraded=False, load_failed=False)
+            self.assertIn("?i=2", html1)
+            self.assertNotIn("?i=0", html1)
+
+        # Page 2 of 3 (count=69, ps=28) -> Next page (?i=3) must exist
+        async with app.test_request_context("/space/177291194?i=2"):
+            uvids = {"list": {"vlist": vlist}, "page": {"count": 69, "pn": 2, "ps": 28}}
+            html2 = await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids, degraded=False, load_failed=False)
+            self.assertIn("?i=3", html2)
+            self.assertIn("?i=1", html2)
+
+        # Page 3 of 3 (count=69, ps=28) -> Last page, no next page (?i=4)
+        async with app.test_request_context("/space/177291194?i=3"):
+            uvids = {"list": {"vlist": vlist[:13]}, "page": {"count": 69, "pn": 3, "ps": 28}}
+            html3 = await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids, degraded=False, load_failed=False)
+            self.assertNotIn("?i=4", html3)
+            self.assertIn("?i=2", html3)
+
+    async def test_author_pagination_visibility(self):
+        import filters  # noqa: F401
+        from shared import app, render_template_with_theme
+
+        uinfo = {"mid": 177291194, "name": "DECO27_Official", "sign": "", "face": ""}
+        articles = [{"id": i, "title": f"Art {i}", "image_urls": [], "publish_time": 1600000000, "words": 100, "stats": {"view": 10, "reply": 1}, "author": {"mid": 177291194, "name": "DECO27"}} for i in range(28)]
+
+        # Page 2 of 3 (count=69, ps=28) -> Next page (?i=3) must exist
+        async with app.test_request_context("/author/177291194?i=2"):
+            uarts = {"articles": articles, "count": 69, "pn": 2, "ps": 28}
+            html = await render_template_with_theme("author.html", uinfo=uinfo, uarts=uarts)
+            self.assertIn("?i=3", html)
+            self.assertIn("?i=1", html)
+
+    async def test_zone_pagination_visibility(self):
+        import filters  # noqa: F401
+        from shared import app, render_template_with_theme
+
+        # Page 2 of 3 (count=25, size=10) -> Next page (?i=3) must exist
+        async with app.test_request_context("/vv/1?i=2"):
+            info = {
+                "archives": [{"tid": 1, "bvid": f"BV{i}", "title": f"Video {i}", "pic": "", "duration": "3:00", "owner": {"name": "Owner"}, "stat": {"view": 10}, "pubdate": 1600000000} for i in range(10)],
+                "page": {"count": 25, "num": 2, "size": 10},
+            }
+            html = await render_template_with_theme("zone.html", info=info)
+            self.assertIn("?i=3", html)
+            self.assertIn("?i=1", html)
+
+
 if __name__ == "__main__":
     unittest.main()

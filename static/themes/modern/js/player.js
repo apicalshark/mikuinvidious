@@ -1083,12 +1083,9 @@ async function initMikuPlayer() {
 
   if (!video) return;
 
-  // Firefox-only: its MSE evicts buffered data on seeks to exactly 0
-  // (seeks to 0.1 keep everything). Clamp zero seeks to 0.1s.
-  // Per MDN UA-sniffing guide: Firefox token present, Seamonkey excluded.
-  const _ua = navigator.userAgent || "";
-  const isFirefox = /Firefox\/\d/.test(_ua) && !/Seamonkey\/\d/i.test(_ua);
-  if (!window.is_live && isFirefox && !video._zeroSeekClamped) {
+  // MSE evicts or invalidates buffered data on seeks to exactly 0
+  // (seeks to 0.1 keep everything in MSE and dash.js). Clamp zero seeks to 0.1s.
+  if (!window.is_live && !video._zeroSeekClamped) {
     try {
       const protoDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "currentTime");
       if (protoDesc && typeof protoDesc.set === "function") {
@@ -1107,6 +1104,35 @@ async function initMikuPlayer() {
     } catch (e) {
       console.warn("[Player] Could not install zero-seek clamp:", e);
     }
+  }
+
+  // When replaying after video has ended, reset currentTime to 0 first:
+  // 1. It goes through the zero-seek clamp (seeking to 0.1s instead of 0.0s),
+  //    preventing MSE buffer eviction and dash.js clearBuffers().
+  // 2. video.ended transitions to false synchronously before play() is called,
+  //    preventing the browser from initiating a native C++ seek to 0.0s.
+  if (!window.is_live && controller && !controller._replayHandlerInstalled) {
+    controller.addEventListener(
+      "mediaplayrequest",
+      () => {
+        if (video.ended || (video.duration > 1 && video.currentTime >= video.duration)) {
+          video.currentTime = 0;
+        }
+      },
+      true
+    );
+    controller._replayHandlerInstalled = true;
+  }
+
+  if (!window.is_live && !video._playReplayWrapped) {
+    const origPlay = video.play;
+    video.play = function () {
+      if (this.ended || (this.duration > 1 && this.currentTime >= this.duration)) {
+        this.currentTime = 0;
+      }
+      return origPlay.apply(this, arguments);
+    };
+    video._playReplayWrapped = true;
   }
 
   // Clean up old buffer controller if it exists

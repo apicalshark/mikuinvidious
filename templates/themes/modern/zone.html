@@ -75,7 +75,7 @@
                 <i class="icon ion-ios-arrow-back"></i> {{ _("Previous page") }}
             </a>
         {% endif %}
-        {% if (info["page"]["num"]+1)*(info["page"]["size"]) < info["page"]["count"] %}
+        {% if info["page"]["num"] * info["page"]["size"] < info["page"]["count"] %}
             <a href="/vv/{{ info['archives'][0]['tid'] }}?i={{ info['page']['num']+1 }}"
                class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
                 {{ _("Next page") }} <i class="icon ion-ios-arrow-forward"></i>

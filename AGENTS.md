@@ -294,33 +294,39 @@ Configuration is managed via `config.toml` (recommended) or Environment Variable
 
 ### Code Quality, Linting & Verification
 
-Run these verification commands before committing changes:
+Run verification before committing changes. Prefer direct `uv` commands; only invoke `npm` when necessary (e.g., when frontend assets, styles, vendored dependencies, or templates are modified).
 
-- **Lint Everything (Python + Frontend):**
+- **Run Test Suite (Python - preferred, no npm):**
   ```bash
-  npm run lint
+  PYTHONPATH=python uv run python -m unittest discover tests
   ```
-  Runs `uv run ruff check python` for Python and `prettier --check` + `uv run djlint templates --check` for frontend.
-
-- **Auto-format Code:**
-  ```bash
-  npm run format
-  ```
-  Formats Python with `uv run ruff format python`, JavaScript/CSS with Prettier, and Jinja2 templates with `uv run djlint templates --reformat`.
+  Or `npm test` if npm is already in use.
 
 - **Bytecode Compilation Check (Syntax & Import Errors):**
   ```bash
-  npm run check:compile
+  uv run python -m compileall -f python tests tools
   ```
-  Forces bytecode compilation across `python/`, `tests/`, and `tools/` using `uv run python -m compileall -f python tests tools`.
 
-- **Run Test Suite:**
+- **Python Linting & Formatting:**
   ```bash
-  npm test
+  uv run ruff check python
+  uv run ruff format python
   ```
-  Runs unittest discovery with `PYTHONPATH=python uv run python -m unittest discover tests`.
 
-- **i18n Verification:**
+- **Frontend Linting & Formatting (Only when frontend JS/CSS/templates are modified):**
+  ```bash
+  npm run lint:frontend
+  npm run format:frontend
+  ```
+  Or `npm run lint` / `npm run format` for full multi-language checks when both Python and frontend changed.
+
+- **CSS & Static Asset Sync (Only when styles or vendored libraries are modified):**
+  ```bash
+  npm run build:css     # when static/themes/modern/css/tailwind-input.css changes
+  npm run sync:static   # when bumping vendored packages in package.json
+  ```
+
+- **i18n Verification (When translatable strings change):**
   ```bash
   npm run check:i18n
   npm run build:i18n  # regenerate if catalogs are stale

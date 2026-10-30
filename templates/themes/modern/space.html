@@ -144,7 +144,7 @@
                 <i class="icon ion-ios-arrow-back"></i> {{ _("Previous page") }}
             </a>
         {% endif %}
-        {% if (uvids["page"]["pn"]+1)*(uvids["page"]["ps"]) < uvids["page"]["count"] %}
+        {% if uvids["page"]["pn"] * uvids["page"]["ps"] < uvids["page"]["count"] %}
             <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']+1 }}"
                class="px-4 py-2 rounded-lg bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2">
                 {{ _("Next page") }} <i class="icon ion-ios-arrow-forward"></i>
