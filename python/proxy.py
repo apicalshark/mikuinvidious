@@ -3,6 +3,7 @@ import ipaddress
 import uuid
 from urllib.parse import urlparse
 
+from image_cache import image_cache
 from live_manager import live_manager
 from quart import Blueprint, Response, request
 from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
@@ -109,16 +110,34 @@ async def is_safe_proxy_url(url: str) -> bool:
 
 
 async def render_proxy_pic(req_path):
+    req_path = req_path[11:]
+
+    if ".." in req_path or req_path.startswith("/"):
+        return Response("Forbidden", status=403)
+
+    url = f"https://{req_path}"
+
+    if not await is_safe_proxy_url(url):
+        return Response("Forbidden", status=403)
+
+    # 1. Check local disk cache (fast path, bypasses semaphore and network)
+    cached = await image_cache.get(url)
+    if cached is not None:
+        content, content_type = cached
+        proxy_resp = Response(content, status=200, content_type=content_type)
+        proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
+        proxy_resp.headers["X-Cache"] = "HIT"
+        return proxy_resp
+
     async with image_limiter:
-        req_path = req_path[11:]
-
-        if ".." in req_path or req_path.startswith("/"):
-            return Response("Forbidden", status=403)
-
-        url = f"https://{req_path}"
-
-        if not await is_safe_proxy_url(url):
-            return Response("Forbidden", status=403)
+        # Re-check cache in case another coroutine fetched it while waiting for semaphore
+        cached = await image_cache.get(url)
+        if cached is not None:
+            content, content_type = cached
+            proxy_resp = Response(content, status=200, content_type=content_type)
+            proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
+            proxy_resp.headers["X-Cache"] = "HIT"
+            return proxy_resp
 
         headers = get_common_headers(appconf["bili"]).copy()
 
@@ -182,12 +201,17 @@ async def render_proxy_pic(req_path):
 
             content = b"".join(chunks)
 
+            # Store to disk cache asynchronously
+            if resp.status_code == 200:
+                await image_cache.set(url, content, content_type)
+
             proxy_resp = Response(
                 content,
                 status=resp.status_code,
                 content_type=content_type,
             )
             proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
+            proxy_resp.headers["X-Cache"] = "MISS"
             return proxy_resp
         except Exception as e:
             if resp:

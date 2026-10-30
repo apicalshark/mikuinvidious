@@ -38,6 +38,19 @@ PROD_DOMAIN {
     @notProxy not path /proxy/*
     encode @notProxy zstd gzip
 
+    # Image proxy route: Protected by Anubis PoW challenge.
+    # Behind Anubis, Python serves cached images from local disk (X-Cache: HIT, < 1ms).
+    # Browsers and edge caches retain images for 24h via Cache-Control.
+    handle /proxy/pic/* {
+        header X-Content-Type-Options "nosniff"
+        reverse_proxy anubis:PORT {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+
     # Route everything else through Anubis for bot mitigation
     handle {
         reverse_proxy anubis:PORT {

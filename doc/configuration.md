@@ -122,6 +122,17 @@ All page caches emit `X-Cache: HIT` / `MISS` response headers (absent when cachi
 
 ---
 
+## `[image_cache]`
+Settings for the local disk cache for proxied images (`/proxy/pic/*`).
+
+| Key | Environment Variable | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `cache_dir` | `IMAGE_CACHE_DIR` | `data/img_cache` | Path on disk to store cached images. |
+| `max_size_mb` | `IMAGE_CACHE_MAX_SIZE_MB` | `2048` | Maximum disk usage in MB before automatic LRU pruning triggers down to 80% capacity. |
+| `ttl_days` | `IMAGE_CACHE_TTL_DAYS` | `7` | Time-to-live for cached images in days. |
+
+---
+
 ## `[rate_limit]`
 Per-IP sliding-window rate limiting (Redis-backed). Disabled by default.
 

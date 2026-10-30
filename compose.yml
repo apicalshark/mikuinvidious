@@ -22,6 +22,8 @@ services:
       - BUVID3=
       - BUVID4=
       - DEDEUSERID=
+    volumes:
+      - img_cache:/app/data/img_cache
     depends_on:
       - redis
 
@@ -49,3 +51,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  img_cache:
