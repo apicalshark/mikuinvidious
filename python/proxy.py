@@ -19,6 +19,8 @@ from stream import CdnConnection, CdnProtocolError, CdnTimeoutError
 
 proxy_bp = Blueprint("proxy", __name__)
 
+MAX_IMAGE_SIZE = 15 * 1024 * 1024  # 15 MB maximum proxy image size
+
 
 async def _cdn_handshake(target_url: str, headers: dict, proxy_url: str | None, label: str):
     """Connect + send request + read headers; (conn, headers) or (None, None)."""
@@ -121,12 +123,10 @@ async def render_proxy_pic(req_path):
         headers = get_common_headers(appconf["bili"]).copy()
 
         client = await Network.get_async_client()
+        resp = None
         try:
             req = client.build_request("GET", url, headers=headers)
-            # Stream the body: the old code buffered the entire origin image
-            # (resp.content) per request, so 50 concurrent image_limiter slots
-            # could hold 50 full images in memory. Headers are validated
-            # before a single body byte is proxied.
+            # Headers are validated before reading body
             resp = await client.send(req, stream=True, follow_redirects=True)
 
             content_type = resp.headers.get("content-type", "").lower().split(";")[0].strip()
@@ -158,24 +158,40 @@ async def render_proxy_pic(req_path):
                 await resp.aclose()
                 return Response("Forbidden: Invalid content type", status=403)
 
-            async def _stream_body():
-                try:
-                    async for chunk in resp.aiter_bytes(65536):
-                        yield chunk
-                finally:
-                    await resp.aclose()
+            # Reject oversized payloads early if declared
+            cl_header = resp.headers.get("content-length")
+            if cl_header and cl_header.isdigit() and int(cl_header) > MAX_IMAGE_SIZE:
+                await resp.aclose()
+                return Response("Payload Too Large", status=413)
+
+            # Read the image content into memory and immediately close the upstream
+            # connection, returning it to the HTTPX connection pool while still inside
+            # the image_limiter semaphore. Streaming the response to slow client
+            # browsers held pool connections open indefinitely, causing PoolTimeout (502)
+            # when concurrent client requests exceeded max_connections.
+            chunks = []
+            total_size = 0
+            try:
+                async for chunk in resp.aiter_bytes(65536):
+                    total_size += len(chunk)
+                    if total_size > MAX_IMAGE_SIZE:
+                        return Response("Payload Too Large", status=413)
+                    chunks.append(chunk)
+            finally:
+                await resp.aclose()
+
+            content = b"".join(chunks)
 
             proxy_resp = Response(
-                _stream_body(),
+                content,
                 status=resp.status_code,
                 content_type=content_type,
             )
-            # Do not forward upstream Content-Length: _stream_body() yields
-            # decoded bytes via aiter_bytes() (gzip/deflate/br transparently
-            # decompressed), so the encoded length can disagree with bytes sent.
             proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
             return proxy_resp
         except Exception as e:
+            if resp:
+                await resp.aclose()
             err = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
             print(f"[Proxy] Error in render_proxy_pic for {url}: {err}")
             return Response("Upstream error", status=502)
