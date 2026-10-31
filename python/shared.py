@@ -16,6 +16,8 @@ from fingerprints import DEFAULT_APP_UA, get_app_headers
 from flask_orjson import OrjsonProvider
 from quart import Quart, render_template, request
 from quart.sessions import SecureCookieSessionInterface
+from redis.asyncio.retry import Retry
+from redis.backoff import NoBackoff
 from secrets_encryption import NACL_AVAILABLE, decrypt_secret
 
 
@@ -50,6 +52,12 @@ class TicketManager:
     # Future shared by concurrent callers while a refresh is running, so a
     # ticket miss stampedes one upstream fetch instead of N (singleflight).
     _inflight = None
+    # A failed refresh leaves no cached ticket, so without a cooldown every
+    # later caller retries the upstream POST (measured 93ms) — once per DASH
+    # fragment while the ticket service is down. Skip the attempt for this
+    # long instead; the generated headers are best-effort either way.
+    _fail_until = 0.0
+    TICKET_FAIL_COOLDOWN = 30.0
 
     @classmethod
     def _generate_trace_id(cls):
@@ -74,9 +82,12 @@ class TicketManager:
             ticket, expiry_ts = await get_bili_ticket(appcred)
         except Exception as e:
             print(f"[Ticket] Error fetching ticket from upstream: {e}")
+            cls._fail_until = time.time() + cls.TICKET_FAIL_COOLDOWN
             return None, 0
         if not ticket:
+            cls._fail_until = time.time() + cls.TICKET_FAIL_COOLDOWN
             return None, 0
+        cls._fail_until = 0.0
         try:
             real_ttl = int(expiry_ts) - now
             if real_ttl > 0:
@@ -96,6 +107,11 @@ class TicketManager:
                 # Check local cache
                 if cls._ticket and now < cls._expiry - 60:
                     return cls._ticket
+
+                # A recent refresh failed: no ticket to serve, and retrying now
+                # only pays another upstream round trip per caller.
+                if time.time() < cls._fail_until:
+                    return None
 
                 # Check Redis cache (a miss/degraded Redis falls through to fetch)
                 try:
@@ -321,9 +337,25 @@ from i18n import set_supported_locales  # noqa: E402
 set_supported_locales(appconf["display"].get("supported_locales"))
 
 # Connect to our nice redis database.
+#
+# Every Redis call in this app is a small cache/session operation, so the
+# client must fail fast: redis-py 8 defaults to 10 retries with exponential
+# jitter (base 10ms, cap 1s), which measured 3.4-4.6s per command against an
+# unreachable server. On the playback path that turned one 120ms fragment
+# into 7s, past every player timeout. One attempt with a 1s socket bound keeps
+# a sick Redis a hiccup instead of a stall.
+REDIS_SOCKET_TIMEOUT = 1.0
+REDIS_RETRY = Retry(NoBackoff(), 0)
+
 redis_url = appconf["redis"]["redis_url"] or os.environ.get("REDIS_URL")
 if redis_url:
-    appredis = redis.from_url(redis_url, decode_responses=True)
+    appredis = redis.from_url(
+        redis_url,
+        decode_responses=True,
+        socket_timeout=REDIS_SOCKET_TIMEOUT,
+        socket_connect_timeout=REDIS_SOCKET_TIMEOUT,
+        retry=REDIS_RETRY,
+    )
 else:
     appredis = redis.Redis(
         host=appconf["redis"]["host"],
@@ -331,6 +363,9 @@ else:
         username=appconf["redis"]["username"],
         password=appconf["redis"]["password"] or os.environ.get("REDIS_PASSWORD"),
         decode_responses=True,
+        socket_timeout=REDIS_SOCKET_TIMEOUT,
+        socket_connect_timeout=REDIS_SOCKET_TIMEOUT,
+        retry=REDIS_RETRY,
     )
 
 # Initialize the quart app.

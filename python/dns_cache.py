@@ -16,11 +16,15 @@
 """Tiny TTL cache for ``getaddrinfo`` used by the DASH SSRF guard.
 
 ``dash_proxy._is_safe_dash_url_async`` resolves target hostnames to reject private IPs.
-Uncached lookups cost 50ms-1s (measured ~1s for some ``*.bilivideo.com``
-edges) and run on the DASH critical path once per candidate URL.
+Uncached lookups cost 50ms-1s (measured 86ms for ``upos-sz-mirrorcosov``,
+18-30ms for the other mirrors) and run on the DASH critical path.
 
-Entries expire after ``DNS_CACHE_TTL`` seconds (default 120s). Concurrent
-misses for the same hostname coalesce behind one lookup (singleflight).
+Entries are served for ``DNS_CACHE_TTL`` seconds (default 120s) and then
+stale-while-revalidate for up to ``DNS_STALE_GRACE`` more: the stale answer
+goes back immediately and a background lookup refreshes it, so the DNS cost
+never lands inline on a fragment. Past the grace the lookup blocks again, so
+a hostname that has been re-pointed is not served from memory indefinitely.
+Concurrent lookups for the same hostname coalesce (singleflight).
 ``proxy.is_safe_proxy_url`` bypasses this cache so each approval checks a
 fresh resolution. Neither path pins the connection to the checked address.
 """
@@ -30,11 +34,17 @@ import socket
 import time
 
 DNS_CACHE_TTL = 120.0
+# How far past the TTL a stale answer may be served while it revalidates.
+# Only allowlisted Bilibili CDN domains reach this cache, so staleness is a
+# freshness question, not an SSRF one — but the window stays bounded.
+DNS_STALE_GRACE = 300.0
 
 _cache: dict[str, tuple[float, list]] = {}
 # hostname -> [future, waiter_count]; the future is settled only when someone
 # waits on it, so unobserved failures never log "exception was never retrieved".
 _inflight: dict[str, list] = {}
+# hostname -> background revalidation task (one per host at a time).
+_refreshing: dict[str, asyncio.Task] = {}
 _lock = asyncio.Lock()
 
 
@@ -55,12 +65,51 @@ def _settle(hostname: str, ok: bool, payload):
 
 
 async def resolve_host(hostname: str):
-    """Return ``getaddrinfo`` results for *hostname*, cached for ``DNS_CACHE_TTL``."""
+    """Return ``getaddrinfo`` results for *hostname*.
+
+    Fresh entries return immediately; expired-but-within-grace entries return
+    stale and revalidate in the background; anything colder waits for a real
+    lookup (coalesced with any other waiter for the same hostname).
+    """
     now = time.monotonic()
     hit = _cache.get(hostname)
-    if hit is not None and now - hit[0] < DNS_CACHE_TTL:
-        return hit[1]
+    if hit is not None:
+        age = now - hit[0]
+        if age < DNS_CACHE_TTL:
+            return hit[1]
+        if age < DNS_CACHE_TTL + DNS_STALE_GRACE:
+            _schedule_refresh(hostname)
+            return hit[1]
 
+    return await _lookup(hostname)
+
+
+def _schedule_refresh(hostname: str) -> None:
+    """Start a background revalidation for *hostname* unless one is running."""
+    task = _refreshing.get(hostname)
+    if task is not None and not task.done():
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return  # no loop (sync caller): the next await will block instead
+    _refreshing[hostname] = loop.create_task(_refresh(hostname))
+
+
+async def _refresh(hostname: str) -> None:
+    try:
+        await _lookup(hostname)
+    except Exception:
+        # Stale-but-served is the point: a failed revalidation leaves the
+        # previous answer in place until the next attempt.
+        pass
+    finally:
+        if _refreshing.get(hostname) is asyncio.current_task():
+            _refreshing.pop(hostname, None)
+
+
+async def _lookup(hostname: str):
+    """Resolve *hostname* now, coalescing concurrent callers behind one lookup."""
     async with _lock:
         hit = _cache.get(hostname)
         if hit is not None and time.monotonic() - hit[0] < DNS_CACHE_TTL:
@@ -110,3 +159,6 @@ async def resolve_host(hostname: str):
 def clear_cache():
     """Drop all cached entries (tests)."""
     _cache.clear()
+    for task in list(_refreshing.values()):
+        task.cancel()
+    _refreshing.clear()

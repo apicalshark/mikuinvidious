@@ -596,6 +596,60 @@ async def _resolve_durl_download(v, vid: str, idx: int, qual: int, play_data: di
 _dash_inflight: dict[str, asyncio.Future] = {}
 _DASH_MISS_TTL = 30
 
+# Process-memory copy of the cached playurl payload. The track proxy reads it
+# once per DASH fragment (2-8/s), and Redis was the only copy: a sick Redis
+# therefore added its whole failure budget to every fragment (measured 7054ms
+# per 256 KiB fragment, against 120ms healthy) and made the manifest route
+# raise. 30s is far inside the ~2h signature lifetime, so serving from memory
+# cannot hand out dead URLs; `_refresh_dash_data` (403/expiry recovery) drops
+# the entry explicitly.
+_DASH_MEM_TTL = 30.0
+_DASH_MEM_MAX = 64
+# After a Redis failure, skip Redis for this long instead of paying one failed
+# call per fragment. Fragments keep working from the memory copy meanwhile.
+_DASH_REDIS_COOLDOWN = 30.0
+
+_dash_mem: dict[str, tuple[float, dict]] = {}
+_dash_redis_until = 0.0
+
+
+def _dash_mem_get(key: str) -> dict | None:
+    """Return the process-memory payload for *key* when still fresh."""
+    hit = _dash_mem.get(key)
+    if hit is None:
+        return None
+    if time.monotonic() - hit[0] >= _DASH_MEM_TTL:
+        _dash_mem.pop(key, None)
+        return None
+    return hit[1]
+
+
+def _dash_mem_put(key: str, data: dict) -> None:
+    _dash_mem[key] = (time.monotonic(), data)
+    while len(_dash_mem) > _DASH_MEM_MAX:
+        oldest = min(_dash_mem, key=lambda k: _dash_mem[k][0])
+        _dash_mem.pop(oldest, None)
+
+
+async def _dash_redis_get(key: str):
+    """Bounded Redis GET for the dash payload; ``None`` on miss *or* failure.
+
+    Never raises: the playback path must degrade to a playurl fetch, not to a
+    500. A failure opens a cooldown window so repeated fragments do not each
+    pay the client's connect/timeout budget.
+    """
+    global _dash_redis_until
+    if time.monotonic() < _dash_redis_until:
+        return None
+    try:
+        value = await appredis.get(key)
+    except Exception as exc:
+        _dash_redis_until = time.monotonic() + _DASH_REDIS_COOLDOWN
+        print(f"[DashProxy] Redis unavailable for dash cache ({exc.__class__.__name__}); using process memory")
+        return None
+    _dash_redis_until = 0.0  # a live Redis clears the cooldown
+    return value
+
 
 async def _fetch_and_cache_dash_data(vid, idx, key):
     """Fetch dash play info and cache it. Returns the dash dict or None."""
@@ -613,7 +667,13 @@ async def _fetch_and_cache_dash_data(vid, idx, key):
         except Exception:
             pass
         return None
-    await appredis.setex(key, DASH_CACHE_TTL, orjson.dumps(data))
+    _dash_mem_put(key, data)
+    try:
+        await appredis.setex(key, DASH_CACHE_TTL, orjson.dumps(data))
+    except Exception as exc:
+        # The payload is already in process memory; a cold Redis only costs
+        # the next process a refetch.
+        print(f"[DashProxy] could not cache dash for {vid}:{idx} ({exc.__class__.__name__})")
     return data
 
 
@@ -626,12 +686,21 @@ async def _load_dash_data(vid, idx) -> dict | None:
     A cancelled owner still settles joiners (with ``None``) instead of
     leaving them waiting on a future that will never resolve.
 
-    Cached entries whose signed CDN URLs have expired (see
+    The process-memory copy is consulted first (see ``_DASH_MEM_TTL``): the
+    track proxy asks once per fragment, and Redis is only the cross-process
+    copy. Cached entries whose signed CDN URLs have expired (see
     :func:`_dash_data_urls_stale`, the server-side ``isUrlExpired``) are
     dropped and re-fetched instead of serving known-dead URLs.
     """
     key = f"miku_dash_{vid}_{idx}"
-    cached = await appredis.get(key)
+    mem = _dash_mem_get(key)
+    if mem is not None:
+        if not _dash_data_urls_stale(mem):
+            return mem
+        print(f"[DashProxy] in-memory playurl for {vid}:{idx} expired, refetching")
+        _dash_mem.pop(key, None)
+
+    cached = await _dash_redis_get(key)
     if cached:
         data = safe_json_loads(cached)
         if isinstance(data, dict):
@@ -642,8 +711,9 @@ async def _load_dash_data(vid, idx) -> dict | None:
                 except Exception:
                     pass
             else:
+                _dash_mem_put(key, data)
                 return data
-    if await appredis.get(f"{key}:miss"):
+    if await _dash_redis_get(f"{key}:miss"):
         return None
     fut = _dash_inflight.get(key)
     if fut is None:
@@ -680,6 +750,8 @@ async def _refresh_dash_data(vid, idx) -> dict | None:
     dash_data or None.
     """
     key = f"miku_dash_{vid}_{idx}"
+    # Recovery must not be answered from the copy it is trying to replace.
+    _dash_mem.pop(key, None)
     try:
         await appredis.delete(key)
         await appredis.delete(f"{key}:miss")

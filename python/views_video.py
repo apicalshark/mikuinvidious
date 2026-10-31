@@ -144,7 +144,12 @@ async def api_component_player(vid, idx):
         their per-quality URLs are cached under ``mikuinv_*`` by the
         progressive fallback below.
         """
-        cached = await appredis.get(f"miku_dash_{vid}_{idx}")
+        try:
+            cached = await appredis.get(f"miku_dash_{vid}_{idx}")
+        except Exception as e:
+            # A sick Redis must degrade to a playurl fetch, not fail the page.
+            print(f"[Player] dash cache read failed for {vid}:{idx}: {e}")
+            cached = None
         if cached:
             cached_data = safe_json_loads(cached)
             if isinstance(cached_data, dict) and cached_data.get("dash"):
