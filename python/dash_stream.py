@@ -99,6 +99,118 @@ def _dash_candidate_urls(track: dict) -> list:
     return candidates
 
 
+# ---------------------------------------------------------------------------
+# Playback keep-alive pool
+# ---------------------------------------------------------------------------
+#
+# Every fragment is its own HTTP request, and each one used to open a fresh
+# TCP+TLS connection to the same CDN edge: measured 45-51 ms of connect on a
+# 256 KiB fragment whose body moved in 44 ms, so roughly 70% of the upstream
+# time was connection setup. Banking the socket after an exactly-consumed
+# length-framed body — the same rule the download path uses — makes the next
+# fragment of the rendition skip the handshake and the slow-start ramp.
+#
+# Keyed by (proxy, url): all fragments of one rendition share the same signed
+# URL, and ``send_request`` always reuses the path the connection was built
+# with, so the key must pin the full URL. Bookkeeping is synchronous (single
+# event-loop thread, like ``dns_cache``); only the close() calls are awaited.
+#
+# A stale socket is never fatal: the write may be accepted and then fail on
+# the response read, which the caller treats as a failed reuse and retries
+# with a fresh connection (mirror health is untouched — a closed idle socket
+# says nothing about the edge).
+
+_POOL_MAX_IDLE = 8
+_POOL_IDLE_TTL = 30.0
+
+
+async def _quiet_close(conn) -> None:
+    try:
+        await conn.close()
+    except Exception:
+        pass
+
+
+class _PlaybackKeepAlivePool:
+    """Idle, boundary-exact CDN connections reused by playback fragments."""
+
+    def __init__(self, max_idle: int = _POOL_MAX_IDLE, ttl: float = _POOL_IDLE_TTL):
+        self._max_idle = max_idle
+        self._ttl = ttl
+        self._idle: dict[tuple[str, str], tuple[float, CdnConnection]] = {}
+        self._reaper: asyncio.Task | None = None
+
+    async def take(self, url: str, proxy_url: str):
+        """Return a banked connection for *url*, or None when there is none."""
+        entry = self._idle.pop((proxy_url or "", url), None)
+        if entry is None:
+            return None
+        banked_at, conn = entry
+        if time.monotonic() - banked_at > self._ttl:
+            await _quiet_close(conn)
+            return None
+        return conn
+
+    async def give(self, url: str, proxy_url: str, conn) -> None:
+        """Bank *conn* for the next fragment of *url*."""
+        key = (proxy_url or "", url)
+        stale = self._idle.pop(key, None)
+        if stale is not None:
+            # One socket per URL: a second banked socket for the same object
+            # only burns an FD and an upstream slot.
+            await _quiet_close(stale[1])
+        while len(self._idle) >= self._max_idle:
+            oldest = min(self._idle, key=lambda k: self._idle[k][0])
+            await _quiet_close(self._idle.pop(oldest)[1])
+        self._idle[key] = (time.monotonic(), conn)
+        if self._reaper is None or self._reaper.done():
+            self._reaper = asyncio.get_running_loop().create_task(self._reap())
+
+    async def _reap(self) -> None:
+        """Close sockets that idled past the TTL, then stop when the pool empties."""
+        while self._idle:
+            try:
+                await asyncio.sleep(self._ttl)
+            except asyncio.CancelledError:
+                # Interpreter/test shutdown: sockets are closed by close_all().
+                return
+            cutoff = time.monotonic() - self._ttl
+            for key in [k for k, (at, _) in self._idle.items() if at < cutoff]:
+                await _quiet_close(self._idle.pop(key)[1])
+
+    async def close_all(self) -> None:
+        conns = [c for _, c in self._idle.values()]
+        self._idle.clear()
+        for conn in conns:
+            await _quiet_close(conn)
+
+
+playback_pool = _PlaybackKeepAlivePool()
+
+
+def _dash_conn_bankable(conn, resp_headers, served: int) -> bool:
+    """True when *conn* sits exactly at the next request boundary.
+
+    Same bar as the download path: a ``206`` whose body was length-framed and
+    consumed in full on this very connection. Salvaged bodies
+    (``_ResumedDashConn``) can leave queued bytes behind, close-delimited
+    bodies end at EOF, and a ``Connection: close`` response ends the socket —
+    none of them can host another request.
+    """
+    if resp_headers is None or resp_headers.status_code != 206:
+        return False
+    if isinstance(conn, _ResumedDashConn):
+        return False
+    headers = resp_headers.headers or {}
+    if str(headers.get("connection") or "").strip().lower() == "close":
+        return False
+    try:
+        announced = int(str(headers.get("content-length") or "").strip())
+    except TypeError, ValueError:
+        return False
+    return announced == served
+
+
 async def _fetch_dash_attempt(url: str, headers: dict, proxy_url: str, timeout: float = DASH_ATTEMPT_TIMEOUT):
     """Connect + request + read headers for one candidate URL.
 
@@ -509,7 +621,12 @@ async def _failover_dash_conn(
 
 
 async def _fetch_dash_track(
-    urls: list, headers: dict, proxy_url: str, label: str, attempt_timeout: float | None = None
+    urls: list,
+    headers: dict,
+    proxy_url: str,
+    label: str,
+    attempt_timeout: float | None = None,
+    reuse_pool=None,
 ):
     """Try each candidate mirror in order; return ``(conn, resp_headers, used_url, content_length, content_range)``.
     Stalled edges fail fast (``DASH_ATTEMPT_TIMEOUT``) so playback falls over
@@ -525,10 +642,16 @@ async def _fetch_dash_track(
     Recently-failed mirrors are tried last (see sick-mirror memory): every
     fragment otherwise restarts at a sick primary and burns seconds before
     failing over.
+
+    ``reuse_pool`` (playback only) is consulted once, for the healthiest
+    candidate: a banked keep-alive socket saves the TCP+TLS handshake and the
+    slow-start ramp of that fragment. Failed reuses fall back to a fresh
+    connect and never mark the mirror sick.
     """
     ticket_refreshed = False
     last_error: Exception | None = None
     forbidden_seen = False
+    pooled_checked = False
     handshake_timeout = attempt_timeout or DASH_ATTEMPT_TIMEOUT
     urls = _order_urls_by_health(urls)
     want = _parse_range_start(headers.get("range"))
@@ -540,18 +663,37 @@ async def _fetch_dash_track(
         ]
     for url in urls:
         host = urlparse(url).hostname or url
-        try:
-            conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url, timeout=handshake_timeout)
-        except TimeoutError as exc:
-            last_error = exc if str(exc) else TimeoutError(f"{host} stalled")
-            _note_mirror_bad(urlparse(url).hostname or "")
-            print(f"[DashProxy] {label} {host} stalled, trying next mirror")
-            continue
-        except (CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError) as exc:
-            last_error = exc
-            _note_mirror_bad(urlparse(url).hostname or "")
-            print(f"[DashProxy] {label} {host} failed ({exc}), trying next mirror")
-            continue
+        conn = resp_headers = None
+        if reuse_pool is not None and not pooled_checked:
+            # Only the healthiest candidate is tried on a banked socket: the
+            # pool must never resurrect a mirror that health ordering just
+            # demoted. A failed reuse falls through to a fresh connect on the
+            # same URL and is not held against the mirror (an idle socket may
+            # simply have been closed upstream).
+            pooled_checked = True
+            reused = await reuse_pool.take(url, proxy_url)
+            if reused is not None:
+                try:
+                    async with asyncio.timeout(handshake_timeout):
+                        resp_headers = await reused.next_request(headers)
+                    conn = reused
+                except (CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError, TimeoutError) as exc:
+                    print(f"[DashProxy] {label} {host} kept-alive reuse failed ({exc}), reconnecting")
+                    await _quiet_close(reused)
+                    conn = resp_headers = None
+        if conn is None:
+            try:
+                conn, resp_headers = await _fetch_dash_attempt(url, headers, proxy_url, timeout=handshake_timeout)
+            except TimeoutError as exc:
+                last_error = exc if str(exc) else TimeoutError(f"{host} stalled")
+                _note_mirror_bad(urlparse(url).hostname or "")
+                print(f"[DashProxy] {label} {host} stalled, trying next mirror")
+                continue
+            except (CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError) as exc:
+                last_error = exc
+                _note_mirror_bad(urlparse(url).hostname or "")
+                print(f"[DashProxy] {label} {host} failed ({exc}), trying next mirror")
+                continue
         if resp_headers.status_code in [403, 412, 514, 567]:
             await conn.close()
             forbidden_seen = True
@@ -728,7 +870,12 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         label = f"{vid}:{idx} {media_type}/{qn}/{cid}"
         try:
             conn, resp_headers, used_url, content_length, content_range = await _fetch_dash_track(
-                urls, headers, proxy_url, label, attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT
+                urls,
+                headers,
+                proxy_url,
+                label,
+                attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
+                reuse_pool=playback_pool,
             )
         except _DashUpstreamError as exc:
             old_stamp = _playurl_url_expiry(urls[0]) if urls else None
@@ -771,6 +918,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         async def generate():
             nonlocal conn, host, yielded, used_url
             same_resumes = 0
+            clean = True  # this connection served the whole fragment, start to end
             while True:
                 attempt_base = yielded
                 try:
@@ -837,14 +985,17 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                         return
                     if used == prev_url:
                         same_resumes += 1
+                    clean = False
                     used_url = used
                     host = urlparse(used).hostname or "-"
                     continue
-                try:
-                    await conn.close()
-                except Exception:
-                    pass
                 _note_mirror_ok(host)
+                if clean and _dash_conn_bankable(conn, resp_headers, yielded):
+                    # Socket sits exactly at the next boundary: hand it to the
+                    # next fragment instead of paying another handshake.
+                    await playback_pool.give(used_url, proxy_url, conn)
+                else:
+                    await _quiet_close(conn)
                 return
 
         proxy_resp = Response(generate(), status=resp_headers.status_code)

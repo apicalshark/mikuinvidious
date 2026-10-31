@@ -2,6 +2,13 @@ import asyncio
 import ssl
 from urllib.parse import urlparse
 
+# One shared client TLS context. ``ssl.create_default_context()`` reloads and
+# parses the system CA bundle on every call (measured 3.9 ms), and a fresh
+# context also starts with an empty session cache, so per-connect construction
+# bought nothing but CPU: every fragment handshake paid it again. Contexts are
+# thread- and task-safe for concurrent handshakes.
+_TLS_CONTEXT = ssl.create_default_context()
+
 
 class CdnConnectError(Exception):
     pass
@@ -143,10 +150,9 @@ class CdnConnection:
                     raise CdnConnectError(f"Unsupported proxy scheme: {proxy_scheme}")
 
                 if self._use_tls:
-                    ctx = ssl.create_default_context()
-                    await self._writer.start_tls(ctx, server_hostname=self._host)
+                    await self._writer.start_tls(_TLS_CONTEXT, server_hostname=self._host)
             else:
-                ctx = ssl.create_default_context() if self._use_tls else None
+                ctx = _TLS_CONTEXT if self._use_tls else None
                 self._reader, self._writer = await asyncio.open_connection(
                     self._host, self._port, ssl=ctx, server_hostname=self._host if ctx else None
                 )

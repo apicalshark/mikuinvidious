@@ -66,6 +66,9 @@ async def start_background_tasks():
 @app.after_serving
 async def shutdown_cleanup():
     await close_global_client()
+    from dash_stream import playback_pool
+
+    await playback_pool.close_all()
 
 
 @app.before_request
