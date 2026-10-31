@@ -111,6 +111,51 @@ class TestFingerprints(unittest.TestCase):
         self.assertEqual(ARTICLE_SCRAPE_UA, DEFAULT_APP_UA)
         self.assertIn("8.83.0", APP_UA)
 
+    def test_dm_img_params_format_and_formulas(self):
+        import json
+
+        from api.video import _get_dm_img_params
+
+        # Fingerprint enabled (default)
+        params = _get_dm_img_params(fingerprint=True)
+        self.assertIn("dm_img_list", params)
+        self.assertEqual(params["dm_img_list"], "[]")
+        self.assertIn("dm_img_str", params)
+        self.assertIn("dm_cover_img_str", params)
+
+        # Official _28b679 function slices off the last 2 characters of base64
+        self.assertFalse(params["dm_img_str"].endswith("=="))
+        self.assertFalse(params["dm_cover_img_str"].endswith("=="))
+
+        # Check dm_img_inter geometric projections
+        inter = json.loads(params["dm_img_inter"])
+        self.assertIn("ds", inter)
+        self.assertIn("wh", inter)
+        self.assertIn("of", inter)
+        self.assertEqual(len(inter["wh"]), 3)
+        self.assertEqual(len(inter["of"]), 3)
+
+        # of must not be static [0, 0, 0]; on un-scrolled view it must be [rnd, 2*rnd, rnd]
+        of = inter["of"]
+        self.assertGreater(of[0], 0)
+        self.assertEqual(of[1], 2 * of[0])
+        self.assertEqual(of[2], of[0])
+
+        # Fingerprint disabled
+        no_fp = _get_dm_img_params(fingerprint=False)
+        self.assertEqual(no_fp, {"dm_img_switch": "0"})
+
+    def test_space_device_req_json_structure(self):
+        import json
+
+        from api.user import _SPACE_DEVICE_REQ_JSON
+
+        parsed = json.loads(_SPACE_DEVICE_REQ_JSON)
+        self.assertEqual(parsed.get("platform"), "web")
+        self.assertEqual(parsed.get("device"), "pc")
+        self.assertEqual(parsed.get("spmid"), "333.1387")
+        self.assertEqual(parsed.get("mobi_app"), "web_i")
+
 
 if __name__ == "__main__":
     unittest.main()

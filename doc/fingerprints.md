@@ -61,3 +61,7 @@ export BILI_USER_AGENT="Mozilla/5.0 BiliDroid/..."
 ```
 
 Browser and CDN fingerprints are intentionally managed internally by [`python/fingerprints.py`](../python/fingerprints.py) to prevent misconfiguration that could break playback or trigger risk controls.
+
+## 4. Space & Gaia Risk Control Architecture
+
+For detailed reverse-engineering findings on Space endpoints (`/x/space/wbi/acc/info`, `/x/space/wbi/arc/search`), Gaia gateway handshakes (`ExGetAxe` / `ExClimbCongLing`), the `X-BILI-SEC-TOKEN` cookie, and `@bilibili/bili-user-fingerprint` projection formulas (`dm_img_inter`), see [`doc/space_risk_control.md`](space_risk_control.md).

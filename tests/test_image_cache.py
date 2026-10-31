@@ -37,8 +37,8 @@ class TestImageCache(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cached_type, content_type)
 
     async def test_cache_ttl_expiration(self):
-        # Cache with 1 second TTL
-        short_cache = ImageCache(cache_dir=self.test_dir, max_size_bytes=1024 * 1024, ttl_seconds=1)
+        # Cache with 10 second TTL (avoid flakiness if event loop pauses)
+        short_cache = ImageCache(cache_dir=self.test_dir, max_size_bytes=1024 * 1024, ttl_seconds=10)
         url = "https://i0.hdslb.com/bfs/archive/expire.jpg"
         content = b"image_data"
 

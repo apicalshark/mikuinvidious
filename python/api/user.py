@@ -29,6 +29,7 @@ from .video import _get_dm_img_params
 __all__ = ["User", "VideoOrder", "ArticleOrder"]
 
 _SPACE_ORIGIN = "https://space.bilibili.com"
+_SPACE_DEVICE_REQ_JSON = '{"platform":"web","device":"pc","spmid":"333.1387","mobi_app":"web_i"}'
 
 
 def _space_headers(mid) -> dict:
@@ -79,8 +80,14 @@ class User:
         # Space endpoints are the most risk-controlled read surface (dm_img
         # fingerprint required; 412/-352 from datacenter IPs). Param set is
         # bundle-exact (fresh-space index-*.js: `{mid, token, platform: "web",
-        # web_location: 1550101}` + RISK_USER_LOG dm_img_*).
-        params = {"mid": self.uid, "token": "", "platform": "web", "web_location": 1550101}
+        # web_location: 1550101, x-bili-device-req-json}` + RISK_USER_LOG dm_img_*).
+        params = {
+            "mid": self.uid,
+            "token": "",
+            "platform": "web",
+            "web_location": 1550101,
+            "x-bili-device-req-json": _SPACE_DEVICE_REQ_JSON,
+        }
         params.update(_get_dm_img_params(fingerprint=True))
         api = {
             "url": "https://api.bilibili.com/x/space/wbi/acc/info",
@@ -156,6 +163,7 @@ class User:
             "order_avoided": "true",
             "platform": "web",
             "web_location": 333.1387,
+            "x-bili-device-req-json": _SPACE_DEVICE_REQ_JSON,
             "special_type": "",
             "index": 0,
         }

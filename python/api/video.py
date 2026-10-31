@@ -113,22 +113,28 @@ def _get_dm_img_params(fingerprint: bool = True) -> dict[str, str]:
         return {"dm_img_switch": "0"}
     width = random.randint(1860, 1920)
     height = random.randint(930, 990)
-    rnd = random.randint(0, 113)
+    rnd_wh = random.randint(0, 113)
 
     vendor, model = random.choice(_WEBGL_RENDERER_TEMPLATES)
     renderer = f"ANGLE ({vendor}, {model} Direct3D11 vs_5_0 ps_5_0, D3D11)Google Inc. ({vendor})"
 
-    webgl_version_b64 = base64.b64encode(_WEBGL_VERSION.encode()).decode()
-    renderer_b64 = base64.b64encode(renderer.encode()).decode()
+    # Bilibili's official SDK (_28b679 in bili-user-fingerprint.min.js) slices
+    # the trailing 2 characters from the base64 string.
+    webgl_version_b64 = base64.b64encode(_WEBGL_VERSION.encode()).decode()[:-2]
+    renderer_b64 = base64.b64encode(renderer.encode()).decode()[:-2]
 
-    wh = [2 * width + 2 * height + 3 * rnd, 4 * width - height + rnd, rnd]
-    of = [0, 0, 0]
+    # Formulas from official SDK: _186aea (wh) and _580c77 (of).
+    # of on initial un-scrolled page is [rnd_of, 2*rnd_of, rnd_of];
+    # static [0, 0, 0] is a detectable bot tell.
+    wh = [2 * width + 2 * height + 3 * rnd_wh, 4 * width - height + rnd_wh, rnd_wh]
+    rnd_of = random.randint(100, 450)
+    of = [rnd_of, 2 * rnd_of, rnd_of]
 
     return {
         "dm_img_list": "[]",
         "dm_img_str": webgl_version_b64,
         "dm_cover_img_str": renderer_b64,
-        "dm_img_inter": _json.dumps({"ds": [], "wh": wh, "of": of}),
+        "dm_img_inter": _json.dumps({"ds": [], "wh": wh, "of": of}, separators=(",", ":")),
     }
 
 
