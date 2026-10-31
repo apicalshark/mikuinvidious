@@ -33,8 +33,15 @@ _SPACE_DEVICE_REQ_JSON = '{"platform":"web","device":"pc","spmid":"333.1387","mo
 
 
 def _space_headers(mid) -> dict:
-    """Browser-exact headers for space pages (origin + profile referer)."""
-    return build_chrome_headers(origin=_SPACE_ORIGIN, referer=f"{_SPACE_ORIGIN}/{mid}")
+    """Browser-exact headers for space pages (origin + profile referer).
+
+    Attaches DedeUserID=1 if no credential cookie is present to prevent
+    Bilibili's risk control gateway from dropping anonymous requests on
+    /x/space/wbi/arc/search with HTTP 412.
+    """
+    headers = build_chrome_headers(origin=_SPACE_ORIGIN, referer=f"{_SPACE_ORIGIN}/{mid}")
+    headers["Cookie"] = "DedeUserID=1"
+    return headers
 
 
 class VideoOrder(Enum):
