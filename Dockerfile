@@ -1,17 +1,17 @@
-FROM astral/uv:0.13.5-python3.15-alpine@sha256:90f91872737a0e0d7672f8b7186ba5703d66b77faa223d334a2ef5f072c6bbb1
+FROM astral/uv:0.13.5-python3.15-trixie-slim@sha256:86a05dd8f19b21368fbb160c7e2ad0576780bebbe89114b6deeba2506f7612e1
 LABEL org.opencontainers.image.source=https://github.com/apicalshark/mikuinvidious
 
 WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1 UV_NO_CACHE=1 UV_NO_DEV=1
 
-# Install ffmpeg (used to mux DASH video+audio into a single downloadable MP4) and mimalloc
-RUN apk add --no-cache ffmpeg mimalloc2
-
-ENV LD_PRELOAD=/usr/lib/libmimalloc.so.2
+# Install ffmpeg (used to mux DASH video+audio into a single downloadable MP4)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN addgroup -g 1000 appgroup && adduser -D -u 1000 -G appgroup appuser \
+RUN groupadd -g 1000 appgroup && useradd -u 1000 -g appgroup -m -s /bin/bash appuser \
     && mkdir -p /app/data/img_cache \
     && chown -R appuser:appgroup /app
 

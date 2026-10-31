@@ -249,7 +249,7 @@ The production infrastructure consists of four orchestrated services defined in 
 | **`redis`** | `redis:alpine` | Persists sessions and caches API responses. |
 | **`warp`** | `caomingjun/warp` | SOCKS5 proxy (port `1080`) for Bilibili API/CDN traffic. Optional — only needed on datacenter IPs; residential links connect directly. |
 
-The `Dockerfile` builds a clean Alpine runtime containing `ffmpeg`.
+The `Dockerfile` builds a clean Debian Slim runtime containing `ffmpeg`.
 
 ## Configuration
 

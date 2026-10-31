@@ -89,27 +89,69 @@ async def _fetch(url: str, params: dict, cookies: dict) -> dict:
     keeps the header order browser-exact.
     """
     headers = build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
-    if cookies:
-        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+    req_params = dict(params)
+    req_cookies = dict(cookies) if cookies else {}
+    try:
+        from captcha_solver import get_sec_token
+
+        sec_token = await get_sec_token()
+        if sec_token:
+            headers["x-bili-gaia-vtoken"] = sec_token
+            req_params["gaia_vtoken"] = sec_token
+            req_cookies["X-BILI-SEC-TOKEN"] = sec_token
+            req_cookies["x-bili-gaia-vtoken"] = sec_token
+    except Exception:
+        pass
+
+    if req_cookies:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in req_cookies.items() if v)
         if cookie_str:
             headers["Cookie"] = cookie_str
     client = await get_curl_client()
     # See live.py: keep the shared jar empty — any cookie presence here
     # risks the ~3-item truncation documented above.
     client.cookies.clear()
-    resp = await client.get(url, params=params, headers=headers, timeout=10.0)
-    if resp.status_code != 200:
-        raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
-    try:
-        data = resp.json()
-    except Exception:
-        raise ResponseCodeException(-1, "JSON parsing failed") from None
-    if not isinstance(data, dict):
-        raise ResponseCodeException(-1, "API response is not a JSON object")
-    if data.get("code") != 0:
-        msg = data.get("msg") or data.get("message") or "API returned no error message"
-        raise ResponseCodeException(data.get("code", -1), msg, data)
-    return data.get("data") or {}
+
+    for attempt in range(2):
+        resp = await client.get(url, params=req_params, headers=headers, timeout=10.0)
+        v_voucher = None
+        if hasattr(resp, "headers") and resp.headers:
+            v_voucher = resp.headers.get("x-bili-gaia-vvoucher")
+        data = None
+        try:
+            data = resp.json()
+            if isinstance(data, dict):
+                node = data.get("data")
+                if isinstance(node, dict) and node.get("v_voucher"):
+                    v_voucher = str(node["v_voucher"])
+                elif data.get("v_voucher"):
+                    v_voucher = str(data["v_voucher"])
+        except Exception:
+            pass
+
+        if attempt == 0 and v_voucher:
+            try:
+                from captcha_solver import solve_and_update_sec_token
+
+                new_token = await solve_and_update_sec_token(v_voucher=v_voucher)
+                if new_token:
+                    headers["x-bili-gaia-vtoken"] = new_token
+                    req_params["gaia_vtoken"] = new_token
+                    req_cookies["X-BILI-SEC-TOKEN"] = new_token
+                    req_cookies["x-bili-gaia-vtoken"] = new_token
+                    headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in req_cookies.items() if v)
+                    continue
+            except Exception:
+                pass
+
+        if resp.status_code != 200:
+            raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
+        if not isinstance(data, dict):
+            raise ResponseCodeException(-1, "API response is not a JSON object")
+        if data.get("code") != 0:
+            msg = data.get("msg") or data.get("message") or "API returned no error message"
+            raise ResponseCodeException(data.get("code", -1), msg, data)
+        return data.get("data") or {}
 
 
 async def _ensure_numeric_oid(oid):

@@ -202,6 +202,8 @@ class User:
             "url": "https://api.bilibili.com/x/series/recArchivesByKeywords",
             "method": "GET",
             "verify": False,
+            "headers": _space_headers(self.uid),
+            "curl": True,
         }
         data = {}
         for _ in range(2):
@@ -217,7 +219,7 @@ class User:
             }
             params.update(_get_dm_img_params(fingerprint=True))
             try:
-                data = await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+                data = await Api(**api, credential=self.credential, wbi=False).update_params(**params).result
                 break
             except Exception as e:
                 if is_risk_error(e):
@@ -257,6 +259,7 @@ class User:
             total = len(vlist)
         if vlist:
             self._videos_load_failed = False
+            self._degraded = False
         return {
             "list": {"vlist": vlist},
             "page": {"count": total, "pn": pn, "ps": ps},

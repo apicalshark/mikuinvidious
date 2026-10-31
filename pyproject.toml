@@ -32,6 +32,7 @@ dependencies = [
     "nh3>=0.3.7",
     "rtoml>=0.14.0",
     "zhconv-rs>=0.4.2",
+    "gtlv>=0.1.4",
 ]
 
 [tool.ruff]

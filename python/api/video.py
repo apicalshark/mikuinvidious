@@ -397,31 +397,61 @@ class Video:
             if v:
                 cookies[k] = v
         cookies["opus-goback"] = "1"
+        try:
+            from captcha_solver import get_sec_token
+
+            sec_token = await get_sec_token()
+            if sec_token:
+                cookies["X-BILI-SEC-TOKEN"] = sec_token
+                cookies["x-bili-gaia-vtoken"] = sec_token
+        except Exception:
+            pass
         headers = dict(HEADERS)
         headers["Referer"] = f"https://www.bilibili.com/video/{self._bvid}"
         if cookies:
             headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
-        resp = await client.get(
-            f"https://api.bilibili.com/x/v1/dm/list.so?oid={cid}",
-            headers=headers,
-        )
-        import zlib
 
-        raw = resp.content
-        try:
-            decompressed = zlib.decompress(raw, -zlib.MAX_WBITS)
-        except Exception:
+        for attempt in range(2):
+            resp = await client.get(
+                f"https://api.bilibili.com/x/v1/dm/list.so?oid={cid}",
+                headers=headers,
+            )
+            import zlib
+
+            raw = resp.content
             try:
-                decompressed = zlib.decompress(raw)
+                decompressed = zlib.decompress(raw, -zlib.MAX_WBITS)
             except Exception:
-                decompressed = raw
-        text = decompressed.decode("utf-8", errors="replace")
-        # Upstream risk-control returns an HTML block page (HTTP 412 / v_voucher
-        # style) on this endpoint instead of danmaku XML. Detect it here so
-        # callers get a clean empty result instead of feeding HTML to the XML
-        # parser (which only produces noisy "mismatched tag" log spam — the
-        # regex fallback can never salvage <d> nodes from a block page).
-        stripped = text.lstrip().lower()
-        if resp.status_code != 200 or stripped.startswith("<!doctype") or stripped.startswith("<html"):
+                try:
+                    decompressed = zlib.decompress(raw)
+                except Exception:
+                    decompressed = raw
+            text = decompressed.decode("utf-8", errors="replace")
+            stripped = text.lstrip().lower()
+            is_blocked = resp.status_code != 200 or stripped.startswith("<!doctype") or stripped.startswith("<html")
+            if not is_blocked:
+                return text
+
+            # Check if upstream returned a Gaia challenge voucher
+            if attempt == 0:
+                v_voucher = resp.headers.get("x-bili-gaia-vvoucher")
+                if not v_voucher:
+                    import re
+
+                    m = re.search(r"voucher_[a-zA-Z0-9\-]+", text)
+                    if m:
+                        v_voucher = m.group(0)
+                if v_voucher:
+                    try:
+                        from captcha_solver import solve_and_update_sec_token
+
+                        new_token = await solve_and_update_sec_token(v_voucher=v_voucher)
+                        if new_token:
+                            cookies["X-BILI-SEC-TOKEN"] = new_token
+                            cookies["x-bili-gaia-vtoken"] = new_token
+                            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+                            continue
+                    except Exception:
+                        pass
             return ""
-        return text
+        return ""
