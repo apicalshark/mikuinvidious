@@ -29,11 +29,19 @@ from .video import _get_dm_img_params
 __all__ = ["User", "VideoOrder", "ArticleOrder"]
 
 _SPACE_ORIGIN = "https://space.bilibili.com"
+_SPACE_DEVICE_REQ_JSON = '{"platform":"web","device":"pc","spmid":"333.1387","mobi_app":"web_i"}'
 
 
 def _space_headers(mid) -> dict:
-    """Browser-exact headers for space pages (origin + profile referer)."""
-    return build_chrome_headers(origin=_SPACE_ORIGIN, referer=f"{_SPACE_ORIGIN}/{mid}")
+    """Browser-exact headers for space pages (origin + profile referer).
+
+    Attaches DedeUserID=1 if no credential cookie is present to prevent
+    Bilibili's risk control gateway from dropping anonymous requests on
+    /x/space/wbi/arc/search with HTTP 412.
+    """
+    headers = build_chrome_headers(origin=_SPACE_ORIGIN, referer=f"{_SPACE_ORIGIN}/{mid}")
+    headers["Cookie"] = "DedeUserID=1"
+    return headers
 
 
 class VideoOrder(Enum):
@@ -79,8 +87,14 @@ class User:
         # Space endpoints are the most risk-controlled read surface (dm_img
         # fingerprint required; 412/-352 from datacenter IPs). Param set is
         # bundle-exact (fresh-space index-*.js: `{mid, token, platform: "web",
-        # web_location: 1550101}` + RISK_USER_LOG dm_img_*).
-        params = {"mid": self.uid, "token": "", "platform": "web", "web_location": 1550101}
+        # web_location: 1550101, x-bili-device-req-json}` + RISK_USER_LOG dm_img_*).
+        params = {
+            "mid": self.uid,
+            "token": "",
+            "platform": "web",
+            "web_location": 1550101,
+            "x-bili-device-req-json": _SPACE_DEVICE_REQ_JSON,
+        }
         params.update(_get_dm_img_params(fingerprint=True))
         api = {
             "url": "https://api.bilibili.com/x/space/wbi/acc/info",
@@ -156,6 +170,7 @@ class User:
             "order_avoided": "true",
             "platform": "web",
             "web_location": 333.1387,
+            "x-bili-device-req-json": _SPACE_DEVICE_REQ_JSON,
             "special_type": "",
             "index": 0,
         }
@@ -194,6 +209,8 @@ class User:
             "url": "https://api.bilibili.com/x/series/recArchivesByKeywords",
             "method": "GET",
             "verify": False,
+            "headers": _space_headers(self.uid),
+            "curl": True,
         }
         data = {}
         for _ in range(2):
@@ -209,7 +226,7 @@ class User:
             }
             params.update(_get_dm_img_params(fingerprint=True))
             try:
-                data = await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
+                data = await Api(**api, credential=self.credential, wbi=False).update_params(**params).result
                 break
             except Exception as e:
                 if is_risk_error(e):
@@ -249,6 +266,7 @@ class User:
             total = len(vlist)
         if vlist:
             self._videos_load_failed = False
+            self._degraded = False
         return {
             "list": {"vlist": vlist},
             "page": {"count": total, "pn": pn, "ps": ps},

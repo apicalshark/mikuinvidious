@@ -26,12 +26,13 @@ dependencies = [
     "flask-orjson>=2.0.0",
     "pyquery>=2.0.1",
     "pynacl>=1.5.0",
-    "curl-cffi>=0.16.1",
+    "curl-cffi>=0.17.0",
     "Babel>=2.17.0",
     "httpx-curl-cffi==0.1.5",
     "nh3>=0.3.7",
     "rtoml>=0.14.0",
     "zhconv-rs>=0.4.2",
+    "gtlv>=0.1.4",
 ]
 
 [tool.ruff]

@@ -20,6 +20,7 @@ import orjson
 from api import article, opus, user
 from api.exceptions import is_risk_error
 from extra import article_to_any, article_to_html, get_article_info
+from fingerprints import get_article_scrape_headers
 from quart import Response, request
 from shared import (
     Network,
@@ -356,7 +357,7 @@ async def read_view(cid):
         else f"https://www.bilibili.com/read/{cid}"
     )
     cvid = cid.replace("cv", "").replace("opus", "")
-    ua = "Mozilla/5.0 BiliDroid/8.76.0 (bbcallen@gmail.com) 8.76.0 os/android model/WTF mobi_app/android build/8760000 channel/not_found innerVer/8760010 osVer/15 network/2"
+    scrape_headers = get_article_scrape_headers(appconf.get("bili"))
 
     # Optional pandoc export (any supported format).
     want_format = (
@@ -402,7 +403,7 @@ async def read_view(cid):
     last_status = 0
     for attempt in range(3):
         req = await client.send(
-            client.build_request("GET", url, headers={"User-Agent": ua}),
+            client.build_request("GET", url, headers=scrape_headers),
             follow_redirects=True,
         )
         status, body = req.status_code, req.text

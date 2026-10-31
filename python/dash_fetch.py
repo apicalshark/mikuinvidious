@@ -24,6 +24,7 @@ from dash_common import (
     DASH_FETCH_TIMEOUT,
     _extract_ep_id,
 )
+from fingerprints import FIXED_CHROME_UA
 from shared import Network, appcred, appredis, safe_json_loads
 
 
@@ -229,7 +230,7 @@ async def _video_get_dash_for_qn_uncached(vi, idx, ep_id=None, cid=None) -> dict
             pgc_params["ep_id"] = ep_id
         pgc_headers = {
             "Referer": "https://www.bilibili.com",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+            "User-Agent": FIXED_CHROME_UA,
         }
         if cookies:
             pgc_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
@@ -309,7 +310,7 @@ async def _fetch_single_durl_pgc(v, base_params: dict, ep_id=None) -> dict | Non
             pgc_params["ep_id"] = ep_id
         durl_headers = {
             "Referer": "https://www.bilibili.com",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+            "User-Agent": FIXED_CHROME_UA,
         }
         if cookies:
             durl_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)

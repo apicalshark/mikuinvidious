@@ -291,9 +291,9 @@ async def _build_dash_cdn_headers() -> dict:
     tracks to a web-browser UA. So build on the shared CDN base (web UA +
     Referer/Origin), NOT the android get_common_headers() set.
     """
-    from api.client import build_cdn_headers
+    from fingerprints import get_cdn_headers
 
-    headers = build_cdn_headers(referer=appconf["bili"].get("referer", "https://www.bilibili.com"))
+    headers = get_cdn_headers(referer=appconf["bili"].get("referer", "https://www.bilibili.com"))
     ticket = await TicketManager.get_ticket()
     if ticket:
         headers["x-bili-ticket"] = ticket

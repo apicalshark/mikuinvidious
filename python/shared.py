@@ -12,6 +12,7 @@ import redis.asyncio as redis
 import rtoml
 from api import Credential
 from api.client import get_bili_ticket, request_settings
+from fingerprints import DEFAULT_APP_UA, get_app_headers
 from flask_orjson import OrjsonProvider
 from quart import Quart, render_template, request
 from quart.sessions import SecureCookieSessionInterface
@@ -33,18 +34,8 @@ def safe_json_loads(data: str | bytes, default=None):
 
 
 def get_common_headers(bili_conf):
-    """Get common headers for Bilibili API requests from config."""
-    return {
-        "User-Agent": bili_conf.get(
-            "user_agent",
-            "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2",
-        ),
-        "Referer": bili_conf.get("referer", "https://www.bilibili.com"),
-        "env": bili_conf.get("env", "prod"),
-        "app-key": bili_conf.get("app_key", "android64"),
-        "x-bili-metadata-ip-region": bili_conf.get("ip_region", "CN"),
-        "x-bili-metadata-legal-region": bili_conf.get("legal_region", "CN"),
-    }
+    """Get common headers for Bilibili API requests from config (delegates to fingerprints)."""
+    return get_app_headers(bili_conf)
 
 
 COMMON_HEADERS = get_common_headers({})
@@ -280,10 +271,7 @@ appconf = {
         "article_allowed_formats": os.environ.get("ARTICLE_ALLOWED_FORMATS", "markdown,plain,html").split(","),
     },
     "bili": {
-        "user_agent": os.environ.get(
-            "BILI_USER_AGENT",
-            "Mozilla/5.0 BiliDroid/8.83.0 (bbcallen@gmail.com) 8.83.0 os/android model/MI 9 mobi_app/android build/8830500 channel/html5_search_google innerVer/8830510 osVer/13 network/2",
-        ),
+        "user_agent": os.environ.get("BILI_USER_AGENT", DEFAULT_APP_UA),
         "referer": os.environ.get("BILI_REFERER", "https://www.bilibili.com"),
         "env": os.environ.get("BILI_ENV", "prod"),
         "app_key": os.environ.get("BILI_APP_KEY", "android64"),

@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 
 from api import video
 from danmaku import parse_danmaku
+from fingerprints import FIXED_CHROME_UA
 from quart import Response, jsonify
 from rate_limit import RATE_LIMITS, rate_limit
 from shared import app, appcred, appredis
@@ -200,10 +201,7 @@ async def subtitle_vtt_res(vid, idx, lan):
             bcc_url,
             headers={
                 "Referer": "https://www.bilibili.com",
-                "User-Agent": (
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                    "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
-                ),
+                "User-Agent": FIXED_CHROME_UA,
             },
         )
         import orjson as _orjson

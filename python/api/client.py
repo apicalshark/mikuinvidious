@@ -28,6 +28,19 @@ import time
 import urllib.parse
 
 import httpx
+from fingerprints import (
+    CDN_CHROME_UA,
+    CURL_IMPERSONATE,
+    CURL_UA,
+    FIXED_CHROME_UA,
+    get_web_api_headers,
+)
+from fingerprints import (
+    get_browser_headers as build_chrome_headers,
+)
+from fingerprints import (
+    get_cdn_headers as build_cdn_headers,
+)
 
 from .credential import Credential
 from .exceptions import NetworkException, ResponseCodeException
@@ -50,89 +63,8 @@ __all__ = [
     "build_cdn_headers",
 ]
 
-# Fixed UA — do not randomize (triggers risk control).
-FIXED_CHROME_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
-)
-
-
-HEADERS: dict[str, str] = {
-    "User-Agent": FIXED_CHROME_UA,
-    "Referer": "https://www.bilibili.com",
-    "Accept-Language": "zh-CN,zh;q=0.9",
-}
-
-# ---------------------------------------------------------------------------
-# Browser-faithful Chrome headers for curl_cffi paths (search/comment/live).
-# ---------------------------------------------------------------------------
-# Ported from BilibiliApis builder/header.py (see doc/bili-research-docs/).
-# Verified live Sep 2026: getInfoByRoom returned -352 with a minimal 3-header
-# set and 0 with this full ordered set, all else (params, signing, cookies)
-# identical. Header NAME ORDER is part of the HTTP/2 fingerprint, so the
-# insertion order below is load-bearing — do not re-sort.
-#
-# UA/client-hints must match the impersonation target or UA and TLS
-# fingerprint contradict each other (same reason FIXED_CHROME_UA exists).
-CURL_IMPERSONATE = "chrome150"
-CURL_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
-)
-_CURL_SEC_CH_UA = '"Chromium";v="150", "Not-A.Brand";v="24", "Google Chrome";v="150"'
-_CURL_ACCEPT_LANGUAGE = "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7,ja;q=0.6"
-
-
-def build_chrome_headers(
-    *,
-    origin: str,
-    referer: str,
-    accept: str = "application/json, text/plain, */*",
-) -> dict[str, str]:
-    """Ordered Chrome XHR headers for a curl_cffi request.
-
-    Must be sent with ``default_headers=False`` so curl does not append its
-    own ``origin``/``referer``/``accept`` at the tail (which breaks the
-    browser order). ``origin``/``referer`` identify the calling page:
-    live room page for live, search page for search, main site otherwise.
-    """
-    return {
-        "sec-ch-ua": _CURL_SEC_CH_UA,
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "user-agent": CURL_UA,
-        "accept": accept,
-        "origin": origin,
-        "sec-fetch-site": "same-site",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-dest": "empty",
-        "referer": referer,
-        "accept-encoding": "gzip, deflate, br, zstd",
-        "accept-language": _CURL_ACCEPT_LANGUAGE,
-        "priority": "u=1, i",
-    }
-
-
-# Web-Chrome UA string for raw-socket CDN fetches (CdnConnection). Deliberately
-# NOT the impersonation stack: media edges (upos mirrors, akamaized,
-# .bilivideo.com) validate the UA *string* plus the signed URL token — never
-# the TLS fingerprint (proven live: plain-socket 206s with this string, 403s
-# with the BiliDroid app UA). httpx-curl-cffi is an httpx *transport* and
-# cannot drive our socket layer (WARP SOCKS5, Range-resume, mid-body watchdog),
-# so CDN paths carry this string while API paths carry full impersonation.
-# Version intentionally differs from CURL_UA (150, pinned to the impersonation
-# target): CDN edges only check "browser-like", and 152 is battle-tested here.
-CDN_CHROME_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36"
-)
-
-
-def build_cdn_headers(referer: str = "https://www.bilibili.com") -> dict[str, str]:
-    """Base header set for raw-socket CDN media requests (proxy/dash paths)."""
-    return {
-        "User-Agent": CDN_CHROME_UA,
-        "Referer": referer,
-        "Origin": "https://www.bilibili.com",
-        "Accept": "*/*",
-    }
+# General Web API headers
+HEADERS: dict[str, str] = get_web_api_headers()
 
 
 # OE permutation table used to derive the wbi mixin key.
@@ -662,8 +594,20 @@ class Api:
 
         # Wbi signing (with -403 retry)
         wbi_retries = 3
-        for attempt in range(wbi_retries):
+        attempt = 0
+        solved_captcha = False
+        while attempt < wbi_retries:
             request_params = dict(params)
+            sec_token = None
+            try:
+                from captcha_solver import get_sec_token
+
+                sec_token = await get_sec_token()
+                if sec_token:
+                    request_params["gaia_vtoken"] = sec_token
+            except Exception:
+                pass
+
             if self.wbi:
                 try:
                     mixin = await get_wbi_mixin_key(self.credential)
@@ -677,7 +621,7 @@ class Api:
                 request_data["csrf"] = self.credential.bili_jct
                 request_data["csrf_token"] = self.credential.bili_jct
 
-            cookies = await _get_anonymous_cookies()
+            cookies = dict(await _get_anonymous_cookies())
             # Override with credential cookies (only non-empty values)
             cred_cookies = self.credential.get_cookies()
             for k, v in cred_cookies.items():
@@ -686,6 +630,12 @@ class Api:
             cookies["opus-goback"] = "1"
 
             headers = dict(HEADERS) if not self.headers else dict(self.headers)
+
+            if sec_token:
+                cookies["X-BILI-SEC-TOKEN"] = sec_token
+                headers["x-bili-gaia-vtoken"] = sec_token
+                cookies["x-bili-gaia-vtoken"] = sec_token
+
             if cookies:
                 cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
                 if cookie_str:
@@ -715,11 +665,55 @@ class Api:
             )
 
             if not byte:
+                v_voucher = None
+                if hasattr(resp, "headers") and resp.headers:
+                    v_voucher = resp.headers.get("x-bili-gaia-vvoucher")
+                if not v_voucher and hasattr(resp, "json"):
+                    try:
+                        resp_json = resp.json()
+                        if isinstance(resp_json, dict):
+                            node = resp_json.get("data")
+                            if isinstance(node, dict):
+                                v_voucher = node.get("v_voucher") or (node.get("gaia_data") or {}).get(
+                                    "v_voucher"
+                                )
+                            if not v_voucher:
+                                v_voucher = resp_json.get("v_voucher") or (resp_json.get("gaia_data") or {}).get(
+                                    "v_voucher"
+                                )
+                    except Exception:
+                        pass
+                if v_voucher:
+                    v_voucher = str(v_voucher)
+
+                if v_voucher and not solved_captcha:
+                    solved_captcha = True
+                    print(f"[Api] {self.url} returned v_voucher, triggering auto-solver...")
+                    try:
+                        from captcha_solver import clear_sec_token, solve_and_update_sec_token
+
+                        if sec_token:
+                            await clear_sec_token()
+                        new_token = await solve_and_update_sec_token(v_voucher=v_voucher, force=bool(sec_token))
+                        if new_token:
+                            print(f"[Api] Auto-solve succeeded, retrying {self.url}")
+                            continue
+                        else:
+                            print(f"[Api] Auto-solve failed (no token) for {self.url}")
+                    except Exception as e:
+                        print(f"[Api] Auto-solve exception for {self.url}: {e}")
+
                 try:
                     return self._process_response(resp, raw)
-                except ResponseCodeException as e:
-                    if e.code == -403 and self.wbi and attempt < wbi_retries - 1:
+                except (ResponseCodeException, NetworkException) as e:
+                    if (
+                        isinstance(e, ResponseCodeException)
+                        and e.code == -403
+                        and self.wbi
+                        and attempt < wbi_retries - 1
+                    ):
                         recalculate_wbi()
+                        attempt += 1
                         continue
                     raise e
             else:
