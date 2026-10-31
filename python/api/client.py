@@ -672,9 +672,9 @@ class Api:
                     try:
                         resp_json = resp.json()
                         if isinstance(resp_json, dict):
-                            resp_data = resp_json.get("data")
-                            if isinstance(resp_data, dict):
-                                v_voucher = resp_data.get("v_voucher") or (resp_data.get("gaia_data") or {}).get(
+                            node = resp_json.get("data")
+                            if isinstance(node, dict):
+                                v_voucher = node.get("v_voucher") or (node.get("gaia_data") or {}).get(
                                     "v_voucher"
                                 )
                             if not v_voucher:
