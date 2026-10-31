@@ -73,7 +73,7 @@ class OrderType(Enum):
 # but serves full 20-item pages to a genuine browser fingerprint -- this is what
 # PipePipe gets via OkHttp. We use a Chrome impersonation so comments paginate.
 # Headers are the full ordered Chrome set (see .client.build_chrome_headers);
-# UA/client-hints match the impersonation target (chrome150) by construction.
+# UA/client-hints match the impersonation target (chrome152) by construction.
 _MAIN_ORIGIN = "https://www.bilibili.com"
 
 

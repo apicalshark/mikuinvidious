@@ -286,9 +286,9 @@ async def proxy_main(subpath):
             # _build_dash_cdn_headers(). Sent the wrong UA, every durl-only
             # video 403s on primary+backup, keys get deleted, and all later
             # hits 404 (e.g. bangumi ep98604).
-            from api.client import build_cdn_headers
+            from fingerprints import get_cdn_headers
 
-            headers = build_cdn_headers(referer=appconf["bili"].get("referer", "https://www.bilibili.com"))
+            headers = get_cdn_headers(referer=appconf["bili"].get("referer", "https://www.bilibili.com"))
 
         # Add Bili-Ticket and dynamic session/trace IDs
         ticket = await TicketManager.get_ticket()

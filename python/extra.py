@@ -24,6 +24,7 @@ import orjson
 from api.client import Api
 from api.exceptions import ArgsException
 from bs4 import BeautifulSoup
+from fingerprints import FIXED_CHROME_UA
 from shared import Network
 
 # Allowed HTML tags and attributes for article content
@@ -539,7 +540,7 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
                     pgc_params["ep_id"] = ep_id
                 pgc_headers = {
                     "Referer": "https://www.bilibili.com",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36",
+                    "User-Agent": FIXED_CHROME_UA,
                 }
                 if cookies:
                     pgc_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
