@@ -212,6 +212,68 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(token)
             self.assertIsNone(await captcha_solver.get_sec_token())
 
+    async def test_memory_token_short_circuits_redis(self):
+        """A live in-memory token must not cost a Redis round trip.
+
+        get_sec_token runs on every Api.request, so a Redis GET here taxes
+        every Bilibili call — and an unreachable Redis once added ~4s per
+        request, blowing the 8s playurl budget that DASH resolution depends
+        on.
+        """
+        import captcha_solver
+
+        await captcha_solver.set_sec_token("mem_token_1", ttl=3600)
+
+        mock_redis = AsyncMock()
+        with patch("captcha_solver.get_redis", return_value=mock_redis):
+            self.assertEqual(await captcha_solver.get_sec_token(), "mem_token_1")
+            mock_redis.get.assert_not_awaited()
+
+    async def test_broken_redis_probes_at_most_once_per_cooldown(self):
+        """A sick Redis costs one bounded probe per window, not one per request."""
+        import captcha_solver
+
+        calls = 0
+
+        async def slow_get(*args, **kwargs):
+            nonlocal calls
+            calls += 1
+            await asyncio.sleep(10)  # simulate an unreachable host hanging
+            raise OSError("unreachable")
+
+        mock_redis = MagicMock()
+        mock_redis.get = slow_get
+
+        with patch("captcha_solver.get_redis", return_value=mock_redis):
+            captcha_solver._mem_sec_token = None
+            captcha_solver._mem_sec_token_expiry = 0.0
+            captcha_solver._redis_miss_until = 0.0
+
+            loop = asyncio.get_running_loop()
+            started = loop.time()
+            self.assertIsNone(await captcha_solver.get_sec_token())
+            first_elapsed = loop.time() - started
+
+            # Bounded by the probe timeout, not by the hung socket.
+            self.assertLess(first_elapsed, captcha_solver._REDIS_TOKEN_TIMEOUT + 0.25)
+
+            for _ in range(5):
+                started = loop.time()
+                self.assertIsNone(await captcha_solver.get_sec_token())
+                self.assertLess(loop.time() - started, 0.01)
+
+            self.assertEqual(calls, 1)
+
+    async def test_clear_sec_token_rearms_redis_probe(self):
+        import captcha_solver
+
+        captcha_solver._redis_miss_until = 1e12
+        mock_redis = AsyncMock()
+        mock_redis.get.return_value = "fresh_token"
+        with patch("captcha_solver.get_redis", return_value=mock_redis):
+            await captcha_solver.clear_sec_token()
+            self.assertEqual(await captcha_solver.get_sec_token(), "fresh_token")
+
     async def test_solve_logs_success_with_attempt_counter(self):
         import captcha_solver
 

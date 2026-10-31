@@ -70,6 +70,27 @@ class TestImageCache(unittest.IsolatedAsyncioTestCase):
         result = await self.cache.get(url)
         self.assertIsNone(result)
 
+    async def test_pruning_runs_off_the_event_loop(self):
+        """scandir/stat over the whole cache must not run on the loop thread.
+
+        It is tens of thousands of syscalls (~0.2s at 60k files); on the event
+        loop it froze every in-flight DASH fragment stream.
+        """
+        import threading
+
+        prune_threads = []
+        original = ImageCache._prune_sync
+
+        def recording_prune(self):
+            prune_threads.append(threading.current_thread())
+            return original(self)
+
+        with patch.object(ImageCache, "_prune_sync", recording_prune):
+            await self.cache.prune_if_needed()
+
+        self.assertEqual(len(prune_threads), 1)
+        self.assertIsNot(prune_threads[0], threading.current_thread())
+
     async def test_cache_quota_pruning(self):
         # Cache limited to 500 bytes
         tiny_cache = ImageCache(cache_dir=self.test_dir, max_size_bytes=500, ttl_seconds=3600)

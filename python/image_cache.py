@@ -147,33 +147,47 @@ class ImageCache:
         """Prune oldest cache files if total disk usage exceeds max_size_bytes."""
         async with self._prune_lock:
             try:
-                entries = []
-                total_size = 0
-
-                for entry in os.scandir(self.cache_dir):
-                    if entry.is_file() and entry.name.endswith(".cache"):
-                        stat = entry.stat()
-                        total_size += stat.st_size
-                        # Use atime or mtime for LRU ordering
-                        entries.append((stat.st_atime, stat.st_size, entry.path))
-
-                if total_size <= self.max_size_bytes:
-                    return
-
-                # Target 80% of max_size_bytes
-                target_size = int(self.max_size_bytes * 0.8)
-                entries.sort(key=lambda x: x[0])  # oldest first
-
-                for _timestamp, size, file_path in entries:
-                    try:
-                        os.remove(file_path)
-                        total_size -= size
-                        if total_size <= target_size:
-                            break
-                    except OSError:
-                        pass
+                removed = await asyncio.to_thread(self._prune_sync)
+                if removed:
+                    print(f"[ImageCache] Pruned {removed} cache files")
             except Exception as e:
                 print(f"[ImageCache] Pruning error: {e}")
+
+    def _prune_sync(self) -> int:
+        """Synchronous LRU prune, always run in a worker thread.
+
+        ``os.scandir`` + ``stat`` over the whole cache is tens of thousands of
+        syscalls; running it on the event loop froze every in-flight DASH
+        fragment stream for the duration (measured 0.2s at 60k files).
+        """
+        entries = []
+        total_size = 0
+
+        for entry in os.scandir(self.cache_dir):
+            if entry.is_file() and entry.name.endswith(".cache"):
+                stat = entry.stat()
+                total_size += stat.st_size
+                # Use atime or mtime for LRU ordering
+                entries.append((stat.st_atime, stat.st_size, entry.path))
+
+        if total_size <= self.max_size_bytes:
+            return 0
+
+        # Target 80% of max_size_bytes
+        target_size = int(self.max_size_bytes * 0.8)
+        entries.sort(key=lambda x: x[0])  # oldest first
+
+        removed = 0
+        for _timestamp, size, file_path in entries:
+            try:
+                os.remove(file_path)
+                removed += 1
+                total_size -= size
+                if total_size <= target_size:
+                    break
+            except OSError:
+                pass
+        return removed
 
 
 # Global default image cache instance

@@ -30,8 +30,14 @@ logger = logging.getLogger(__name__)
 
 _SEC_TOKEN_KEY = "miku:captcha:sec_token"
 
+# get_sec_token runs on every Api.request: bound the Redis backup lookup and
+# remember failures so an unreachable Redis cannot tax every Bilibili call.
+_REDIS_TOKEN_TIMEOUT = 0.5
+_REDIS_MISS_COOLDOWN = 15.0
+
 _mem_sec_token: str | None = None
 _mem_sec_token_expiry: float = 0.0
+_redis_miss_until: float = 0.0
 _DEFAULT_FAILURE_COOLDOWN = 15.0  # seconds to cache solve failure
 _last_solve_failure_time = 0.0
 _total_solves_count: int = 0
@@ -50,20 +56,36 @@ def get_redis():
 
 
 async def get_sec_token() -> str | None:
-    """Retrieve the cached X-BILI-SEC-TOKEN if valid."""
+    """Retrieve the cached X-BILI-SEC-TOKEN if valid.
+
+    Called on every ``Api.request``, so this must stay off the network in the
+    common case: the in-memory copy is consulted first and Redis only backs it
+    up for a process that has not solved yet (e.g. a second worker). A failed
+    or slow lookup is remembered for ``_REDIS_MISS_COOLDOWN`` so a sick Redis
+    costs one bounded probe per window instead of a stall on every Bilibili
+    call — a 5s socket timeout on every request previously pushed playurl
+    resolution past the caller's 8s budget and silently degraded DASH
+    playback to the progressive fallback.
+    """
+    global _redis_miss_until
+
     now = time.time()
+    token = _mem_sec_token
+    if token and now < _mem_sec_token_expiry:
+        return token
+
+    if now < _redis_miss_until:
+        return None
+
     r = get_redis()
     if r:
         try:
-            val = await r.get(_SEC_TOKEN_KEY)
+            async with asyncio.timeout(_REDIS_TOKEN_TIMEOUT):
+                val = await r.get(_SEC_TOKEN_KEY)
             if val:
                 return str(val)
         except Exception:
-            pass
-
-    async with _mem_lock:
-        if _mem_sec_token and now < _mem_sec_token_expiry:
-            return _mem_sec_token
+            _redis_miss_until = now + _REDIS_MISS_COOLDOWN
 
     return None
 
@@ -86,10 +108,12 @@ async def set_sec_token(token: str, ttl: int = 7200) -> None:
 
 async def clear_sec_token() -> None:
     """Evict the cached X-BILI-SEC-TOKEN."""
-    global _mem_sec_token, _mem_sec_token_expiry
+    global _mem_sec_token, _mem_sec_token_expiry, _redis_miss_until
     async with _mem_lock:
         _mem_sec_token = None
         _mem_sec_token_expiry = 0.0
+    # A cleared token must re-probe Redis on the next lookup.
+    _redis_miss_until = 0.0
 
     r = get_redis()
     if r:
