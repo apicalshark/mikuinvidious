@@ -16,19 +16,22 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 async def run_cdp():
     # 1. Launch Chromium
+    chrome_args = [
+        CHROME_BIN,
+        "--headless=new",
+        "--disable-gpu",
+        f"--remote-debugging-port={PORT}",
+        "--disable-blink-features=AutomationControlled",
+        f"--user-agent={UA}",
+        "--window-size=1920,1080",
+        "--lang=zh-CN",
+    ]
+    if os.environ.get("CHROME_NO_SANDBOX") == "1":
+        chrome_args.append("--no-sandbox")
+    chrome_args.append("about:blank")
+
     chrome_proc = subprocess.Popen(
-        [
-            CHROME_BIN,
-            "--headless=new",
-            "--no-sandbox",
-            "--disable-gpu",
-            f"--remote-debugging-port={PORT}",
-            "--disable-blink-features=AutomationControlled",
-            f"--user-agent={UA}",
-            "--window-size=1920,1080",
-            "--lang=zh-CN",
-            "about:blank",
-        ],
+        chrome_args,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -64,7 +67,9 @@ async def run_cdp():
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             data = json.loads(msg.data)
                             if "id" in data and data["id"] in futures:
-                                futures[data["id"]].set_result(data.get("result", {}))
+                                fut = futures.pop(data["id"])
+                                if not fut.done():
+                                    fut.set_result(data.get("result", {}))
                             elif "method" in data:
                                 method = data["method"]
                                 params = data.get("params", {})

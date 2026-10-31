@@ -88,7 +88,7 @@ class TestApiClientCaptchaRetry(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result, {"list": ["videoA", "videoB"]})
 
             # Solver was triggered with the voucher
-            mock_solve.assert_awaited_once_with(v_voucher="voucher_abc")
+            mock_solve.assert_awaited_once_with(v_voucher="voucher_abc", force=False)
 
             # Client made 2 requests (original + retry)
             self.assertEqual(mock_client.request.call_count, 2)
@@ -126,7 +126,7 @@ class TestApiClientCaptchaRetry(unittest.IsolatedAsyncioTestCase):
             result = await api.request()
 
             self.assertEqual(result, {"items": [1, 2, 3]})
-            mock_solve.assert_awaited_once_with(v_voucher="voucher_from_header")
+            mock_solve.assert_awaited_once_with(v_voucher="voucher_from_header", force=False)
             self.assertEqual(mock_client.request.call_count, 2)
 
     async def test_api_transparent_retry_on_412_http_status(self):
@@ -160,7 +160,7 @@ class TestApiClientCaptchaRetry(unittest.IsolatedAsyncioTestCase):
             result = await api.request()
 
             self.assertEqual(result, {"list": ["video412_A", "video412_B"]})
-            mock_solve.assert_awaited_once_with(v_voucher="voucher_412")
+            mock_solve.assert_awaited_once_with(v_voucher="voucher_412", force=False)
             self.assertEqual(mock_client.request.call_count, 2)
 
     async def test_api_raises_when_solve_fails(self):

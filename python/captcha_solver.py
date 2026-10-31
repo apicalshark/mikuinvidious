@@ -32,6 +32,8 @@ _SEC_TOKEN_KEY = "miku:captcha:sec_token"
 
 _mem_sec_token: str | None = None
 _mem_sec_token_expiry: float = 0.0
+_DEFAULT_FAILURE_COOLDOWN = 15.0  # seconds to cache solve failure
+_last_solve_failure_time = 0.0
 _total_solves_count: int = 0
 _mem_lock = asyncio.Lock()
 _solve_lock = asyncio.Lock()
@@ -105,11 +107,19 @@ async def solve_and_update_sec_token(
     Uses an asyncio lock so multiple concurrent requests don't duplicate solving work;
     all waiting requests receive the token acquired by the first solver.
     """
-    global _total_solves_count
+    global _total_solves_count, _last_solve_failure_time
     if not v_voucher:
         return None
+
+    now = time.time()
+    if not force and now - _last_solve_failure_time < _DEFAULT_FAILURE_COOLDOWN:
+        return None
+
     async with _solve_lock:
         if not force:
+            now = time.time()
+            if now - _last_solve_failure_time < _DEFAULT_FAILURE_COOLDOWN:
+                return None
             cached = await get_sec_token()
             if cached:
                 print(f"[CaptchaSolver] Using cached X-BILI-SEC-TOKEN ({cached[:12]}...)")
@@ -126,87 +136,94 @@ async def solve_and_update_sec_token(
 
         headers = get_browser_headers(origin="https://www.bilibili.com", referer="https://www.bilibili.com/")
 
-        for attempt in range(1, max_attempts + 1):
-            gt = None
-            challenge = None
-            token = ""
+        try:
+            async with asyncio.timeout(30.0):
+                for attempt in range(1, max_attempts + 1):
+                    gt = None
+                    challenge = None
+                    token = ""
 
-            # 1. Fetch challenge using v_voucher if available
-            if v_voucher:
-                print(
-                    f"[CaptchaSolver] Attempt {attempt}/{max_attempts}: registering Gaia challenge with v_voucher {v_voucher[:16]}..."
-                )
-                try:
-                    resp = await client.post(
-                        "https://api.bilibili.com/x/gaia-vgate/v1/register",
-                        data={"v_voucher": v_voucher, "csrf": ""},
-                        headers=headers,
-                        timeout=8.0,
-                    )
-                    if resp.status_code == 200:
-                        res = resp.json()
-                        if res.get("code") == 0:
-                            data = res.get("data") or {}
-                            gt_data = data.get("geetest") or {}
-                            gt = gt_data.get("gt")
-                            challenge = gt_data.get("challenge")
-                            token = data.get("token") or ""
-                            print(f"[CaptchaSolver] Gaia register succeeded: gt={gt}, challenge={challenge}")
-                        else:
-                            print(f"[CaptchaSolver] Gaia register rejected: {res}")
+                    # 1. Fetch challenge using v_voucher if available
+                    if v_voucher:
+                        print(
+                            f"[CaptchaSolver] Attempt {attempt}/{max_attempts}: registering Gaia challenge with v_voucher {v_voucher[:16]}..."
+                        )
+                        try:
+                            resp = await client.post(
+                                "https://api.bilibili.com/x/gaia-vgate/v1/register",
+                                data={"v_voucher": v_voucher, "csrf": ""},
+                                headers=headers,
+                                timeout=8.0,
+                            )
+                            if resp.status_code == 200:
+                                res = resp.json()
+                                if res.get("code") == 0:
+                                    data = res.get("data") or {}
+                                    gt_data = data.get("geetest") or {}
+                                    gt = gt_data.get("gt")
+                                    challenge = gt_data.get("challenge")
+                                    token = data.get("token") or ""
+                                    print(f"[CaptchaSolver] Gaia register succeeded: gt={gt}, challenge={challenge}")
+                                else:
+                                    print(f"[CaptchaSolver] Gaia register rejected: {res}")
+                            else:
+                                print(f"[CaptchaSolver] Gaia register HTTP status {resp.status_code}")
+                        except Exception as e:
+                            print(f"[CaptchaSolver] Gaia register exception on attempt {attempt}: {e}")
                     else:
-                        print(f"[CaptchaSolver] Gaia register HTTP status {resp.status_code}")
-                except Exception as e:
-                    print(f"[CaptchaSolver] Gaia register exception on attempt {attempt}: {e}")
-            else:
-                print(f"[CaptchaSolver] Attempt {attempt}/{max_attempts}: no v_voucher provided")
+                        print(f"[CaptchaSolver] Attempt {attempt}/{max_attempts}: no v_voucher provided")
 
-            if not gt or not challenge:
-                print(
-                    f"[CaptchaSolver] Unable to acquire gt/challenge from Bilibili (attempt {attempt}/{max_attempts})"
-                )
-                continue
+                    if not gt or not challenge:
+                        print(
+                            f"[CaptchaSolver] Unable to acquire gt/challenge from Bilibili (attempt {attempt}/{max_attempts})"
+                        )
+                        continue
 
-            # 2. Solve challenge using gtlv offline neural models
-            print(f"[CaptchaSolver] Solving challenge locally via gtlv (gt={gt}, challenge={challenge})...")
-            try:
-                async with gtlv.Client(max_attempts=1) as solver_client:
-                    solution = await solver_client.solve(gt, challenge)
-                    print(f"[CaptchaSolver] gtlv solved challenge: validate={solution.validate}")
-            except Exception as e:
-                print(f"[CaptchaSolver] gtlv solve failed on attempt {attempt}: {e}")
-                continue
+                    # 2. Solve challenge using gtlv offline neural models
+                    print(f"[CaptchaSolver] Solving challenge locally via gtlv (gt={gt}, challenge={challenge})...")
+                    try:
+                        async with gtlv.Client(max_attempts=1) as solver_client:
+                            solution = await solver_client.solve(gt, challenge)
+                            print(f"[CaptchaSolver] gtlv solved challenge: validate={solution.validate}")
+                    except Exception as e:
+                        print(f"[CaptchaSolver] gtlv solve failed on attempt {attempt}: {e}")
+                        continue
 
-            # 3. Validate solution with Bilibili Gaia gateway
-            print("[CaptchaSolver] Submitting validation to Bilibili Gaia gateway...")
-            try:
-                val_url = "https://api.bilibili.com/x/gaia-vgate/v1/validate"
-                payload = {
-                    "challenge": solution.challenge,
-                    "token": token,
-                    "validate": solution.validate,
-                    "seccode": solution.seccode,
-                    "csrf": "",
-                }
-                resp = await client.post(val_url, data=payload, headers=headers, timeout=8.0)
-                if resp.status_code == 200:
-                    res = resp.json()
-                    if res.get("code") == 0:
-                        data = res.get("data") or {}
-                        real_token = data.get("token") or data.get("sec_token") or data.get("grisk_id")
-                        if real_token:
-                            sec_token = str(real_token)
-                            await set_sec_token(sec_token, ttl=7200)
-                            _total_solves_count += 1
-                            log_msg = f"[CaptchaSolver] Successfully solved challenge on attempt {attempt}/{max_attempts} (total solves: {_total_solves_count})"
-                            print(log_msg)
-                            logger.info(log_msg)
-                            return sec_token
+                    # 3. Validate solution with Bilibili Gaia gateway
+                    print("[CaptchaSolver] Submitting validation to Bilibili Gaia gateway...")
+                    try:
+                        val_url = "https://api.bilibili.com/x/gaia-vgate/v1/validate"
+                        payload = {
+                            "challenge": solution.challenge,
+                            "token": token,
+                            "validate": solution.validate,
+                            "seccode": solution.seccode,
+                            "csrf": "",
+                        }
+                        resp = await client.post(val_url, data=payload, headers=headers, timeout=8.0)
+                        if resp.status_code == 200:
+                            res = resp.json()
+                            if res.get("code") == 0:
+                                data = res.get("data") or {}
+                                real_token = data.get("token") or data.get("sec_token") or data.get("grisk_id")
+                                if real_token:
+                                    sec_token = str(real_token)
+                                    await set_sec_token(sec_token, ttl=7200)
+                                    _total_solves_count += 1
+                                    log_msg = f"[CaptchaSolver] Successfully solved challenge on attempt {attempt}/{max_attempts} (total solves: {_total_solves_count})"
+                                    print(log_msg)
+                                    logger.info(log_msg)
+                                    return sec_token
 
-                    print(f"[CaptchaSolver] Bilibili validation rejected on attempt {attempt}: {res}")
-                else:
-                    print(f"[CaptchaSolver] Bilibili validation HTTP {resp.status_code} on attempt {attempt}")
-            except Exception as e:
-                print(f"[CaptchaSolver] Exception during Gaia validate on attempt {attempt}: {e}")
+                            print(f"[CaptchaSolver] Bilibili validation rejected on attempt {attempt}: {res}")
+                        else:
+                            print(f"[CaptchaSolver] Bilibili validation HTTP {resp.status_code} on attempt {attempt}")
+                    except Exception as e:
+                        print(f"[CaptchaSolver] Exception during Gaia validate on attempt {attempt}: {e}")
+        except TimeoutError:
+            print("[CaptchaSolver] Overall solve timed out after 30s")
+        except Exception as e:
+            print(f"[CaptchaSolver] Unexpected error during solve loop: {e}")
 
+        _last_solve_failure_time = time.time()
         return None

@@ -17,11 +17,13 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
         self.redis_patch.start()
         import captcha_solver
 
+        captcha_solver._last_solve_failure_time = 0.0
         await captcha_solver.clear_sec_token()
 
     async def asyncTearDown(self):
         import captcha_solver
 
+        captcha_solver._last_solve_failure_time = 0.0
         await captcha_solver.clear_sec_token()
         self.redis_patch.stop()
 

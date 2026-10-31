@@ -131,9 +131,11 @@ async def _fetch(url: str, params: dict, cookies: dict) -> dict:
 
         if attempt == 0 and v_voucher:
             try:
-                from captcha_solver import solve_and_update_sec_token
+                from captcha_solver import clear_sec_token, solve_and_update_sec_token
 
-                new_token = await solve_and_update_sec_token(v_voucher=v_voucher)
+                if sec_token:
+                    await clear_sec_token()
+                new_token = await solve_and_update_sec_token(v_voucher=v_voucher, force=bool(sec_token))
                 if new_token:
                     headers["x-bili-gaia-vtoken"] = new_token
                     req_params["gaia_vtoken"] = new_token

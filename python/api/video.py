@@ -443,9 +443,11 @@ class Video:
                         v_voucher = m.group(0)
                 if v_voucher:
                     try:
-                        from captcha_solver import solve_and_update_sec_token
+                        from captcha_solver import clear_sec_token, solve_and_update_sec_token
 
-                        new_token = await solve_and_update_sec_token(v_voucher=v_voucher)
+                        if sec_token:
+                            await clear_sec_token()
+                        new_token = await solve_and_update_sec_token(v_voucher=v_voucher, force=bool(sec_token))
                         if new_token:
                             cookies["X-BILI-SEC-TOKEN"] = new_token
                             cookies["x-bili-gaia-vtoken"] = new_token

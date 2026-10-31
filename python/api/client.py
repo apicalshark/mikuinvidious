@@ -598,6 +598,16 @@ class Api:
         solved_captcha = False
         while attempt < wbi_retries:
             request_params = dict(params)
+            sec_token = None
+            try:
+                from captcha_solver import get_sec_token
+
+                sec_token = await get_sec_token()
+                if sec_token:
+                    request_params["gaia_vtoken"] = sec_token
+            except Exception:
+                pass
+
             if self.wbi:
                 try:
                     mixin = await get_wbi_mixin_key(self.credential)
@@ -611,7 +621,7 @@ class Api:
                 request_data["csrf"] = self.credential.bili_jct
                 request_data["csrf_token"] = self.credential.bili_jct
 
-            cookies = await _get_anonymous_cookies()
+            cookies = dict(await _get_anonymous_cookies())
             # Override with credential cookies (only non-empty values)
             cred_cookies = self.credential.get_cookies()
             for k, v in cred_cookies.items():
@@ -621,18 +631,10 @@ class Api:
 
             headers = dict(HEADERS) if not self.headers else dict(self.headers)
 
-            sec_token = None
-            try:
-                from captcha_solver import get_sec_token
-
-                sec_token = await get_sec_token()
-                if sec_token:
-                    cookies["X-BILI-SEC-TOKEN"] = sec_token
-                    headers["x-bili-gaia-vtoken"] = sec_token
-                    cookies["x-bili-gaia-vtoken"] = sec_token
-                    request_params["gaia_vtoken"] = sec_token
-            except Exception:
-                pass
+            if sec_token:
+                cookies["X-BILI-SEC-TOKEN"] = sec_token
+                headers["x-bili-gaia-vtoken"] = sec_token
+                cookies["x-bili-gaia-vtoken"] = sec_token
 
             if cookies:
                 cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
@@ -670,9 +672,11 @@ class Api:
                     try:
                         resp_json = resp.json()
                         if isinstance(resp_json, dict):
-                            data = resp_json.get("data")
-                            if isinstance(data, dict):
-                                v_voucher = data.get("v_voucher") or (data.get("gaia_data") or {}).get("v_voucher")
+                            resp_data = resp_json.get("data")
+                            if isinstance(resp_data, dict):
+                                v_voucher = resp_data.get("v_voucher") or (resp_data.get("gaia_data") or {}).get(
+                                    "v_voucher"
+                                )
                             if not v_voucher:
                                 v_voucher = resp_json.get("v_voucher") or (resp_json.get("gaia_data") or {}).get(
                                     "v_voucher"
@@ -686,9 +690,11 @@ class Api:
                     solved_captcha = True
                     print(f"[Api] {self.url} returned v_voucher, triggering auto-solver...")
                     try:
-                        from captcha_solver import solve_and_update_sec_token
+                        from captcha_solver import clear_sec_token, solve_and_update_sec_token
 
-                        new_token = await solve_and_update_sec_token(v_voucher=v_voucher)
+                        if sec_token:
+                            await clear_sec_token()
+                        new_token = await solve_and_update_sec_token(v_voucher=v_voucher, force=bool(sec_token))
                         if new_token:
                             print(f"[Api] Auto-solve succeeded, retrying {self.url}")
                             continue
@@ -700,22 +706,6 @@ class Api:
                 try:
                     return self._process_response(resp, raw)
                 except (ResponseCodeException, NetworkException) as e:
-                    if v_voucher and not solved_captcha:
-                        solved_captcha = True
-                        print(f"[Api] {self.url} risk error ({e}) with v_voucher, triggering auto-solver...")
-                        try:
-                            from captcha_solver import clear_sec_token, solve_and_update_sec_token
-
-                            if sec_token:
-                                await clear_sec_token()
-                            new_token = await solve_and_update_sec_token(v_voucher=v_voucher, force=bool(sec_token))
-                            if new_token:
-                                print(f"[Api] Auto-solve succeeded, retrying {self.url}")
-                                continue
-                            else:
-                                print(f"[Api] Auto-solve failed (no token) for {self.url}")
-                        except Exception as solve_err:
-                            print(f"[Api] Auto-solve exception for {self.url}: {solve_err}")
                     if (
                         isinstance(e, ResponseCodeException)
                         and e.code == -403

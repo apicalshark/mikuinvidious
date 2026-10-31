@@ -775,7 +775,7 @@ requires-dist = [
     { name = "babel", specifier = ">=2.17.0" },
     { name = "beautifulsoup4", specifier = ">=4.14.3" },
     { name = "brotli", specifier = ">=1.2.1" },
-    { name = "curl-cffi", specifier = ">=0.16.1" },
+    { name = "curl-cffi", specifier = ">=0.17.0" },
     { name = "flask-orjson", specifier = ">=2.0.0" },
     { name = "granian", specifier = ">=2.7.2" },
     { name = "gtlv", specifier = ">=0.1.4" },
