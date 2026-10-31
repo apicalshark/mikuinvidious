@@ -1,8 +1,8 @@
-from pathlib import Path
 import unittest
+from pathlib import Path
 
-from extra import sanitize_html
 import rtoml
+from extra import sanitize_html
 from zhconv_rs import zhconv
 
 

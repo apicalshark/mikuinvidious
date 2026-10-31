@@ -73,7 +73,7 @@ class SpaceFetchTests(unittest.IsolatedAsyncioTestCase):
                         return self
 
                     @property
-                    def result(self):
+                    def result(self, fetch=fetch):
                         return fetch()
 
                 render = AsyncMock(return_value="space page")
@@ -132,6 +132,7 @@ class CommentPaginationTests(unittest.IsolatedAsyncioTestCase):
 class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
     async def test_resumed_conn_skip_longer_than_idle_timeout_does_not_false_stall(self):
         import asyncio
+
         import dash_stream
 
         class FakeRawConn:
@@ -157,6 +158,7 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_resumed_conn_tarpit_during_skip_still_trips_floor_watchdog(self):
         import asyncio
+
         import dash_stream
 
         class SlowRawConn:
@@ -176,6 +178,7 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failover_same_mirror_retry_when_pending_first_416s(self):
         from types import SimpleNamespace
+
         import dash_common
         import dash_stream
 
@@ -243,6 +246,7 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
         import asyncio
         import gc
         import warnings
+
         import views_video
 
         async def cancel_gather(*coros, **kwargs):
@@ -265,6 +269,7 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_video_view_gracefully_handles_cancelled_related_and_tags(self):
         import asyncio
+
         import views_video
 
         sample_vinfo = {
@@ -488,6 +493,7 @@ class DashAudioOptimizationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_peek_content_length_sends_range_zero_and_parses_content_range(self):
         from types import SimpleNamespace
+
         import dash_download_job
 
         sent_headers = {}

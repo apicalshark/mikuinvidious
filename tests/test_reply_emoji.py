@@ -153,7 +153,6 @@ class RenderReplyContentTests(unittest.TestCase):
 class SearchHighlightTests(unittest.TestCase):
     def test_decodes_entities_once_and_stays_escapable(self):
         from markupsafe import escape
-
         from transformers import strip_search_highlight
 
         out = strip_search_highlight('<em class="keyword">Miku</em> &amp; &quot;Hi&quot; &lt;3')

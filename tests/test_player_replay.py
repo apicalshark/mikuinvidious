@@ -3,10 +3,9 @@
 Run with PYTHONPATH=python uv run python -m unittest discover -s tests.
 """
 
-import json
-from pathlib import Path
 import subprocess
 import unittest
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PLAYER_JS = ROOT / "static" / "themes" / "modern" / "js" / "player.js"

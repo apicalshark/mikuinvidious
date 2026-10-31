@@ -19,13 +19,14 @@ from urllib.parse import urlparse
 
 from dash_common import (
     _CONTENT_RANGE_RE,
-    _PLAYBACK_MAX_MIRRORS,
     _SAME_MIRROR_MAX_RESUMES,
     DASH_ATTEMPT_TIMEOUT,
     DASH_BODY_FLOOR_KBPS,
     DASH_BODY_GRACE,
     DASH_BODY_IDLE_TIMEOUT,
     DASH_PLAYBACK_ATTEMPT_TIMEOUT,
+    DASH_PLAYBACK_MIN_MIRRORS,
+    DASH_PLAYBACK_MIRROR_BUDGET,
     _build_dash_cdn_headers,
     _expected_resume_start,
     _is_direct_cdn_url,
@@ -627,6 +628,7 @@ async def _fetch_dash_track(
     label: str,
     attempt_timeout: float | None = None,
     reuse_pool=None,
+    mirror_budget: float | None = None,
 ):
     """Try each candidate mirror in order; return ``(conn, resp_headers, used_url, content_length, content_range)``.
     Stalled edges fail fast (``DASH_ATTEMPT_TIMEOUT``) so playback falls over
@@ -647,12 +649,20 @@ async def _fetch_dash_track(
     candidate: a banked keep-alive socket saves the TCP+TLS handshake and the
     slow-start ramp of that fragment. Failed reuses fall back to a fresh
     connect and never mark the mirror sick.
+
+    ``mirror_budget`` (playback only) is the wall-clock allowance for
+    *starting* a mirror beyond the first ``DASH_PLAYBACK_MIN_MIRRORS``. Fast
+    failures (refused, reset, 403) cost ~100ms and sweep the whole candidate
+    list inside it; a stalled edge spends its handshake, then only the
+    mandatory failover still runs, so a sweep cannot stack timeouts past
+    dash.js' abandonment window.
     """
     ticket_refreshed = False
     last_error: Exception | None = None
     forbidden_seen = False
     pooled_checked = False
     handshake_timeout = attempt_timeout or DASH_ATTEMPT_TIMEOUT
+    started = time.monotonic()
     urls = _order_urls_by_health(urls)
     want = _parse_range_start(headers.get("range"))
     if want is not None:
@@ -661,7 +671,17 @@ async def _fetch_dash_track(
         urls = [u for u in urls if not _mirror_range_shy_at(urlparse(u).hostname or "", want)] + [
             u for u in urls if _mirror_range_shy_at(urlparse(u).hostname or "", want)
         ]
-    for url in urls:
+    for index, url in enumerate(urls):
+        if (
+            mirror_budget is not None
+            and index >= DASH_PLAYBACK_MIN_MIRRORS
+            and time.monotonic() - started >= mirror_budget
+        ):
+            print(
+                f"[DashProxy] {label} mirror budget {mirror_budget:.1f}s spent,"
+                f" {len(urls) - index} mirror(s) left untried"
+            )
+            break
         host = urlparse(url).hostname or url
         conn = resp_headers = None
         if reuse_pool is not None and not pooled_checked:
@@ -740,7 +760,7 @@ async def _fetch_dash_track(
 
 
 async def _retry_proxy_with_fresh_playurl(
-    vid, idx, media_type, qn, cid, old_urls, headers, proxy_url, label, attempt_timeout=None
+    vid, idx, media_type, qn, cid, old_urls, headers, proxy_url, label, attempt_timeout=None, mirror_budget=None
 ):
     """One fresh-playurl retry for a 403-swept track (official player recovery).
 
@@ -772,7 +792,9 @@ async def _retry_proxy_with_fresh_playurl(
         return None
     print(f"[DashProxy] {label} refreshed playurl (stamp {old_stamp} -> {new_stamp}), retrying request")
     try:
-        fetched = await _fetch_dash_track(new_urls, headers, proxy_url, label, attempt_timeout=attempt_timeout)
+        fetched = await _fetch_dash_track(
+            new_urls, headers, proxy_url, label, attempt_timeout=attempt_timeout, mirror_budget=mirror_budget
+        )
     except _DashUpstreamError as exc:
         print(f"[DashProxy] {label} fresh playurl also failed: {exc}")
         return None
@@ -840,11 +862,11 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         if not urls:
             return Response("Forbidden: Invalid proxy target", status=403)
         # Fail fast, not heroically: dash.js abandons slow fragments itself
-        # (~7s, with 5 retries + ABR downshift), so churning more than two
-        # mirrors per request only guarantees the client gives up first and
-        # the work is wasted. Sick-mirror memory (health ordering) makes
-        # those two attempts count.
-        urls = _order_urls_by_health(urls)[:_PLAYBACK_MAX_MIRRORS]
+        # (~7s, with 5 retries + ABR downshift), so the sweep is bounded by a
+        # wall-clock budget instead of a mirror count — every candidate gets a
+        # chance when failures are cheap, and a stalled edge ends the sweep
+        # instead of stacking timeouts the client will never wait for.
+        urls = _order_urls_by_health(urls)
         if not urls:
             return Response("Forbidden: Invalid proxy target", status=403)
 
@@ -876,6 +898,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                 label,
                 attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
                 reuse_pool=playback_pool,
+                mirror_budget=DASH_PLAYBACK_MIRROR_BUDGET,
             )
         except _DashUpstreamError as exc:
             old_stamp = _playurl_url_expiry(urls[0]) if urls else None
@@ -901,6 +924,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                 proxy_url,
                 label,
                 attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
+                mirror_budget=DASH_PLAYBACK_MIRROR_BUDGET,
             )
             if retry is None:
                 return Response("Upstream error", status=502)

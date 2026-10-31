@@ -52,9 +52,20 @@ DASH_BODY_FLOOR_KBPS = 100
 # fail a fragment fast instead of heroically churning mirrors for longer
 # than the client waits (abandoned work + spins). Downloads keep the patient
 # 8s/all-mirror budgets: no client intelligence there, the server must
-# succeed. Caps: 2 mirrors per playback request, 4s handshakes.
+# succeed.
 DASH_PLAYBACK_ATTEMPT_TIMEOUT = 4.0
-_PLAYBACK_MAX_MIRRORS = 2
+# Budget for *starting* further mirrors within one fragment — a time budget,
+# not a mirror count. A refusing/resetting edge fails in ~100ms, so a bad
+# primary no longer costs a mirror slot: the sweep walks every candidate the
+# payload offers. A stalled edge spends its 4s handshake instead, and only
+# the mandatory failover pair is still attempted after that — beyond them the
+# sweep continues solely inside this budget, so it cannot stack timeouts past
+# the client's abandonment window.
+DASH_PLAYBACK_MIRROR_BUDGET = 3.0
+# Always attempted regardless of the budget: after a stalled primary the
+# player still deserves one real failover, and a fast second edge usually
+# finishes well inside dash.js' abandonment window.
+DASH_PLAYBACK_MIN_MIRRORS = 2
 
 # Same-mirror resume budget per playback request. When the cutting mirror
 # just served bytes but every remaining mirror is range-shy at the resume
