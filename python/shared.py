@@ -782,8 +782,16 @@ if appconf["credential"]["use_cred"]:
 
 
 def detect_theme():
-    """Determine the theme of the users' request."""
+    """Determine the theme of the users' request.
+    
+    Falls back to 'modern' if the requested theme directory does not exist,
+    preventing 500 TemplateNotFound crashes when users have stale cookies
+    or query parameters (e.g. legacy 'light' theme).
+    """
     theme = request.args.get("theme") or request.cookies.get("theme") or appconf["display"]["default_theme"]
+    theme_path = os.path.join(app.root_path, "../templates/themes", theme)
+    if not os.path.isdir(theme_path):
+        theme = "modern"
     return theme
 
 

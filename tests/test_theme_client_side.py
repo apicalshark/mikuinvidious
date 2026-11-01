@@ -121,6 +121,17 @@ class ThemeServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plain[0], plain[1])
         self.assertEqual(plain[1], plain[2])
 
+    async def test_detect_theme_invalid_or_stale_fallback(self):
+        import shared
+
+        for bad_theme in ("light", "dark", "nonexistent", "../etc"):
+            async with shared.app.test_request_context(f"/?theme={bad_theme}"):
+                self.assertEqual(shared.detect_theme(), "modern")
+
+            headers = {"Cookie": f"theme={bad_theme}"}
+            async with shared.app.test_request_context("/", headers=headers):
+                self.assertEqual(shared.detect_theme(), "modern")
+
 
 if __name__ == "__main__":
     unittest.main()
