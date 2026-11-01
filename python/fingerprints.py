@@ -172,9 +172,16 @@ FIXED_CHROME_UA = CHROME_UA
 
 
 def get_web_api_headers(referer: str = "https://www.bilibili.com") -> dict[str, str]:
-    """General web API headers dictionary."""
+    """General web API headers dictionary with modern browser Client Hints."""
     return {
         "User-Agent": FIXED_CHROME_UA,
         "Referer": referer,
+        "Accept": "application/json, text/plain, */*",
         "Accept-Language": "zh-CN,zh;q=0.9",
+        "sec-ch-ua": _CURL_SEC_CH_UA,
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-site": "same-site",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
     }

@@ -340,7 +340,8 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
         }
 
         mock_curl_client = AsyncMock()
-        mock_curl_client.post.side_effect = [mock_reg_resp, mock_reg_resp, mock_val_resp]
+        # Single register call (voucher is single-use), then validate call on successful solve
+        mock_curl_client.post.side_effect = [mock_reg_resp, mock_val_resp]
 
         mock_validation = MagicMock()
         mock_validation.challenge = "ch_solved"
@@ -364,6 +365,156 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
             printed_messages = [call.args[0] for call in mock_print.call_args_list if call.args]
             has_attempt_log = any("[CaptchaSolver]" in msg and "attempt 2" in msg for msg in printed_messages)
             self.assertTrue(has_attempt_log, f"Expected attempt 2 log in printed messages: {printed_messages}")
+            # Ensure register was called exactly once (no repeat attempts with the single-use voucher)
+            register_calls = [call for call in mock_curl_client.post.call_args_list if "register" in str(call.args[0])]
+            self.assertEqual(len(register_calls), 1)
+
+    async def test_solve_stops_retry_loop_on_register_rejected(self):
+        """Single-use vouchers must not be retried when register is rejected (code 100000)."""
+        import captcha_solver
+
+        mock_reg_resp = MagicMock()
+        mock_reg_resp.status_code = 200
+        mock_reg_resp.json.return_value = {
+            "code": 100000,
+            "message": "验证码获取失败",
+            "ttl": 1,
+            "data": None,
+        }
+
+        mock_curl_client = AsyncMock()
+        mock_curl_client.post.return_value = mock_reg_resp
+
+        with (
+            patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
+            patch("builtins.print") as mock_print,
+        ):
+            token = await captcha_solver.solve_and_update_sec_token(v_voucher="voucher_dead_100000")
+            self.assertIsNone(token)
+            # Register should be called only ONCE, not retried for attempts 2/3
+            self.assertEqual(mock_curl_client.post.call_count, 1)
+
+            printed_messages = [call.args[0] for call in mock_print.call_args_list if call.args]
+            self.assertTrue(
+                any("single-use" in msg for msg in printed_messages),
+                f"Expected single-use notice in printed messages: {printed_messages}",
+            )
+
+    async def test_solve_stops_retry_loop_when_geetest_is_null(self):
+        """When Bilibili returns null geetest (IP-level blocking), log raw response and stop."""
+        import captcha_solver
+
+        mock_reg_resp = MagicMock()
+        mock_reg_resp.status_code = 200
+        raw_json = {
+            "code": 0,
+            "message": "0",
+            "ttl": 1,
+            "data": {
+                "type": "geetest",
+                "token": "tok_no_gt",
+                "geetest": None,
+            },
+        }
+        mock_reg_resp.json.return_value = raw_json
+
+        mock_curl_client = AsyncMock()
+        mock_curl_client.post.return_value = mock_reg_resp
+
+        with (
+            patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
+            patch("builtins.print") as mock_print,
+        ):
+            token = await captcha_solver.solve_and_update_sec_token(v_voucher="voucher_null_gt")
+            self.assertIsNone(token)
+            # Register called only ONCE
+            self.assertEqual(mock_curl_client.post.call_count, 1)
+
+            printed_messages = [call.args[0] for call in mock_print.call_args_list if call.args]
+            # Must log raw response on attempt 1
+            has_raw_log = any("Gaia register raw response on attempt 1" in msg for msg in printed_messages)
+            self.assertTrue(has_raw_log, f"Expected raw response log in: {printed_messages}")
+            # Must log null geetest explanation
+            has_null_gt_log = any("null geetest" in msg for msg in printed_messages)
+            self.assertTrue(has_null_gt_log, f"Expected null geetest log in: {printed_messages}")
+            # Must log single-use stop
+            has_single_use = any("single-use" in msg for msg in printed_messages)
+            self.assertTrue(has_single_use, f"Expected single-use stop in: {printed_messages}")
+
+    async def test_solve_supports_flat_geetest_fields(self):
+        """Extraction succeeds when gt and challenge are flat in data."""
+        import captcha_solver
+
+        mock_reg_resp = MagicMock()
+        mock_reg_resp.status_code = 200
+        mock_reg_resp.json.return_value = {
+            "code": 0,
+            "data": {
+                "token": "tok_flat",
+                "gt": "gt_flat_123",
+                "challenge": "ch_flat_456",
+            },
+        }
+
+        mock_val_resp = MagicMock()
+        mock_val_resp.status_code = 200
+        mock_val_resp.json.return_value = {
+            "code": 0,
+            "data": {"token": "sec_token_flat_ok"},
+        }
+
+        mock_curl_client = AsyncMock()
+        mock_curl_client.post.side_effect = [mock_reg_resp, mock_val_resp]
+
+        mock_validation = MagicMock()
+        mock_validation.challenge = "ch_solved"
+        mock_validation.validate = "val_solved"
+        mock_validation.seccode = "val_solved|jordan"
+
+        mock_gtlv_client = AsyncMock()
+        mock_gtlv_client.solve.return_value = mock_validation
+        mock_gtlv_client.__aenter__.return_value = mock_gtlv_client
+        mock_gtlv_client.__aexit__.return_value = None
+
+        with (
+            patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
+            patch("captcha_solver.gtlv.Client", return_value=mock_gtlv_client),
+        ):
+            token = await captcha_solver.solve_and_update_sec_token(v_voucher="voucher_flat")
+            self.assertEqual(token, "sec_token_flat_ok")
+            mock_gtlv_client.solve.assert_awaited_once_with("gt_flat_123", "ch_flat_456")
+
+    async def test_solve_detects_geetest_v4_schema(self):
+        """When Geetest v4 is returned without challenge, log schema and do not retry."""
+        import captcha_solver
+
+        mock_reg_resp = MagicMock()
+        mock_reg_resp.status_code = 200
+        mock_reg_resp.json.return_value = {
+            "code": 0,
+            "data": {
+                "type": "geetest_v4",
+                "token": "tok_v4",
+                "geetest_v4": {
+                    "captcha_id": "v4_captcha_id_789",
+                },
+            },
+        }
+
+        mock_curl_client = AsyncMock()
+        mock_curl_client.post.return_value = mock_reg_resp
+
+        with (
+            patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
+            patch("builtins.print") as mock_print,
+        ):
+            token = await captcha_solver.solve_and_update_sec_token(v_voucher="voucher_v4")
+            self.assertIsNone(token)
+            self.assertEqual(mock_curl_client.post.call_count, 1)
+
+            printed_messages = [call.args[0] for call in mock_print.call_args_list if call.args]
+            has_v4_log = any("Geetest v4 schema" in msg for msg in printed_messages)
+            self.assertTrue(has_v4_log, f"Expected v4 schema log in: {printed_messages}")
 
 
 if __name__ == "__main__":

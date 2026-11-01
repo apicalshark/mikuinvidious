@@ -57,7 +57,9 @@ debug = false
 # You can pass any Quart config keys here (e.g., TEMPLATES_AUTO_RELOAD = true).
 
 [credential]
-# Credentials can be used to break auth walls, visit paid resources and unlock video qualities.
+# Credentials can be used to break auth walls, visit paid resources, unlock video qualities,
+# and reduce risk control blocks (HTTP 412 / code -352 / v_voucher) on VPS/datacenter IPs.
+# If sessdata is provided, use_cred is automatically enabled.
 use_cred = false
 
 # Sensitive information, don't tell anybody. 
@@ -77,12 +79,13 @@ dedeuserid = ''
 ac_time_value = ''
 
 [proxy]
-# Media proxying is always on. Set proxy_url below (or HTTP_PROXY env) to
-# route Bilibili traffic through a SOCKS5/HTTP proxy (e.g. WARP);
-# otherwise traffic goes direct.
+# Media proxying is always on. Set proxy_url below (or HTTP_PROXY / HTTPS_PROXY / ALL_PROXY env)
+# to route Bilibili traffic through a SOCKS5/HTTP proxy (e.g. WARP or residential proxy).
+# Highly recommended for VPS/datacenter IPs to bypass Bilibili's anti-scraping risk control
+# (HTTP 412 / -352 / v_voucher). If left unset, traffic goes direct.
 
 # The full URL of the SOCKS5/HTTP proxy. 
-# Example: 'socks5://127.0.0.1:1080'
+# Example: 'socks5://127.0.0.1:1080' or 'http://127.0.0.1:7890'
 # proxy_url = ''
 
 [render]

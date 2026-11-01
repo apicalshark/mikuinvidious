@@ -280,7 +280,14 @@ appconf = {
         "ac_time_value": os.environ.get("AC_TIME_VALUE"),
     },
     "proxy": {
-        "proxy_url": os.environ.get("HTTP_PROXY") or os.environ.get("http_proxy"),
+        "proxy_url": (
+            os.environ.get("HTTP_PROXY")
+            or os.environ.get("http_proxy")
+            or os.environ.get("HTTPS_PROXY")
+            or os.environ.get("https_proxy")
+            or os.environ.get("ALL_PROXY")
+            or os.environ.get("all_proxy")
+        ),
     },
     "render": {
         "use_pandoc": os.environ.get("USE_PANDOC", "false").lower() == "true",
@@ -734,6 +741,10 @@ appcache = SimpleCache()
 
 # Initialize credentials for bilibili API.
 appcred = None
+if not appconf["credential"]["use_cred"] and appconf["credential"].get("sessdata"):
+    print("[Init] SESSDATA provided; enabling credential support (use_cred=True).")
+    appconf["credential"]["use_cred"] = True
+
 if appconf["credential"]["use_cred"]:
     credstore = appconf["credential"]
 

@@ -157,7 +157,9 @@ _DEVICE_REQ_JSON = '{"platform":"web","device":"pc","mobi_app":"web"}'
 
 # Wbi mixin key cache
 __wbi_mixin_key = ""
+__wbi_mixin_key_expires = 0.0
 __wbi_lock = asyncio.Lock()
+_WBI_KEY_TTL = 43200.0  # 12 hours
 # bili_ticket cache
 __bili_ticket = ""
 __bili_ticket_expires = 0
@@ -256,6 +258,12 @@ async def _get_mixin_key(credential: Credential = None) -> str:
     client = await get_bili_client()
     headers = dict(HEADERS)
     cookies = credential.get_cookies()
+    if not cookies:
+        try:
+            anon = await _get_anonymous_cookies()
+            cookies = dict(anon)
+        except Exception:
+            pass
     if cookies:
         cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
         if cookie_str:
@@ -304,10 +312,12 @@ def _enc_wbi(params: dict, mixin_key: str) -> dict:
 
 
 async def get_wbi_mixin_key(credential: Credential = None) -> str:
-    global __wbi_mixin_key
-    if __wbi_mixin_key == "":
+    global __wbi_mixin_key, __wbi_mixin_key_expires
+    now = time.time()
+    if __wbi_mixin_key == "" or now >= __wbi_mixin_key_expires:
         async with __wbi_lock:
-            if __wbi_mixin_key == "":
+            now = time.time()
+            if __wbi_mixin_key == "" or now >= __wbi_mixin_key_expires:
                 try:
                     key = await _get_mixin_key(credential)
                 except Exception as exc:
@@ -316,12 +326,14 @@ async def get_wbi_mixin_key(credential: Credential = None) -> str:
                 if not key:
                     key = _mixin_from_keys(_FALLBACK_WBI_IMG_KEY, _FALLBACK_WBI_SUB_KEY)
                 __wbi_mixin_key = key
+                __wbi_mixin_key_expires = now + _WBI_KEY_TTL
     return __wbi_mixin_key
 
 
 def recalculate_wbi():
-    global __wbi_mixin_key
+    global __wbi_mixin_key, __wbi_mixin_key_expires
     __wbi_mixin_key = ""
+    __wbi_mixin_key_expires = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -435,6 +447,12 @@ async def _fetch_anonymous_cookies(now: float) -> tuple[dict[str, str], float]:
     except Exception:
         cookies["buvid3"] = ""
         cookies["buvid4"] = ""
+
+    # Ensure buvid3/buvid4 are never empty strings even if /spi fails or blocks
+    if not cookies.get("buvid3"):
+        cookies["buvid3"] = _generate_uuid()
+    if not cookies.get("buvid4"):
+        cookies["buvid4"] = f"{_generate_uuid()}-infoc"
 
     # Step 2: Generate local cookies
     cookies["b_nut"] = str(int(now))
@@ -674,9 +692,7 @@ class Api:
                         if isinstance(resp_json, dict):
                             node = resp_json.get("data")
                             if isinstance(node, dict):
-                                v_voucher = node.get("v_voucher") or (node.get("gaia_data") or {}).get(
-                                    "v_voucher"
-                                )
+                                v_voucher = node.get("v_voucher") or (node.get("gaia_data") or {}).get("v_voucher")
                             if not v_voucher:
                                 v_voucher = resp_json.get("v_voucher") or (resp_json.get("gaia_data") or {}).get(
                                     "v_voucher"
