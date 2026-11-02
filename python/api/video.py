@@ -397,63 +397,27 @@ class Video:
             if v:
                 cookies[k] = v
         cookies["opus-goback"] = "1"
-        try:
-            from captcha_solver import get_sec_token
-
-            sec_token = await get_sec_token()
-            if sec_token:
-                cookies["X-BILI-SEC-TOKEN"] = sec_token
-                cookies["x-bili-gaia-vtoken"] = sec_token
-        except Exception:
-            pass
         headers = dict(HEADERS)
         headers["Referer"] = f"https://www.bilibili.com/video/{self._bvid}"
         if cookies:
             headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
 
-        for attempt in range(2):
-            resp = await client.get(
-                f"https://api.bilibili.com/x/v1/dm/list.so?oid={cid}",
-                headers=headers,
-            )
-            import zlib
+        resp = await client.get(
+            f"https://api.bilibili.com/x/v1/dm/list.so?oid={cid}",
+            headers=headers,
+        )
+        import zlib
 
-            raw = resp.content
+        raw = resp.content
+        try:
+            decompressed = zlib.decompress(raw, -zlib.MAX_WBITS)
+        except Exception:
             try:
-                decompressed = zlib.decompress(raw, -zlib.MAX_WBITS)
+                decompressed = zlib.decompress(raw)
             except Exception:
-                try:
-                    decompressed = zlib.decompress(raw)
-                except Exception:
-                    decompressed = raw
-            text = decompressed.decode("utf-8", errors="replace")
-            stripped = text.lstrip().lower()
-            is_blocked = resp.status_code != 200 or stripped.startswith("<!doctype") or stripped.startswith("<html")
-            if not is_blocked:
-                return text
-
-            # Check if upstream returned a Gaia challenge voucher
-            if attempt == 0:
-                v_voucher = resp.headers.get("x-bili-gaia-vvoucher")
-                if not v_voucher:
-                    import re
-
-                    m = re.search(r"voucher_[a-zA-Z0-9\-]+", text)
-                    if m:
-                        v_voucher = m.group(0)
-                if v_voucher:
-                    try:
-                        from captcha_solver import clear_sec_token, solve_and_update_sec_token
-
-                        if sec_token:
-                            await clear_sec_token()
-                        new_token = await solve_and_update_sec_token(v_voucher=v_voucher, force=bool(sec_token))
-                        if new_token:
-                            cookies["X-BILI-SEC-TOKEN"] = new_token
-                            cookies["x-bili-gaia-vtoken"] = new_token
-                            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
-                            continue
-                    except Exception:
-                        pass
+                decompressed = raw
+        text = decompressed.decode("utf-8", errors="replace")
+        stripped = text.lstrip().lower()
+        if resp.status_code != 200 or stripped.startswith("<!doctype") or stripped.startswith("<html"):
             return ""
-        return ""
+        return text
