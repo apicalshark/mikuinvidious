@@ -1,4 +1,4 @@
-FROM astral/uv:0.13.5-python3.15-trixie-slim@sha256:86a05dd8f19b21368fbb160c7e2ad0576780bebbe89114b6deeba2506f7612e1
+FROM astral/uv:0.13.6-python3.15-trixie-slim@sha256:60a1cfdc8945ea9d12c8fe6221bfa256b2d94df43a93cc957a503346de9ca53b
 LABEL org.opencontainers.image.source=https://github.com/apicalshark/mikuinvidious
 
 WORKDIR /app
