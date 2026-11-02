@@ -161,11 +161,10 @@ def _live_fetchable_qualities(qn_list, default_qn):
     return [d for d in qn_list if d.get("qn") == default_qn] or qn_list[:1]
 
 
-@app.route("/live/<room_id>")
+@app.route("/live/<int:room_id>")
 async def live_room_view(room_id):
     try:
-        room_id_int = int(room_id)
-        room = live.LiveRoom(room_id_int, credential=appcred)
+        room = live.LiveRoom(room_id, credential=appcred)
 
         # Get basic room info first (getInfoByRoom, fallback to getRoomBaseInfo
         # when WBI/risk-control rejects the primary — PipePipe 1e330b87).

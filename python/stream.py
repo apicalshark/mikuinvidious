@@ -119,7 +119,7 @@ class CdnConnection:
         url: str,
         headers: dict | None = None,
         proxy_url: str | None = None,
-        read_chunk_size: int = 64 * 1024, # DO NOT CHANGE
+        read_chunk_size: int = 64 * 1024,  # DO NOT CHANGE
         connect_timeout: float = 15.0,
         read_timeout: float | None = None,
     ):

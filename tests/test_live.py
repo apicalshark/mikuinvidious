@@ -58,5 +58,24 @@ class TestLive(unittest.TestCase):
         self.assertIsInstance(res, list)
 
 
+class TestLiveRoutes(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        from app import app
+
+        self.client = app.test_client()
+
+    async def test_live_room_non_numeric_404(self):
+        resp = await self.client.get("/live/.env")
+        self.assertEqual(resp.status_code, 404)
+
+    async def test_live_room_arbitrary_string_404(self):
+        resp = await self.client.get("/live/config.php")
+        self.assertEqual(resp.status_code, 404)
+
+    async def test_live_room_negative_int_404(self):
+        resp = await self.client.get("/live/-1")
+        self.assertEqual(resp.status_code, 404)
+
+
 if __name__ == "__main__":
     unittest.main()

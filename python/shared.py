@@ -783,7 +783,7 @@ if appconf["credential"]["use_cred"]:
 
 def detect_theme():
     """Determine the theme of the users' request.
-    
+
     Falls back to 'modern' if the requested theme directory does not exist,
     preventing 500 TemplateNotFound crashes when users have stale cookies
     or query parameters (e.g. legacy 'light' theme).
