@@ -17,14 +17,22 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
         self.redis_patch.start()
         import captcha_solver
 
+        # The real gtlv dependency is gone; exercise the retained flow against a stub
+        # and switch the route back on for these tests.
+        self.gtlv = MagicMock()
+        self.gtlv_patch = patch.object(captcha_solver, "gtlv", self.gtlv)
+        self.gtlv_patch.start()
+        captcha_solver._auto_solve_enabled = True
         captcha_solver._last_solve_failure_time = 0.0
         await captcha_solver.clear_sec_token()
 
     async def asyncTearDown(self):
         import captcha_solver
 
+        captcha_solver._auto_solve_enabled = False
         captcha_solver._last_solve_failure_time = 0.0
         await captcha_solver.clear_sec_token()
+        self.gtlv_patch.stop()
         self.redis_patch.stop()
 
     async def test_token_get_set_clear(self):
@@ -95,7 +103,7 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
-            patch("captcha_solver.gtlv.Client", return_value=mock_gtlv_client),
+            patch.object(self.gtlv, "Client", return_value=mock_gtlv_client),
         ):
             token = await captcha_solver.solve_and_update_sec_token(v_voucher="test_voucher_999")
             self.assertEqual(token, "verified_sec_token_xyz")
@@ -167,7 +175,7 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
-            patch("captcha_solver.gtlv.Client", return_value=mock_gtlv_client),
+            patch.object(self.gtlv, "Client", return_value=mock_gtlv_client),
         ):
             # Fire 3 concurrent solve tasks
             results = await asyncio.gather(
@@ -206,7 +214,7 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
-            patch("captcha_solver.gtlv.Client", return_value=mock_gtlv_client),
+            patch.object(self.gtlv, "Client", return_value=mock_gtlv_client),
         ):
             token = await captcha_solver.solve_and_update_sec_token(v_voucher="voucher_fail")
             self.assertIsNone(token)
@@ -309,7 +317,7 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
-            patch("captcha_solver.gtlv.Client", return_value=mock_gtlv_client),
+            patch.object(self.gtlv, "Client", return_value=mock_gtlv_client),
             patch("builtins.print") as mock_print,
         ):
             token = await captcha_solver.solve_and_update_sec_token(v_voucher="v_att")
@@ -356,7 +364,7 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
-            patch("captcha_solver.gtlv.Client", return_value=mock_gtlv_client),
+            patch.object(self.gtlv, "Client", return_value=mock_gtlv_client),
             patch("builtins.print") as mock_print,
         ):
             token = await captcha_solver.solve_and_update_sec_token(v_voucher="v_att2")
@@ -478,7 +486,7 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("api.client.get_curl_client", AsyncMock(return_value=mock_curl_client)),
-            patch("captcha_solver.gtlv.Client", return_value=mock_gtlv_client),
+            patch.object(self.gtlv, "Client", return_value=mock_gtlv_client),
         ):
             token = await captcha_solver.solve_and_update_sec_token(v_voucher="voucher_flat")
             self.assertEqual(token, "sec_token_flat_ok")
@@ -515,6 +523,19 @@ class TestCaptchaSolver(unittest.IsolatedAsyncioTestCase):
             printed_messages = [call.args[0] for call in mock_print.call_args_list if call.args]
             has_v4_log = any("Geetest v4 schema" in msg for msg in printed_messages)
             self.assertTrue(has_v4_log, f"Expected v4 schema log in: {printed_messages}")
+
+    async def test_solve_routes_off_by_default(self):
+        """With solving routed off, request paths take the pre-solver route."""
+        import captcha_solver
+
+        captcha_solver._auto_solve_enabled = False
+
+        with patch("api.client.get_curl_client", AsyncMock(side_effect=AssertionError("network used"))) as client:
+            self.assertIsNone(await captcha_solver.solve_and_update_sec_token(v_voucher="v1"))
+            self.assertIsNone(await captcha_solver.solve_and_update_sec_token(v_voucher="v2"))
+
+        client.assert_not_awaited()
+        self.assertIsNone(await captcha_solver.get_sec_token())
 
 
 if __name__ == "__main__":

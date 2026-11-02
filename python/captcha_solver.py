@@ -17,14 +17,25 @@
 Solves Bilibili GeeTest challenges transparently on the backend using the local
 offline neural network model via ``gtlv``, acquiring a verified ``X-BILI-SEC-TOKEN``
 without any user interruption or frontend interaction.
+
+DEPRECATED / ROUTED OFF: the solver is kept for reference but is no longer
+driven. Bilibili's Gaia register answers ``geetest: null`` for the IPs that
+actually trip risk control, so a voucher cannot be cleared this way, and the
+``gtlv`` dependency has been dropped. ``_auto_solve_enabled`` keeps
+``solve_and_update_sec_token`` on the pre-solver route (return ``None`` and let
+the upstream risk error surface) without deleting the flow below.
 """
 
 import asyncio
 import logging
 import time
 
-import gtlv
 from fingerprints import get_browser_headers
+
+try:
+    import gtlv
+except ImportError:  # dependency dropped: solving stays routed off (see _auto_solve_enabled)
+    gtlv = None
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +54,10 @@ _last_solve_failure_time = 0.0
 _total_solves_count: int = 0
 _mem_lock = asyncio.Lock()
 _solve_lock = asyncio.Lock()
+
+# Routing switch: solving is off, so requests take the pre-solver path (surface
+# the upstream risk error) instead of registering a voucher nobody can clear.
+_auto_solve_enabled = False
 
 
 def get_redis():
@@ -132,6 +147,9 @@ async def solve_and_update_sec_token(
     all waiting requests receive the token acquired by the first solver.
     """
     global _total_solves_count, _last_solve_failure_time
+    if not _auto_solve_enabled or gtlv is None:
+        # Routed off: behave exactly like the pre-solver code path.
+        return None
     if not v_voucher:
         return None
 
