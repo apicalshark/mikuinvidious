@@ -132,7 +132,7 @@ class Credential:
             raise ArgsException("Missing ac_time_value parameter")
 
     @staticmethod
-    def from_cookies(cookies: dict = None) -> "Credential":
+    def from_cookies(cookies: dict = None) -> Credential:
         cookies = cookies or {}
         c = Credential()
         c.sessdata = cookies.get("SESSDATA")
