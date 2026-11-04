@@ -87,7 +87,7 @@ async def live_chat_sse(room_id):
                     yield ": heartbeat\n\n"
                 else:
                     yield f"data: {orjson.dumps(msg).decode('utf-8')}\n\n"
-        except asyncio.CancelledError, GeneratorExit:
+        except (asyncio.CancelledError, GeneratorExit):
             print(f"[LiveChat] Client disconnected from room {room_id}")
         except Exception as e:
             print(f"[LiveChat] Unexpected error in event_stream for room {room_id}: {e}")

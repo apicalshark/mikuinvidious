@@ -207,7 +207,7 @@ def _dash_conn_bankable(conn, resp_headers, served: int) -> bool:
         return False
     try:
         announced = int(str(headers.get("content-length") or "").strip())
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return False
     return announced == served
 
@@ -291,7 +291,7 @@ def _dash_response_lengths(resp_headers) -> tuple[str | None, str | None]:
     if cl_raw is not None:
         try:
             cl = int(str(cl_raw).strip())
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             cl = None
         if cl is not None and cl < 0:
             cl = None
@@ -567,7 +567,7 @@ async def _failover_dash_conn(
                 # Server ignored Range: full body from 0, discard the prefix.
                 try:
                     total = int(str(resp_headers.headers.get("content-length") or "").strip())
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     total = None
                 if total is not None and total > expected:
                     limit = total - expected if remaining is None else min(remaining, total - expected)
@@ -936,7 +936,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         yielded = 0
         try:
             downstream_total = int(str(content_length).strip()) if content_length is not None else None
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             downstream_total = None
 
         async def generate():
@@ -954,7 +954,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                     async for chunk in _yield_dash_body(conn, label, floor_watchdog=(media_type == "video")):
                         yielded += len(chunk)
                         yield chunk
-                except asyncio.CancelledError, GeneratorExit:
+                except (asyncio.CancelledError, GeneratorExit):
                     # Client went away mid-stream: just close upstream.
                     try:
                         await conn.close()

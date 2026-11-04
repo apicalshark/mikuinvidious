@@ -334,7 +334,7 @@ async def proxy_main(subpath):
                             else:
                                 # Still waiting for upstream? Send nothing to avoid corruption
                                 continue
-                except asyncio.CancelledError, GeneratorExit:
+                except (asyncio.CancelledError, GeneratorExit):
                     reason = "Client disconnected"
                     raise
                 except Exception as e:
@@ -429,7 +429,7 @@ async def proxy_main(subpath):
                     QUALITY_ORDER = [64, 32, 16]
                     try:
                         current_qn = int(vqn)
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         print(f"[Proxy] Bad vqn: {vqn!r}")
                         return Response("Bad quality parameter", status=502)
                     fallback_url = None
@@ -462,7 +462,7 @@ async def proxy_main(subpath):
                 try:
                     async for chunk in conn.iter_chunks():
                         yield chunk
-                except asyncio.CancelledError, GeneratorExit:
+                except (asyncio.CancelledError, GeneratorExit):
                     # Client went away mid-stream: close upstream and let
                     # cancellation propagate (no error log — this is normal).
                     raise

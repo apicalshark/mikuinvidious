@@ -387,7 +387,7 @@ def _durl_quality_list(play_data: dict | None, max_qualities: int) -> list[tuple
             continue
         try:
             qn = int(f["quality"])
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             continue
         if any(q == qn for q, _ in qualities):
             continue
@@ -398,7 +398,7 @@ def _durl_quality_list(play_data: dict | None, max_qualities: int) -> list[tuple
         fallback_qn = 0
         try:
             fallback_qn = int((play_data or {}).get("quality") or 0)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             fallback_qn = 0
         qualities = [(fallback_qn or 64, str(fallback_qn or 64))]
     return qualities
@@ -416,7 +416,7 @@ async def _cache_durl_entry(vid: str, idx: int, qn: int, desc: str, node: dict |
     actual_qn = node.get("quality", qn)
     try:
         actual_qn = int(actual_qn)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         actual_qn = qn
     await appredis.setex(f"mikuinv_{vid}_{idx}_{actual_qn}", 1800, url)
     backups = durl[0].get("backup_url", []) or []
@@ -445,7 +445,7 @@ def _select_durl_results(results: list, play_data: dict | None) -> list:
             desc = f.get("new_description") or f.get("display_desc")
             if desc:
                 fmt_desc[int(f["quality"])] = desc
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             continue
     if any(r.get("quality") == r.get("_requested_qn") for r in results):
         by_quality = {}
@@ -498,7 +498,7 @@ async def fetch_durl_supported_src(
     initial_qn = None
     try:
         initial_qn = int((play_data or {}).get("quality") or 0)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         initial_qn = None
 
     async def resolve_one(qn: int, desc: str) -> dict | None:
@@ -535,7 +535,7 @@ def _choose_durl_entry(supported: list, want: int) -> tuple:
     """
     try:
         want = int(want)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         want = 0
     candidates = [s for s in supported if s["quality"] <= want] if want > 0 else []
     chosen = candidates[0] if candidates else supported[0]
@@ -786,7 +786,7 @@ def _playurl_url_expiry(url: str | None) -> int | None:
         for raw in params.get(name) or []:
             try:
                 ts = int(str(raw).strip())
-            except TypeError, ValueError:
+            except (TypeError, ValueError):
                 continue
             if ts > 0:
                 return ts

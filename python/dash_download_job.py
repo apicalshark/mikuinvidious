@@ -139,11 +139,11 @@ async def proxy_download(vid, idx, qual):
 
     try:
         v_qn = int(video.get("id") or 0)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         v_qn = 0
     try:
         a_qn = int(audio.get("id") or 0)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         a_qn = 0
 
     async def _refresh_legacy_track_urls(media_type: str, qn: int):
@@ -157,7 +157,7 @@ async def proxy_download(vid, idx, qual):
         try:
             if int(track.get("id") or -1) != qn:
                 return None
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return None
         urls = _dash_candidate_urls(track)
         checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls))
@@ -466,7 +466,7 @@ async def _peek_content_length(
                     return 0
                 try:
                     size = int(cl)
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     return 0
             if size > _max_download_track_bytes():
                 raise RuntimeError(f"this instance maximum allowed download size is {_max_download_size_mb()} MB")
@@ -518,19 +518,19 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
 
     try:
         v_qn = int(video.get("id") or 0)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         v_qn = 0
     try:
         v_cid = int(video.get("codecid") or 0)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         v_cid = 0
     try:
         a_qn = int(audio.get("id") or 0)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         a_qn = 0
     try:
         a_cid = int(audio.get("codecid") or 0)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         a_cid = 0
 
     async def _refresh_job_track_urls(media_type: str, qn: int, cid: int):
@@ -556,7 +556,7 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
                     f"(want {qn}, got {track.get('id')}), declining"
                 )
                 return None
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return None
         urls = _dash_candidate_urls(track)
         checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls))

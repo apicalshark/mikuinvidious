@@ -42,7 +42,7 @@ async def bangumi_home():
     order = request.args.get("order", "3")
     try:
         pn = max(int(request.args.get("page", 1)), 1)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         pn = 1
 
     from api.client import Api
@@ -226,7 +226,7 @@ async def bangumi_play(ep_id):
                 if v == "--" or v is None:
                     return default
                 return int(v)
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 return default
 
         # Construct vinfo for video.html

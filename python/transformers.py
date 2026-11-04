@@ -181,7 +181,7 @@ def transform_live_room(data):
     _raw_start = room_info.get("live_start_time") or room_info.get("live_time")
     try:
         start_time = int(_raw_start) if _raw_start else None
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         start_time = None
     pic = room_info.get("cover") or room_info.get("cover_from_user") or data.get("cover") or ""
     if isinstance(pic, str) and pic.startswith("http:"):
@@ -310,7 +310,7 @@ def _render_reply_content_py(message, emote):
             return html.escape(token)
         try:
             size = int((entry.get("meta") or {}).get("size", 1))
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             size = 1
         style = _REPLY_EMOTE_SIZE2_STYLE if size == 2 else _REPLY_EMOTE_SIZE1_STYLE
         alt = html.escape(token, quote=True)

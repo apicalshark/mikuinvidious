@@ -577,15 +577,15 @@ class Api:
         # set, so the player-parity header injection below is skipped.
         self.curl = curl
 
-    def update_data(self, **kwargs) -> Api:
+    def update_data(self, **kwargs) -> "Api":
         self.data = kwargs
         return self
 
-    def update_params(self, **kwargs) -> Api:
+    def update_params(self, **kwargs) -> "Api":
         self.params = kwargs
         return self
 
-    def update_headers(self, **kwargs) -> Api:
+    def update_headers(self, **kwargs) -> "Api":
         self.headers = kwargs
         return self
 

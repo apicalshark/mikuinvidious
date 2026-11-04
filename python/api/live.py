@@ -215,7 +215,7 @@ class LiveRoom:
             if room is None:
                 try:
                     room = rooms.get(int(str(self.room_display_id)))
-                except TypeError, ValueError:
+                except (TypeError, ValueError):
                     room = None
         if not room:
             raise ResponseCodeException(-1, "Failed to get live room info")

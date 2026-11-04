@@ -171,7 +171,7 @@ class Video:
     def set_aid(self, aid: int) -> None:
         try:
             aid = int(aid)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             pass
         if aid <= 0:
             raise ArgsException("aid must be greater than 0.")

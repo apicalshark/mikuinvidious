@@ -200,11 +200,11 @@ def _safe_vid(vid: str) -> str:
 def _safe_download_filename(vid: str, idx: int, qn: int, ext: str = ".mp4") -> str:
     try:
         idx = int(idx)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         idx = 0
     try:
         qn = int(qn)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         qn = 0
     ext = ext if ext in (".mp4", ".flv") else ".mp4"
     return f"{_safe_vid(vid) or 'video'}_{idx}_p{qn}{ext}"
@@ -235,7 +235,7 @@ def _max_download_size_mb() -> int:
     """Hoster-configured per-track download cap in MB (``[site] max_download_size_mb``)."""
     try:
         return max(int(appconf["site"].get("max_download_size_mb", _DEFAULT_MAX_DOWNLOAD_MB)), 1)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return _DEFAULT_MAX_DOWNLOAD_MB
 
 
@@ -329,7 +329,7 @@ def _parse_content_range_start(headers) -> int | None:
         return None
     try:
         return int(m.group(1))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
 
 
@@ -363,7 +363,7 @@ def _expected_resume_start(orig_range: str | None, yielded: int) -> int | None:
     if m:
         try:
             return int(m.group(1)) + yielded
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return None
     if not orig_range:
         # Full-file (no Range) request starting at 0.
@@ -382,14 +382,14 @@ def _parse_content_range_full(cr: str | None) -> tuple[int | None, int | None, i
         return None, None, None
     try:
         start, end = int(m.group(1)), int(m.group(2))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None, None, None
     total: int | None = None
     raw_total = m.group(3)
     if raw_total and raw_total != "*":
         try:
             total = int(raw_total)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             total = None
     return start, end, total
 
@@ -406,7 +406,7 @@ def _parse_416_total(cr: str | None) -> int | None:
         return None
     try:
         return int(m.group(1))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
 
 
@@ -457,7 +457,7 @@ def _parse_range_start(range_header: str | None) -> int | None:
         return None
     try:
         return int(m.group(1))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
 
 

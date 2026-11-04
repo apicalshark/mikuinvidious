@@ -125,7 +125,7 @@ def _space_html_response(html, *, use_cache, cache_hit, degraded, stale=False):
 async def space_view(mid):
     try:
         pn = int(request.args.get("i") or 1)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         pn = 1
     pn = max(pn, 1)
     # Page-1 payload is shared with /space/<mid>/json; deeper pages get
@@ -192,15 +192,15 @@ async def space_view(mid):
     page = uvids.get("page") or {}
     try:
         page["pn"] = int(page.get("pn", pn))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         page["pn"] = pn
     try:
         page["ps"] = int(page.get("ps", 28))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         page["ps"] = 28
     try:
         page["count"] = int(page.get("count", 0))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         page["count"] = 0
     vlist = uvids.get("list", {}).get("vlist", [])
     if pn == 1 and isinstance(vlist, list) and len(vlist) > 28:
@@ -310,7 +310,7 @@ async def space_json_feed(mid):
 async def author_view(mid):
     try:
         pn = int(request.args.get("i") or 1)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         pn = 1
     pn = max(pn, 1)
     # Page-1 payload uses the base key; deeper pages get per-page keys.

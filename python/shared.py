@@ -31,7 +31,7 @@ def safe_json_loads(data: str | bytes, default=None):
         if not isinstance(parsed, (dict, list)):
             return default
         return parsed
-    except orjson.JSONDecodeError, UnicodeDecodeError, ValueError:
+    except (orjson.JSONDecodeError, UnicodeDecodeError, ValueError):
         return default
 
 
@@ -230,7 +230,7 @@ def _int_env(name, default):
     """Parse an int env var, falling back to default on missing/invalid values."""
     try:
         return int(os.environ.get(name, default))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return default
 
 
@@ -409,7 +409,7 @@ def cache_minutes(key, default=5):
     """Read a [cache] TTL (in minutes); invalid values fall back to default."""
     try:
         return int(appconf.get("cache", {}).get(key, default))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return default
 
 
@@ -594,7 +594,7 @@ async def cache_get(key, max_age_seconds):
         return None
     try:
         age = time.time() - float(data.get("fetched_at", 0))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
     if age < 0 or age > max_age_seconds:
         return None
@@ -619,7 +619,7 @@ async def cache_get_stale(key, max_age_seconds, stale_window_seconds=CACHE_STALE
         return None, False
     try:
         age = time.time() - float(data.get("fetched_at", 0))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None, False
     if age < 0 or age > max_age_seconds + stale_window_seconds:
         return None, False

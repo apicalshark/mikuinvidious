@@ -13,10 +13,30 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
+import base64
 from pathlib import Path
 
 import rtoml
 from api import Credential, sync
+from secrets_encryption import NACL_AVAILABLE, decrypt_secret, encrypt_secret
+
+
+def decrypt_if_encrypted(value: str) -> str:
+    if not value:
+        return value
+    try:
+        if NACL_AVAILABLE:
+            import nacl.secret
+
+            data = base64.b64decode(value)
+            if len(data) > nacl.secret.SecretBox.NONCE_SIZE:
+                try:
+                    return decrypt_secret(value)
+                except Exception as e:
+                    print(f"Failed to decrypt: {e}")
+    except Exception:
+        pass
+    return value
 
 
 def discard_generated_data(fn):
@@ -54,6 +74,11 @@ def write_cookies(cred):
     buf += "## GENERATED DATA, DO NOT WRITE ANYTHING BELOW!!! ##\n"
     buf += "[updatedcred]\n"
     for k, v in cred.get_cookies().items():
+        if NACL_AVAILABLE and v:
+            try:
+                v = encrypt_secret(v)
+            except Exception as e:
+                print(f"Error encrypting secret: {e}")
         buf += f"{k.lower()} = '{v}'\n"
 
     with open("config.toml", "a") as f:
@@ -65,12 +90,12 @@ if __name__ == "__main__":
     appconf = rtoml.load(Path("config.toml"))
     credstore = appconf["updatedcred"] if "updatedcred" in appconf else appconf["credential"]
     appcred = Credential(
-        sessdata=credstore["sessdata"],
-        bili_jct=credstore["bili_jct"],
-        buvid3=credstore["buvid3"],
-        buvid4=credstore.get("buvid4"),
-        dedeuserid=credstore["dedeuserid"],
-        ac_time_value=credstore["ac_time_value"],
+        sessdata=decrypt_if_encrypted(credstore.get("sessdata")),
+        bili_jct=decrypt_if_encrypted(credstore.get("bili_jct")),
+        buvid3=decrypt_if_encrypted(credstore.get("buvid3")),
+        buvid4=decrypt_if_encrypted(credstore.get("buvid4")),
+        dedeuserid=decrypt_if_encrypted(credstore.get("dedeuserid")),
+        ac_time_value=decrypt_if_encrypted(credstore.get("ac_time_value")),
     )
 
     if renew_cookies(appcred):

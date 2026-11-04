@@ -77,7 +77,7 @@ def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
     for t in _normalize_track_urls(dash.get("video")):
         try:
             qn = int(t.get("id", 0))
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             qn = 0
         if qn <= max_video_qn and (video is None or qn > int(video.get("id") or 0)):
             video = t
@@ -87,7 +87,7 @@ def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
     for t in _normalize_track_urls(dash.get("audio")):
         try:
             bw = int(t.get("bandwidth") or 0)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             bw = 0
         if bw < 0:
             bw = 0
@@ -428,7 +428,7 @@ def _has_exact_content_length(resp_headers, span_left: int) -> bool:
         return False
     try:
         return int(str((resp_headers.headers or {}).get("content-length") or "").strip()) == span_left
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return False
 
 
@@ -647,7 +647,7 @@ async def _download_track_segmented(
                 elif status == 200:
                     try:
                         full_len = int(str(resp_headers.headers.get("content-length") or "").strip())
-                    except TypeError, ValueError:
+                    except (TypeError, ValueError):
                         full_len = None
                     if full_len is not None and full_len > want:
                         print(f"[DashProxy] {seg_label} ignored Range, salvaging full body")
