@@ -56,16 +56,40 @@ def _is_allowed_subtitle_url(url: str) -> bool:
     return any(hostname == s.lstrip(".") or hostname.endswith(s) for s in _ALLOWED_SUBTITLE_SUFFIXES)
 
 
+DANMAKU_CACHE_TTL = 900
+
+
 @app.route("/res/danmaku/<vid>")
 @app.route("/res/danmaku/<vid>:<idx>")
+@rate_limit(**RATE_LIMITS["normal"])
 async def danmaku_res(vid, idx=0):
-    # Check if this is a live room ID (all digits)
-    if vid.isdigit():
+    # Check if this is a live room ID (all digits) or an invalid video ID
+    if vid.isdigit() or not _is_valid_vid(vid):
         return jsonify([])
 
     try:
+        idx = int(idx)
+    except TypeError, ValueError:
+        return jsonify([])
+    if idx < 0:
+        return jsonify([])
+
+    cache_key = f"miku_danmaku_xml_{vid}_{idx}"
+    try:
+        cached_xml = await appredis.get(cache_key)
+        if cached_xml:
+            if isinstance(cached_xml, bytes):
+                cached_xml = cached_xml.decode("utf-8", errors="replace")
+            if isinstance(cached_xml, str):
+                stripped = cached_xml.lstrip().lower()
+                if not (stripped.startswith("<!doctype") or stripped.startswith("<html")):
+                    return jsonify(parse_danmaku(cached_xml))
+    except Exception:
+        pass
+
+    try:
         v = video.Video(bvid=vid, credential=appcred)
-        xml = await v.get_danmaku_xml(int(idx))
+        xml = await v.get_danmaku_xml(idx)
         if not xml or not isinstance(xml, str):
             return jsonify([])
         # Upstream risk-control block pages are filtered in get_danmaku_xml,
@@ -74,6 +98,10 @@ async def danmaku_res(vid, idx=0):
         stripped = xml.lstrip().lower()
         if stripped.startswith("<!doctype") or stripped.startswith("<html"):
             return jsonify([])
+        try:
+            await appredis.setex(cache_key, DANMAKU_CACHE_TTL, xml)
+        except Exception:
+            pass
         return jsonify(parse_danmaku(xml))
     except Exception as e:
         print(f"Danmaku error for {vid}:{idx}: {e}")

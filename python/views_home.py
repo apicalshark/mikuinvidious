@@ -39,6 +39,7 @@ async def static_licenses_view():
 
 
 @app.route("/")
+@rate_limit(**RATE_LIMITS["normal"])
 async def home_view():
     cache_ttl = cache_minutes("home_minutes") * 60
     cache_hit = False
@@ -91,6 +92,7 @@ async def home_view():
 
 @app.route("/vv/<zid>")
 @app.route("/vv/<zid>/")
+@rate_limit(**RATE_LIMITS["normal"])
 async def zone_id_view(zid):
     pn = request.args.get("i") or 1
     info = await video_zone.get_zone_new_videos(zid, pn)

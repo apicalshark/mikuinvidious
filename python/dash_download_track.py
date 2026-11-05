@@ -403,7 +403,7 @@ async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None)
                 job.ffmpeg_proc = None
         else:
             _, stderr = await proc.communicate()
-    except _JobCancelled:
+    except _JobCancelled, asyncio.CancelledError:
         try:
             if proc.returncode is None:
                 proc.kill()

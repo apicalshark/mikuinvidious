@@ -19,8 +19,8 @@ import orjson
 import transformers
 from api import live, live_area
 from quart import Response, request
-from rate_limit import RATE_LIMITS, rate_limit
-from shared import app, appconf, appcred, appredis, render_template_with_theme
+from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
+from shared import app, appconf, appcred, appredis, cache_get, cache_set, render_template_with_theme
 
 _background_tasks = set()
 
@@ -28,6 +28,12 @@ LIVE_CHAT_HANDSHAKE_DELAY = 1.0
 LIVE_CHAT_IDLE_GRACE = 30.0
 LIVE_CHAT_HEARTBEAT_INTERVAL = 20.0
 LIVE_CHAT_QUEUE_MAXSIZE = 100
+LIVE_CHAT_MAX_ROOMS = 64
+LIVE_ROOM_CACHE_TTL = 60
+
+
+class LiveChatCapacityError(RuntimeError):
+    """Raised when LiveChatManager has reached its maximum concurrent room limit."""
 
 
 class LiveChatRoom:
@@ -141,37 +147,75 @@ class LiveChatRoom:
 
 
 class LiveChatManager:
-    """Registry of active LiveChatRoom instances keyed by room_id."""
+    """Registry of active LiveChatRoom instances keyed by canonical room_id."""
 
     def __init__(
         self,
         idle_grace: float = LIVE_CHAT_IDLE_GRACE,
         queue_maxsize: int = LIVE_CHAT_QUEUE_MAXSIZE,
+        max_rooms: int = LIVE_CHAT_MAX_ROOMS,
     ):
         self.rooms: dict[int, LiveChatRoom] = {}
+        self._canonical_ids: dict[int, int] = {}
         self.idle_grace = idle_grace
         self.queue_maxsize = queue_maxsize
+        self.max_rooms = max_rooms
+
+    async def _resolve_room_id(self, room_id: int) -> int:
+        room_id = int(room_id)
+        cached = self._canonical_ids.get(room_id)
+        if cached is not None:
+            return cached
+        existing = self.rooms.get(room_id)
+        if existing is not None and not existing._stop_event.is_set():
+            return room_id
+        from api import Credential
+        from api import live as b_live
+
+        if (
+            b_live.LiveDanmaku.__module__ != "api.live"
+            and getattr(b_live.LiveRoom.get_room_id, "__module__", "") == "api.live"
+        ):
+            return room_id
+        try:
+            cred = appcred if isinstance(appcred, Credential) else None
+            real_id = await b_live.LiveRoom(room_id, credential=cred).get_room_id()
+            if isinstance(real_id, int) and real_id > 0:
+                self._canonical_ids[room_id] = real_id
+                self._canonical_ids[real_id] = real_id
+                return real_id
+        except Exception:
+            pass
+        return room_id
 
     async def subscribe(self, room_id: int) -> asyncio.Queue:
-        room = self.rooms.get(room_id)
+        canonical_id = await self._resolve_room_id(room_id)
+        room = self.rooms.get(canonical_id)
         if room is None or room._stop_event.is_set():
+            active_rooms = sum(1 for r in self.rooms.values() if not r._stop_event.is_set())
+            if active_rooms >= self.max_rooms:
+                raise LiveChatCapacityError("Too many active live chat rooms")
             room = LiveChatRoom(
-                room_id,
+                canonical_id,
                 manager=self,
                 idle_grace=self.idle_grace,
                 queue_maxsize=self.queue_maxsize,
             )
-            self.rooms[room_id] = room
+            self.rooms[canonical_id] = room
         return room.add_subscriber()
 
     async def unsubscribe(self, room_id: int, queue: asyncio.Queue) -> None:
-        room = self.rooms.get(room_id)
+        canonical_id = self._canonical_ids.get(int(room_id), int(room_id))
+        room = self.rooms.get(canonical_id) or self.rooms.get(int(room_id))
         if room is not None:
             room.remove_subscriber(queue)
 
     def _remove_room(self, room_id: int, room: LiveChatRoom) -> None:
         if self.rooms.get(room_id) is room:
             del self.rooms[room_id]
+        stale_aliases = [alias for alias, cid in self._canonical_ids.items() if cid == room_id]
+        for alias in stale_aliases:
+            del self._canonical_ids[alias]
 
     async def shutdown_all(self) -> None:
         for room in list(self.rooms.values()):
@@ -181,8 +225,13 @@ class LiveChatManager:
 live_chat_manager = LiveChatManager()
 
 
+async def _live_chat_rate_key(req) -> str:
+    """Per-IP bucket shared across all /live/chat/<room_id> rooms."""
+    return f"{get_client_ip(req)}:live_chat"
+
+
 @app.route("/live/chat/<int:room_id>")
-@rate_limit(**RATE_LIMITS["strict"])
+@rate_limit(**RATE_LIMITS["strict"], key_func=_live_chat_rate_key)
 async def live_chat_sse(room_id):
     async def event_stream():
         yield f"data: {orjson.dumps({'user': 'SYSTEM', 'text': 'Chat connected'}).decode('utf-8')}\n\n"
@@ -195,7 +244,11 @@ async def live_chat_sse(room_id):
                 await asyncio.sleep(LIVE_CHAT_HANDSHAKE_DELAY)
 
             # Layer 2: Subscribe to shared room multiplexer.
-            queue = await live_chat_manager.subscribe(room_id)
+            try:
+                queue = await live_chat_manager.subscribe(room_id)
+            except LiveChatCapacityError:
+                yield f"data: {orjson.dumps({'user': 'SYSTEM', 'text': 'Chat capacity reached, please try again later'}).decode('utf-8')}\n\n"
+                return
 
             while True:
                 try:
@@ -224,6 +277,7 @@ async def live_chat_sse(room_id):
 
 
 @app.route("/live")
+@rate_limit(**RATE_LIMITS["normal"])
 async def live_list_view():
     page = request.args.get("i", 1)
     try:
@@ -268,8 +322,34 @@ def _live_fetchable_qualities(qn_list, default_qn):
 
 
 @app.route("/live/<int:room_id>")
+@rate_limit(**RATE_LIMITS["normal"])
 async def live_room_view(room_id):
     try:
+        cache_key = f"live:room:{room_id}"
+        if LIVE_ROOM_CACHE_TTL > 0:
+            cached = await cache_get(cache_key, LIVE_ROOM_CACHE_TTL)
+            if (
+                isinstance(cached, dict)
+                and isinstance(cached.get("vinfo"), dict)
+                and isinstance(cached.get("supported_src"), list)
+                and cached.get("supported_src")
+            ):
+                html = await render_template_with_theme(
+                    "video.html",
+                    vid=str(room_id),
+                    vinfo=cached["vinfo"],
+                    vcomments={"page": {"count": 0}, "replies": []},
+                    vrelated=[],
+                    keywords="",
+                    supported_src=cached["supported_src"],
+                    ato=False,
+                    idx=0,
+                    vset=[],
+                    is_live=True,
+                    live_format=cached.get("live_format", "flv"),
+                )
+                return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
+
         room = live.LiveRoom(room_id, credential=appcred)
 
         # Get basic room info first (getInfoByRoom, fallback to getRoomBaseInfo
@@ -440,6 +520,12 @@ async def live_room_view(room_id):
             "tid": 0,
             "tname": info["area_name"],
         }
+        if LIVE_ROOM_CACHE_TTL > 0 and supported_src:
+            await cache_set(
+                cache_key,
+                {"vinfo": vinfo, "supported_src": supported_src, "live_format": live_format},
+                LIVE_ROOM_CACHE_TTL,
+            )
         return await render_template_with_theme(
             "video.html",
             vid=str(room_id),

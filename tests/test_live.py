@@ -137,7 +137,12 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
                     if isinstance(first_chunk, bytes):
                         first_chunk = first_chunk.decode("utf-8")
                     self.assertIn("Chat connected", first_chunk)
-                    # Exiting `async with` abruptly closes the SSE generator before the 0.3s handshake gate finishes
+                    # Advance generator past the greeting yield into the handshake sleep
+                    next_task = asyncio.create_task(anext(it))
+                    await asyncio.sleep(0.05)
+                    next_task.cancel()
+                    await asyncio.gather(next_task, return_exceptions=True)
+                    # Exiting `async with` closes the SSE generator before the 0.3s handshake gate finishes
                 await asyncio.sleep(0.05)
 
             self.assertEqual(len(_FakeLiveDanmaku.instances), 0)
@@ -225,6 +230,103 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
 
             await manager.shutdown_all()
 
+    async def test_reconnect_before_idle_deadline_restarts_grace_period(self):
+        import asyncio
+        from unittest.mock import patch
+
+        import views_live
+
+        manager = views_live.LiveChatManager(idle_grace=0.12)
+        with patch("api.live.LiveDanmaku", _FakeLiveDanmaku):
+            q1 = await manager.subscribe(4366430)
+            await asyncio.sleep(0.02)
+            await manager.unsubscribe(4366430, q1)
+
+            # Wait past half of the first 0.12s deadline (0.07s elapsed)
+            await asyncio.sleep(0.07)
+
+            # Reconnect and immediately unsubscribe to restart the 0.12s idle grace period
+            q2 = await manager.subscribe(4366430)
+            await manager.unsubscribe(4366430, q2)
+
+            # Wait another 0.07s (0.14s since first unsubscribe -> past original 0.12s deadline,
+            # but only 0.07s into the restarted 0.12s deadline)
+            await asyncio.sleep(0.07)
+            self.assertEqual(len(_FakeLiveDanmaku.instances), 1)
+            self.assertFalse(_FakeLiveDanmaku.instances[0].disconnected)
+            self.assertIn(4366430, manager.rooms)
+
+            # Wait past the restarted 0.12s deadline (0.15s total since second unsubscribe)
+            await asyncio.sleep(0.08)
+            self.assertTrue(_FakeLiveDanmaku.instances[0].disconnected)
+            self.assertNotIn(4366430, manager.rooms)
+
+            await manager.shutdown_all()
+
+    async def test_canonical_room_id_aliases_share_single_multiplexer(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        import views_live
+
+        manager = views_live.LiveChatManager(idle_grace=0.5)
+        with (
+            patch("api.live.LiveDanmaku", _FakeLiveDanmaku),
+            patch("api.live.LiveRoom.get_room_id", new=AsyncMock(return_value=21144080)),
+        ):
+            # Subscribe via short display ID 100 and canonical ID 21144080
+            q_short = await manager.subscribe(100)
+            q_canon = await manager.subscribe(21144080)
+            await asyncio.sleep(0.02)
+
+            self.assertEqual(len(_FakeLiveDanmaku.instances), 1)
+            self.assertIn(21144080, manager.rooms)
+            self.assertNotIn(100, manager.rooms)
+
+            await _FakeLiveDanmaku.instances[0].emit_danmu("Bob", "Shared alias")
+            self.assertEqual(
+                await asyncio.wait_for(q_short.get(), timeout=1.0), {"user": "Bob", "text": "Shared alias"}
+            )
+            self.assertEqual(
+                await asyncio.wait_for(q_canon.get(), timeout=1.0), {"user": "Bob", "text": "Shared alias"}
+            )
+
+            # Unsubscribing via short alias removes from canonical room
+            await manager.unsubscribe(100, q_short)
+            self.assertEqual(len(manager.rooms[21144080].subscribers), 1)
+
+            await manager.shutdown_all()
+
+    async def test_manager_admission_limit_caps_distinct_rooms_including_idle_grace(self):
+        import asyncio
+        from unittest.mock import patch
+
+        import views_live
+
+        manager = views_live.LiveChatManager(idle_grace=0.5, max_rooms=2)
+        with patch("api.live.LiveDanmaku", _FakeLiveDanmaku):
+            q1 = await manager.subscribe(1001)
+            q2 = await manager.subscribe(1002)
+            await asyncio.sleep(0.02)
+
+            # Unsubscribe from 1001 so it is retained only in idle_grace
+            await manager.unsubscribe(1001, q1)
+
+            # Rotating to a 3rd room_id while 1001 is still in idle_grace is rejected
+            with self.assertRaises(views_live.LiveChatCapacityError):
+                await manager.subscribe(1003)
+
+            # Subscribing to an existing room (active 1002 or idle-grace 1001) still succeeds
+            q2_extra = await manager.subscribe(1002)
+            q1_rejoin = await manager.subscribe(1001)
+            self.assertIsNotNone(q2_extra)
+            self.assertIsNotNone(q1_rejoin)
+
+            await manager.unsubscribe(1002, q2)
+            await manager.unsubscribe(1002, q2_extra)
+            await manager.unsubscribe(1001, q1_rejoin)
+            await manager.shutdown_all()
+
     async def test_idle_grace_expiry_disconnects_upstream_and_removes_room(self):
         import asyncio
         from unittest.mock import patch
@@ -262,6 +364,138 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(items, ["msg-2", "msg-3", "msg-4"])
 
             await manager.shutdown_all()
+
+
+class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        from app import app
+
+        self.client = app.test_client()
+
+    async def test_mux_tracks_kills_ffmpeg_on_cancelled_error(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        import dash_download_track
+
+        hang_event = asyncio.Event()
+
+        class _FakeProc:
+            returncode = None
+            killed = False
+            waited = False
+
+            async def communicate(self):
+                await hang_event.wait()
+                return b"", b""
+
+            def kill(self):
+                self.killed = True
+                self.returncode = -9
+                hang_event.set()
+
+            async def wait(self):
+                self.waited = True
+                return self.returncode
+
+        fake_proc = _FakeProc()
+
+        with (
+            patch("dash_download_track.shutil.which", return_value="/usr/bin/ffmpeg"),
+            patch("asyncio.create_subprocess_exec", new=AsyncMock(return_value=fake_proc)),
+        ):
+            task = asyncio.create_task(dash_download_track._mux_tracks("/tmp/v.m4s", "/tmp/a.m4s", "/tmp/o.mp4"))
+            await asyncio.sleep(0.03)
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+            self.assertTrue(fake_proc.killed, "ffmpeg subprocess must be killed when _mux_tracks is cancelled")
+            self.assertTrue(fake_proc.waited, "ffmpeg subprocess must be awaited after kill")
+
+    async def test_live_room_view_serves_from_cache_on_repeat_visit(self):
+        from unittest.mock import AsyncMock, patch
+
+        cached_payload = {
+            "vinfo": {
+                "title": "Cached Live Room",
+                "desc": "Desc",
+                "pic": "",
+                "owner": {"name": "Streamer", "mid": 123, "face": ""},
+                "stat": {"view": 100, "like": 0, "coin": 0, "favorite": 0, "share": 0},
+                "pubdate": 0,
+                "bvid": "4366430",
+                "tid": 0,
+                "tname": "Game",
+            },
+            "supported_src": [{"quality": 10000, "new_description": "Original", "url": "https://example.com/live.flv"}],
+            "live_format": "flv",
+        }
+        mock_room_info = AsyncMock()
+        with (
+            patch("views_live.cache_get", new=AsyncMock(return_value=cached_payload)),
+            patch("api.live.LiveRoom.get_room_info", mock_room_info),
+            patch("views_live.render_template_with_theme", new=AsyncMock(return_value="<html>Cached Live</html>")),
+        ):
+            resp = await self.client.get("/live/4366430")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.headers.get("X-Cache"), "HIT")
+            mock_room_info.assert_not_awaited()
+
+    async def test_video_listen_view_reuses_cached_video_data(self):
+        from unittest.mock import AsyncMock, patch
+
+        import views_video
+
+        cached_payload = {
+            "vinfo": {"bvid": "BV1xx411c7mD", "title": "Cached Audio Video"},
+            "vtags": [{"tag_name": "music"}],
+            "vrelated": [{"bvid": "BV1yy411c7mD", "title": "Related"}],
+            "vset": [{"page": 1, "part": "Part 1"}],
+        }
+        mock_get_info = AsyncMock()
+        with (
+            patch("views_video.cache_get", new=AsyncMock(return_value=cached_payload)),
+            patch("api.video.Video.get_info", mock_get_info),
+            patch("api.comment.get_comments", new=AsyncMock(return_value={"page": {"count": 0}, "replies": []})),
+            patch.object(views_video.appredis, "exists", new=AsyncMock(return_value=1)),
+            patch("views_video.render_template_with_theme", new=AsyncMock(return_value="<html>Listen</html>")),
+        ):
+            resp = await self.client.get("/video_listen/BV1xx411c7mD")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.headers.get("X-Cache"), "HIT")
+            mock_get_info.assert_not_awaited()
+
+    async def test_rate_limits_enforced_across_hardened_endpoints(self):
+        from unittest.mock import AsyncMock, patch
+
+        import rate_limit
+        from shared import appconf
+
+        fake_limiter = AsyncMock()
+        fake_limiter.is_allowed = AsyncMock(
+            return_value=(False, {"remaining": 0, "reset": 9999999999, "limit": 10, "retry_after": 30})
+        )
+
+        with (
+            patch.dict(appconf["rate_limit"], {"enabled": True}),
+            patch.object(rate_limit, "get_rate_limiter", return_value=fake_limiter),
+        ):
+            for path in (
+                "/live/4366430",
+                "/live",
+                "/res/danmaku/BV1xx411c7mD",
+                "/video_listen/BV1xx411c7mD",
+                "/space/12345",
+                "/space/12345/json",
+                "/author/12345",
+                "/audio/au12345",
+                "/vv/1",
+                "/proxy/download/BV1xx411c7mD/0/80",
+            ):
+                with self.subTest(path=path):
+                    r = await self.client.get(path)
+                    self.assertEqual(r.status_code, 429, f"Expected 429 on rate-limited {path}")
 
 
 if __name__ == "__main__":

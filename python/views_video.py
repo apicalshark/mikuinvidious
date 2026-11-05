@@ -41,6 +41,7 @@ _background_tasks = set()
 @app.route("/video_listen/<vid>:<idx>")
 @app.route("/video_listen/<vid>/")
 @app.route("/video_listen/<vid>:<idx>/")
+@rate_limit(**RATE_LIMITS["normal"])
 async def video_listen_view(vid, idx=0):
     # Validate video ID format
     import re
@@ -60,6 +61,45 @@ async def video_listen_view(vid, idx=0):
                     await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc["durl"][0]["url"])
             except Exception:
                 pass
+
+    cache_ttl = cache_minutes("video_minutes") * 60
+    cache_key = f"video:data:{vid}:{idx}"
+    if cache_ttl > 0:
+        data = await cache_get(cache_key, cache_ttl)
+        if (
+            isinstance(data, dict)
+            and isinstance(data.get("vinfo"), dict)
+            and (data["vinfo"].get("bvid") or data["vinfo"].get("title"))
+            and isinstance(data.get("vtags"), list)
+            and isinstance(data.get("vrelated"), list)
+            and isinstance(data.get("vset"), list)
+            and data.get("vset")
+        ):
+            vinfo, vtags, vrelated, vset = (
+                data["vinfo"],
+                data["vtags"],
+                data["vrelated"],
+                data["vset"],
+            )
+            res_cached = await asyncio.gather(
+                comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE),
+                get_audio_url(),
+                return_exceptions=True,
+            )
+            vcomments = res_cached[0] if isinstance(res_cached[0], dict) else {"page": {"count": 0}, "replies": []}
+            html = await render_template_with_theme(
+                "video_listen.html",
+                vid=vid,
+                vinfo=vinfo,
+                vrelated=vrelated[:10],
+                vcomments=vcomments,
+                keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
+                vtags=vtags,
+                ato=ato,
+                idx=idx,
+                vset=vset,
+            )
+            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
 
     results = await asyncio.gather(
         v.get_info(),
@@ -86,7 +126,13 @@ async def video_listen_view(vid, idx=0):
     vrelated = results[2] if isinstance(results[2], list) else []
     vcomments = results[3] if isinstance(results[3], dict) else {"page": {"count": 0}, "replies": []}
     vset = results[4] if isinstance(results[4], list) else [{"page": 1, "part": vid}]
-    return await render_template_with_theme(
+    if cache_ttl > 0 and (vinfo.get("bvid") or vinfo.get("title")):
+        await cache_set(
+            cache_key,
+            {"vinfo": vinfo, "vtags": vtags, "vrelated": vrelated, "vset": vset},
+            cache_ttl,
+        )
+    html = await render_template_with_theme(
         "video_listen.html",
         vid=vid,
         vinfo=vinfo,
@@ -98,6 +144,7 @@ async def video_listen_view(vid, idx=0):
         idx=idx,
         vset=vset,
     )
+    return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
 
 
 # --- ASYNC COMPONENT API ---
