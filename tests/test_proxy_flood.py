@@ -111,6 +111,20 @@ class _GatedConn:
         self.closed = True
 
 
+class _FakeCdnConnection:
+    def __init__(self, exc=None):
+        self.exc = exc
+        self.closed = False
+
+    async def iter_chunks(self):
+        yield b"x" * 10
+        if self.exc:
+            raise self.exc
+
+    async def close(self):
+        self.closed = True
+
+
 def _resp_headers(status=206):
     rh = MagicMock()
     rh.status_code = status
@@ -235,6 +249,36 @@ class TestProgressiveProxyFlood(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 502)
         self.assertEqual(proxy.direct_stream_slots.active_by_ip, {})
 
+    async def test_direct_stream_mid_body_timeout_and_oserror_truncate_without_raising(self):
+        import proxy
+        from app import app
+
+        for exc in (TimeoutError("read timed out"), ConnectionResetError("socket reset")):
+            with self.subTest(exc=type(exc).__name__):
+                conn = _FakeCdnConnection(exc=exc)
+                headers = MagicMock()
+                headers.status_code = 206
+                headers.headers = {"content-length": "100"}
+                with (
+                    patch.object(
+                        proxy.appredis, "get", AsyncMock(return_value=b"https://upos-sz-mirrorcos.bilivideo.com/x.mp4")
+                    ),
+                    patch.object(proxy, "is_safe_proxy_url", AsyncMock(return_value=True)),
+                    patch.object(proxy.TicketManager, "get_ticket", AsyncMock(return_value=None)),
+                    patch.object(proxy, "_establish_cdn_connection", AsyncMock(return_value=(conn, headers))),
+                ):
+                    async with app.test_request_context(
+                        "/proxy/video/BV1xx411c7xx_0_80.mp4", headers={"X-Real-IP": IP_A, "Range": "bytes=0-99"}
+                    ):
+                        resp = await proxy.proxy_main("video/BV1xx411c7xx_0_80.mp4")
+                    self.assertEqual(resp.status_code, 206)
+                    async with resp.response as body:
+                        chunks = [c async for c in aiter(body)]
+                    # Received partial chunk before truncation, no exception raised
+                    self.assertEqual(chunks, [b"x" * 10])
+                    self.assertTrue(conn.closed)
+                    self.assertEqual(proxy.direct_stream_slots.active_by_ip, {})
+
 
 class _FakeLiveStream:
     def __init__(self):
@@ -244,7 +288,7 @@ class _FakeLiveStream:
         self.removed = []
 
     def remove_client(self, client_id, reason=""):
-        self.removed.append(client_id)
+        self.removed.append((client_id, reason))
 
 
 class TestLiveProxyFlood(unittest.IsolatedAsyncioTestCase):
@@ -362,6 +406,58 @@ class TestLiveProxyFlood(unittest.IsolatedAsyncioTestCase):
                 resp = await proxy.proxy_main("live/1_10000")
         self.assertEqual(resp.status_code, 502)
         self.assertEqual(proxy.live_stream_slots.active_by_ip, {})
+
+    async def test_live_manager_discard_finalizer_does_not_evict_after_start(self):
+        import gc
+
+        import proxy
+        from app import app
+
+        stream = _FakeLiveStream()
+        q = asyncio.Queue()
+        q.put_nowait(b"CHUNK")
+        q.put_nowait(None)
+
+        async with app.test_request_context("/proxy/live/1_10000", headers={"X-Real-IP": IP_A}):
+            with (
+                patch.object(
+                    proxy.appredis, "get", AsyncMock(return_value=b"https://d1--cn-gotcha.bilivideo.com/live.flv")
+                ),
+                patch.object(proxy, "is_safe_proxy_url", AsyncMock(return_value=True)),
+                patch.object(proxy.TicketManager, "get_ticket", AsyncMock(return_value=None)),
+                patch.object(proxy.live_manager, "subscribe", AsyncMock(return_value=(stream, q))),
+            ):
+                resp = await proxy.proxy_main("live/1_10000")
+                async with resp.response as body:
+                    _ = [c async for c in aiter(body)]
+        self.assertEqual([r[1] for r in stream.removed], ["Stream ended"])
+        del resp
+        gc.collect()
+        self.assertEqual([r[1] for r in stream.removed], ["Stream ended"])
+
+    async def test_live_manager_discard_finalizer_cleans_up_when_unstarted(self):
+        import gc
+
+        import proxy
+        from app import app
+
+        stream = _FakeLiveStream()
+        q = asyncio.Queue()
+
+        async with app.test_request_context("/proxy/live/1_10000", headers={"X-Real-IP": IP_A}):
+            with (
+                patch.object(
+                    proxy.appredis, "get", AsyncMock(return_value=b"https://d1--cn-gotcha.bilivideo.com/live.flv")
+                ),
+                patch.object(proxy, "is_safe_proxy_url", AsyncMock(return_value=True)),
+                patch.object(proxy.TicketManager, "get_ticket", AsyncMock(return_value=None)),
+                patch.object(proxy.live_manager, "subscribe", AsyncMock(return_value=(stream, q))),
+            ):
+                resp = await proxy.proxy_main("live/1_10000")
+        self.assertEqual(stream.removed, [])
+        del resp
+        gc.collect()
+        self.assertEqual([r[1] for r in stream.removed], ["Response discarded"])
 
 
 class _RecordingLimiter:
@@ -562,6 +658,34 @@ class TestNyaaApi(unittest.IsolatedAsyncioTestCase):
                 resp = await views_bangumi.bangumi_nyaa_api(8)
                 body = await resp.get_json()
         self.assertEqual(body, {"sidebar_html": "", "ep_torrents": {}})
+
+    async def test_nyaa_non_chinese_results_are_cached(self):
+        import views_bangumi
+        from app import app
+
+        bg_inst = MagicMock()
+        bg_inst.get_meta = AsyncMock(return_value={"media": {"title": "Test Non-Chinese"}})
+        mock_torrent = MagicMock(
+            title="English Only Title - 01 [1080p]",
+            magnet_url="magnet:?xt=urn:btih:dummy",
+            seeders=10,
+            leechers=1,
+            size="500MB",
+        )
+        mock_cache_set = AsyncMock()
+        with (
+            patch.dict(views_bangumi.shared.appconf["site"], {"nyaa_bangumi": True}),
+            patch.object(views_bangumi.shared, "cache_get", AsyncMock(return_value=None)),
+            patch.object(views_bangumi.shared, "cache_set", mock_cache_set),
+            patch.object(views_bangumi, "search_nyaa", AsyncMock(return_value=[mock_torrent])),
+            patch.object(views_bangumi.bangumi, "Bangumi", MagicMock(return_value=bg_inst)),
+            patch.object(views_bangumi.shared, "render_template_with_theme", AsyncMock(return_value="sidebar")),
+        ):
+            async with app.test_request_context("/bangumi/api/nyaa/9", headers={"X-Real-IP": IP_A}):
+                resp = await views_bangumi.bangumi_nyaa_api(9)
+                body = await resp.get_json()
+        self.assertEqual(body["ep_torrents"], {})
+        mock_cache_set.assert_awaited_once()
 
 
 if __name__ == "__main__":

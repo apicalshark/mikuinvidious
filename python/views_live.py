@@ -36,6 +36,7 @@ LIVE_CHAT_QUEUE_MAXSIZE = 100
 LIVE_CHAT_MAX_ROOMS: int | None = None
 LIVE_CHAT_MAX_PER_IP = 4
 LIVE_ROOM_CACHE_TTL = 60
+LIVE_CHAT_LOOKUP_TIMEOUT = 5.0
 
 live_chat_slots = PerIpSlotLimiter(LIVE_CHAT_MAX_PER_IP)
 
@@ -203,7 +204,8 @@ class LiveChatManager:
             return room_id
         lookup = self._lookup_real_room_id or _lookup_real_room_id
         try:
-            real_id = await lookup(room_id)
+            async with asyncio.timeout(LIVE_CHAT_LOOKUP_TIMEOUT):
+                real_id = await lookup(room_id)
             if isinstance(real_id, int) and real_id > 0:
                 self._canonical_ids[room_id] = real_id
                 self._canonical_ids[real_id] = real_id
@@ -286,7 +288,7 @@ async def live_chat_sse(room_id):
                 except TimeoutError:
                     yield ": heartbeat\n\n"
         except asyncio.CancelledError, GeneratorExit:
-            pass
+            raise
         except Exception as e:
             print(f"[LiveChat] Unexpected error in event_stream for room {room_id}: {e}")
         finally:

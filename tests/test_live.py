@@ -82,6 +82,20 @@ class TestLiveRoutes(unittest.IsolatedAsyncioTestCase):
         resp_neg = await self.client.get("/video_listen/BV1xx411c7mD:-1")
         self.assertEqual(resp_neg.status_code, 400)
 
+    async def test_audio_invalid_id_400(self):
+        resp_toolong = await self.client.get("/audio/au12345678901234567890123")
+        self.assertEqual(resp_toolong.status_code, 400)
+        resp_alpha = await self.client.get("/audio/invalid")
+        self.assertEqual(resp_alpha.status_code, 400)
+
+    async def test_audio_list_invalid_id_400(self):
+        resp_toolong = await self.client.get("/audio_list/am12345678901234567890123")
+        self.assertEqual(resp_toolong.status_code, 400)
+        resp_alpha = await self.client.get("/audio_list/invalid")
+        self.assertEqual(resp_alpha.status_code, 400)
+        resp_badidx = await self.client.get("/audio_list/am123:notanumber")
+        self.assertEqual(resp_badidx.status_code, 400)
+
 
 class _FakeLiveDanmaku:
     instances = []
@@ -315,6 +329,24 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(manager.rooms[21144080].subscribers), 1)
 
             await manager.shutdown_all()
+
+    async def test_canonical_lookup_timeout_falls_back_to_requested_id(self):
+        import asyncio
+        from unittest.mock import patch
+
+        import views_live
+
+        async def slow_lookup(rid):
+            await asyncio.sleep(10.0)
+            return 99999
+
+        manager = views_live.LiveChatManager(idle_grace=0.5)
+        with (
+            patch.object(views_live, "LIVE_CHAT_LOOKUP_TIMEOUT", 0.05),
+            patch("views_live._lookup_real_room_id", slow_lookup),
+        ):
+            resolved = await manager._resolve_room_id(12345)
+            self.assertEqual(resolved, 12345)
 
     async def test_manager_admission_limit_caps_distinct_rooms_including_idle_grace(self):
         import asyncio

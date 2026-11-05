@@ -34,7 +34,10 @@ from shared import (
 @rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("audio"))
 async def audio_view(auid):
     ato = request.args.get("ato") == "1"
-    auid_int = int(auid[2:]) if auid.startswith("au") else int(auid)
+    auid_str = auid[2:] if auid.startswith("au") else auid
+    if not (auid_str.isdigit() and 1 <= len(auid_str) <= 20):
+        return Response("Invalid audio ID format", status=400)
+    auid_int = int(auid_str)
 
     async def get_audio_url():
         if not await appredis.exists(f"mikuinv_{auid}_{0}_0"):
@@ -114,8 +117,17 @@ async def audio_view(auid):
 @app.route("/audio_list/<amid>:<idx>")
 @rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("audio_list"))
 async def audio_list_view(amid, idx=0):
-    idx, ato = int(idx), request.args.get("ato") == "1"
-    amid_int = int(amid[2:]) if amid.startswith("am") else int(amid)
+    try:
+        idx = int(idx)
+        if idx < 0:
+            return Response("Invalid index", status=400)
+    except TypeError, ValueError:
+        return Response("Invalid index", status=400)
+    ato = request.args.get("ato") == "1"
+    amid_str = amid[2:] if amid.startswith("am") else amid
+    if not (amid_str.isdigit() and 1 <= len(amid_str) <= 20):
+        return Response("Invalid audio list ID format", status=400)
+    amid_int = int(amid_str)
     cache_ttl = cache_minutes("audio_minutes") * 60
     cache_key = f"audiolist:data:{amid}:{idx}"
     cache_hit = False

@@ -417,7 +417,11 @@ async def proxy_main(subpath):
                 live_slot.release()
                 return Response("Upstream Error", status=502)
 
+            started = False
+
             async def generate_from_manager():
+                nonlocal started
+                started = True
                 reason = "Stream ended"
                 try:
                     while True:
@@ -449,7 +453,12 @@ async def proxy_main(subpath):
             # A body that is never iterated never runs its finally: free the
             # slot (and the subscriber) when the generator is collected.
             weakref.finalize(live_gen, live_slot.release)
-            weakref.finalize(live_gen, stream.remove_client, client_id, "Response discarded")
+
+            def _discard_cleanup():
+                if not started:
+                    stream.remove_client(client_id, "Response discarded")
+
+            weakref.finalize(live_gen, _discard_cleanup)
             proxy_resp = Response(live_gen, status=stream.status_code or 200)
             proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
             proxy_resp.headers["Content-Type"] = "video/x-flv"
@@ -581,7 +590,7 @@ async def proxy_main(subpath):
                         # Client went away mid-stream: close upstream and let
                         # cancellation propagate (no error log — this is normal).
                         raise
-                    except (CdnProtocolError, CdnTimeoutError) as e:
+                    except (CdnProtocolError, CdnTimeoutError, TimeoutError, OSError) as e:
                         # Mid-body cut: end the stream early WITHOUT raising.
                         # Response headers (200/206 + Content-Length) were already
                         # emitted, so a short body surfaces as a length mismatch
