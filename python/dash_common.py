@@ -89,7 +89,6 @@ DASH_BODY_IDLE_TIMEOUT = 5.0
 # triggering simultaneous full-track downloads across all renditions.
 DASH_MAX_FRAGMENT_BYTES = 32 * 1024 * 1024
 DASH_MAX_CONCURRENT_PER_IP = 8
-DASH_MAX_CONCURRENT_GLOBAL = 64
 _BOUNDED_RANGE_RE = re.compile(r"^bytes=(\d+)-(\d+)$")
 
 

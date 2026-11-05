@@ -14,10 +14,12 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import weakref
 
 import orjson
 import transformers
 from api import live, live_area
+from ip_slots import PerIpSlotLimiter
 from quart import Response, request
 from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
 from shared import app, appconf, appcred, appredis, cache_get, cache_set, render_template_with_theme
@@ -28,8 +30,14 @@ LIVE_CHAT_HANDSHAKE_DELAY = 1.0
 LIVE_CHAT_IDLE_GRACE = 30.0
 LIVE_CHAT_HEARTBEAT_INTERVAL = 20.0
 LIVE_CHAT_QUEUE_MAXSIZE = 100
-LIVE_CHAT_MAX_ROOMS = 64
+# Optional global room ceiling (None by default so a multi-IP botnet cannot
+# starve legitimate users across distinct IPs; per-IP concurrency is enforced
+# via ``live_chat_slots``).
+LIVE_CHAT_MAX_ROOMS: int | None = None
+LIVE_CHAT_MAX_PER_IP = 4
 LIVE_ROOM_CACHE_TTL = 60
+
+live_chat_slots = PerIpSlotLimiter(LIVE_CHAT_MAX_PER_IP)
 
 
 class LiveChatCapacityError(RuntimeError):
@@ -153,7 +161,7 @@ class LiveChatManager:
         self,
         idle_grace: float = LIVE_CHAT_IDLE_GRACE,
         queue_maxsize: int = LIVE_CHAT_QUEUE_MAXSIZE,
-        max_rooms: int = LIVE_CHAT_MAX_ROOMS,
+        max_rooms: int | None = LIVE_CHAT_MAX_ROOMS,
     ):
         self.rooms: dict[int, LiveChatRoom] = {}
         self._canonical_ids: dict[int, int] = {}
@@ -192,9 +200,10 @@ class LiveChatManager:
         canonical_id = await self._resolve_room_id(room_id)
         room = self.rooms.get(canonical_id)
         if room is None or room._stop_event.is_set():
-            active_rooms = sum(1 for r in self.rooms.values() if not r._stop_event.is_set())
-            if active_rooms >= self.max_rooms:
-                raise LiveChatCapacityError("Too many active live chat rooms")
+            if self.max_rooms is not None:
+                active_rooms = sum(1 for r in self.rooms.values() if not r._stop_event.is_set())
+                if active_rooms >= self.max_rooms:
+                    raise LiveChatCapacityError("Too many active live chat rooms")
             room = LiveChatRoom(
                 canonical_id,
                 manager=self,
@@ -233,11 +242,15 @@ async def _live_chat_rate_key(req) -> str:
 @app.route("/live/chat/<int:room_id>")
 @rate_limit(**RATE_LIMITS["strict"], key_func=_live_chat_rate_key)
 async def live_chat_sse(room_id):
-    async def event_stream():
-        yield f"data: {orjson.dumps({'user': 'SYSTEM', 'text': 'Chat connected'}).decode('utf-8')}\n\n"
+    slot = live_chat_slots.try_acquire(get_client_ip(request))
+    if slot is None:
+        return Response("Too Many Requests", status=429, headers={"Retry-After": "1"})
 
+    async def event_stream():
         queue = None
         try:
+            yield f"data: {orjson.dumps({'user': 'SYSTEM', 'text': 'Chat connected'}).decode('utf-8')}\n\n"
+
             # Layer 1: Handshake gate — drop instant scanner/probe disconnects
             # before allocating room state or opening an upstream Bilibili WebSocket.
             if LIVE_CHAT_HANDSHAKE_DELAY > 0:
@@ -261,11 +274,14 @@ async def live_chat_sse(room_id):
         except Exception as e:
             print(f"[LiveChat] Unexpected error in event_stream for room {room_id}: {e}")
         finally:
+            slot.release()
             if queue is not None:
                 await asyncio.shield(live_chat_manager.unsubscribe(room_id, queue))
 
+    gen = event_stream()
+    weakref.finalize(gen, slot.release)
     return Response(
-        event_stream(),
+        gen,
         content_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

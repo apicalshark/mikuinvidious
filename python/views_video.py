@@ -19,9 +19,10 @@ import sys
 
 import orjson
 from api import comment, video
+from dash_common import _is_valid_vid
 from extra import av2bv, video_get_src_for_qn
 from quart import Response, g, request
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
 from shared import (
     app,
     appcred,
@@ -35,6 +36,29 @@ from shared import (
 )
 
 _background_tasks = set()
+
+
+async def _component_ip_key(req) -> str:
+    """One coarse bucket per client IP across all ``/api/component/*`` routes.
+
+    The default ``ip:path`` key embeds the vid, so a crawler walking video
+    ids got a fresh allowance per video; this caps the IP as a whole while
+    the per-path limit keeps throttling repeat hits on one video.
+    """
+    return f"{get_client_ip(req)}:component"
+
+
+# Comment routes are also reached from video_listen.html, which serves audio
+# pages too (au/am ids, or bare digits) — accept those shapes as well.
+_COMMENT_OID_RE = re.compile(r"^(BV[A-Za-z0-9]{10}|(?:av|au|am)?\d{1,20})$")
+
+
+def _is_valid_comment_oid(vid: str) -> bool:
+    return bool(vid) and bool(_COMMENT_OID_RE.match(vid))
+
+
+def _bad_vid_response() -> Response:
+    return Response("Bad Request: invalid video ID", status=400)
 
 
 @app.route("/video_listen/<vid>")
@@ -170,8 +194,11 @@ async def _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall, c
 
 
 @app.route("/api/component/player/<vid>/<int:idx>")
+@rate_limit(limit=300, window=60, key_func=_component_ip_key)
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_player(vid, idx):
+    if not _is_valid_vid(vid):
+        return _bad_vid_response()
     passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
         g.csp_nonce = passed_nonce
@@ -328,8 +355,11 @@ async def _get_subtitles(v, idx) -> list:
 
 
 @app.route("/api/component/meta/<vid>/<int:idx>")
+@rate_limit(limit=300, window=60, key_func=_component_ip_key)
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_meta(vid, idx):
+    if not _is_valid_vid(vid):
+        return _bad_vid_response()
     # Use passed CSP nonce from main page to avoid CSP mismatch
     passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
@@ -361,9 +391,12 @@ async def api_component_meta(vid, idx):
 
 
 @app.route("/api/component/comments/<vid>/<int:idx>/more")
+@rate_limit(limit=300, window=60, key_func=_component_ip_key)
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_meta_more(vid, idx):
     """Fetch the next page of top-level comments (infinite scroll, matching PipePipe)."""
+    if not _is_valid_comment_oid(vid):
+        return _bad_vid_response()
     passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
         g.csp_nonce = passed_nonce
@@ -392,9 +425,12 @@ async def api_component_meta_more(vid, idx):
 
 
 @app.route("/api/component/comments/<vid>/<int:rpid>")
+@rate_limit(limit=300, window=60, key_func=_component_ip_key)
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_sub_comments(vid, rpid):
     """Return rendered sub-comment HTML for a given parent comment."""
+    if not _is_valid_comment_oid(vid):
+        return _bad_vid_response()
     passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
         g.csp_nonce = passed_nonce

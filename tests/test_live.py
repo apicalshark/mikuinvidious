@@ -116,7 +116,15 @@ class _FakeLiveDanmaku:
 
 class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        import views_live
+
         _FakeLiveDanmaku.instances.clear()
+        views_live.live_chat_slots.reset()
+
+    async def asyncTearDown(self):
+        import views_live
+
+        views_live.live_chat_slots.reset()
 
     async def test_probe_disconnect_before_handshake_does_not_connect_upstream(self):
         import asyncio

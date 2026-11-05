@@ -25,7 +25,6 @@ from dash_common import (
     DASH_BODY_FLOOR_KBPS,
     DASH_BODY_GRACE,
     DASH_BODY_IDLE_TIMEOUT,
-    DASH_MAX_CONCURRENT_GLOBAL,
     DASH_MAX_CONCURRENT_PER_IP,
     DASH_MAX_FRAGMENT_BYTES,
     DASH_PLAYBACK_ATTEMPT_TIMEOUT,
@@ -58,6 +57,7 @@ from dash_fetch import (
     _refresh_dash_data,
     has_valid_dash_tracks,
 )
+from ip_slots import PerIpSlotLimiter
 from quart import Response, request
 from rate_limit import get_client_ip, rate_limit
 from shared import UPSTREAM_RESPONSE_BLACKLIST, Network, TicketManager, appconf
@@ -826,63 +826,20 @@ async def _dash_frag_key(req) -> str:
     return f"{get_client_ip(req)}:{req.path}:{rng}"
 
 
-class _DashStreamSlot:
-    """Idempotent lease for one active in-flight ``proxy_dash`` stream."""
-
-    __slots__ = ("_ip", "_limiter", "_released")
-
-    def __init__(self, limiter: _DashConcurrencyLimiter, ip: str):
-        self._limiter = limiter
-        self._ip = ip
-        self._released = False
-
-    def release(self) -> None:
-        if self._released:
-            return
-        self._released = True
-        self._limiter._release(self._ip)
-
-
-class _DashConcurrencyLimiter:
-    """Cap simultaneous in-flight DASH streams per IP and globally.
+class _DashConcurrencyLimiter(PerIpSlotLimiter):
+    """Cap simultaneous in-flight DASH streams per client IP.
 
     Legitimate dash.js playback fetches 1 video + 1 audio fragment at a time
     (~2-4 concurrent requests even during ABR switch/seek). Multi-rendition
     scrapers open 15-20+ simultaneous connections across every Representation
     in ``manifest.mpd`` at once, saturating WARP SOCKS5 and the host NIC.
+
+    Strictly per-IP, no global ceiling: a shared ceiling would let a
+    distributed scraper fill it and lock out every legitimate viewer.
     """
 
-    def __init__(
-        self,
-        max_per_ip: int = DASH_MAX_CONCURRENT_PER_IP,
-        max_global: int = DASH_MAX_CONCURRENT_GLOBAL,
-    ):
-        self.max_per_ip = max_per_ip
-        self.max_global = max_global
-        self.active_global = 0
-        self.active_by_ip: dict[str, int] = {}
-
-    def try_acquire(self, ip: str) -> _DashStreamSlot | None:
-        ip_key = ip or "unknown"
-        cur_ip = self.active_by_ip.get(ip_key, 0)
-        if self.active_global >= self.max_global or cur_ip >= self.max_per_ip:
-            return None
-        self.active_global += 1
-        self.active_by_ip[ip_key] = cur_ip + 1
-        return _DashStreamSlot(self, ip_key)
-
-    def _release(self, ip_key: str) -> None:
-        if self.active_global > 0:
-            self.active_global -= 1
-        cur = self.active_by_ip.get(ip_key, 0)
-        if cur <= 1:
-            self.active_by_ip.pop(ip_key, None)
-        else:
-            self.active_by_ip[ip_key] = cur - 1
-
-    def reset(self) -> None:
-        self.active_global = 0
-        self.active_by_ip.clear()
+    def __init__(self, max_per_ip: int = DASH_MAX_CONCURRENT_PER_IP):
+        super().__init__(max_per_ip)
 
 
 dash_concurrency = _DashConcurrencyLimiter()
