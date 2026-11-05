@@ -3,6 +3,8 @@
 Run with PYTHONPATH=python uv run python -m unittest discover -s tests.
 """
 
+import os
+import shutil
 import subprocess
 import unittest
 from pathlib import Path
@@ -27,6 +29,13 @@ class PlayerReplayTests(unittest.TestCase):
 
     def test_js_node_execution(self):
         """Simulate browser video element, media-controller, and verify replay behavior."""
+        node_bin = shutil.which("node") or shutil.which("nodejs")
+        if not node_bin:
+            brew_node = "/home/linuxbrew/.linuxbrew/bin/node"
+            if os.path.exists(brew_node) and os.access(brew_node, os.X_OK):
+                node_bin = brew_node
+        if not node_bin:
+            raise unittest.SkipTest("node executable not found")
         test_script = """
 const { EventTarget, CustomEvent } = globalThis;
 
@@ -145,7 +154,7 @@ if (video.currentTime !== 45) {
   throw new Error("Normal mid-playback play should preserve currentTime (45), got: " + video.currentTime);
 }
 """
-        proc = subprocess.run(["node", "-e", test_script], capture_output=True, text=True)
+        proc = subprocess.run([node_bin, "-e", test_script], capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
 
 

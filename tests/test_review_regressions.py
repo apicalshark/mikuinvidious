@@ -1,7 +1,7 @@
 """Run with PYTHONPATH=python .venv/bin/python -m unittest discover -s tests."""
 
 import unittest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import views
 from api import user
@@ -21,27 +21,34 @@ class DurlSelectionTests(unittest.TestCase):
                 duplicate = durl_result(64, 80, "1080p requested")
                 results = [exact, duplicate] if exact_first else [duplicate, exact]
                 results.extend([durl_result(32, 16, "360p requested"), None])
-                picked = _select_durl_results(results, {
-                    "support_formats": [{"quality": "32", "display_desc": "480p"}]
-                })
+                picked = _select_durl_results(results, {"support_formats": [{"quality": "32", "display_desc": "480p"}]})
                 self.assertEqual([r["quality"] for r in picked], [64, 32])
                 self.assertIs(picked[0], exact)
                 self.assertEqual([r["new_description"] for r in picked], ["720p exact", "480p"])
                 self.assertTrue(all("_requested_qn" not in r for r in picked))
 
     def test_all_mismatches_keep_single_best_with_malformed_formats(self):
-        picked = _select_durl_results([
-            durl_result(32, 16, "360p"), durl_result(64, 80, "1080p")
-        ], {"support_formats": [
-            None, "bad", 42, [], {}, {"quality": "invalid", "new_description": "bad"},
-            {"quality": "64", "new_description": "720p", "display_desc": "alternate"},
-        ]})
+        picked = _select_durl_results(
+            [durl_result(32, 16, "360p"), durl_result(64, 80, "1080p")],
+            {
+                "support_formats": [
+                    None,
+                    "bad",
+                    42,
+                    [],
+                    {},
+                    {"quality": "invalid", "new_description": "bad"},
+                    {"quality": "64", "new_description": "720p", "display_desc": "alternate"},
+                ]
+            },
+        )
         self.assertEqual(picked, [{"quality": 64, "new_description": "720p", "ext": ".mp4"}])
 
     def test_missing_description_preserves_existing_fallback(self):
-        self.assertEqual(_select_durl_results([durl_result(32, 80, "existing")], None), [
-            {"quality": 32, "new_description": "existing", "ext": ".mp4"}
-        ])
+        self.assertEqual(
+            _select_durl_results([durl_result(32, 80, "existing")], None),
+            [{"quality": 32, "new_description": "existing", "ext": ".mp4"}],
+        )
 
     def test_empty_results(self):
         self.assertEqual(_select_durl_results([None], None), [])
@@ -78,6 +85,7 @@ class SpaceFetchTests(unittest.IsolatedAsyncioTestCase):
 
                 render = AsyncMock(return_value="space page")
                 import views_space
+
                 with (
                     patch.object(user, "Api", FakeApi),
                     patch.object(user.User, "get_user_info", AsyncMock(return_value={"name": "Test"})),
@@ -299,7 +307,9 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(views_video, "cache_minutes", return_value=0),
             patch("views_video.asyncio.gather", side_effect=fake_gather),
-            patch.object(views_video, "render_template_with_theme", new=AsyncMock(return_value="<html>OK</html>")) as mock_render,
+            patch.object(
+                views_video, "render_template_with_theme", new=AsyncMock(return_value="<html>OK</html>")
+            ) as mock_render,
         ):
             async with views.app.test_request_context("/video/BV1xx411c7xx"):
                 resp = await views_video.video_view("BV1xx411c7xx", 0)
@@ -523,26 +533,44 @@ class PaginationVisibilityTests(unittest.IsolatedAsyncioTestCase):
         from shared import app, render_template_with_theme
 
         uinfo = {"mid": 177291194, "name": "DECO27_Official", "sign": "", "face": ""}
-        vlist = [{"bvid": f"BV{i}", "title": f"Video {i}", "pic": "", "duration": "3:00", "author": "DECO27", "mid": 177291194, "created": 1600000000, "play": 100} for i in range(28)]
+        vlist = [
+            {
+                "bvid": f"BV{i}",
+                "title": f"Video {i}",
+                "pic": "",
+                "duration": "3:00",
+                "author": "DECO27",
+                "mid": 177291194,
+                "created": 1600000000,
+                "play": 100,
+            }
+            for i in range(28)
+        ]
 
         # Page 1 of 3 (count=69, ps=28)
         async with app.test_request_context("/space/177291194?i=1"):
             uvids = {"list": {"vlist": vlist}, "page": {"count": 69, "pn": 1, "ps": 28}}
-            html1 = await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids, degraded=False, load_failed=False)
+            html1 = await render_template_with_theme(
+                "space.html", uinfo=uinfo, uvids=uvids, degraded=False, load_failed=False
+            )
             self.assertIn("?i=2", html1)
             self.assertNotIn("?i=0", html1)
 
         # Page 2 of 3 (count=69, ps=28) -> Next page (?i=3) must exist
         async with app.test_request_context("/space/177291194?i=2"):
             uvids = {"list": {"vlist": vlist}, "page": {"count": 69, "pn": 2, "ps": 28}}
-            html2 = await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids, degraded=False, load_failed=False)
+            html2 = await render_template_with_theme(
+                "space.html", uinfo=uinfo, uvids=uvids, degraded=False, load_failed=False
+            )
             self.assertIn("?i=3", html2)
             self.assertIn("?i=1", html2)
 
         # Page 3 of 3 (count=69, ps=28) -> Last page, no next page (?i=4)
         async with app.test_request_context("/space/177291194?i=3"):
             uvids = {"list": {"vlist": vlist[:13]}, "page": {"count": 69, "pn": 3, "ps": 28}}
-            html3 = await render_template_with_theme("space.html", uinfo=uinfo, uvids=uvids, degraded=False, load_failed=False)
+            html3 = await render_template_with_theme(
+                "space.html", uinfo=uinfo, uvids=uvids, degraded=False, load_failed=False
+            )
             self.assertNotIn("?i=4", html3)
             self.assertIn("?i=2", html3)
 
@@ -551,7 +579,18 @@ class PaginationVisibilityTests(unittest.IsolatedAsyncioTestCase):
         from shared import app, render_template_with_theme
 
         uinfo = {"mid": 177291194, "name": "DECO27_Official", "sign": "", "face": ""}
-        articles = [{"id": i, "title": f"Art {i}", "image_urls": [], "publish_time": 1600000000, "words": 100, "stats": {"view": 10, "reply": 1}, "author": {"mid": 177291194, "name": "DECO27"}} for i in range(28)]
+        articles = [
+            {
+                "id": i,
+                "title": f"Art {i}",
+                "image_urls": [],
+                "publish_time": 1600000000,
+                "words": 100,
+                "stats": {"view": 10, "reply": 1},
+                "author": {"mid": 177291194, "name": "DECO27"},
+            }
+            for i in range(28)
+        ]
 
         # Page 2 of 3 (count=69, ps=28) -> Next page (?i=3) must exist
         async with app.test_request_context("/author/177291194?i=2"):
@@ -567,12 +606,147 @@ class PaginationVisibilityTests(unittest.IsolatedAsyncioTestCase):
         # Page 2 of 3 (count=25, size=10) -> Next page (?i=3) must exist
         async with app.test_request_context("/vv/1?i=2"):
             info = {
-                "archives": [{"tid": 1, "bvid": f"BV{i}", "title": f"Video {i}", "pic": "", "duration": "3:00", "owner": {"name": "Owner"}, "stat": {"view": 10}, "pubdate": 1600000000} for i in range(10)],
+                "archives": [
+                    {
+                        "tid": 1,
+                        "bvid": f"BV{i}",
+                        "title": f"Video {i}",
+                        "pic": "",
+                        "duration": "3:00",
+                        "owner": {"name": "Owner"},
+                        "stat": {"view": 10},
+                        "pubdate": 1600000000,
+                    }
+                    for i in range(10)
+                ],
                 "page": {"count": 25, "num": 2, "size": 10},
             }
             html = await render_template_with_theme("zone.html", info=info)
             self.assertIn("?i=3", html)
             self.assertIn("?i=1", html)
+
+
+class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_read_view_logs_on_status_failure(self):
+        import io
+
+        import views_space
+        from shared import Network, app
+
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 412
+        mock_resp.text = "Risk control"
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+
+        log_out = io.StringIO()
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch("asyncio.sleep", AsyncMock()),
+            patch("sys.stdout", log_out),
+        ):
+            async with app.test_request_context("/read/cv27188030"):
+                resp = await views_space.read_view("cv27188030")
+
+        self.assertEqual(resp[1], 502)
+        logs = log_out.getvalue()
+        self.assertIn("[Article] Attempt 1/3 for cv27188030", logs)
+        self.assertIn("returned HTTP 412", logs)
+        self.assertIn("[Article] Failed to fetch article cv27188030", logs)
+        self.assertIn("last_status=412", logs)
+
+    async def test_read_view_logs_and_fast_exits_on_404(self):
+        import io
+
+        import views_space
+        from shared import Network, app
+
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 404
+        mock_resp.text = "Not Found"
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+
+        log_out = io.StringIO()
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch("asyncio.sleep", AsyncMock()),
+            patch("sys.stdout", log_out),
+        ):
+            async with app.test_request_context("/read/cv99999999"):
+                resp = await views_space.read_view("cv99999999")
+
+        self.assertEqual(resp[1], 404)
+        self.assertEqual(mock_client.send.call_count, 1)
+        logs = log_out.getvalue()
+        self.assertIn("[Article] cv99999999", logs)
+        self.assertIn("returned HTTP 404 Not Found", logs)
+
+    async def test_read_view_logs_on_unparseable_content(self):
+        import io
+
+        import views_space
+        from shared import Network, app
+
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "<html><body>Empty stripped anti-bot response</body></html>"
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+
+        log_out = io.StringIO()
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch("asyncio.sleep", AsyncMock()),
+            patch("sys.stdout", log_out),
+        ):
+            async with app.test_request_context("/read/cv27188030"):
+                resp = await views_space.read_view("cv27188030")
+
+        self.assertEqual(resp[1], 502)
+        logs = log_out.getvalue()
+        self.assertIn("[Article] Attempt 1/3 for cv27188030", logs)
+        self.assertIn("stripped or unparseable content", logs)
+        self.assertIn("[Article] Failed to fetch article cv27188030", logs)
+
+    async def test_read_view_logs_on_network_error(self):
+        import io
+
+        import views_space
+        from shared import Network, app
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(side_effect=OSError("Connection reset by peer"))
+
+        log_out = io.StringIO()
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch("asyncio.sleep", AsyncMock()),
+            patch("sys.stdout", log_out),
+        ):
+            async with app.test_request_context("/read/cv27188030"):
+                resp = await views_space.read_view("cv27188030")
+
+        self.assertEqual(resp[1], 502)
+        logs = log_out.getvalue()
+        self.assertIn("[Article] Attempt 1/3 for cv27188030", logs)
+        self.assertIn("network error", logs)
+        self.assertIn("Connection reset by peer", logs)
+        self.assertIn("[Article] Failed to fetch article cv27188030", logs)
 
 
 if __name__ == "__main__":

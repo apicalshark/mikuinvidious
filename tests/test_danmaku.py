@@ -65,5 +65,93 @@ class TestDanmakuParser(unittest.TestCase):
         self.assertEqual(items[0]["mode"], "rtl")
 
 
+class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        from app import app
+
+        self.client = app.test_client()
+
+    async def test_danmaku_res_caches_xml_in_redis_and_skips_second_upstream_fetch(self):
+        from unittest.mock import AsyncMock, patch
+
+        import res
+
+        store = {}
+        ttls = {}
+
+        async def fake_get(k):
+            return store.get(k)
+
+        async def fake_setex(k, ttl, val):
+            store[k] = val
+            ttls[k] = ttl
+
+        xml_payload = '<i><d p="1.5,1,25,16777215,1600000000">Cached Danmaku</d></i>'
+        mock_get_xml = AsyncMock(return_value=xml_payload)
+
+        with (
+            patch.object(res.appredis, "get", side_effect=fake_get),
+            patch.object(res.appredis, "setex", side_effect=fake_setex),
+            patch("api.video.Video.get_danmaku_xml", mock_get_xml),
+        ):
+            r1 = await self.client.get("/res/danmaku/BV1xx411c7mD:0")
+            self.assertEqual(r1.status_code, 200)
+            data1 = await r1.get_json()
+            self.assertEqual(len(data1), 1)
+            self.assertEqual(data1[0]["text"], "Cached Danmaku")
+            self.assertEqual(mock_get_xml.await_count, 1)
+            self.assertEqual(store.get("miku_danmaku_xml_BV1xx411c7mD_0"), xml_payload)
+            self.assertEqual(ttls.get("miku_danmaku_xml_BV1xx411c7mD_0"), res.DANMAKU_CACHE_TTL)
+
+            # Second request must hit Redis cache and NOT call upstream get_danmaku_xml
+            r2 = await self.client.get("/res/danmaku/BV1xx411c7mD:0")
+            self.assertEqual(r2.status_code, 200)
+            data2 = await r2.get_json()
+            self.assertEqual(data2, data1)
+            self.assertEqual(mock_get_xml.await_count, 1)
+
+    async def test_danmaku_res_does_not_cache_html_block_page(self):
+        from unittest.mock import AsyncMock, patch
+
+        import res
+
+        mock_setex = AsyncMock()
+        mock_get_xml = AsyncMock(return_value="<!DOCTYPE html><html><body>412 Precondition Failed</body></html>")
+
+        with (
+            patch.object(res.appredis, "get", new=AsyncMock(return_value=None)),
+            patch.object(res.appredis, "setex", mock_setex),
+            patch("api.video.Video.get_danmaku_xml", mock_get_xml),
+        ):
+            r = await self.client.get("/res/danmaku/BV1xx411c7mD:0")
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(await r.get_json(), [])
+            mock_setex.assert_not_awaited()
+
+    async def test_danmaku_res_rejects_invalid_vid_without_touching_upstream(self):
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        import res
+
+        mock_get = AsyncMock()
+        mock_video_cls = MagicMock()
+
+        with (
+            patch.object(res.appredis, "get", mock_get),
+            patch("api.video.Video", mock_video_cls),
+        ):
+            r = await self.client.get("/res/danmaku/invalid_vid_123")
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(await r.get_json(), [])
+            mock_get.assert_not_awaited()
+            mock_video_cls.assert_not_called()
+
+            r_neg = await self.client.get("/res/danmaku/BV1xx411c7mD:-1")
+            self.assertEqual(r_neg.status_code, 200)
+            self.assertEqual(await r_neg.get_json(), [])
+            mock_get.assert_not_awaited()
+            mock_video_cls.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

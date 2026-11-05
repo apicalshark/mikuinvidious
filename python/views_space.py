@@ -22,6 +22,7 @@ from api.exceptions import is_risk_error
 from extra import article_to_any, article_to_html, get_article_info
 from fingerprints import get_article_scrape_headers
 from quart import Response, request
+from rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from shared import (
     Network,
     app,
@@ -122,6 +123,7 @@ def _space_html_response(html, *, use_cache, cache_hit, degraded, stale=False):
 
 @app.route("/space/<mid>")
 @app.route("/space/<mid>/")
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("space"))
 async def space_view(mid):
     try:
         pn = int(request.args.get("i") or 1)
@@ -231,6 +233,7 @@ async def space_view(mid):
 
 
 @app.route("/space/<mid>/json")
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("space_json"))
 async def space_json_feed(mid):
     cache_ttl = cache_minutes("space_json_minutes") * 60
     cache_hit = False
@@ -244,6 +247,7 @@ async def space_json_feed(mid):
         try:
             uinfo, uvids, degraded = await _fetch_space_data(mid, pn=1, ps=30)
         except Exception as e:
+            print(f"[Space] Error fetching space data for {mid}: {e}")
             return Response(
                 orjson.dumps({"error": str(e)}),
                 status=502,
@@ -307,6 +311,7 @@ async def space_json_feed(mid):
 
 @app.route("/author/<mid>")
 @app.route("/author/<mid>/")
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("author"))
 async def author_view(mid):
     try:
         pn = int(request.args.get("i") or 1)
@@ -349,6 +354,7 @@ async def author_view(mid):
 @app.route("/read/mobile/<cid>/")
 @app.route("/opus/<cid>")
 @app.route("/opus/<cid>/")
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("article"))
 async def read_view(cid):
     is_opus = "opus" in request.path or not cid.startswith("cv")
     url = (
@@ -401,27 +407,50 @@ async def read_view(cid):
     text = None
     content = None
     last_status = 0
+    last_error = None
+    attempts_made = 0
     for attempt in range(3):
-        req = await client.send(
-            client.build_request("GET", url, headers=scrape_headers),
-            follow_redirects=True,
-        )
-        status, body = req.status_code, req.text
-        await req.aclose()
-        last_status = status
-        if status != 200:
-            await asyncio.sleep(0.4 * (attempt + 1))
-            continue
+        attempts_made = attempt + 1
         try:
-            parsed = article_to_html(body)
-        except Exception:
-            parsed = "<p>Failed to parse article content.</p>"
-        if want_format is not None or "Failed to parse article content" not in parsed:
-            text, content = body, parsed
-            break
+            req = await client.send(
+                client.build_request("GET", url, headers=scrape_headers),
+                follow_redirects=True,
+            )
+            status, body = req.status_code, req.text
+            await req.aclose()
+            last_status = status
+            if status == 404:
+                last_error = "HTTP 404 Not Found"
+                print(f"[Article] {cid} ({url}) returned HTTP 404 Not Found")
+                break
+            if status != 200:
+                last_error = f"HTTP {status}"
+                print(f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) returned HTTP {status}")
+                await asyncio.sleep(0.4 * (attempt + 1))
+                continue
+            try:
+                parsed = article_to_html(body)
+            except Exception as e:
+                parsed = "<p>Failed to parse article content.</p>"
+                last_error = f"Parse exception: {e}"
+                print(f"[Article] Attempt {attempts_made}/3 for {cid} parse failed: {e}")
+            if want_format is not None or "Failed to parse article content" not in parsed:
+                text, content = body, parsed
+                break
+            last_error = "Content module missing or unparseable"
+            print(
+                f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) stripped or unparseable content (length={len(body)})"
+            )
+        except Exception as e:
+            last_error = f"{type(e).__name__}: {e}"
+            print(f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) network error: {e}")
         await asyncio.sleep(0.4 * (attempt + 1))
 
     if text is None:
+        print(
+            f"[Article] Failed to fetch article {cid} ({url}) after {attempts_made} attempt(s) "
+            f"(last_status={last_status}, last_error={last_error})"
+        )
         return await render_template_with_theme(
             "error.html",
             status="Article not found" if last_status == 404 else "Server error",
@@ -454,8 +483,8 @@ async def read_view(cid):
                     arinfo["stats"].update(api_info["stats"])
                 if api_info.get("title") and not arinfo["title"]:
                     arinfo["title"] = api_info["title"]
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[Article] Supplementary metadata lookup failed for {cid}: {e}")
         # Only cache fully parsed articles; stripped anti-bot bodies are
         # retried live next time instead of sticking.
         if (
@@ -473,10 +502,11 @@ async def read_view(cid):
         if use_cache:
             return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
         return html
-    except Exception:
+    except Exception as e:
         import traceback
 
         traceback.print_exc()
+        print(f"[Article] Error processing {cid}: {e}")
         return await render_template_with_theme(
             "error.html",
             status="Article not found",

@@ -81,6 +81,38 @@ _SAME_MIRROR_MAX_RESUMES = 2
 # costs a handshake.
 DASH_BODY_IDLE_TIMEOUT = 5.0
 
+# Anti-abuse bounds for the DASH playback proxy (/proxy/dash/...).
+# Every representation in generate_vod_mpd uses SegmentBase (indexRange +
+# Initialization), so dash.js exclusively requests explicit bounded byte
+# ranges (init, sidx, and ~4-5s subsegments). Rejecting missing/open-ended
+# Range headers and spans above 32 MiB stops MPD-scraping crawlers from
+# triggering simultaneous full-track downloads across all renditions.
+DASH_MAX_FRAGMENT_BYTES = 32 * 1024 * 1024
+DASH_MAX_CONCURRENT_PER_IP = 8
+_BOUNDED_RANGE_RE = re.compile(r"^bytes=(\d+)-(\d+)$")
+
+
+def _parse_bounded_dash_range(
+    range_header: str | None, max_span: int = DASH_MAX_FRAGMENT_BYTES
+) -> tuple[int, int] | None:
+    """Parse and validate a bounded ``Range: bytes=<start>-<end>`` header.
+
+    Returns ``(start, end)`` when both offsets are explicit non-negative
+    integers with ``start <= end`` and ``end - start + 1 <= max_span``,
+    else ``None``.
+    """
+    m = _BOUNDED_RANGE_RE.match((range_header or "").strip())
+    if not m:
+        return None
+    try:
+        start, end = int(m.group(1)), int(m.group(2))
+    except TypeError, ValueError:
+        return None
+    if start < 0 or end < start or (end - start + 1) > max_span:
+        return None
+    return start, end
+
+
 # Raw CDN domains allowed through the DASH track proxy.
 _ALLOWED_DASH_DOMAINS = [
     ".hdslb.com",

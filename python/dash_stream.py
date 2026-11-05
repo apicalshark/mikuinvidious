@@ -15,6 +15,7 @@
 
 import asyncio
 import time
+import weakref
 from urllib.parse import urlparse
 
 from dash_common import (
@@ -24,6 +25,8 @@ from dash_common import (
     DASH_BODY_FLOOR_KBPS,
     DASH_BODY_GRACE,
     DASH_BODY_IDLE_TIMEOUT,
+    DASH_MAX_CONCURRENT_PER_IP,
+    DASH_MAX_FRAGMENT_BYTES,
     DASH_PLAYBACK_ATTEMPT_TIMEOUT,
     DASH_PLAYBACK_MIN_MIRRORS,
     DASH_PLAYBACK_MIRROR_BUDGET,
@@ -33,12 +36,14 @@ from dash_common import (
     _is_mcdn_url,
     _is_safe_dash_url,
     _is_safe_dash_url_async,
+    _is_valid_vid,
     _mirror_range_shy_at,
     _note_mirror_bad,
     _note_mirror_ok,
     _note_mirror_range_shy,
     _order_urls_by_health,
     _parse_416_total,
+    _parse_bounded_dash_range,
     _parse_content_range_full,
     _parse_range_start,
     _pick_stable_dash_url,
@@ -52,6 +57,7 @@ from dash_fetch import (
     _refresh_dash_data,
     has_valid_dash_tracks,
 )
+from ip_slots import PerIpSlotLimiter
 from quart import Response, request
 from rate_limit import get_client_ip, rate_limit
 from shared import UPSTREAM_RESPONSE_BLACKLIST, Network, TicketManager, appconf
@@ -820,6 +826,25 @@ async def _dash_frag_key(req) -> str:
     return f"{get_client_ip(req)}:{req.path}:{rng}"
 
 
+class _DashConcurrencyLimiter(PerIpSlotLimiter):
+    """Cap simultaneous in-flight DASH streams per client IP.
+
+    Legitimate dash.js playback fetches 1 video + 1 audio fragment at a time
+    (~2-4 concurrent requests even during ABR switch/seek). Multi-rendition
+    scrapers open 15-20+ simultaneous connections across every Representation
+    in ``manifest.mpd`` at once, saturating WARP SOCKS5 and the host NIC.
+
+    Strictly per-IP, no global ceiling: a shared ceiling would let a
+    distributed scraper fill it and lock out every legitimate viewer.
+    """
+
+    def __init__(self, max_per_ip: int = DASH_MAX_CONCURRENT_PER_IP):
+        super().__init__(max_per_ip)
+
+
+dash_concurrency = _DashConcurrencyLimiter()
+
+
 @dash_proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
 @rate_limit(limit=600, window=60, key_func=_dash_ip_key)
 @rate_limit(limit=100, window=60, key_func=_dash_frag_key)
@@ -840,8 +865,27 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     started = time.monotonic()
     host = "-"
     conn = None
-    if media_type not in ("video", "audio"):
-        return Response("Bad Request: media_type must be video|audio", status=400)
+    if media_type not in ("video", "audio") or not _is_valid_vid(vid) or idx < 0 or qn <= 0 or cid < 0:
+        return Response("Bad Request", status=400)
+
+    raw_range = (request.headers.get("Range") or request.headers.get("range") or "").strip()
+    parsed_range = _parse_bounded_dash_range(raw_range, max_span=DASH_MAX_FRAGMENT_BYTES)
+    if parsed_range is None:
+        return Response(
+            "Range Not Satisfiable: explicit bounded Range header required",
+            status=416,
+            headers={"Accept-Ranges": "bytes", "Access-Control-Allow-Origin": "*"},
+        )
+
+    client_ip = get_client_ip(request)
+    slot = dash_concurrency.try_acquire(client_ip)
+    if slot is None:
+        return Response(
+            "Too Many Requests",
+            status=429,
+            headers={"Retry-After": "1", "Access-Control-Allow-Origin": "*"},
+        )
+    stream_handed_off = False
 
     try:
         dash_data = await _load_dash_data(vid, idx)
@@ -875,13 +919,12 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
 
         headers = await _build_dash_cdn_headers()
 
-        # Forward runtime Range/conditional headers from the browser player
+        # Forward runtime conditional headers from the browser player
         for k, v in request.headers.items():
-            if k.lower() in ["range", "if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
+            if k.lower() in ["if-range", "x-playback-session-id", "if-modified-since", "if-none-match"]:
                 headers[k.lower()] = v
 
-        if "range" not in headers:
-            headers["range"] = "bytes=0-"
+        headers["range"] = f"bytes={parsed_range[0]}-{parsed_range[1]}"
 
         if cookie_jar:
             cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_jar.items())
@@ -943,86 +986,92 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             nonlocal conn, host, yielded, used_url
             same_resumes = 0
             clean = True  # this connection served the whole fragment, start to end
-            while True:
-                attempt_base = yielded
-                try:
-                    # Floor watchdog stays on for video: genuine tarpits (<100KB/s
-                    # past grace) fail over to the next mirror transparently.
-                    # Audio bitrates are far lower (6-15 KB/s) than the 100 KB/s floor,
-                    # so its speed watchdog is disabled (DASH_BODY_IDLE_TIMEOUT 5s
-                    # idle stall watchdog still guards dead stalls for both).
-                    async for chunk in _yield_dash_body(conn, label, floor_watchdog=(media_type == "video")):
-                        yielded += len(chunk)
-                        yield chunk
-                except asyncio.CancelledError, GeneratorExit:
-                    # Client went away mid-stream: just close upstream.
+            try:
+                while True:
+                    attempt_base = yielded
                     try:
-                        await conn.close()
-                    except Exception:
-                        pass
-                    print(f"[DashProxy] {label} {host} client disconnected after {yielded} bytes")
-                    raise
-                except (
-                    _SlowDashBody,
-                    CdnProtocolError,
-                    CdnTimeoutError,
-                    CdnConnectError,
-                    OSError,
-                    TimeoutError,
-                ) as exc:
-                    try:
-                        await conn.close()
-                    except Exception:
-                        pass
-                    _note_mirror_bad(host)
-                    kind = "body too slow" if isinstance(exc, _SlowDashBody) else "mid-body cut"
-                    if not pending:
-                        # No mirrors left: end the stream early WITHOUT
-                        # raising. Downstream Content-Length was already
-                        # emitted, so the short body surfaces as a length
-                        # mismatch and dash.js retries the Range — instead
-                        # of a 500 + TaskGroup traceback from re-raising
-                        # inside the generator.
-                        print(
-                            f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}); mirrors exhausted, truncating"
-                        )
-                        return
-                    print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}), trying next mirror")
-                    prev_url = used_url
-                    served = yielded - attempt_base
-                    try:
-                        conn, used, _ = await _failover_dash_conn(
-                            pending,
-                            headers,
-                            proxy_url,
-                            label,
-                            orig_range,
-                            yielded,
-                            downstream_total,
-                            attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
-                            retry_url=prev_url,
-                            retry_served=served,
-                            retry_budget=_SAME_MIRROR_MAX_RESUMES - same_resumes,
-                        )
-                    except _DashUpstreamError as exc2:
-                        print(f"[DashProxy] {label} body failover failed: {exc2}")
-                        return
-                    if used == prev_url:
-                        same_resumes += 1
-                    clean = False
-                    used_url = used
-                    host = urlparse(used).hostname or "-"
-                    continue
-                _note_mirror_ok(host)
-                if clean and _dash_conn_bankable(conn, resp_headers, yielded):
-                    # Socket sits exactly at the next boundary: hand it to the
-                    # next fragment instead of paying another handshake.
-                    await playback_pool.give(used_url, proxy_url, conn)
-                else:
-                    await _quiet_close(conn)
-                return
+                        # Floor watchdog stays on for video: genuine tarpits (<100KB/s
+                        # past grace) fail over to the next mirror transparently.
+                        # Audio bitrates are far lower (6-15 KB/s) than the 100 KB/s floor,
+                        # so its speed watchdog is disabled (DASH_BODY_IDLE_TIMEOUT 5s
+                        # idle stall watchdog still guards dead stalls for both).
+                        async for chunk in _yield_dash_body(conn, label, floor_watchdog=(media_type == "video")):
+                            yielded += len(chunk)
+                            yield chunk
+                    except asyncio.CancelledError, GeneratorExit:
+                        # Client went away mid-stream: just close upstream.
+                        try:
+                            await conn.close()
+                        except Exception:
+                            pass
+                        print(f"[DashProxy] {label} {host} client disconnected after {yielded} bytes")
+                        raise
+                    except (
+                        _SlowDashBody,
+                        CdnProtocolError,
+                        CdnTimeoutError,
+                        CdnConnectError,
+                        OSError,
+                        TimeoutError,
+                    ) as exc:
+                        try:
+                            await conn.close()
+                        except Exception:
+                            pass
+                        _note_mirror_bad(host)
+                        kind = "body too slow" if isinstance(exc, _SlowDashBody) else "mid-body cut"
+                        if not pending:
+                            # No mirrors left: end the stream early WITHOUT
+                            # raising. Downstream Content-Length was already
+                            # emitted, so the short body surfaces as a length
+                            # mismatch and dash.js retries the Range — instead
+                            # of a 500 + TaskGroup traceback from re-raising
+                            # inside the generator.
+                            print(
+                                f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}); mirrors exhausted, truncating"
+                            )
+                            return
+                        print(f"[DashProxy] {label} {host} {kind} after {yielded} bytes ({exc}), trying next mirror")
+                        prev_url = used_url
+                        served = yielded - attempt_base
+                        try:
+                            conn, used, _ = await _failover_dash_conn(
+                                pending,
+                                headers,
+                                proxy_url,
+                                label,
+                                orig_range,
+                                yielded,
+                                downstream_total,
+                                attempt_timeout=DASH_PLAYBACK_ATTEMPT_TIMEOUT,
+                                retry_url=prev_url,
+                                retry_served=served,
+                                retry_budget=_SAME_MIRROR_MAX_RESUMES - same_resumes,
+                            )
+                        except _DashUpstreamError as exc2:
+                            print(f"[DashProxy] {label} body failover failed: {exc2}")
+                            return
+                        if used == prev_url:
+                            same_resumes += 1
+                        clean = False
+                        used_url = used
+                        host = urlparse(used).hostname or "-"
+                        continue
+                    _note_mirror_ok(host)
+                    if clean and _dash_conn_bankable(conn, resp_headers, yielded):
+                        # Socket sits exactly at the next boundary: hand it to the
+                        # next fragment instead of paying another handshake.
+                        await playback_pool.give(used_url, proxy_url, conn)
+                    else:
+                        await _quiet_close(conn)
+                    return
+            finally:
+                slot.release()
 
-        proxy_resp = Response(generate(), status=resp_headers.status_code)
+        gen = generate()
+        weakref.finalize(gen, slot.release)
+        stream_handed_off = True
+        proxy_resp = Response(gen, status=resp_headers.status_code)
         proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
         proxy_resp.headers["X-Accel-Buffering"] = "no"
         proxy_resp.headers["Accept-Ranges"] = "bytes"
@@ -1071,3 +1120,6 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         if conn is not None:
             await conn.close()
         return Response("Upstream error", status=502)
+    finally:
+        if not stream_handed_off:
+            slot.release()

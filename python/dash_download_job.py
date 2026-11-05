@@ -54,7 +54,7 @@ from dash_fetch import (
 )
 from dash_stream import _dash_candidate_urls
 from quart import Response, jsonify, redirect
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from shared import Network, appcred, appredis
 
 
@@ -89,7 +89,7 @@ async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
 
 
 @dash_proxy_bp.route("/proxy/download/<vid>/<int:idx>/<int:qual>")
-@rate_limit(**RATE_LIMITS["proxy"])
+@rate_limit(**RATE_LIMITS["strict"], key_func=ip_family_key("dash_download"))
 async def proxy_download(vid, idx, qual):
     """Mux the best DASH video (<=1080p anonymous cap) + audio into one MP4.
 
@@ -170,6 +170,7 @@ async def proxy_download(vid, idx, qual):
     async def _refresh_legacy_audio_urls():
         return await _refresh_legacy_track_urls("audio", a_qn)
 
+    cancel_event = asyncio.Event()
     try:
         async with _download_limiter:
             vn, an = await asyncio.gather(
@@ -180,6 +181,7 @@ async def proxy_download(vid, idx, qual):
                     vpath,
                     vsize,
                     f"{vid}:{idx} video",
+                    cancel_event=cancel_event,
                     refresh_cb=_refresh_legacy_video_urls,
                 ),
                 _download_track_file(
@@ -189,6 +191,7 @@ async def proxy_download(vid, idx, qual):
                     apath,
                     asize,
                     f"{vid}:{idx} audio",
+                    cancel_event=cancel_event,
                     refresh_cb=_refresh_legacy_audio_urls,
                 ),
             )
@@ -215,7 +218,7 @@ async def proxy_download(vid, idx, qual):
                 finally:
                     await asyncio.to_thread(f.close)
             finally:
-                await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
+                await asyncio.shield(asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True))
 
         resp = Response(generate())
         resp.headers["Content-Type"] = "video/mp4"
@@ -223,13 +226,15 @@ async def proxy_download(vid, idx, qual):
         resp.headers["X-Accel-Buffering"] = "no"
         response_owns_cleanup = True
         return resp
+    except asyncio.CancelledError:
+        cancel_event.set()
+        raise
     except Exception as exc:
-        await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
         print(f"[DashProxy] proxy_download error: {exc}")
         return Response("Upstream error", status=502)
     finally:
         if not response_owns_cleanup:
-            await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
+            await asyncio.shield(asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True))
         # NOTE: no manual _download_limiter.release() — the `async with` above
         # already released it; a manual release would corrupt the semaphore.
 

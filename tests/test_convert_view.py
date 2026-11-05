@@ -115,5 +115,3 @@ class TestConvertView(unittest.IsolatedAsyncioTestCase):
             text_zh = await resp_zh.get_data(as_text=True)
             self.assertIn('<a href="/convert"', text_zh)
             self.assertIn("链接转换器", text_zh)
-
-

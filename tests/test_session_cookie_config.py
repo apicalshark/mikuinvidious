@@ -20,7 +20,9 @@ class TestSessionCookieConfig(unittest.TestCase):
             ("explicit_true", "http://localhost:8888", "[quart]\nSESSION_COOKIE_SECURE = true\n", True),
             ("explicit_false", "https://miku.example", "[quart]\nSESSION_COOKIE_SECURE = false\n", False),
         ]
-        env = {**os.environ, "PYTHONPATH": str(root / "python"), "USE_CRED": "false"}
+        python_paths = [str(root / "python"), *[os.path.abspath(p) for p in sys.path if p]]
+        combined_pythonpath = os.pathsep.join(dict.fromkeys(python_paths))
+        env = {**os.environ, "PYTHONPATH": combined_pythonpath, "USE_CRED": "false"}
         env.pop("SITE_URL", None)
         for name, site_url, config, expected in cases:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:

@@ -80,10 +80,12 @@ class RenderReplyContentTests(unittest.TestCase):
         self.assertNotIn("https://i0.hdslb.com", out)  # no direct upstream URL leaks
 
     def test_size2_emote_block_style_without_data_attrs(self):
-        out = render_reply_content(content(
-            "[sticker]",
-            {"[sticker]": doge_entry(meta={"size": 2}, jump_url="https://mall.bilibili.com/x")},
-        ))
+        out = render_reply_content(
+            content(
+                "[sticker]",
+                {"[sticker]": doge_entry(meta={"size": 2}, jump_url="https://mall.bilibili.com/x")},
+            )
+        )
         self.assertIn("50px", out)
         self.assertNotIn("1.4em", out)
         self.assertNotIn("emoji-jump-url", out)
@@ -108,29 +110,25 @@ class RenderReplyContentTests(unittest.TestCase):
         self.assertEqual(out, "a [nope] b")
 
     def test_blocked_url_stays_text(self):
-        out = render_reply_content(content(
-            "x [evil]", {"[evil]": doge_entry(url="https://evil.example/x.png")}
-        ))
+        out = render_reply_content(content("x [evil]", {"[evil]": doge_entry(url="https://evil.example/x.png")}))
         self.assertNotIn("<img", out)
         self.assertIn("[evil]", out)
 
     def test_xss_in_message_with_emote(self):
-        out = render_reply_content(content(
-            '"><img src=x onerror=alert(1)> [doge]', {"[doge]": doge_entry()}
-        ))
+        out = render_reply_content(content('"><img src=x onerror=alert(1)> [doge]', {"[doge]": doge_entry()}))
         self.assertIn("&quot;&gt;", out)
         self.assertIn("&lt;img src=x", out)  # attacker tag stays inert text
         self.assertEqual(out.count("<img"), 1)  # only our own tag
 
     def test_alt_is_escaped(self):
         out = render_reply_content(content('["q] hmm', {}))
-        self.assertIn('[&quot;q] hmm', out)
+        self.assertIn("[&quot;q] hmm", out)
 
     def test_no_double_escape_when_emote_present(self):
         # Regression: substitution must run on the raw message so fallback
         # tokens are escaped exactly once (CodeRabbit PR #63 review).
         out = render_reply_content(content('["q] [doge]', {"[doge]": doge_entry()}))
-        self.assertIn('[&quot;q]', out)
+        self.assertIn("[&quot;q]", out)
         self.assertNotIn("&amp;quot;", out)
         self.assertIn("<img", out)
 
@@ -146,7 +144,12 @@ class RenderReplyContentTests(unittest.TestCase):
         self.assertEqual(render_reply_content(None), "")
         self.assertEqual(render_reply_content(42), "")
         self.assertEqual(render_reply_content("plain <b>"), "plain &lt;b&gt;")
-        self.assertEqual(render_reply_content({"message": None}, ), "")
+        self.assertEqual(
+            render_reply_content(
+                {"message": None},
+            ),
+            "",
+        )
         self.assertEqual(render_reply_content({"message": "[doge]"}), "[doge]")
 
 

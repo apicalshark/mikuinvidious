@@ -69,7 +69,9 @@ class TestCleanBilibiliUrl:
         assert res["local_path"] == "/video/BV1xx411c7xx:2"
 
         # User real-world test: spmid without underscore & timestamp
-        user_url = "https://www.bilibili.com/video/BV1e6d7B5Ezk?p=3&spmid=united.player-video-detail.0.0&timestamp=1792950294"
+        user_url = (
+            "https://www.bilibili.com/video/BV1e6d7B5Ezk?p=3&spmid=united.player-video-detail.0.0&timestamp=1792950294"
+        )
         res_user = clean_bilibili_url(user_url)
         assert res_user["clean_url"] == "https://www.bilibili.com/video/BV1e6d7B5Ezk?p=3"
         assert res_user["local_path"] == "/video/BV1e6d7B5Ezk:3"
@@ -199,9 +201,7 @@ class TestResolveB23Target(unittest.IsolatedAsyncioTestCase):
     async def test_resolve_b23_redirect_to_bangumi(self):
         mock_response = MagicMock()
         mock_response.status_code = 302
-        mock_response.headers = {
-            "Location": "https://www.bilibili.com/bangumi/play/ep12345?from_spmid=333"
-        }
+        mock_response.headers = {"Location": "https://www.bilibili.com/bangumi/play/ep12345?from_spmid=333"}
         mock_client = AsyncMock(spec=httpx.AsyncClient)
         mock_client.get = AsyncMock(return_value=mock_response)
 

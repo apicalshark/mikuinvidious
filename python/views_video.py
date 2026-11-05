@@ -19,9 +19,10 @@ import sys
 
 import orjson
 from api import comment, video
+from dash_common import _is_valid_vid
 from extra import av2bv, video_get_src_for_qn
 from quart import Response, g, request
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, get_client_ip, ip_family_key, rate_limit
 from shared import (
     app,
     appcred,
@@ -37,10 +38,34 @@ from shared import (
 _background_tasks = set()
 
 
+async def _component_ip_key(req) -> str:
+    """One coarse bucket per client IP across all ``/api/component/*`` routes.
+
+    The default ``ip:path`` key embeds the vid, so a crawler walking video
+    ids got a fresh allowance per video; this caps the IP as a whole while
+    the per-path limit keeps throttling repeat hits on one video.
+    """
+    return f"{get_client_ip(req)}:component"
+
+
+# Comment routes are also reached from video_listen.html, which serves audio
+# pages too (au/am ids, or bare digits) — accept those shapes as well.
+_COMMENT_OID_RE = re.compile(r"^(BV[A-Za-z0-9]{10}|(?:av|au|am)?\d{1,20})$")
+
+
+def _is_valid_comment_oid(vid: str) -> bool:
+    return bool(vid) and bool(_COMMENT_OID_RE.match(vid))
+
+
+def _bad_vid_response() -> Response:
+    return Response("Bad Request: invalid video ID", status=400)
+
+
 @app.route("/video_listen/<vid>")
 @app.route("/video_listen/<vid>:<idx>")
 @app.route("/video_listen/<vid>/")
 @app.route("/video_listen/<vid>:<idx>/")
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("video_listen"))
 async def video_listen_view(vid, idx=0):
     # Validate video ID format
     import re
@@ -48,7 +73,13 @@ async def video_listen_view(vid, idx=0):
     if not re.match(r"^(BV[a-zA-Z0-9]{10}|av\d+)$", vid):
         return Response("Invalid video ID format", status=400)
 
-    ato, idx = request.args.get("ato") == "1", int(idx)
+    ato = request.args.get("ato") == "1"
+    try:
+        idx = int(idx)
+        if idx < 0:
+            return Response("Invalid video index", status=400)
+    except TypeError, ValueError:
+        return Response("Invalid video index", status=400)
     vid = av2bv(vid[2:]) if vid.startswith("av") else vid
     v = video.Video(bvid=vid, credential=appcred)
 
@@ -60,6 +91,45 @@ async def video_listen_view(vid, idx=0):
                     await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc["durl"][0]["url"])
             except Exception:
                 pass
+
+    cache_ttl = cache_minutes("video_minutes") * 60
+    cache_key = f"video:data:{vid}:{idx}"
+    if cache_ttl > 0:
+        data = await cache_get(cache_key, cache_ttl)
+        if (
+            isinstance(data, dict)
+            and isinstance(data.get("vinfo"), dict)
+            and (data["vinfo"].get("bvid") or data["vinfo"].get("title"))
+            and isinstance(data.get("vtags"), list)
+            and isinstance(data.get("vrelated"), list)
+            and isinstance(data.get("vset"), list)
+            and data.get("vset")
+        ):
+            vinfo, vtags, vrelated, vset = (
+                data["vinfo"],
+                data["vtags"],
+                data["vrelated"],
+                data["vset"],
+            )
+            res_cached = await asyncio.gather(
+                comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE),
+                get_audio_url(),
+                return_exceptions=True,
+            )
+            vcomments = res_cached[0] if isinstance(res_cached[0], dict) else {"page": {"count": 0}, "replies": []}
+            html = await render_template_with_theme(
+                "video_listen.html",
+                vid=vid,
+                vinfo=vinfo,
+                vrelated=vrelated[:10],
+                vcomments=vcomments,
+                keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
+                vtags=vtags,
+                ato=ato,
+                idx=idx,
+                vset=vset,
+            )
+            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
 
     results = await asyncio.gather(
         v.get_info(),
@@ -86,7 +156,20 @@ async def video_listen_view(vid, idx=0):
     vrelated = results[2] if isinstance(results[2], list) else []
     vcomments = results[3] if isinstance(results[3], dict) else {"page": {"count": 0}, "replies": []}
     vset = results[4] if isinstance(results[4], list) else [{"page": 1, "part": vid}]
-    return await render_template_with_theme(
+    if (
+        cache_ttl > 0
+        and isinstance(results[1], list)
+        and isinstance(results[2], list)
+        and isinstance(results[4], list)
+        and results[4]
+        and (vinfo.get("bvid") or vinfo.get("title"))
+    ):
+        await cache_set(
+            cache_key,
+            {"vinfo": vinfo, "vtags": vtags, "vrelated": vrelated, "vset": vset},
+            cache_ttl,
+        )
+    html = await render_template_with_theme(
         "video_listen.html",
         vid=vid,
         vinfo=vinfo,
@@ -98,6 +181,7 @@ async def video_listen_view(vid, idx=0):
         idx=idx,
         vset=vset,
     )
+    return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
 
 
 # --- ASYNC COMPONENT API ---
@@ -123,8 +207,11 @@ async def _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall, c
 
 
 @app.route("/api/component/player/<vid>/<int:idx>")
+@rate_limit(limit=300, window=60, key_func=_component_ip_key)
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_player(vid, idx):
+    if not _is_valid_vid(vid):
+        return _bad_vid_response()
     passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
         g.csp_nonce = passed_nonce
@@ -281,8 +368,11 @@ async def _get_subtitles(v, idx) -> list:
 
 
 @app.route("/api/component/meta/<vid>/<int:idx>")
+@rate_limit(limit=300, window=60, key_func=_component_ip_key)
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_meta(vid, idx):
+    if not _is_valid_vid(vid):
+        return _bad_vid_response()
     # Use passed CSP nonce from main page to avoid CSP mismatch
     passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
@@ -314,9 +404,12 @@ async def api_component_meta(vid, idx):
 
 
 @app.route("/api/component/comments/<vid>/<int:idx>/more")
+@rate_limit(limit=300, window=60, key_func=_component_ip_key)
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_meta_more(vid, idx):
     """Fetch the next page of top-level comments (infinite scroll, matching PipePipe)."""
+    if not _is_valid_comment_oid(vid):
+        return _bad_vid_response()
     passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
         g.csp_nonce = passed_nonce
@@ -345,9 +438,12 @@ async def api_component_meta_more(vid, idx):
 
 
 @app.route("/api/component/comments/<vid>/<int:rpid>")
+@rate_limit(limit=300, window=60, key_func=_component_ip_key)
 @rate_limit(**RATE_LIMITS["normal"])
 async def api_component_sub_comments(vid, rpid):
     """Return rendered sub-comment HTML for a given parent comment."""
+    if not _is_valid_comment_oid(vid):
+        return _bad_vid_response()
     passed_nonce = request.headers.get("X-CSP-Nonce")
     if passed_nonce and re.match(r"^[A-Za-z0-9_-]{16,40}$", passed_nonce):
         g.csp_nonce = passed_nonce

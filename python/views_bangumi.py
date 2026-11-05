@@ -9,7 +9,7 @@ from api import bangumi
 from extra import av2bv
 from nyaa import search_nyaa
 from quart import Blueprint, Response, jsonify, request
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
 from zhconv_rs import zhconv
 
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
@@ -300,20 +300,64 @@ async def bangumi_play(ep_id):
     )
 
 
+# One nyaa lookup fans out to a Bilibili meta call plus up to 9 nyaa.si page
+# scrapes, so results are cached by season, theme and locale and concurrent
+# misses for the same variant share one in-flight build (singleflight).
+NYAA_CACHE_TTL = 3600
+_nyaa_inflight: dict[str, asyncio.Task] = {}
+
+
+def _empty_nyaa_payload() -> dict:
+    return {"sidebar_html": "", "ep_torrents": {}}
+
+
+async def _nyaa_ip_key(req) -> str:
+    """One bucket per client IP across every season (path embeds ssid)."""
+    return f"{get_client_ip(req)}:nyaa"
+
+
 @bangumi_bp.route("/api/nyaa/<int:ssid>")
+@rate_limit(**RATE_LIMITS["search"], key_func=_nyaa_ip_key)
 async def bangumi_nyaa_api(ssid):
     if not shared.appconf["site"]["nyaa_bangumi"]:
-        return jsonify({"sidebar_html": "", "ep_torrents": {}})
+        return jsonify(_empty_nyaa_payload())
 
+    cache_key = f"nyaa:v2:{ssid}:{shared.detect_theme()}:{shared.detect_locale()}"
+    cached = await shared.cache_get(cache_key, NYAA_CACHE_TTL)
+    if isinstance(cached, dict) and "sidebar_html" in cached and "ep_torrents" in cached:
+        return jsonify({"sidebar_html": cached["sidebar_html"], "ep_torrents": cached["ep_torrents"]})
+
+    task = _nyaa_inflight.get(cache_key)
+    if task is None:
+        task = asyncio.create_task(_build_nyaa_payload(ssid, cache_key))
+        _nyaa_inflight[cache_key] = task
+        task.add_done_callback(lambda _t, _key=cache_key: _nyaa_inflight.pop(_key, None))
+    try:
+        # Shielded: a disconnecting caller must not cancel the shared build.
+        payload, _cacheable = await asyncio.shield(task)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        print(f"[Bangumi] nyaa lookup failed for ss{ssid}: {type(e).__name__}: {e}")
+        return jsonify(_empty_nyaa_payload())
+    return jsonify(payload)
+
+
+async def _build_nyaa_payload(ssid, cache_key) -> tuple[dict, bool]:
+    """Return ``(payload, cacheable)``; the owner build also writes the cache."""
     # 1. Get the title
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
-    async with asyncio.timeout(5.0):
-        meta_data = await b.get_meta()
+    try:
+        async with asyncio.timeout(5.0):
+            meta_data = await b.get_meta()
+    except Exception as e:
+        print(f"[Bangumi] nyaa meta lookup failed for ss{ssid}: {type(e).__name__}: {e}")
+        return _empty_nyaa_payload(), False
     meta = meta_data.get("media", {}) if meta_data else {}
     raw_title = meta.get("title", "")
 
     if not raw_title:
-        return ""
+        return _empty_nyaa_payload(), False
 
     # 2. Clean up the search query
     raw_title = meta.get("title", "")
@@ -445,9 +489,14 @@ async def bangumi_nyaa_api(ssid):
     # Format ep_torrents for JSON serialization (Torrent objects to dicts)
     serializable_ep_torrents = {}
     for ep_num, torrents in ep_torrents.items():
-        serializable_ep_torrents[ep_num] = [
+        # String keys: identical to what jsonify emitted, and JSON-cacheable.
+        serializable_ep_torrents[str(ep_num)] = [
             {"title": t.title, "magnet": t.magnet_url, "seeders": t.seeders, "leechers": t.leechers, "size": t.size}
             for t in torrents
         ]
 
-    return jsonify({"sidebar_html": sidebar_html, "ep_torrents": serializable_ep_torrents})
+    payload = {"sidebar_html": sidebar_html, "ep_torrents": serializable_ep_torrents}
+    cacheable = bool(torrents)
+    if cacheable:
+        await shared.cache_set(cache_key, payload, NYAA_CACHE_TTL)
+    return payload, cacheable
