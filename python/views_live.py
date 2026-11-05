@@ -24,86 +24,192 @@ from shared import app, appconf, appcred, appredis, render_template_with_theme
 
 _background_tasks = set()
 
+LIVE_CHAT_HANDSHAKE_DELAY = 1.0
+LIVE_CHAT_IDLE_GRACE = 30.0
+LIVE_CHAT_HEARTBEAT_INTERVAL = 20.0
+LIVE_CHAT_QUEUE_MAXSIZE = 100
+
+
+class LiveChatRoom:
+    """Multiplexes a single upstream Bilibili LiveDanmaku connection across all SSE clients in a room."""
+
+    def __init__(
+        self,
+        room_id: int,
+        manager: LiveChatManager,
+        idle_grace: float = LIVE_CHAT_IDLE_GRACE,
+        queue_maxsize: int = LIVE_CHAT_QUEUE_MAXSIZE,
+    ):
+        self.room_id = room_id
+        self.manager = manager
+        self.idle_grace = idle_grace
+        self.queue_maxsize = queue_maxsize
+        self.subscribers: set[asyncio.Queue] = set()
+        self._stop_event = asyncio.Event()
+        self._conn_task: asyncio.Task | None = None
+        self._idle_task: asyncio.Task | None = None
+
+    def start(self) -> None:
+        if self._conn_task is None or self._conn_task.done():
+            self._stop_event.clear()
+            self._conn_task = asyncio.create_task(self._run_upstream())
+
+    def broadcast(self, msg: dict) -> None:
+        for q in list(self.subscribers):
+            if q.full():
+                try:
+                    q.get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+            try:
+                q.put_nowait(msg)
+            except asyncio.QueueFull:
+                pass
+
+    def add_subscriber(self) -> asyncio.Queue:
+        if self._idle_task is not None and not self._idle_task.done():
+            self._idle_task.cancel()
+            self._idle_task = None
+        q: asyncio.Queue = asyncio.Queue(maxsize=self.queue_maxsize)
+        self.subscribers.add(q)
+        self.start()
+        return q
+
+    def remove_subscriber(self, q: asyncio.Queue) -> None:
+        self.subscribers.discard(q)
+        if not self.subscribers and not self._stop_event.is_set():
+            if self._idle_task is None or self._idle_task.done():
+                self._idle_task = asyncio.create_task(self._idle_watchdog())
+
+    async def _idle_watchdog(self) -> None:
+        try:
+            await asyncio.sleep(self.idle_grace)
+            if not self.subscribers:
+                await self.shutdown()
+        except asyncio.CancelledError:
+            pass
+
+    async def _run_upstream(self) -> None:
+        from api import Credential
+        from api import live as b_live
+
+        cred = appcred if isinstance(appcred, Credential) else None
+        while not self._stop_event.is_set():
+            dm_client = None
+            try:
+                dm_client = b_live.LiveDanmaku(self.room_id, credential=cred)
+
+                @dm_client.on("DANMU_MSG")
+                async def on_danmaku(event):
+                    try:
+                        info = event["data"]["info"]
+                        self.broadcast({"user": info[2][1], "text": info[1]})
+                    except Exception:
+                        pass
+
+                await dm_client.connect()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"[LiveChat] Connection error for room {self.room_id}: {e}")
+            finally:
+                if dm_client:
+                    try:
+                        await dm_client.disconnect()
+                    except Exception:
+                        pass
+
+            if not self._stop_event.is_set():
+                try:
+                    await asyncio.sleep(5)
+                except asyncio.CancelledError:
+                    break
+                if not self._stop_event.is_set():
+                    print(f"[LiveChat] Attempting reconnection for room {self.room_id}...")
+
+    async def shutdown(self) -> None:
+        self._stop_event.set()
+        self.manager._remove_room(self.room_id, self)
+        if self._idle_task is not None and not self._idle_task.done() and self._idle_task is not asyncio.current_task():
+            self._idle_task.cancel()
+        if self._conn_task is not None and not self._conn_task.done():
+            self._conn_task.cancel()
+            try:
+                await asyncio.gather(self._conn_task, return_exceptions=True)
+            except Exception:
+                pass
+
+
+class LiveChatManager:
+    """Registry of active LiveChatRoom instances keyed by room_id."""
+
+    def __init__(
+        self,
+        idle_grace: float = LIVE_CHAT_IDLE_GRACE,
+        queue_maxsize: int = LIVE_CHAT_QUEUE_MAXSIZE,
+    ):
+        self.rooms: dict[int, LiveChatRoom] = {}
+        self.idle_grace = idle_grace
+        self.queue_maxsize = queue_maxsize
+
+    async def subscribe(self, room_id: int) -> asyncio.Queue:
+        room = self.rooms.get(room_id)
+        if room is None or room._stop_event.is_set():
+            room = LiveChatRoom(
+                room_id,
+                manager=self,
+                idle_grace=self.idle_grace,
+                queue_maxsize=self.queue_maxsize,
+            )
+            self.rooms[room_id] = room
+        return room.add_subscriber()
+
+    async def unsubscribe(self, room_id: int, queue: asyncio.Queue) -> None:
+        room = self.rooms.get(room_id)
+        if room is not None:
+            room.remove_subscriber(queue)
+
+    def _remove_room(self, room_id: int, room: LiveChatRoom) -> None:
+        if self.rooms.get(room_id) is room:
+            del self.rooms[room_id]
+
+    async def shutdown_all(self) -> None:
+        for room in list(self.rooms.values()):
+            await room.shutdown()
+
+
+live_chat_manager = LiveChatManager()
+
 
 @app.route("/live/chat/<int:room_id>")
 @rate_limit(**RATE_LIMITS["strict"])
 async def live_chat_sse(room_id):
-    from api import Credential
-    from api import live as b_live
-
     async def event_stream():
-        queue = asyncio.Queue()
-        cred = appcred if isinstance(appcred, Credential) else None
-        stop_event = asyncio.Event()
-
-        async def run_danmaku():
-            while not stop_event.is_set():
-                dm_client = None
-                try:
-                    dm_client = b_live.LiveDanmaku(room_id, credential=cred)
-
-                    @dm_client.on("DANMU_MSG")
-                    async def on_danmaku(event):
-                        try:
-                            info = event["data"]["info"]
-                            await queue.put({"user": info[2][1], "text": info[1]})
-                        except Exception:
-                            pass
-
-                    await dm_client.connect()
-                except asyncio.CancelledError:
-                    break
-                except Exception as e:
-                    print(f"[LiveChat] Connection error for room {room_id}: {e}")
-                finally:
-                    if dm_client:
-                        try:
-                            await dm_client.disconnect()
-                        except Exception:
-                            pass
-
-                if not stop_event.is_set():
-                    await asyncio.sleep(5)
-                    print(f"[LiveChat] Attempting reconnection for room {room_id}...")
-
-        conn_task = asyncio.create_task(run_danmaku())
-
-        async def heartbeat():
-            try:
-                while not stop_event.is_set():
-                    await asyncio.sleep(20)
-                    await queue.put(": heartbeat")
-            except asyncio.CancelledError:
-                pass
-
-        hb_task = asyncio.create_task(heartbeat())
-
         yield f"data: {orjson.dumps({'user': 'SYSTEM', 'text': 'Chat connected'}).decode('utf-8')}\n\n"
 
+        queue = None
         try:
-            while not stop_event.is_set():
-                msg = await queue.get()
-                if msg == ": heartbeat":
-                    yield ": heartbeat\n\n"
-                else:
+            # Layer 1: Handshake gate — drop instant scanner/probe disconnects
+            # before allocating room state or opening an upstream Bilibili WebSocket.
+            if LIVE_CHAT_HANDSHAKE_DELAY > 0:
+                await asyncio.sleep(LIVE_CHAT_HANDSHAKE_DELAY)
+
+            # Layer 2: Subscribe to shared room multiplexer.
+            queue = await live_chat_manager.subscribe(room_id)
+
+            while True:
+                try:
+                    msg = await asyncio.wait_for(queue.get(), timeout=LIVE_CHAT_HEARTBEAT_INTERVAL)
                     yield f"data: {orjson.dumps(msg).decode('utf-8')}\n\n"
+                except TimeoutError:
+                    yield ": heartbeat\n\n"
         except asyncio.CancelledError, GeneratorExit:
-            print(f"[LiveChat] Client disconnected from room {room_id}")
+            pass
         except Exception as e:
             print(f"[LiveChat] Unexpected error in event_stream for room {room_id}: {e}")
         finally:
-            print(f"[LiveChat] Cleaning up resources for room {room_id}")
-            stop_event.set()
-            hb_task.cancel()
-            conn_task.cancel()
-
-            async def cleanup():
-                try:
-                    await asyncio.gather(hb_task, conn_task, return_exceptions=True)
-                except Exception as e:
-                    print(f"[LiveChat] Error during task cancellation: {e}")
-
-            await asyncio.shield(cleanup())
+            if queue is not None:
+                await asyncio.shield(live_chat_manager.unsubscribe(room_id, queue))
 
     return Response(
         event_stream(),
