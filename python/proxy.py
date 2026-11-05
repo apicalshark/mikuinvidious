@@ -591,12 +591,20 @@ async def proxy_main(subpath):
                         # cancellation propagate (no error log — this is normal).
                         raise
                     except (CdnProtocolError, CdnTimeoutError, TimeoutError, OSError) as e:
-                        # Mid-body cut: end the stream early WITHOUT raising.
-                        # Response headers (200/206 + Content-Length) were already
-                        # emitted, so a short body surfaces as a length mismatch
-                        # and the player retries the Range — instead of a 500 +
-                        # TaskGroup traceback from re-raising inside the generator
-                        # (same truncate pattern as the DASH proxy).
+                        # Mid-body cut: end the stream early WITHOUT raising only when
+                        # downstream Content-Length was declared, so the short body
+                        # surfaces as a length mismatch and the client/player can detect
+                        # truncation. If Content-Length was omitted (unframed/chunked/close-delimited),
+                        # propagate the read failure so the transfer does not appear complete.
+                        cl = resp_headers.headers.get("content-length")
+                        has_content_length = False
+                        if cl is not None and str(cl).strip():
+                            try:
+                                has_content_length = int(str(cl).strip()) >= 0
+                            except ValueError:
+                                has_content_length = False
+                        if not has_content_length:
+                            raise
                         print(f"[Proxy] Mid-body cut for {url[:80]}...: {e}")
                         return
                     finally:

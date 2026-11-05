@@ -501,6 +501,164 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(resp.headers.get("X-Cache"), "HIT")
             mock_room_info.assert_not_awaited()
 
+    async def test_live_room_view_renders_when_redis_pipeline_fails(self):
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        import views_live
+
+        fake_info_data = {
+            "room_info": {
+                "title": "Uncached Live Room",
+                "description": "Desc",
+                "cover": "",
+                "area_name": "Game",
+                "online": 50,
+                "live_start_time": 0,
+            },
+            "anchor_info": {
+                "base_info": {"uname": "Streamer", "face": ""},
+            },
+        }
+        fake_play_data = {
+            "play_url": {
+                "stream": [
+                    {
+                        "protocol_name": "http_stream",
+                        "format": [
+                            {
+                                "format_name": "flv",
+                                "codec": [
+                                    {
+                                        "codec_name": "avc",
+                                        "url": "https://example.com/live.flv",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+                "g_qn_desc": [{"qn": 10000, "desc": "Original"}],
+            }
+        }
+        mock_pipe = MagicMock()
+        mock_pipe.setex = MagicMock()
+        mock_pipe.execute = AsyncMock(side_effect=ConnectionError("Redis pipeline failed"))
+
+        with (
+            patch("views_live.cache_get", new=AsyncMock(return_value=None)),
+            patch("api.live.LiveRoom.get_room_info", new=AsyncMock(return_value=fake_info_data)),
+            patch("api.live.LiveRoom.get_room_play_info_v2", new=AsyncMock(return_value=fake_play_data)),
+            patch.object(views_live.appredis, "pipeline", return_value=mock_pipe),
+            patch.object(
+                views_live.appredis, "setex", new=AsyncMock(side_effect=ConnectionError("Redis setex failed"))
+            ),
+            patch("views_live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Rendered</html>")),
+        ):
+            resp = await self.client.get("/live/4366430")
+            self.assertEqual(resp.status_code, 200)
+            text = await resp.get_data(as_text=True)
+            self.assertEqual(text, "<html>Live Rendered</html>")
+
+    async def test_concurrent_live_room_cache_misses_are_coalesced(self):
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        import views_live
+
+        fake_info_data = {
+            "room_info": {
+                "title": "Concurrent Live Room",
+                "description": "Desc",
+                "cover": "",
+                "area_name": "Game",
+                "online": 50,
+                "live_start_time": 0,
+            },
+            "anchor_info": {
+                "base_info": {"uname": "Streamer", "face": ""},
+            },
+        }
+        fake_play_data = {
+            "play_url": {
+                "stream": [
+                    {
+                        "protocol_name": "http_stream",
+                        "format": [
+                            {
+                                "format_name": "flv",
+                                "codec": [
+                                    {
+                                        "codec_name": "avc",
+                                        "url": "https://example.com/live.flv",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+                "g_qn_desc": [{"qn": 10000, "desc": "Original"}],
+            }
+        }
+
+        async def slow_get_room_info():
+            await asyncio.sleep(0.05)
+            return fake_info_data
+
+        mock_get_room_info = AsyncMock(side_effect=slow_get_room_info)
+
+        with (
+            patch("views_live.cache_get", new=AsyncMock(return_value=None)),
+            patch("api.live.LiveRoom.get_room_info", mock_get_room_info),
+            patch("api.live.LiveRoom.get_room_play_info_v2", new=AsyncMock(return_value=fake_play_data)),
+            patch.object(views_live.appredis, "pipeline", return_value=MagicMock(execute=AsyncMock())),
+            patch.object(views_live.appredis, "setex", new=AsyncMock()),
+            patch("views_live.cache_set", new=AsyncMock()),
+            patch("views_live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Coalesced</html>")),
+        ):
+            # Fire 3 simultaneous requests for the same room
+            responses = await asyncio.gather(
+                self.client.get("/live/4366430"),
+                self.client.get("/live/4366430"),
+                self.client.get("/live/4366430"),
+            )
+            for resp in responses:
+                self.assertEqual(resp.status_code, 200)
+                text = await resp.get_data(as_text=True)
+                self.assertEqual(text, "<html>Live Coalesced</html>")
+
+            # Upstream get_room_info was called only once despite 3 concurrent requests
+            self.assertEqual(mock_get_room_info.await_count, 1)
+            # In-flight map is completely cleared after completion
+            self.assertEqual(views_live._live_room_inflight, {})
+
+    async def test_concurrent_live_room_cache_misses_cleared_on_failure(self):
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        import views_live
+
+        async def failing_get_room_info():
+            await asyncio.sleep(0.02)
+            raise RuntimeError("Upstream room lookup failed")
+
+        mock_get_room_info = AsyncMock(side_effect=failing_get_room_info)
+
+        with (
+            patch("views_live.cache_get", new=AsyncMock(return_value=None)),
+            patch("api.live.LiveRoom.get_room_info", mock_get_room_info),
+            patch("api.live.LiveRoom.get_room_base_info", new=AsyncMock(side_effect=RuntimeError("Fallback failed"))),
+            patch("views_live.render_template_with_theme", new=AsyncMock(return_value="<html>Error</html>")),
+        ):
+            responses = await asyncio.gather(
+                self.client.get("/live/4366430"),
+                self.client.get("/live/4366430"),
+            )
+            for resp in responses:
+                self.assertEqual(resp.status_code, 500)
+
+            # In-flight map is cleared even on failure
+            self.assertEqual(views_live._live_room_inflight, {})
+
     async def test_video_listen_view_reuses_cached_video_data(self):
         from unittest.mock import AsyncMock, patch
 

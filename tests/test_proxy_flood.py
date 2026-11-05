@@ -279,6 +279,35 @@ class TestProgressiveProxyFlood(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(conn.closed)
                     self.assertEqual(proxy.direct_stream_slots.active_by_ip, {})
 
+    async def test_direct_stream_mid_body_error_propagates_without_content_length(self):
+        import proxy
+        from app import app
+
+        for exc in (TimeoutError("read timed out"), ConnectionResetError("socket reset")):
+            with self.subTest(exc=type(exc).__name__):
+                conn = _FakeCdnConnection(exc=exc)
+                headers = MagicMock()
+                headers.status_code = 200
+                headers.headers = {}
+                with (
+                    patch.object(
+                        proxy.appredis, "get", AsyncMock(return_value=b"https://upos-sz-mirrorcos.bilivideo.com/x.mp4")
+                    ),
+                    patch.object(proxy, "is_safe_proxy_url", AsyncMock(return_value=True)),
+                    patch.object(proxy.TicketManager, "get_ticket", AsyncMock(return_value=None)),
+                    patch.object(proxy, "_establish_cdn_connection", AsyncMock(return_value=(conn, headers))),
+                ):
+                    async with app.test_request_context(
+                        "/proxy/video/BV1xx411c7xx_0_80.mp4", headers={"X-Real-IP": IP_A}
+                    ):
+                        resp = await proxy.proxy_main("video/BV1xx411c7xx_0_80.mp4")
+                    self.assertEqual(resp.status_code, 200)
+                    with self.assertRaises(type(exc)):
+                        async with resp.response as body:
+                            _ = [c async for c in aiter(body)]
+                    self.assertTrue(conn.closed)
+                    self.assertEqual(proxy.direct_stream_slots.active_by_ip, {})
+
 
 class _FakeLiveStream:
     def __init__(self):

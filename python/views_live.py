@@ -43,10 +43,13 @@ live_chat_slots = PerIpSlotLimiter(LIVE_CHAT_MAX_PER_IP)
 
 async def _cache_live_quality(room_id, quality, url, default_url):
     """Keep the default URL alive for at least as long as each quality URL."""
-    pipe = appredis.pipeline(transaction=True)
-    pipe.setex(f"miku_live_{room_id}_{quality}", 1800, url)
-    pipe.setex(f"miku_live_{room_id}", 1800, default_url)
-    await pipe.execute()
+    try:
+        pipe = appredis.pipeline(transaction=True)
+        pipe.setex(f"miku_live_{room_id}_{quality}", 1800, url)
+        pipe.setex(f"miku_live_{room_id}", 1800, default_url)
+        await pipe.execute()
+    except Exception as e:
+        print(f"[Live] Redis error caching quality for room {room_id}: {e}")
 
 
 class LiveChatCapacityError(RuntimeError):
@@ -355,6 +358,206 @@ def _live_fetchable_qualities(qn_list, default_qn):
     return [d for d in qn_list if d.get("qn") == default_qn] or qn_list[:1]
 
 
+def _assemble_flv(codec):
+    """host + base_url + extra, AVC preferred (PipePipe pickLiveFlvUrl)."""
+    try:
+        base = codec.get("base_url") or ""
+        infos = codec.get("url_info") or []
+        if not base or not infos:
+            return ""
+        m = infos[0] or {}
+        return f"{m.get('host', '')}{base}{m.get('extra', '')}"
+    except Exception:
+        return ""
+
+
+def _extract_live_urls(play_data):
+    """Return (flv_url, hls_master_url) from a v2 getRoomPlayInfo payload."""
+    flv, flv_hevc, hls_master = None, None, None
+    streams = []
+    try:
+        if isinstance(play_data, dict):
+            # Api.result unwraps to play_url.stream; raw API nests
+            # playurl_info.playurl.stream — accept both + bare stream.
+            node = play_data.get("play_url") or {}
+            if not node:
+                node = (play_data.get("playurl_info") or {}).get("playurl") or {}
+            streams = node.get("stream", []) or play_data.get("stream", [])
+    except Exception:
+        streams = []
+    for s in streams or []:
+        pname = s.get("protocol_name", "")
+        for f in s.get("format", []) or []:
+            fname = f.get("format_name", "")
+            if pname == "http_hls" and fname == "fmp4" and not hls_master:
+                mu = f.get("master_url") or ""
+                if mu:
+                    hls_master = mu
+            if pname == "http_stream" and fname == "flv":
+                for c in f.get("codec", []) or []:
+                    # Newer payloads already carry a full url; legacy
+                    # ones need host + base_url + extra assembly.
+                    full = c.get("url") or _assemble_flv(c) or c.get("base_url") or ""
+                    if not full:
+                        continue
+                    if c.get("codec_name") == "avc":
+                        flv = full
+                        break
+                    if not flv_hevc:
+                        flv_hevc = full
+                if flv:
+                    break
+        if flv and hls_master:
+            break
+    return flv or flv_hevc, hls_master
+
+
+_live_room_inflight: dict[int, asyncio.Task] = {}
+
+
+async def _build_live_room_data(room_id: int, cache_key: str) -> dict:
+    """Fetch and assemble live room metadata and stream URLs (singleflight)."""
+    if LIVE_ROOM_CACHE_TTL > 0:
+        cached = await cache_get(cache_key, LIVE_ROOM_CACHE_TTL)
+        if (
+            isinstance(cached, dict)
+            and isinstance(cached.get("vinfo"), dict)
+            and isinstance(cached.get("supported_src"), list)
+            and cached.get("supported_src")
+        ):
+            return cached
+
+    room = live.LiveRoom(room_id, credential=appcred)
+
+    # Get basic room info first (getInfoByRoom, fallback to getRoomBaseInfo
+    # when WBI/risk-control rejects the primary — PipePipe 1e330b87).
+    try:
+        info_data = await room.get_room_info()
+    except Exception:
+        info_data = await room.get_room_base_info()
+
+    # Single DEFAULT request carries both ladders (PipePipe fetchLivePlaybackUrls).
+    try:
+        play_data = await room.get_room_play_info_v2()
+    except Exception:
+        # Prioritize FLV for live streams as requested
+        try:
+            play_data = await room.get_room_play_info_v2(
+                live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV
+            )
+        except Exception:
+            play_data = await room.get_room_play_info_v2(
+                live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4
+            )
+
+    info = transformers.transform_live_room(info_data)
+    _qn_node = (play_data.get("play_url") or {}) if isinstance(play_data, dict) else {}
+    if not _qn_node.get("g_qn_desc") and isinstance(play_data, dict):
+        _qn_node = (play_data.get("playurl_info") or {}).get("playurl") or {}
+    qn_list = _qn_node.get("g_qn_desc", []) or [{"qn": 0, "desc": "Default"}]
+
+    # Reuse the initial (qn=10000) response for the default quality instead
+    # of refetching it: Bilibili -400s rapid parallel getRoomPlayInfo calls
+    # from one IP, so per-QN URLs are fetched sequentially below.
+    _default_flv, _default_hls = _extract_live_urls(play_data)
+    _default_url = _pick_live_url(_default_flv, _default_hls)
+    _default_qn = live.ScreenResolution.ORIGINAL.value
+    live_format = "hls" if _default_hls and _default_url == _default_hls else "flv"
+    supported_src = []
+    if _default_url:
+        print(f"[Live] Default room {room_id} QN {_default_qn}: {_default_url[:50]}...")
+        await _cache_live_quality(room_id, _default_qn, _default_url, _default_url)
+        _default_desc = next((d.get("desc", "Default") for d in qn_list if d.get("qn") == _default_qn), "Default")
+        supported_src.append({"quality": _default_qn, "new_description": _default_desc, "url": _default_url})
+
+    async def get_and_cache_qn(qn_val, qn_name):
+        try:
+            # Wrap qn_val to satisfy bilibili-api's requirement for an Enum-like object with .value
+            wrapped_qn = type("QN", (), {"value": qn_val})()
+            # Single DEFAULT request carries FLV + HLS ladders; prefer FLV
+            # (AVC-assembled), fall back to HLS master (PipePipe 79da4d21).
+            try:
+                q_data = await room.get_room_play_info_v2(live_qn=wrapped_qn)
+            except Exception:
+                q_data = await room.get_room_play_info_v2(
+                    live_protocol=live.LiveProtocol.FLV,
+                    live_format=live.LiveFormat.FLV,
+                    live_qn=wrapped_qn,
+                )
+            flv_url, hls_master = _extract_live_urls(q_data)
+            url = _pick_live_url(flv_url, hls_master)
+
+            if not url:
+                # Fallback to HLS-only request if DEFAULT gave nothing
+                q_data = await room.get_room_play_info_v2(
+                    live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4, live_qn=wrapped_qn
+                )
+                _, hls_master = _extract_live_urls(q_data)
+                url = _pick_live_url("", hls_master)
+
+            if url:
+                print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
+                default_url = supported_src[0]["url"] if supported_src else url
+                await _cache_live_quality(room_id, qn_val, url, default_url)
+                return {"quality": qn_val, "new_description": qn_name, "url": url}
+        except Exception as e:
+            print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
+        return None
+
+    # Sequential, not parallel: Bilibili answers one getRoomPlayInfo fine
+    # but -400s a burst of them (even qn=10000, which just succeeded).
+    # Anonymous sessions only resolve the default quality (see helper).
+    for d in _live_fetchable_qualities(qn_list, _default_qn):
+        qn_val, qn_name = d.get("qn"), d.get("desc", "")
+        if qn_val == _default_qn and _default_url:
+            continue  # already resolved from the initial response
+        try:
+            await asyncio.sleep(0.4)
+            r = await get_and_cache_qn(qn_val, qn_name)
+        except Exception as e:
+            print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
+            r = None
+        if r:
+            supported_src.append(r)
+
+    if supported_src:
+        # Default entry is first; keep the default key in sync.
+        try:
+            await appredis.setex(f"miku_live_{room_id}", 1800, supported_src[0]["url"])
+        except Exception:
+            pass
+    else:
+        # Final desperate fallback
+        try:
+            fb_info = await room.get_room_play_url()
+            if "durl" in fb_info and fb_info["durl"]:
+                u = fb_info["durl"][0]["url"]
+                await appredis.setex(f"miku_live_{room_id}", 1800, u)
+                supported_src = [{"quality": "default", "new_description": "Default", "url": u}]
+        except Exception:
+            pass
+
+    vinfo = {
+        "title": info["title"],
+        "desc": info["description"],
+        "pic": info["pic"],
+        "owner": {"name": info["uname"], "mid": info["uid"], "face": info["face"]},
+        "stat": {"view": info["online"], "like": 0, "coin": 0, "favorite": 0, "share": 0},
+        "pubdate": info["start_time"],
+        "bvid": str(room_id),
+        "tid": 0,
+        "tname": info["area_name"],
+    }
+    payload = {
+        "vinfo": vinfo,
+        "supported_src": supported_src,
+        "live_format": live_format,
+    }
+    if LIVE_ROOM_CACHE_TTL > 0 and supported_src:
+        await cache_set(cache_key, payload, LIVE_ROOM_CACHE_TTL)
+    return payload
+
+
 @app.route("/live/<int:room_id>")
 @rate_limit(**RATE_LIMITS["normal"])
 async def live_room_view(room_id):
@@ -384,195 +587,29 @@ async def live_room_view(room_id):
                 )
                 return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
 
-        room = live.LiveRoom(room_id, credential=appcred)
-
-        # Get basic room info first (getInfoByRoom, fallback to getRoomBaseInfo
-        # when WBI/risk-control rejects the primary — PipePipe 1e330b87).
+        task = _live_room_inflight.get(room_id)
+        if task is None:
+            task = asyncio.create_task(_build_live_room_data(room_id, cache_key))
+            _live_room_inflight[room_id] = task
+            task.add_done_callback(lambda _t, _rid=room_id: _live_room_inflight.pop(_rid, None))
         try:
-            info_data = await room.get_room_info()
-        except Exception:
-            info_data = await room.get_room_base_info()
+            room_data = await asyncio.shield(task)
+        except asyncio.CancelledError:
+            raise
 
-        def _assemble_flv(codec):
-            """host + base_url + extra, AVC preferred (PipePipe pickLiveFlvUrl)."""
-            try:
-                base = codec.get("base_url") or ""
-                infos = codec.get("url_info") or []
-                if not base or not infos:
-                    return ""
-                m = infos[0] or {}
-                return f"{m.get('host', '')}{base}{m.get('extra', '')}"
-            except Exception:
-                return ""
-
-        def _extract_live_urls(play_data):
-            """Return (flv_url, hls_master_url) from a v2 getRoomPlayInfo payload."""
-            flv, flv_hevc, hls_master = None, None, None
-            streams = []
-            try:
-                if isinstance(play_data, dict):
-                    # Api.result unwraps to play_url.stream; raw API nests
-                    # playurl_info.playurl.stream — accept both + bare stream.
-                    node = play_data.get("play_url") or {}
-                    if not node:
-                        node = (play_data.get("playurl_info") or {}).get("playurl") or {}
-                    streams = node.get("stream", []) or play_data.get("stream", [])
-            except Exception:
-                streams = []
-            for s in streams or []:
-                pname = s.get("protocol_name", "")
-                for f in s.get("format", []) or []:
-                    fname = f.get("format_name", "")
-                    if pname == "http_hls" and fname == "fmp4" and not hls_master:
-                        mu = f.get("master_url") or ""
-                        if mu:
-                            hls_master = mu
-                    if pname == "http_stream" and fname == "flv":
-                        for c in f.get("codec", []) or []:
-                            # Newer payloads already carry a full url; legacy
-                            # ones need host + base_url + extra assembly.
-                            full = c.get("url") or _assemble_flv(c) or c.get("base_url") or ""
-                            if not full:
-                                continue
-                            if c.get("codec_name") == "avc":
-                                flv = full
-                                break
-                            if not flv_hevc:
-                                flv_hevc = full
-                        if flv:
-                            break
-                if flv and hls_master:
-                    break
-            return flv or flv_hevc, hls_master
-
-        # Single DEFAULT request carries both ladders (PipePipe fetchLivePlaybackUrls).
-        try:
-            play_data = await room.get_room_play_info_v2()
-        except Exception:
-            # Prioritize FLV for live streams as requested
-            try:
-                play_data = await room.get_room_play_info_v2(
-                    live_protocol=live.LiveProtocol.FLV, live_format=live.LiveFormat.FLV
-                )
-            except Exception:
-                play_data = await room.get_room_play_info_v2(
-                    live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4
-                )
-
-        info = transformers.transform_live_room(info_data)
-        _qn_node = (play_data.get("play_url") or {}) if isinstance(play_data, dict) else {}
-        if not _qn_node.get("g_qn_desc") and isinstance(play_data, dict):
-            _qn_node = (play_data.get("playurl_info") or {}).get("playurl") or {}
-        qn_list = _qn_node.get("g_qn_desc", []) or [{"qn": 0, "desc": "Default"}]
-
-        # Reuse the initial (qn=10000) response for the default quality instead
-        # of refetching it: Bilibili -400s rapid parallel getRoomPlayInfo calls
-        # from one IP, so per-QN URLs are fetched sequentially below.
-        _default_flv, _default_hls = _extract_live_urls(play_data)
-        _default_url = _pick_live_url(_default_flv, _default_hls)
-        _default_qn = live.ScreenResolution.ORIGINAL.value
-        live_format = "hls" if _default_hls and _default_url == _default_hls else "flv"
-        supported_src = []
-        if _default_url:
-            print(f"[Live] Default room {room_id} QN {_default_qn}: {_default_url[:50]}...")
-            await _cache_live_quality(room_id, _default_qn, _default_url, _default_url)
-            _default_desc = next((d.get("desc", "Default") for d in qn_list if d.get("qn") == _default_qn), "Default")
-            supported_src.append({"quality": _default_qn, "new_description": _default_desc, "url": _default_url})
-
-        async def get_and_cache_qn(qn_val, qn_name):
-            try:
-                # Wrap qn_val to satisfy bilibili-api's requirement for an Enum-like object with .value
-                wrapped_qn = type("QN", (), {"value": qn_val})()
-                # Single DEFAULT request carries FLV + HLS ladders; prefer FLV
-                # (AVC-assembled), fall back to HLS master (PipePipe 79da4d21).
-                try:
-                    q_data = await room.get_room_play_info_v2(live_qn=wrapped_qn)
-                except Exception:
-                    q_data = await room.get_room_play_info_v2(
-                        live_protocol=live.LiveProtocol.FLV,
-                        live_format=live.LiveFormat.FLV,
-                        live_qn=wrapped_qn,
-                    )
-                flv_url, hls_master = _extract_live_urls(q_data)
-                url = _pick_live_url(flv_url, hls_master)
-
-                if not url:
-                    # Fallback to HLS-only request if DEFAULT gave nothing
-                    q_data = await room.get_room_play_info_v2(
-                        live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4, live_qn=wrapped_qn
-                    )
-                    _, hls_master = _extract_live_urls(q_data)
-                    url = _pick_live_url("", hls_master)
-
-                if url:
-                    print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
-                    default_url = supported_src[0]["url"] if supported_src else url
-                    await _cache_live_quality(room_id, qn_val, url, default_url)
-                    return {"quality": qn_val, "new_description": qn_name, "url": url}
-            except Exception as e:
-                print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
-            return None
-
-        # Sequential, not parallel: Bilibili answers one getRoomPlayInfo fine
-        # but -400s a burst of them (even qn=10000, which just succeeded).
-        # Anonymous sessions only resolve the default quality (see helper).
-        for d in _live_fetchable_qualities(qn_list, _default_qn):
-            qn_val, qn_name = d.get("qn"), d.get("desc", "")
-            if qn_val == _default_qn and _default_url:
-                continue  # already resolved from the initial response
-            try:
-                await asyncio.sleep(0.4)
-                r = await get_and_cache_qn(qn_val, qn_name)
-            except Exception as e:
-                print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
-                r = None
-            if r:
-                supported_src.append(r)
-
-        if supported_src:
-            # Default entry is first; keep the default key in sync.
-            await appredis.setex(f"miku_live_{room_id}", 1800, supported_src[0]["url"])
-        else:
-            # Final desperate fallback
-            try:
-                fb_info = await room.get_room_play_url()
-                if "durl" in fb_info and fb_info["durl"]:
-                    u = fb_info["durl"][0]["url"]
-                    await appredis.setex(f"miku_live_{room_id}", 1800, u)
-                    supported_src = [{"quality": "default", "new_description": "Default", "url": u}]
-            except Exception:
-                pass
-
-        vinfo = {
-            "title": info["title"],
-            "desc": info["description"],
-            "pic": info["pic"],
-            "owner": {"name": info["uname"], "mid": info["uid"], "face": info["face"]},
-            "stat": {"view": info["online"], "like": 0, "coin": 0, "favorite": 0, "share": 0},
-            "pubdate": info["start_time"],
-            "bvid": str(room_id),
-            "tid": 0,
-            "tname": info["area_name"],
-        }
-        if LIVE_ROOM_CACHE_TTL > 0 and supported_src:
-            await cache_set(
-                cache_key,
-                {"vinfo": vinfo, "supported_src": supported_src, "live_format": live_format},
-                LIVE_ROOM_CACHE_TTL,
-            )
         return await render_template_with_theme(
             "video.html",
             vid=str(room_id),
-            vinfo=vinfo,
+            vinfo=room_data["vinfo"],
             vcomments={"page": {"count": 0}, "replies": []},
             vrelated=[],
             keywords="",
-            supported_src=supported_src,
+            supported_src=room_data["supported_src"],
             ato=False,
             idx=0,
             vset=[],
             is_live=True,
-            live_format=live_format,
+            live_format=room_data.get("live_format", "flv"),
         )
     except Exception as e:
         import traceback
