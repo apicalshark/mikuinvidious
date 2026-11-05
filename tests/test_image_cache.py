@@ -107,9 +107,7 @@ class TestImageCache(unittest.IsolatedAsyncioTestCase):
 
         # The oldest items should be pruned to keep total size under limit
         total_size = sum(
-            os.path.getsize(os.path.join(self.test_dir, f))
-            for f in os.listdir(self.test_dir)
-            if f.endswith(".cache")
+            os.path.getsize(os.path.join(self.test_dir, f)) for f in os.listdir(self.test_dir) if f.endswith(".cache")
         )
         self.assertLessEqual(total_size, 500)
 

@@ -55,10 +55,13 @@ class TestSearchAutoJump(unittest.IsolatedAsyncioTestCase):
             "numResults": 0,
             "numPages": 0,
         }
-        with patch(
-            "views_home.resolve_b23_target",
-            new=AsyncMock(return_value={"status": "error", "error": "Failed to resolve shortlink: HTTP 404"}),
-        ), patch("api.search.search_by_type", new=AsyncMock(return_value=mock_search_result)):
+        with (
+            patch(
+                "views_home.resolve_b23_target",
+                new=AsyncMock(return_value={"status": "error", "error": "Failed to resolve shortlink: HTTP 404"}),
+            ),
+            patch("api.search.search_by_type", new=AsyncMock(return_value=mock_search_result)),
+        ):
             resp = await self.client.get("/search?q=https://b23.tv/notfound123")
             self.assertEqual(resp.status_code, 200)
 
