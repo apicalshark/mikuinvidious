@@ -162,6 +162,20 @@ class LiveChatRoom:
                 pass
 
 
+async def _lookup_real_room_id(room_id: int) -> int | None:
+    from api import Credential
+    from api import live as b_live
+
+    try:
+        cred = appcred if isinstance(appcred, Credential) else None
+        real_id = await b_live.LiveRoom(room_id, credential=cred).get_room_id()
+        if isinstance(real_id, int) and real_id > 0:
+            return real_id
+    except Exception:
+        pass
+    return None
+
+
 class LiveChatManager:
     """Registry of active LiveChatRoom instances keyed by canonical room_id."""
 
@@ -170,12 +184,14 @@ class LiveChatManager:
         idle_grace: float = LIVE_CHAT_IDLE_GRACE,
         queue_maxsize: int = LIVE_CHAT_QUEUE_MAXSIZE,
         max_rooms: int | None = LIVE_CHAT_MAX_ROOMS,
+        lookup_real_room_id=None,
     ):
         self.rooms: dict[int, LiveChatRoom] = {}
         self._canonical_ids: dict[int, int] = {}
         self.idle_grace = idle_grace
         self.queue_maxsize = queue_maxsize
         self.max_rooms = max_rooms
+        self._lookup_real_room_id = lookup_real_room_id
 
     async def _resolve_room_id(self, room_id: int) -> int:
         room_id = int(room_id)
@@ -185,17 +201,9 @@ class LiveChatManager:
         existing = self.rooms.get(room_id)
         if existing is not None and not existing._stop_event.is_set():
             return room_id
-        from api import Credential
-        from api import live as b_live
-
-        if (
-            b_live.LiveDanmaku.__module__ != "api.live"
-            and getattr(b_live.LiveRoom.get_room_id, "__module__", "") == "api.live"
-        ):
-            return room_id
+        lookup = self._lookup_real_room_id or _lookup_real_room_id
         try:
-            cred = appcred if isinstance(appcred, Credential) else None
-            real_id = await b_live.LiveRoom(room_id, credential=cred).get_room_id()
+            real_id = await lookup(room_id)
             if isinstance(real_id, int) and real_id > 0:
                 self._canonical_ids[room_id] = real_id
                 self._canonical_ids[real_id] = real_id

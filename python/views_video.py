@@ -73,7 +73,13 @@ async def video_listen_view(vid, idx=0):
     if not re.match(r"^(BV[a-zA-Z0-9]{10}|av\d+)$", vid):
         return Response("Invalid video ID format", status=400)
 
-    ato, idx = request.args.get("ato") == "1", int(idx)
+    ato = request.args.get("ato") == "1"
+    try:
+        idx = int(idx)
+        if idx < 0:
+            return Response("Invalid video index", status=400)
+    except TypeError, ValueError:
+        return Response("Invalid video index", status=400)
     vid = av2bv(vid[2:]) if vid.startswith("av") else vid
     v = video.Video(bvid=vid, credential=appcred)
 

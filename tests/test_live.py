@@ -76,6 +76,12 @@ class TestLiveRoutes(unittest.IsolatedAsyncioTestCase):
         resp = await self.client.get("/live/-1")
         self.assertEqual(resp.status_code, 404)
 
+    async def test_video_listen_invalid_idx_400(self):
+        resp = await self.client.get("/video_listen/BV1xx411c7mD:notanumber")
+        self.assertEqual(resp.status_code, 400)
+        resp_neg = await self.client.get("/video_listen/BV1xx411c7mD:-1")
+        self.assertEqual(resp_neg.status_code, 400)
+
 
 class _FakeLiveDanmaku:
     instances = []
@@ -116,14 +122,19 @@ class _FakeLiveDanmaku:
 
 class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        from unittest.mock import AsyncMock, patch
+
         import views_live
 
         _FakeLiveDanmaku.instances.clear()
         views_live.live_chat_slots.reset()
+        self._lookup_patch = patch("views_live._lookup_real_room_id", new=AsyncMock(return_value=None))
+        self._lookup_patch.start()
 
     async def asyncTearDown(self):
         import views_live
 
+        self._lookup_patch.stop()
         views_live.live_chat_slots.reset()
 
     async def test_probe_disconnect_before_handshake_does_not_connect_upstream(self):
@@ -244,28 +255,28 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
 
         import views_live
 
-        manager = views_live.LiveChatManager(idle_grace=0.12)
+        manager = views_live.LiveChatManager(idle_grace=0.6)
         with patch("api.live.LiveDanmaku", _FakeLiveDanmaku):
             q1 = await manager.subscribe(4366430)
             await asyncio.sleep(0.02)
             await manager.unsubscribe(4366430, q1)
 
-            # Wait past half of the first 0.12s deadline (0.07s elapsed)
-            await asyncio.sleep(0.07)
+            # Wait past half of the original 0.6s deadline
+            await asyncio.sleep(0.35)
 
-            # Reconnect and immediately unsubscribe to restart the 0.12s idle grace period
+            # Reconnect and immediately unsubscribe to restart the 0.6s idle grace period
             q2 = await manager.subscribe(4366430)
             await manager.unsubscribe(4366430, q2)
 
-            # Wait another 0.07s (0.14s since first unsubscribe -> past original 0.12s deadline,
-            # but only 0.07s into the restarted 0.12s deadline)
-            await asyncio.sleep(0.07)
+            # Wait another 0.35s (0.70s since first unsubscribe -> past original 0.6s deadline,
+            # but only 0.35s into the restarted 0.6s deadline)
+            await asyncio.sleep(0.35)
             self.assertEqual(len(_FakeLiveDanmaku.instances), 1)
             self.assertFalse(_FakeLiveDanmaku.instances[0].disconnected)
             self.assertIn(4366430, manager.rooms)
 
-            # Wait past the restarted 0.12s deadline (0.15s total since second unsubscribe)
-            await asyncio.sleep(0.08)
+            # Wait past the restarted 0.6s deadline (0.75s total since second unsubscribe)
+            await asyncio.sleep(0.4)
             self.assertTrue(_FakeLiveDanmaku.instances[0].disconnected)
             self.assertNotIn(4366430, manager.rooms)
 
@@ -280,7 +291,7 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         manager = views_live.LiveChatManager(idle_grace=0.5)
         with (
             patch("api.live.LiveDanmaku", _FakeLiveDanmaku),
-            patch("api.live.LiveRoom.get_room_id", new=AsyncMock(return_value=21144080)),
+            patch("views_live._lookup_real_room_id", new=AsyncMock(return_value=21144080)),
         ):
             # Subscribe via short display ID 100 and canonical ID 21144080
             q_short = await manager.subscribe(100)
