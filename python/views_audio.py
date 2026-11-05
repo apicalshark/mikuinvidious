@@ -35,7 +35,7 @@ from shared import (
 async def audio_view(auid):
     ato = request.args.get("ato") == "1"
     auid_str = auid[2:] if auid.startswith("au") else auid
-    if not (auid_str.isdigit() and 1 <= len(auid_str) <= 20):
+    if not (1 <= len(auid_str) <= 20 and auid_str.isascii() and auid_str.isdecimal()):
         return Response("Invalid audio ID format", status=400)
     auid_int = int(auid_str)
 
@@ -125,7 +125,7 @@ async def audio_list_view(amid, idx=0):
         return Response("Invalid index", status=400)
     ato = request.args.get("ato") == "1"
     amid_str = amid[2:] if amid.startswith("am") else amid
-    if not (amid_str.isdigit() and 1 <= len(amid_str) <= 20):
+    if not (1 <= len(amid_str) <= 20 and amid_str.isascii() and amid_str.isdecimal()):
         return Response("Invalid audio list ID format", status=400)
     amid_int = int(amid_str)
     cache_ttl = cache_minutes("audio_minutes") * 60

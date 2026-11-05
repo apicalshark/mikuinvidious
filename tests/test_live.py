@@ -87,6 +87,10 @@ class TestLiveRoutes(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp_toolong.status_code, 400)
         resp_alpha = await self.client.get("/audio/invalid")
         self.assertEqual(resp_alpha.status_code, 400)
+        resp_unicode = await self.client.get("/audio/²")
+        self.assertEqual(resp_unicode.status_code, 400)
+        resp_unicode_au = await self.client.get("/audio/au²")
+        self.assertEqual(resp_unicode_au.status_code, 400)
 
     async def test_audio_list_invalid_id_400(self):
         resp_toolong = await self.client.get("/audio_list/am12345678901234567890123")
@@ -95,6 +99,10 @@ class TestLiveRoutes(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp_alpha.status_code, 400)
         resp_badidx = await self.client.get("/audio_list/am123:notanumber")
         self.assertEqual(resp_badidx.status_code, 400)
+        resp_unicode = await self.client.get("/audio_list/²")
+        self.assertEqual(resp_unicode.status_code, 400)
+        resp_unicode_am = await self.client.get("/audio_list/am²")
+        self.assertEqual(resp_unicode_am.status_code, 400)
 
 
 class _FakeLiveDanmaku:
