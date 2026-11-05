@@ -14,10 +14,13 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 
-from dash_fetch import _load_dash_data, _normalize_track_urls
+import time
+
+from dash_common import _is_valid_vid
+from dash_fetch import _load_dash_data, _normalize_track_urls, _refresh_dash_data
 from quart import Response, request
 from rate_limit import RATE_LIMITS, rate_limit
-from shared import app, appredis
+from shared import app
 
 
 def _sb_initialization_range(sb: dict) -> str:
@@ -144,22 +147,41 @@ _generate_vod_mpd_py = generate_vod_mpd
 # ---------------------------------------------------------------------------
 
 
+# Cooldown for ``?fresh=1`` manifest cache-busting per (vid, idx) so a crawler
+# or abusive client cannot force an upstream Bilibili WBI playurl fetch on
+# every request. Legitimate player recovery fires at most once per 10 minutes.
+_DASH_MANIFEST_FRESH_COOLDOWN = 30.0
+_MANIFEST_FRESH_MAX = 1024
+_manifest_fresh_at: dict[str, float] = {}
+
+
 @app.route("/video/dash/<vid>/<int:idx>/manifest.mpd")
-@rate_limit(**RATE_LIMITS["proxy"])
+@rate_limit(**RATE_LIMITS["normal"])
 async def video_dash_manifest_view(vid, idx):
     """Serve the isoff-on-demand MPD manifest for a video part.
 
     ``?fresh=1`` drops the cached playurl first so the manifest is built
     from freshly re-fetched CDN URLs — the player recovery path for expired
     signatures (backend half of the official player's ``prefetchPlayUrl``).
+    Throttled per video by ``_DASH_MANIFEST_FRESH_COOLDOWN`` so repeated
+    ``?fresh=1`` hits cannot stampede the upstream playurl API.
     """
+    if not _is_valid_vid(vid) or idx < 0:
+        return Response("Bad Request", status=400)
+    dash_data = None
     if request.args.get("fresh") == "1":
-        try:
-            await appredis.delete(f"miku_dash_{vid}_{idx}")
-            await appredis.delete(f"miku_dash_{vid}_{idx}:miss")
-        except Exception:
-            pass
-    dash_data = await _load_dash_data(vid, idx)
+        key = f"{vid}_{idx}"
+        now = time.monotonic()
+        last_fresh = _manifest_fresh_at.get(key)
+        if last_fresh is None or (now - last_fresh) >= _DASH_MANIFEST_FRESH_COOLDOWN:
+            if len(_manifest_fresh_at) >= _MANIFEST_FRESH_MAX:
+                cutoff = now - _DASH_MANIFEST_FRESH_COOLDOWN
+                for k in [k for k, ts in _manifest_fresh_at.items() if ts < cutoff]:
+                    _manifest_fresh_at.pop(k, None)
+            _manifest_fresh_at[key] = now
+            dash_data = await _refresh_dash_data(vid, idx)
+    if dash_data is None:
+        dash_data = await _load_dash_data(vid, idx)
     mpd_content = generate_vod_mpd(vid, idx, dash_data) if dash_data else None
     if not mpd_content:
         return Response("Not Found", status=404)
