@@ -5,6 +5,7 @@ import uuid
 import weakref
 from urllib.parse import urlparse
 
+from api.live import ScreenResolution
 from image_cache import image_cache
 from ip_slots import PerIpSlotLimiter
 from live_manager import live_manager
@@ -302,14 +303,24 @@ async def _first_live_quality_url(room_id: str):
     Redis for every caller while it runs.
     """
     cursor = 0
+    truncated = False
     for _ in range(8):
         cursor, keys = await appredis.scan(cursor=cursor, match=f"miku_live_{room_id}_*", count=100)
-        for key in keys:
+        # Redis treats COUNT as a hint, so cap follow-up GETs explicitly.
+        truncated |= len(keys) > 100
+        for key in keys[:100]:
             url = await appredis.get(key)
             if url:
                 return url
         if not cursor:
             break
+    # SCAN may not reach a matching legacy key in a large database. Known
+    # qualities can also be checked directly without traversing the keyspace.
+    if cursor or truncated:
+        for quality in ScreenResolution:
+            url = await appredis.get(f"miku_live_{room_id}_{quality.value}")
+            if url:
+                return url
     return None
 
 

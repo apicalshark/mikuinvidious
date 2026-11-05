@@ -496,6 +496,57 @@ class TestNyaaApi(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(r["sidebar_html"] == "<p/>" for r in results))
         cache_set.assert_not_awaited()
 
+    async def test_cache_and_singleflight_are_scoped_to_theme_and_locale(self):
+        import views_bangumi
+        from app import app
+        from quart import request
+
+        gate = asyncio.Event()
+        store = {}
+        torrent = MagicMock(title="[CHS] Anime", magnet_url="magnet", seeders=1, leechers=0, size="1G")
+        bg_inst = MagicMock()
+
+        async def meta():
+            await gate.wait()
+            return {"media": {"title": "Anime"}}
+
+        async def cache_get(key, ttl):
+            return store.get(key)
+
+        async def cache_set(key, payload, ttl):
+            store[key] = payload
+
+        async def render(*args, **kwargs):
+            return f"{views_bangumi.shared.detect_theme()}:{views_bangumi.shared.detect_locale()}"
+
+        async def call(theme, lang):
+            async with app.test_request_context(f"/bangumi/api/nyaa/7?theme={theme}&lang={lang}"):
+                return await (await views_bangumi.bangumi_nyaa_api(7)).get_json()
+
+        bg_inst.get_meta = AsyncMock(side_effect=meta)
+        variants = [("modern", "en"), ("modern", "en"), ("modern", "ja"), ("other", "en")]
+        with (
+            patch.dict(views_bangumi.shared.appconf["site"], {"nyaa_bangumi": True}),
+            patch.object(views_bangumi.shared, "detect_theme", side_effect=lambda: request.args["theme"]),
+            patch.object(views_bangumi.shared, "cache_get", side_effect=cache_get),
+            patch.object(views_bangumi.shared, "cache_set", side_effect=cache_set),
+            patch.object(views_bangumi.shared, "render_template_with_theme", side_effect=render),
+            patch.object(views_bangumi, "search_nyaa", AsyncMock(return_value=[torrent])),
+            patch.object(views_bangumi.bangumi, "Bangumi", return_value=bg_inst),
+        ):
+            tasks = [asyncio.create_task(call(*variant)) for variant in variants]
+            await asyncio.sleep(0.05)
+            gate.set()
+            results = await asyncio.gather(*tasks)
+            self.assertEqual(bg_inst.get_meta.await_count, 3)
+            self.assertEqual(
+                [result["sidebar_html"] for result in results], [f"{theme}:{lang}" for theme, lang in variants]
+            )
+            self.assertEqual(set(store), {f"nyaa:v2:7:{theme}:{lang}" for theme, lang in variants})
+            for theme, lang in variants:
+                self.assertEqual((await call(theme, lang))["sidebar_html"], f"{theme}:{lang}")
+            self.assertEqual(bg_inst.get_meta.await_count, 3)
+
     async def test_upstream_timeout_returns_empty_not_500(self):
         import views_bangumi
         from app import app

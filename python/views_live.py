@@ -40,6 +40,14 @@ LIVE_ROOM_CACHE_TTL = 60
 live_chat_slots = PerIpSlotLimiter(LIVE_CHAT_MAX_PER_IP)
 
 
+async def _cache_live_quality(room_id, quality, url, default_url):
+    """Keep the default URL alive for at least as long as each quality URL."""
+    pipe = appredis.pipeline(transaction=True)
+    pipe.setex(f"miku_live_{room_id}_{quality}", 1800, url)
+    pipe.setex(f"miku_live_{room_id}", 1800, default_url)
+    await pipe.execute()
+
+
 class LiveChatCapacityError(RuntimeError):
     """Raised when LiveChatManager has reached its maximum concurrent room limit."""
 
@@ -457,8 +465,7 @@ async def live_room_view(room_id):
         supported_src = []
         if _default_url:
             print(f"[Live] Default room {room_id} QN {_default_qn}: {_default_url[:50]}...")
-            await appredis.setex(f"miku_live_{room_id}", 1800, _default_url)
-            await appredis.setex(f"miku_live_{room_id}_{_default_qn}", 1800, _default_url)
+            await _cache_live_quality(room_id, _default_qn, _default_url, _default_url)
             _default_desc = next((d.get("desc", "Default") for d in qn_list if d.get("qn") == _default_qn), "Default")
             supported_src.append({"quality": _default_qn, "new_description": _default_desc, "url": _default_url})
 
@@ -489,7 +496,8 @@ async def live_room_view(room_id):
 
                 if url:
                     print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
-                    await appredis.setex(f"miku_live_{room_id}_{qn_val}", 1800, url)
+                    default_url = supported_src[0]["url"] if supported_src else url
+                    await _cache_live_quality(room_id, qn_val, url, default_url)
                     return {"quality": qn_val, "new_description": qn_name, "url": url}
             except Exception as e:
                 print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")

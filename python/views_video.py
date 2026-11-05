@@ -150,7 +150,14 @@ async def video_listen_view(vid, idx=0):
     vrelated = results[2] if isinstance(results[2], list) else []
     vcomments = results[3] if isinstance(results[3], dict) else {"page": {"count": 0}, "replies": []}
     vset = results[4] if isinstance(results[4], list) else [{"page": 1, "part": vid}]
-    if cache_ttl > 0 and isinstance(results[4], list) and (vinfo.get("bvid") or vinfo.get("title")):
+    if (
+        cache_ttl > 0
+        and isinstance(results[1], list)
+        and isinstance(results[2], list)
+        and isinstance(results[4], list)
+        and results[4]
+        and (vinfo.get("bvid") or vinfo.get("title"))
+    ):
         await cache_set(
             cache_key,
             {"vinfo": vinfo, "vtags": vtags, "vrelated": vrelated, "vset": vset},

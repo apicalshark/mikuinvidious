@@ -140,12 +140,12 @@ class BoundedScan(unittest.IsolatedAsyncioTestCase):
         import proxy
 
         scan = AsyncMock(side_effect=[(n, []) for n in range(1, 9)])
-        get = AsyncMock()
+        get = AsyncMock(return_value=None)
         with patch.object(proxy.appredis, "scan", scan), patch.object(proxy.appredis, "get", get):
             self.assertIsNone(await proxy._first_live_quality_url("123"))
         self.assertEqual(scan.await_count, 8)
         self.assertEqual(scan.await_args.kwargs, {"cursor": 7, "match": "miku_live_123_*", "count": 100})
-        get.assert_not_awaited()
+        self.assertEqual(get.await_count, len(proxy.ScreenResolution))
         scan = AsyncMock(side_effect=[(2, []), (0, [b"key"])])
         with (
             patch.object(proxy.appredis, "scan", scan),
@@ -153,6 +153,39 @@ class BoundedScan(unittest.IsolatedAsyncioTestCase):
         ):
             self.assertEqual(await proxy._first_live_quality_url("123"), "url")
             self.assertEqual(scan.await_count, 2)
+
+    async def test_known_quality_is_found_after_scan_budget(self):
+        import proxy
+
+        scan = AsyncMock(side_effect=[(n, []) for n in range(1, 9)])
+        get = AsyncMock(side_effect=lambda key: b"url" if key == "miku_live_123_250" else None)
+        with patch.object(proxy.appredis, "scan", scan), patch.object(proxy.appredis, "get", get):
+            self.assertEqual(await proxy._first_live_quality_url("123"), b"url")
+        self.assertEqual(scan.await_count, 8)
+        self.assertLessEqual(get.await_count, len(proxy.ScreenResolution))
+
+    async def test_scan_result_cannot_trigger_unbounded_gets(self):
+        import proxy
+
+        scan = AsyncMock(return_value=(0, [f"key{i}" for i in range(500)]))
+        get = AsyncMock(return_value=None)
+        with patch.object(proxy.appredis, "scan", scan), patch.object(proxy.appredis, "get", get):
+            self.assertIsNone(await proxy._first_live_quality_url("123"))
+        self.assertEqual(get.await_count, 100 + len(proxy.ScreenResolution))
+
+    async def test_quality_write_keeps_default_in_same_transaction(self):
+        import views_live
+
+        pipe = MagicMock()
+        pipe.execute = AsyncMock()
+        with patch.object(views_live.appredis, "pipeline", return_value=pipe) as pipeline:
+            await views_live._cache_live_quality(123, 987, "quality-url", "default-url")
+        pipeline.assert_called_once_with(transaction=True)
+        self.assertEqual(
+            [call.args for call in pipe.setex.call_args_list],
+            [("miku_live_123_987", 1800, "quality-url"), ("miku_live_123", 1800, "default-url")],
+        )
+        pipe.execute.assert_awaited_once()
 
 
 class DownloadCancellation(unittest.IsolatedAsyncioTestCase):
@@ -215,12 +248,13 @@ class CacheWrites(unittest.IsolatedAsyncioTestCase):
             patch.object(b.shared, "render_template_with_theme", AsyncMock(return_value="sidebar")),
             patch.object(b.shared, "cache_set", cache),
         ):
-            _, cacheable = await b._build_nyaa_payload(1)
+            _, cacheable = await b._build_nyaa_payload(1, "nyaa:v2:1:modern:en")
             self.assertFalse(cacheable)
             cache.assert_not_awaited()
             search.return_value = [torrent]
-            _, cacheable = await b._build_nyaa_payload(1)
+            _, cacheable = await b._build_nyaa_payload(1, "nyaa:v2:1:modern:en")
             self.assertTrue(cacheable)
+            self.assertEqual(cache.await_args.args[0], "nyaa:v2:1:modern:en")
             self.assertEqual(cache.await_args.args[2], b.NYAA_CACHE_TTL)
 
     async def test_listen_does_not_cache_fallback_pages(self):
@@ -248,6 +282,40 @@ class CacheWrites(unittest.IsolatedAsyncioTestCase):
             cache.assert_not_awaited()
             await client.get("/video_listen/BV1xx411c7mD")
             self.assertEqual(cache.await_args.args[1]["vset"], [{"page": 1, "part": "real"}])
+
+    async def test_listen_cache_requires_complete_upstream_lists(self):
+        import views_video as v
+        from app import app
+
+        inst = MagicMock()
+        inst.get_info = AsyncMock(return_value={"bvid": "BV1xx411c7mD"})
+        inst.get_tags = AsyncMock(return_value=[])
+        inst.get_related = AsyncMock(return_value=[])
+        inst.get_pages = AsyncMock(return_value=[{"page": 1, "part": "real"}])
+        cache = AsyncMock()
+        with (
+            patch.object(v.video, "Video", return_value=inst),
+            patch.object(v, "cache_minutes", return_value=15),
+            patch.object(v, "cache_get", AsyncMock(return_value=None)),
+            patch.object(v, "cache_set", cache),
+            patch.object(v.appredis, "exists", AsyncMock(return_value=True)),
+            patch.object(v.comment, "get_comments", AsyncMock(return_value={})),
+            patch.object(v, "render_template_with_theme", AsyncMock(return_value="ok")),
+        ):
+            client = app.test_client()
+            for method, bad_value in (
+                (inst.get_tags, RuntimeError("tags")),
+                (inst.get_related, None),
+                (inst.get_pages, []),
+            ):
+                old_value = method.return_value
+                method.return_value = bad_value
+                response = await client.get("/video_listen/BV1xx411c7mD")
+                self.assertEqual(response.status_code, 200)
+                cache.assert_not_awaited()
+                method.return_value = old_value
+            await client.get("/video_listen/BV1xx411c7mD")
+            cache.assert_awaited_once()
 
 
 class AdditionalBoundaries(unittest.IsolatedAsyncioTestCase):

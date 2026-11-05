@@ -301,10 +301,10 @@ async def bangumi_play(ep_id):
 
 
 # One nyaa lookup fans out to a Bilibili meta call plus up to 9 nyaa.si page
-# scrapes, so results are cached per season and concurrent misses for the
-# same season share one in-flight build (singleflight).
+# scrapes, so results are cached by season, theme and locale and concurrent
+# misses for the same variant share one in-flight build (singleflight).
 NYAA_CACHE_TTL = 3600
-_nyaa_inflight: dict[int, asyncio.Task] = {}
+_nyaa_inflight: dict[str, asyncio.Task] = {}
 
 
 def _empty_nyaa_payload() -> dict:
@@ -322,16 +322,16 @@ async def bangumi_nyaa_api(ssid):
     if not shared.appconf["site"]["nyaa_bangumi"]:
         return jsonify(_empty_nyaa_payload())
 
-    cache_key = f"nyaa:{ssid}"
+    cache_key = f"nyaa:v2:{ssid}:{shared.detect_theme()}:{shared.detect_locale()}"
     cached = await shared.cache_get(cache_key, NYAA_CACHE_TTL)
     if isinstance(cached, dict) and "sidebar_html" in cached and "ep_torrents" in cached:
         return jsonify({"sidebar_html": cached["sidebar_html"], "ep_torrents": cached["ep_torrents"]})
 
-    task = _nyaa_inflight.get(ssid)
+    task = _nyaa_inflight.get(cache_key)
     if task is None:
-        task = asyncio.create_task(_build_nyaa_payload(ssid))
-        _nyaa_inflight[ssid] = task
-        task.add_done_callback(lambda _t, _s=ssid: _nyaa_inflight.pop(_s, None))
+        task = asyncio.create_task(_build_nyaa_payload(ssid, cache_key))
+        _nyaa_inflight[cache_key] = task
+        task.add_done_callback(lambda _t, _key=cache_key: _nyaa_inflight.pop(_key, None))
     try:
         # Shielded: a disconnecting caller must not cancel the shared build.
         payload, _cacheable = await asyncio.shield(task)
@@ -343,7 +343,7 @@ async def bangumi_nyaa_api(ssid):
     return jsonify(payload)
 
 
-async def _build_nyaa_payload(ssid) -> tuple[dict, bool]:
+async def _build_nyaa_payload(ssid, cache_key) -> tuple[dict, bool]:
     """Return ``(payload, cacheable)``; the owner build also writes the cache."""
     # 1. Get the title
     b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
@@ -498,5 +498,5 @@ async def _build_nyaa_payload(ssid) -> tuple[dict, bool]:
     payload = {"sidebar_html": sidebar_html, "ep_torrents": serializable_ep_torrents}
     cacheable = bool(collection_torrents or serializable_ep_torrents)
     if cacheable:
-        await shared.cache_set(f"nyaa:{ssid}", payload, NYAA_CACHE_TTL)
+        await shared.cache_set(cache_key, payload, NYAA_CACHE_TTL)
     return payload, cacheable
