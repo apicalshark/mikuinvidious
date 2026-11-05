@@ -67,6 +67,15 @@ def get_client_ip(req=None) -> str:
         return "127.0.0.1"
 
 
+def ip_family_key(family: str):
+    """Build a shared per-client bucket for all paths in a route family."""
+
+    async def key(req):
+        return f"{get_client_ip(req)}:{family}"
+
+    return key
+
+
 class RateLimiter:
     """Redis-based sliding window rate limiter."""
 

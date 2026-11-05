@@ -279,17 +279,16 @@ class TestLiveProxyFlood(unittest.IsolatedAsyncioTestCase):
         import proxy
         from app import app
 
-        async def fake_scan_iter(match=None, count=None):
+        async def fake_scan(cursor=0, match=None, count=None):
             self.assertEqual(match, "miku_live_12345_*")
-            for k in (b"miku_live_12345_10000",):
-                yield k
+            return 0, [b"miku_live_12345_10000"]
 
         keys_mock = AsyncMock(return_value=[])
         get_mock = AsyncMock(side_effect=[None, None])
         with (
             patch.object(proxy.appredis, "keys", keys_mock),
             patch.object(proxy.appredis, "get", get_mock),
-            patch.object(proxy.appredis, "scan_iter", fake_scan_iter, create=True),
+            patch.object(proxy.appredis, "scan", fake_scan),
         ):
             async with app.test_request_context("/proxy/live/12345", headers={"X-Real-IP": IP_A}):
                 resp = await proxy.proxy_main("live/12345")
@@ -495,7 +494,7 @@ class TestNyaaApi(unittest.IsolatedAsyncioTestCase):
             results = await asyncio.gather(*tasks)
         self.assertEqual(bg_inst.get_meta.await_count, 1)
         self.assertTrue(all(r["sidebar_html"] == "<p/>" for r in results))
-        cache_set.assert_awaited_once()
+        cache_set.assert_not_awaited()
 
     async def test_upstream_timeout_returns_empty_not_500(self):
         import views_bangumi

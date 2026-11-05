@@ -544,6 +544,12 @@ async def _download_track_segmented(
                     try:
                         resp_headers = await ka_conn.next_request(seg_headers)
                         conn, used = ka_conn, ka_url
+                    except asyncio.CancelledError:
+                        try:
+                            await ka_conn.close()
+                        except Exception:
+                            pass
+                        raise
                     except (CdnConnectError, CdnProtocolError, CdnTimeoutError, OSError, TimeoutError) as exc:
                         try:
                             await ka_conn.close()
@@ -666,53 +672,56 @@ async def _download_track_segmented(
                     continue
                 win_t0 = None
                 win_bytes = 0
+                stream_complete = False
                 try:
-                    async for chunk in _yield_dash_body(use_conn, seg_label):
-                        if cancel_event is not None and cancel_event.is_set():
+                    try:
+                        async for chunk in _yield_dash_body(use_conn, seg_label):
+                            if cancel_event is not None and cancel_event.is_set():
+                                return _DOWNLOAD_CANCELLED
+                            if written + seg_done + len(chunk) > max_bytes:
+                                print(f"[DashProxy] {seg_label} exceeds limit {max_bytes}")
+                                return -1
+                            pending_writes.append(chunk)
+                            pending_len += len(chunk)
+                            seg_done += len(chunk)
+                            if progress_cb is not None:
+                                progress_cb(len(chunk))
+                            now_w = time.monotonic()
+                            if win_t0 is None:
+                                win_t0 = now_w
+                            win_bytes += len(chunk)
+                            if now_w - win_t0 >= _SLOW_WINDOW:
+                                win_el = now_w - win_t0
+                                if win_el > 0:
+                                    win_rate = win_bytes / win_el
+                                    if win_rate > win_best:
+                                        win_best = win_rate
+                                    capable = track_best_bps >= _SLOW_ARM_BPS or win_best >= _SLOW_ARM_BPS
+                                    if win_rate >= _SLOW_WINDOW_KBPS * 1024:
+                                        slow_strikes = 0
+                                    elif capable:
+                                        slow_strikes += 1
+                                win_t0, win_bytes = now_w, 0
+                                if slow_strikes >= _SLOW_WINDOW_STRIKES and slow_trips < len(order):
+                                    slow_trips += 1
+                                    raise _SlowDashBody(
+                                        f"slow {win_rate / 1024:.0f} KB/s x{slow_strikes} windows "
+                                        f"(< {_SLOW_WINDOW_KBPS} KB/s)"
+                                    )
+                            if pending_len >= _DOWNLOAD_WRITE_BATCH:
+                                batch = b"".join(pending_writes)
+                                pending_writes.clear()
+                                pending_len = 0
+                                await asyncio.to_thread(file_obj.write, batch)
+                        stream_complete = True
+                    finally:
+                        if stream_complete and seg_done >= span and use_conn is conn and exact_206:
+                            keepalive = (conn, used)
+                        else:
                             try:
                                 await use_conn.close()
                             except Exception:
                                 pass
-                            return _DOWNLOAD_CANCELLED
-                        if written + seg_done + len(chunk) > max_bytes:
-                            print(f"[DashProxy] {seg_label} exceeds limit {max_bytes}")
-                            try:
-                                await use_conn.close()
-                            except Exception:
-                                pass
-                            return -1
-                        pending_writes.append(chunk)
-                        pending_len += len(chunk)
-                        seg_done += len(chunk)
-                        if progress_cb is not None:
-                            progress_cb(len(chunk))
-                        now_w = time.monotonic()
-                        if win_t0 is None:
-                            win_t0 = now_w
-                        win_bytes += len(chunk)
-                        if now_w - win_t0 >= _SLOW_WINDOW:
-                            win_el = now_w - win_t0
-                            if win_el > 0:
-                                win_rate = win_bytes / win_el
-                                if win_rate > win_best:
-                                    win_best = win_rate
-                                capable = track_best_bps >= _SLOW_ARM_BPS or win_best >= _SLOW_ARM_BPS
-                                if win_rate >= _SLOW_WINDOW_KBPS * 1024:
-                                    slow_strikes = 0
-                                elif capable:
-                                    slow_strikes += 1
-                            win_t0, win_bytes = now_w, 0
-                            if slow_strikes >= _SLOW_WINDOW_STRIKES and slow_trips < len(order):
-                                slow_trips += 1
-                                raise _SlowDashBody(
-                                    f"slow {win_rate / 1024:.0f} KB/s x{slow_strikes} windows "
-                                    f"(< {_SLOW_WINDOW_KBPS} KB/s)"
-                                )
-                        if pending_len >= _DOWNLOAD_WRITE_BATCH:
-                            batch = b"".join(pending_writes)
-                            pending_writes.clear()
-                            pending_len = 0
-                            await asyncio.to_thread(file_obj.write, batch)
                 except (
                     _SlowDashBody,
                     CdnConnectError,
@@ -721,10 +730,6 @@ async def _download_track_segmented(
                     OSError,
                     TimeoutError,
                 ) as exc:
-                    try:
-                        await use_conn.close()
-                    except Exception:
-                        pass
                     print(f"[DashProxy] {seg_label} cut after {seg_done}/{span} bytes ({exc}), failing over")
                     _note_mirror_bad(seg_host)
                     seg_clean = False
@@ -754,18 +759,6 @@ async def _download_track_segmented(
                     else:
                         await asyncio.sleep(pause)
                     continue
-                if seg_done >= span and use_conn is conn and exact_206:
-                    # Fully consumed a length-framed body on the raw conn:
-                    # the socket sits exactly at the next boundary, so keep
-                    # it for the next segment (no handshake, no slow-start
-                    # restart). Anything else (salvage wraps, short bodies,
-                    # reuses that errored) is closed as before.
-                    keepalive = (conn, used)
-                else:
-                    try:
-                        await use_conn.close()
-                    except Exception:
-                        pass
                 if seg_done >= span:
                     break
                 # Close-delimited body ended early with no error: resume the remainder.

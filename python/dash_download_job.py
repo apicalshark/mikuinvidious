@@ -54,7 +54,7 @@ from dash_fetch import (
 )
 from dash_stream import _dash_candidate_urls
 from quart import Response, jsonify, redirect
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from shared import Network, appcred, appredis
 
 
@@ -89,7 +89,7 @@ async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
 
 
 @dash_proxy_bp.route("/proxy/download/<vid>/<int:idx>/<int:qual>")
-@rate_limit(**RATE_LIMITS["strict"])
+@rate_limit(**RATE_LIMITS["strict"], key_func=ip_family_key("dash_download"))
 async def proxy_download(vid, idx, qual):
     """Mux the best DASH video (<=1080p anonymous cap) + audio into one MP4.
 

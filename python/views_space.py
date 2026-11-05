@@ -22,7 +22,7 @@ from api.exceptions import is_risk_error
 from extra import article_to_any, article_to_html, get_article_info
 from fingerprints import get_article_scrape_headers
 from quart import Response, request
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from shared import (
     Network,
     app,
@@ -123,7 +123,7 @@ def _space_html_response(html, *, use_cache, cache_hit, degraded, stale=False):
 
 @app.route("/space/<mid>")
 @app.route("/space/<mid>/")
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("space"))
 async def space_view(mid):
     try:
         pn = int(request.args.get("i") or 1)
@@ -233,7 +233,7 @@ async def space_view(mid):
 
 
 @app.route("/space/<mid>/json")
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("space_json"))
 async def space_json_feed(mid):
     cache_ttl = cache_minutes("space_json_minutes") * 60
     cache_hit = False
@@ -310,7 +310,7 @@ async def space_json_feed(mid):
 
 @app.route("/author/<mid>")
 @app.route("/author/<mid>/")
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("author"))
 async def author_view(mid):
     try:
         pn = int(request.args.get("i") or 1)
@@ -353,7 +353,7 @@ async def author_view(mid):
 @app.route("/read/mobile/<cid>/")
 @app.route("/opus/<cid>")
 @app.route("/opus/<cid>/")
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("article"))
 async def read_view(cid):
     is_opus = "opus" in request.path or not cid.startswith("cv")
     url = (

@@ -22,7 +22,7 @@ from api import comment, video
 from dash_common import _is_valid_vid
 from extra import av2bv, video_get_src_for_qn
 from quart import Response, g, request
-from rate_limit import RATE_LIMITS, get_client_ip, rate_limit
+from rate_limit import RATE_LIMITS, get_client_ip, ip_family_key, rate_limit
 from shared import (
     app,
     appcred,
@@ -65,7 +65,7 @@ def _bad_vid_response() -> Response:
 @app.route("/video_listen/<vid>:<idx>")
 @app.route("/video_listen/<vid>/")
 @app.route("/video_listen/<vid>:<idx>/")
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("video_listen"))
 async def video_listen_view(vid, idx=0):
     # Validate video ID format
     import re
@@ -150,7 +150,7 @@ async def video_listen_view(vid, idx=0):
     vrelated = results[2] if isinstance(results[2], list) else []
     vcomments = results[3] if isinstance(results[3], dict) else {"page": {"count": 0}, "replies": []}
     vset = results[4] if isinstance(results[4], list) else [{"page": 1, "part": vid}]
-    if cache_ttl > 0 and (vinfo.get("bvid") or vinfo.get("title")):
+    if cache_ttl > 0 and isinstance(results[4], list) and (vinfo.get("bvid") or vinfo.get("title")):
         await cache_set(
             cache_key,
             {"vinfo": vinfo, "vtags": vtags, "vrelated": vrelated, "vset": vset},

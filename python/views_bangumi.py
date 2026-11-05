@@ -496,5 +496,7 @@ async def _build_nyaa_payload(ssid) -> tuple[dict, bool]:
         ]
 
     payload = {"sidebar_html": sidebar_html, "ep_torrents": serializable_ep_torrents}
-    await shared.cache_set(f"nyaa:{ssid}", payload, NYAA_CACHE_TTL)
-    return payload, True
+    cacheable = bool(collection_torrents or serializable_ep_torrents)
+    if cacheable:
+        await shared.cache_set(f"nyaa:{ssid}", payload, NYAA_CACHE_TTL)
+    return payload, cacheable

@@ -20,7 +20,7 @@ from api import video
 from danmaku import parse_danmaku
 from fingerprints import FIXED_CHROME_UA
 from quart import Response, jsonify
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from shared import app, appcred, appredis
 
 # L2: strict route-param validation so subtitle cache keys cannot be
@@ -61,7 +61,7 @@ DANMAKU_CACHE_TTL = 900
 
 @app.route("/res/danmaku/<vid>")
 @app.route("/res/danmaku/<vid>:<idx>")
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("danmaku"))
 async def danmaku_res(vid, idx=0):
     # Check if this is a live room ID (all digits) or an invalid video ID
     if vid.isdigit() or not _is_valid_vid(vid):
@@ -98,10 +98,11 @@ async def danmaku_res(vid, idx=0):
         stripped = xml.lstrip().lower()
         if stripped.startswith("<!doctype") or stripped.startswith("<html"):
             return jsonify([])
-        try:
-            await appredis.setex(cache_key, DANMAKU_CACHE_TTL, xml)
-        except Exception:
-            pass
+        if stripped.startswith("<"):
+            try:
+                await appredis.setex(cache_key, DANMAKU_CACHE_TTL, xml)
+            except Exception:
+                pass
         return jsonify(parse_danmaku(xml))
     except Exception as e:
         print(f"Danmaku error for {vid}:{idx}: {e}")

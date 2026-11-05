@@ -18,7 +18,7 @@ import asyncio
 
 from api import audio, comment
 from quart import Response, request
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from shared import (
     app,
     appcred,
@@ -31,7 +31,7 @@ from shared import (
 
 
 @app.route("/audio/<auid>")
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("audio"))
 async def audio_view(auid):
     ato = request.args.get("ato") == "1"
     auid_int = int(auid[2:]) if auid.startswith("au") else int(auid)
@@ -112,7 +112,7 @@ async def audio_view(auid):
 
 @app.route("/audio_list/<amid>")
 @app.route("/audio_list/<amid>:<idx>")
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("audio_list"))
 async def audio_list_view(amid, idx=0):
     idx, ato = int(idx), request.args.get("ato") == "1"
     amid_int = int(amid[2:]) if amid.startswith("am") else int(amid)

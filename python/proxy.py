@@ -301,13 +301,14 @@ async def _first_live_quality_url(room_id: str):
     Bounded ``SCAN`` instead of ``KEYS``: KEYS is O(keyspace) and blocks
     Redis for every caller while it runs.
     """
-    seen = 0
-    async for key in appredis.scan_iter(match=f"miku_live_{room_id}_*", count=100):
-        url = await appredis.get(key)
-        if url:
-            return url
-        seen += 1
-        if seen >= 8:
+    cursor = 0
+    for _ in range(8):
+        cursor, keys = await appredis.scan(cursor=cursor, match=f"miku_live_{room_id}_*", count=100)
+        for key in keys:
+            url = await appredis.get(key)
+            if url:
+                return url
+        if not cursor:
             break
     return None
 

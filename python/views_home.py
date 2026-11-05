@@ -20,7 +20,7 @@ import transformers
 from api import ResponseCodeException, homepage, search, video, video_zone
 from b23_resolver import extract_b23_or_bili_url, resolve_b23_target
 from quart import Response, g, jsonify, redirect, request, url_for
-from rate_limit import RATE_LIMITS, rate_limit
+from rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from shared import (
     app,
     appcred,
@@ -92,7 +92,7 @@ async def home_view():
 
 @app.route("/vv/<zid>")
 @app.route("/vv/<zid>/")
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("zone"))
 async def zone_id_view(zid):
     pn = request.args.get("i") or 1
     info = await video_zone.get_zone_new_videos(zid, pn)
