@@ -3,13 +3,15 @@ bots:
   - import: (data)/bots/_deny-pathological.yaml
   - import: (data)/bots/ai-robots-txt.yaml
   - import: (data)/bots/ai-catchall.yaml
+  - import: (data)/bots/aggressive-brazilian-scrapers.yaml
+
+  - import: (data)/common/acts-like-browser.yaml
+  - import: (data)/common/domain-fronting.yaml
+  - import: (data)/common/keep-internet-working.yaml
+  - import: (data)/common/rfc-violations.yaml
+
   # Optional: dynamically synced VPS ASN snippet from tools/update_vps_asns.sh
   # - import: /data/cfg/vpsh_asns.yaml
-
-  # Infra paths: monitors can't solve PoW, never challenge them
-  - name: allow-infra-paths
-    path_regex: ^/(\.well-known/.*|favicon\.ico|robots\.txt)$
-    action: ALLOW
 
   # HTTP method restrictions: MikuInvidious only accepts GET, HEAD, and POST
   - name: deny-unsupported-methods
@@ -18,7 +20,7 @@ bots:
 
   # Vulnerability scanners: drop exploit extensions instantly without processing
   - name: drop-exploit-extensions
-    path_regex: (?i)\.(env|git|svn|bak|sql|tar|gz|zip|swp|php|asp|aspx|jsp|cgi)$
+    path_regex: (?i)\.(env|git|svn|bak|sql|tar|gz|zip|swp|php|asp|aspx|jsp|cgi|htm)$
     action: DENY
 
   # Web probe paths: drop admin panel, CMS, and debug endpoint probes instantly
