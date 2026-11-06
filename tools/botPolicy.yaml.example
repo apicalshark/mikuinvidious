@@ -3,6 +3,8 @@ bots:
   - import: (data)/bots/_deny-pathological.yaml
   - import: (data)/bots/ai-robots-txt.yaml
   - import: (data)/bots/ai-catchall.yaml
+  # Optional: dynamically synced VPS ASN snippet from tools/update_vps_asns.sh
+  # - import: /data/cfg/vpsh_asns.yaml
 
   # Infra paths: monitors can't solve PoW, never challenge them
   - name: allow-infra-paths
@@ -101,18 +103,28 @@ bots:
     action: WEIGH
     asns:
       match: &datacenter_asns [
-        # Hyperscalers: AWS, GCP, Azure, Oracle, etc
-        16509, 14618, 15169, 396982, 8075, 8068, 8069, 31898, 209242,
+        # Hyperscalers: AWS, GCP, Azure, Oracle, etc (Cloudflare WARP 13335 & 209242 explicitly excluded)
+        16509, 14618, 15169, 396982, 8075, 8068, 8069, 31898,
+        # AWS additional infrastructure (NullifiedCode list)
+        699, 801, 7224, 38895, 62785,
         # Major VPS & Cloud: DigitalOcean, Hetzner, OVH, Linode/Akamai, Vultr/Choopa, Scaleway, Leaseweb, Contabo
         14061, 24940, 213230, 16276, 35540, 63949, 20940, 20473, 12876, 16004, 16265, 60630, 28753, 51167, 40021,
+        # DigitalOcean, Vultr, Hetzner, Contabo, Scaleway, Linode expanded pools
+        39690, 62567, 133165, 135340, 200130, 201229, 202109, 205301, 393406, 394362, 11508, 46407, 133795, 212317, 141995, 29447, 54265, 48337,
         # Community & Budget VPS (Popular crawler & proxy endpoints): RackNerd, Bandwagon/IT7, DMIT, GreenCloud, SpartanHost, HostHatch, Time4VPS, xTom
         35916, 25820, 906, 32519, 132110, 202602, 50131, 201106, 63473, 212531, 3214, 9312,
-        # Hosting / Dedicated / Colo: Hostinger, Netcup, IONOS, Rackspace, UpCloud, Kamatera, Serverius, Fastly, ColoCrossing, QuadraNet, Psychz, Clouvider, FDCservers, BuyVM, Tzulo, Selectel, G-Core
-        47583, 197540, 8560, 19994, 27357, 202018, 35838, 50673, 54113, 36352, 8100, 40676, 62240, 30058, 53667, 11878, 49505, 202422,
-        # European & Regional Hosting: Voxility, Strato, Worldstream, Melbicom, Cherry Servers, AlexHost, PQ Hosting, VDSina, Beget, Reg.ru, FirstVDS
-        3223, 6724, 49981, 28836, 8849, 56630, 213896, 204770, 200019, 43624, 44477, 48282, 216071, 198610, 197695, 49352, 29182,
+        # Hosting / Dedicated / Colo: Hostinger, Netcup, IONOS, Rackspace, UpCloud, Kamatera, Serverius, Fastly, ColoCrossing, QuadraNet, Psychz, Clouvider, FDCservers, BuyVM, Tzulo, Selectel, G-Core, InMotion, MochaHost, A2Hosting, BlueHost, Scala
+        47583, 197540, 8560, 19994, 27357, 202018, 35838, 50673, 54113, 36352, 8100, 40676, 62240, 30058, 53667, 11878, 49505, 202422, 204915, 51862, 23352, 6982, 55293, 46606, 263093, 40476,
+        # Kamatera & InMotion Hosting additions
+        36007, 41436, 54913, 204548, 210329, 396948, 396949, 64022, 54641, 38421, 226111,
+        # European & Regional Hosting: Voxility, Strato, Worldstream, Melbicom, Cherry Servers, AlexHost, PQ Hosting, VDSina, Beget, Reg.ru, FirstVDS, MEVSPACE, DeinServerHost, RoyaleHosting, 100UP/Tube-Hosting, Floofy, EGI, GloboTech, ZGH
+        3223, 6724, 49981, 28836, 8849, 56630, 213896, 204770, 200019, 43624, 44477, 48282, 216071, 198610, 197695, 49352, 29182, 201814, 213250, 212477, 49581, 212513, 210632, 18779, 36666, 263702,
         # US / Global Web & VPS Hosts: GoDaddy, Namecheap, DreamHost, Hostwinds, InterServer, Liquid Web
-        26496, 22612, 26347, 54290, 19318, 32244, 53824,
+        26496, 22612, 26347, 54290, 19318, 32244, 53824, 21773, 135085, 6188, 22558, 40819, 201682,
+        # GoDaddy expanded IP/ASN pool
+        30083, 16892, 397513, 397514, 397515, 397516, 397517, 397518, 397519, 397520, 397521, 397522, 398101, 398102, 398103, 398104, 398105, 398106, 398107, 398108, 398109, 398110, 398785, 398786, 398787, 398788, 398789, 398790, 398791, 398792, 398793, 398794, 400746, 400747, 400748, 400749, 400750, 400751, 400752, 400753, 400754, 400755,
+        # Specialty & Game VPS / Infrastructure: Nuclearfallout Enterprises (NFOservers) & HostRoyale Technologies
+        14586, 32374, 32751, 214505, 393458, 400475, 401263, 203020, 35672, 39486, 46516, 133499, 134450, 204287, 396931,
         # Asia Cloud & VPS: Alibaba, Tencent, Huawei, Baidu, UCloud, Zenlayer, Sakura Internet, GMO/ConoHa
         45102, 37963, 132203, 45090, 136907, 55990, 38365, 135377, 21859, 137409, 9370, 7684, 7506,
         # Commercial VPN Infrastructure & Hosting: M247, DataCamp/CDN77, Latitude, Nord/Tefincom, PIA/Kape, Proton, Mullvad, Windscribe, StackPath/IPVanish, HideMyAss, Packethub, Cogent
