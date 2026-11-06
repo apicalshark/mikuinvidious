@@ -42,7 +42,7 @@ This document catalogs the Bilibili API endpoints, parameters, and cryptographic
 - `GET https://www.bilibili.com/audio/music-service-c/web/url` — Audio track stream URL.
 - `GET https://www.bilibili.com/audio/music-service-c/web/menu/info` — Playlist metadata.
 - `GET https://www.bilibili.com/audio/music-service-c/web/song/of-menu` — Songs in playlist.
-- `GET https://api.bilibili.com/x/article/viewinfo` — Long-form article body.
+- `GET https://api.bilibili.com/x/article/viewinfo` — Supplementary article metadata (stats: likes, coins, favorites; fallback title). The article body itself is parsed directly from public web HTML by `views_space.py`.
 - `GET https://api.bilibili.com/x/polymer/web-dynamic/v1/opus/detail` — Opus post content.
 - `GET https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd` — Homepage recommendations (WBI signed).
 - `GET https://api.bilibili.com/x/web-interface/dynamic/region` — Sub-zone dynamic feed.
@@ -56,19 +56,27 @@ WBI is Bilibili's primary API signature mechanism:
 1. **Key Extraction:** Retrieve `/x/web-interface/nav`. Extract `wbi_img.img_url` and `wbi_img.sub_url`.
 2. **Mixin Key Derivation:** Concatenate filename basenames and apply the Bilibili OE permutation table to produce a 32-character `mixin_key`.
 3. **Query Signing:**
+   - Ensure `web_location` defaults to `1315873` if absent or None prior to sorting.
    - Append `wts=<unix_timestamp>`.
-   - Sort query parameters alphabetically.
-   - URL-encode and append the `mixin_key`.
+   - Sort query parameters alphabetically by key.
+   - URL-encode each key and value using percent-encoding with spaces encoded as `%20` (never `+`, which produces an invalid signature).
+   - Concatenate query pairs with `&` and append the `mixin_key`.
    - Compute `MD5` checksum to generate `w_rid`.
-4. **Invalidation:** On HTTP `-403`, invalidate the cached `mixin_key`, re-fetch from `/nav`, and retry.
+4. **Invalidation:** If the upstream JSON response payload contains `"code": -403` (distinct from an HTTP 403 status code), invalidate the cached `mixin_key`, re-fetch fresh keys from `/x/web-interface/nav`, and retry.
 
 ### `bili_ticket` Token Generation
 A cryptographic proof header required for CDN media access:
 1. Compute `HMAC-SHA256(key="XgwSnGZ1p", message=f"ts{int(time.time())}")`.
-2. `POST https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket` with the hex signature and `key_id=ec02`.
-3. Extract `data.ticket` and cache for up to 3 days.
-4. **Header Rule:** Send *only* via the `x-bili-ticket` HTTP request header for CDN proxying. Never send as a browser cookie.
+2. `POST https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket` with POST parameters:
+   - `key_id: "ec02"`
+   - `hexsign: <hex_signature>`
+   - `context[ts]: "<timestamp>"` (matching the UNIX timestamp in the HMAC signature)
+   - `csrf: ""`
+3. Extract `data.ticket` and cache for up to 3 days (or as specified by `ttl`).
+4. **Header Rule:** Send *only* via the `x-bili-ticket` HTTP request header for CDN proxying. Never send as a browser cookie (sending as cookie triggers empty anti-bot search results).
 
-### Gaia Risk Avoidance (`api/client.py`)
-When upstream detects datacenter or high-frequency traffic, it returns `code == 0` with a `data.v_voucher` object (client-side gaia gate).
-`client.py` bypasses this by submitting fake WebGL/Canvas fingerprint parameters (`dm_img_list`, `dm_img_str`, `dm_cover_img_str`, `dm_img_inter`) and setting `isGaiaAvoided=true` with `gaia_source=pre-load`.
+### Gaia Risk Avoidance (`api/video.py`, `api/user.py`)
+Upstream bot detection gates requests via captcha challenges (`v_voucher`) or `-352`/`412` risk codes. MikuInvidious mitigates these through lane-specific fallbacks:
+- **Playurl Avoidance Lane:** When a playurl endpoint returns `v_voucher` or `-352`, `api/video.py` retries via the avoidance lane with `gaia_source=pre-load`, `isGaiaAvoided=true`, `try_look=1`, and WebGL/canvas template parameters (`dm_img_list`, `dm_img_str`, `dm_cover_img_str`, `dm_img_inter`).
+- **Space Route Fallbacks:** When user space endpoints trigger risk controls, `api/user.py` falls back from `/x/space/wbi/acc/info` to `/x/web-interface/card`, and from `/x/space/wbi/arc/search` to `/x/series/recArchivesByKeywords`.
+- **Operational Reality:** Fingerprint emulation and alternative routes mitigate common triggers but do not guarantee bypass against aggressive datacenter IP blocks. Deploying an upstream proxy or residential/WARP egress via `proxy_url` remains required for datacenter hosting.

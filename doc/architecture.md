@@ -59,7 +59,7 @@ MikuInvidious is an asynchronous, privacy-first web frontend and media proxy for
 +------------------+      +-------------------------------+
 | Redis Server     |      | Outbound Transport            |
 | - Page Caching   |      | - Direct Residential          |
-| - Sessions       |      | - Cloudflare WARP SOCKS5:1080 |
+| - Ticket Storage |      | - Cloudflare WARP SOCKS5:1080 |
 | - Rate Limiting  |      |   (for Datacenter IPs)        |
 +------------------+      +-------------------------------+
                                     |
@@ -68,6 +68,9 @@ MikuInvidious is an asynchronous, privacy-first web frontend and media proxy for
                           | Upstream Bilibili CDN & APIs  |
                           +-------------------------------+
 ```
+
+> [!NOTE]
+> Quart manages user sessions entirely via signed client-side cookies (`SecureCookieSessionInterface`), not in Redis. Flushing Redis alone does not invalidate existing user session cookies while the application is running.
 
 ---
 
@@ -102,7 +105,7 @@ graph TD
             BiliAPI["Local Bilibili API Client<br>(python/api/)"]
         end
 
-        Redis[("Redis Cache & Sessions")]
+        Redis[("Redis Cache, Tickets & Limits")]
         DiskCache[("Local Disk Image Cache")]
     end
 
@@ -135,10 +138,13 @@ graph TD
 
     %% Cache & API paths
     ProxyDASH --> Redis
-    ProxyDASH --> Warp
+    ProxyDASH -- "Direct" --> BiliCDN
+    ProxyDASH -- "Proxy" --> Warp
     ProxyPic --> DiskCache
-    ProxyPic --> Warp
-    ProxyLive --> Warp
+    ProxyPic -- "Direct" --> BiliCDN
+    ProxyPic -- "Proxy" --> Warp
+    ProxyLive -- "Direct" --> BiliCDN
+    ProxyLive -- "Proxy" --> Warp
 
     VideoBP --> Redis
     VideoBP --> BiliAPI
@@ -148,7 +154,8 @@ graph TD
     BangumiBP --> NyaaSI
     LiveBP --> BiliAPI
 
-    BiliAPI --> Warp
+    BiliAPI -- "Direct" --> BiliServers
+    BiliAPI -- "Proxy" --> Warp
     Warp --> BiliCDN
     Warp --> BiliServers
 ```

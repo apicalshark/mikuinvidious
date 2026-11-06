@@ -33,7 +33,7 @@ Do not run tests indiscriminately. Evaluate the scope of your changes first:
 | Modification Scope | Required Actions | Strictly FORBIDDEN / Redundant Actions |
 | :--- | :--- | :--- |
 | **Documentation / Markdown only** (`*.md`, `doc/*`) | Check git status & file links | **DO NOT run unit tests, compileall, or linters.** |
-| **Frontend assets only** (`static/*`, `templates/*`) | `npm run lint:frontend`<br>`npm run build:css` (if Tailwind CSS modified)<br>`npm run check:i18n` (if locale catalogs modified) | **DO NOT run Python unit tests.** |
+| **Frontend assets only** (`static/*`, `templates/*`) | `npm run lint:frontend`<br>`npm run build:css` (if Tailwind CSS modified)<br>`npm run build:i18n` (if translatable strings in templates or Python modified: extracts, syncs, and compiles catalogs)<br>`npm run check:i18n` (to verify catalogs) | **DO NOT run Python unit tests.** |
 | **Python code modified** (`python/*`, `tests/*`) | `uv run ruff check python`<br>`uv run python -m compileall -q python tests tools`<br>`NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests` | Do not skip bytecode or ruff checks before PRs. |
 
 ### Command Reference
@@ -42,7 +42,7 @@ Do not run tests indiscriminately. Evaluate the scope of your changes first:
 # Python Test Suite (Run ONLY when python/* or tests/* change)
 NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests
 
-# Bytecode Compilation Check (Syntax & Import Errors)
+# Bytecode Compilation Check (Syntax Errors; Does Not Verify Imports)
 uv run python -m compileall -f python tests tools
 
 # Python Linting & Formatting

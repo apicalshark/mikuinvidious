@@ -1,6 +1,6 @@
 # Configuration Reference
 
-MikuInvidious can be configured using `config.toml` (recommended) or environment variables. Environment variables take precedence over settings in the configuration file.
+MikuInvidious can be configured using `config.toml` (recommended) or environment variables. Configuration file settings (`config.toml`) override environment variable defaults, with the sole exception of `SITE_URL`, which overrides `site.site_url` if set in the environment.
 
 ---
 
@@ -10,7 +10,7 @@ Settings related to site identity, security flags, and features.
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `site_name` | `SITE_NAME` | `MikuInvidious` | The public name of your instance. |
-| `site_url` | `SITE_URL` | `http://localhost:8888` | The public URL of your instance, including actual HTTP/HTTPS scheme. The session cookie `Secure` flag dynamically derives from `site_url.startswith("https://")`. |
+| `site_url` | `SITE_URL` | `http://localhost:8888` | The public URL of your instance, including actual HTTP/HTTPS scheme. The session cookie `Secure` flag dynamically defaults based on `site_url.startswith("https://")`, but can be explicitly overridden by `SESSION_COOKIE_SECURE` in `[quart]`. |
 | `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | Link to modified source code (required by AGPL-3.0 if you modified the code). Set to `false` if unmodified. |
 | `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | When `false`, hides video download UI elements (media proxy remains available). |
 | `max_download_size_mb` | `MAX_DOWNLOAD_SIZE_MB` | `1024` | Maximum allowed size (in MB) per downloaded track. Jobs exceeding this limit are rejected. |
@@ -70,7 +70,7 @@ Authentication credentials for accessing higher video resolutions (e.g., 1080p+)
 | `ac_time_value` | `AC_TIME_VALUE` | (None) | Bilibili local-storage refresh token (`window.localStorage.ac_time_value`). |
 
 > [!TIP]
-> **Encrypted Credentials:** Credentials can be encrypted using libsodium (XChaCha20-Poly1305) via `python tools/encrypt_secrets.py --encrypt SESSDATA "your_cookie"`. At runtime, set `SECRETS_MASTER_KEY` to automatically decrypt values in memory.
+> **Encrypted Credentials:** Credentials can be encrypted using libsodium XSalsa20-Poly1305 (via PyNaCl `SecretBox`) with `python tools/encrypt_secrets.py --encrypt SESSDATA "your_cookie"`. A 32-byte master key must first be generated and exported as `SECRETS_MASTER_KEY` (e.g., `export SECRETS_MASTER_KEY=$(python3 -c "import nacl.utils, base64; print(base64.b64encode(nacl.utils.random(32)).decode())")`). The same `SECRETS_MASTER_KEY` must be set in the environment at runtime for the application to decrypt secrets into memory.
 
 ---
 
@@ -89,7 +89,7 @@ Settings for rendering Bilibili articles using Pandoc.
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `use_pandoc` | `USE_PANDOC` | `false` | When `true`, uses system `pandoc` to convert articles. |
-| `article_allowed_formats` | `ARTICLE_ALLOWED_FORMATS` | `markdown,plain,html` | Comma-separated list of formats Pandoc is permitted to convert from. |
+| `article_allowed_formats` | `ARTICLE_ALLOWED_FORMATS` | `markdown,plain,html` | Allowed formats Pandoc is permitted to convert from. In `config.toml`, specify as a TOML array (e.g., `['markdown', 'plain', 'html']`). In the environment variable, provide a comma-separated string. |
 
 ---
 
@@ -108,7 +108,7 @@ Upstream Bilibili client headers and platform parameters.
 ---
 
 ## `[redis]`
-Redis database connection settings (required for session storage, media caching, rate limiting, and ticket storage).
+Redis database connection settings (used for media caching, rate limiting, and ticket storage; note that Quart sessions are stored in signed client cookies, so flushing Redis does not log out users).
 
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -146,6 +146,9 @@ Sliding-window Redis-backed rate limiting per IP address.
 | `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master toggle for rate limiting. |
 | `trusted_proxies` | `TRUSTED_PROXIES` | `""` | Comma-separated list of IP addresses or CIDR blocks whose forwarding proxy headers (`X-Forwarded-For`, etc.) are trusted. |
 
+> [!WARNING]
+> **Implicit Private Forwarder Trust:** `rate_limit.py` automatically treats loopback and RFC1918 / RFC4193 private addresses (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, `fc00::/7`, `fe80::/10`) as trusted forwarders even when `trusted_proxies` is empty. In multi-tenant environments, operators must ensure perimeter reverse proxies strip or overwrite untrusted forwarding headers to prevent header spoofing.
+
 ---
 
 ## Image Disk Cache (Environment Configured)
@@ -153,14 +156,14 @@ The local disk cache for proxied images (`/proxy/pic/*`) in `python/image_cache.
 
 | Environment Variable | Default | Description |
 | :--- | :--- | :--- |
-| `IMAGE_CACHE_DIR` | `data/img_cache` | Filesystem path for caching images. Falls back to `/tmp/miku_img_cache` if unwritable. |
+| `IMAGE_CACHE_DIR` | `data/img_cache` | Filesystem path for caching images. Falls back to `miku_img_cache` inside `tempfile.gettempdir()` (e.g. `/tmp/miku_img_cache`) if unwritable. |
 | `IMAGE_CACHE_MAX_SIZE_MB` | `2048` | Maximum cache size in MB before LRU pruning trims disk usage to 80%. |
 | `IMAGE_CACHE_TTL_DAYS` | `7` | Retention period in days for cached images. |
 
 ---
 
-## Hardcoded Framework Timeouts (`python/shared.py`)
-To support long-form video playback and media streaming without idle connection drops, Quart is configured with:
+## Framework Defaults & Timeouts (`python/shared.py`)
+To support long-form video playback and media streaming without idle connection drops, Quart is configured by default with:
 - `RESPONSE_TIMEOUT = 10800` (3 hours)
 - `BODY_TIMEOUT = 10800` (3 hours)
-- `SESSION_COOKIE_SAMESITE = "Lax"`
+- `SESSION_COOKIE_SAMESITE = "Lax"` (can be overridden via `[quart]` in `config.toml`)
