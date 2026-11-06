@@ -1,7 +1,3 @@
-<!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:9fc7d837f736f11fec472a0667158a4cc010cc929960ca12e72c13594c19c86b -->
-
 # MikuInvidious — Agent Guidelines
 
 MikuInvidious is a lightweight, privacy-focused Bilibili frontend built with Python 3.15+, Quart (ASGI), Granian, Caddy (reverse proxy), Redis, and optional Cloudflare WARP (SOCKS5).
@@ -106,6 +102,3 @@ Use `call_mcp_tool(ServerName, ToolName, Arguments)`:
 - **Library Docs:** Use `context7_context7` (`query-docs`) for Quart, Tailwind, Redis, Caddy.
 - **Web Standards:** Use `mdn` (`get-doc`, `get-compat`) for Web APIs/CSS.
 - **Complex Tasks:** Use `sequential-thinking` (`sequentialthinking`) for multi-step reasoning.
-
-
-<!-- /coderabbit-ai-generated:v1 -->

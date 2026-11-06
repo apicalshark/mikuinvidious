@@ -1,7 +1,3 @@
-<!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:eb9605817b0bad1ed21792dd774364204c06e4fcedbc3769b1ed418b7c1bdd93 -->
-
 # Configuration Reference
 
 MikuInvidious can be configured using `config.toml` (recommended) or environment variables. Configuration file settings (`config.toml`) override environment variable defaults, with the sole exception of `SITE_URL`, which overrides `site.site_url` if set in the environment.
@@ -171,6 +167,3 @@ To support long-form video playback and media streaming without idle connection 
 - `RESPONSE_TIMEOUT = 10800` (3 hours)
 - `BODY_TIMEOUT = 10800` (3 hours)
 - `SESSION_COOKIE_SAMESITE = "Lax"` (can be overridden via `[quart]` in `config.toml`)
-
-
-<!-- /coderabbit-ai-generated:v1 -->
