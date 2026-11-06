@@ -116,7 +116,78 @@ bots:
         # Asia Cloud & VPS: Alibaba, Tencent, Huawei, Baidu, UCloud, Zenlayer, Sakura Internet, GMO/ConoHa
         45102, 37963, 132203, 45090, 136907, 55990, 38365, 135377, 21859, 137409, 9370, 7684, 7506,
         # Commercial VPN Infrastructure & Hosting: M247, DataCamp/CDN77, Latitude, Nord/Tefincom, PIA/Kape, Proton, Mullvad, Windscribe, StackPath/IPVanish, HideMyAss, Packethub, Cogent
-        9009, 60068, 212238, 204601, 206092, 396356, 62371, 209103, 208585, 397423, 33438, 39351, 58061, 174
+        9009, 60068, 212238, 204601, 206092, 396356, 62371, 209103, 208585, 397423, 33438, 39351, 58061, 174,
+        # Chinese Cross-Border / CN2 GIA / 9929 / CMIN2 / Community VPS (NodeSeek / Hostloc recommendations):
+        # Misaka Network (US, JP, HK, EU)
+        57695, 23961, 142616, 60000,
+        # xTom / V.PS additional ASNs
+        6233, 8888, 3258, 23858, 4785, 23959,
+        # BandwagonHost / IT7 & DMIT additions
+        21887, 54574,
+        # CeraNetworks (CNSERVERS - major CN2 GIA / 9929 provider)
+        40065,
+        # VMISS & NetLab Global (LisaHost / VMISS)
+        979, 967, 400464, 35251,
+        # JINX, Prime Security & Shanghai Huajuan (花卷)
+        150684, 140096, 131477, 400618,
+        # WikiHost (微基主机 / 50KVM) additions
+        139893, 215151,
+        # KuaiCheDao (快车道) & Nube Cloud
+        139046, 138997,
+        # Akile Cloud & BageVM
+        61112, 216174, 63150, 152913,
+        # Sharon Networks & Hytron Network Services
+        396856, 17433, 202662,
+        # Kurun Cloud / FastNet Data & ByteVirt / Krypt / VPLS
+        8796, 139637, 214300, 35908,
+        # Kirino LLC (CloudSilk/白丝云 upstream) & Nearoute (CoalCloud/炭云 HK)
+        41378, 51847,
+        # TechAvenue / GigsGigsCloud additions & ZGOCloud & WAP CC & DigitalVirt & Dogyun / XNNET
+        63916, 55799, 197767, 198100, 11161, 932,
+        # Regional Outbound & Optimize VPS: MOACK (Korea), Skyline Connect (SG), TotHost (Vietnam), Evoxt, Sakura Link, Catixs, Akari
+        138195, 216211, 151873, 149440, 49304, 9516, 48266, 983,
+        # MJJ Community Outbound & Transit Nodes: Spike Telecom, BGPNET, Starry, Landui, V5.NET, VKVM, Lumity, Alvidi, RackSmart, PEG TEC, PITTQIAO, Awesomecloud, AROSS, Landups, Cloudfort, VH Global, Cgi Global, Megaplayer, Cloudie/YunYoo
+        60504, 141883, 64050, 134835, 134365, 6134, 215269, 140896, 18464, 399195, 398993, 54600, 131642, 151487, 400619, 150452, 7586, 42960, 56971, 139646, 55933,
+        # US Budget / Niche Hosts popular in Chinese proxy tutorials: HostUS, ExtraVM, Crunchbits, IncogNET, Atlantic.Net, ServerPoint, PureVoltage, RamNode, FiberState
+        7489, 53724, 400304, 40663, 6364, 26277, 26548, 3842, 26042,
+        # Chinese Internet Censorship, Surveillance, DPI & Research Institutes:
+        # Geedge Networks (Tiangou Secure Gateway DPI / GFW exporter - leaked Sep 2025)
+        141021,
+        # CSTNET / Chinese Academy of Sciences (CAS / 中科院计算机网络信息中心 / MESA Lab)
+        7497, 132801, 134079,
+        # CERNET & CERNET2 (China Education and Research Network / GFW origin and testing testbed)
+        4538, 23910, 23911, 24354,
+        # CNNIC (China Internet Network Information Center / 国家互联网络信息中心 / SDNS)
+        24424, 38803, 18244, 4221, 24151,
+        # CNCERT / CC (National Computer Network Emergency Response / 态势感知与全网扫描)
+        58543,
+        # Sangfor Technologies (深信服科技 - SSL Inspection / DPI / Enterprise Firewall Exporter)
+        151662,
+        # Qihoo 360 (奇虎360 - Active Scanning, Vulnerability Research & Intelligence)
+        55992, 55994, 55995, 137725,
+        # NSFOCUS (绿盟科技) & Venustech (启明星辰)
+        137775, 137776, 138421,
+        # Great Wall Broadband / Dr. Peng (长城宽带 / 鹏博士 - aggressive MITM cache injection & hijacking)
+        17964, 9801,
+        # Chinese Major IT & Internet Tech Companies (incl. Bilibili):
+        # Bilibili (BILIBILI HK LIMITED / 上海幻电)
+        140633,
+        # ByteDance / TikTok / Douyin (字节跳动)
+        396986, 138699, 137718, 149303,
+        # NetEase (网易)
+        45062, 137263, 131659,
+        # JD.com (京东 / 京东云)
+        58519, 137714, 137715, 138158,
+        # Kuaishou (快手)
+        139090, 138696, 137726,
+        # Meituan (美团) & Xiaomi (小米)
+        136960, 136961, 137728, 138402,
+        # Sina / Weibo (新浪 / 微博) & Xiaohongshu (小红书 / 行吟信息科技)
+        4808, 58563, 151282,
+        # Kingsoft Cloud (金山云)
+        135384, 135385, 135386, 135387,
+        # Alibaba / Taobao & Tencent & Baidu infrastructure additions
+        24429, 59067, 137720, 132591, 133475, 136908, 55967, 138698
       ]
     weight:
       adjust: 15
