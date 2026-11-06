@@ -349,3 +349,12 @@ Run verification before committing changes. Prefer direct `uv` commands; only in
   - **Images:** Always proxied with WebP optimization.
   - **Videos:** Always proxied via `CdnConnection` (raw socket; direct, or WARP SOCKS5 when configured).
 - **B23.tv:** Short links are resolved server-side.
+
+## MCP Tool Usage
+
+Use `call_mcp_tool(ServerName, ToolName, Arguments)`:
+- **Web Fetching**: Prefer MCP `webfetch` (`fetch`) or `exa` (`web_fetch_exa`) for URLs/docs over shell commands.
+- **Library Docs**: Use `context7_context7` (`query-docs`) for Quart, Tailwind, Redis, Caddy.
+- **Web Standards**: Use `mdn` (`get-doc`, `get-compat`) for Web APIs/CSS.
+- **Complex Tasks**: Use `sequential-thinking` (`sequentialthinking`) for multi-step reasoning.
+

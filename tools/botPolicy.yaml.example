@@ -1,8 +1,33 @@
 bots:
+  # Built-in Anubis defense definitions (bundled inside Anubis container image)
+  - import: (data)/bots/_deny-pathological.yaml
+  - import: (data)/bots/ai-robots-txt.yaml
+  - import: (data)/bots/ai-catchall.yaml
+
   # Infra paths: monitors can't solve PoW, never challenge them
   - name: allow-infra-paths
     path_regex: ^/(\.well-known/.*|favicon\.ico|robots\.txt)$
     action: ALLOW
+
+  # HTTP method restrictions: MikuInvidious only accepts GET, HEAD, and POST
+  - name: deny-unsupported-methods
+    action: DENY
+    expression: '!(method in ["GET", "HEAD", "POST"])'
+
+  # Vulnerability scanners: drop exploit extensions instantly without processing
+  - name: drop-exploit-extensions
+    path_regex: (?i)\.(env|git|svn|bak|sql|tar|gz|zip|swp|php|asp|aspx|jsp|cgi)$
+    action: DENY
+
+  # Web probe paths: drop admin panel, CMS, and debug endpoint probes instantly
+  - name: drop-probe-paths
+    path_regex: (?i)^/(wp-admin|wp-login|xmlrpc\.php|phpmyadmin|actuator|console|cgi-bin|autodiscover|\.aws|id_rsa|telescope)
+    action: DENY
+
+  # Honeypot: drop automated crawlers that blindly follow hidden link traps
+  - name: catch-honeypot
+    path_regex: ^/(trap-hidden-bot-link|spider-trap|bot-trap).*$
+    action: DENY
 
   # Empty UA is overwhelmingly scraper traffic
   - name: deny-empty-user-agent
@@ -37,7 +62,118 @@ bots:
       difficulty: 6
       report_as: 6
 
-  # Public JSON API: cheap, cached, must work for RSS/scripts without JS
+  # Spoofed Firefox via Chromium: User-Agent claims Firefox, but sends Chromium-exclusive Sec-Ch-Ua
+  - name: catch-spoofed-firefox-chromium
+    action: DENY
+    expression: 'headers["User-Agent"].contains("Firefox/") && ("Sec-Ch-Ua" in headers || "sec-ch-ua" in headers)'
+
+  # Missing Accept-Language header (standard browsers always send one; headless/scripts omit it)
+  - name: weigh-missing-accept-language
+    action: WEIGH
+    expression: '!headers.exists(h, h.matches("(?i)accept-language"))'
+    weight:
+      adjust: 10
+
+  # Spoofed Chrome: User-Agent claims Chrome, but lacks modern Sec-Ch-Ua client hint header
+  - name: weigh-spoofed-chrome
+    action: WEIGH
+    expression: 'headers["User-Agent"].contains("Chrome/") && !("Sec-Ch-Ua" in headers)'
+    weight:
+      adjust: 15
+
+  # Fake Firefox script: User-Agent claims Firefox, but lacks Sec-Fetch-Mode or Brotli (br) support
+  - name: weigh-fake-firefox-script
+    action: WEIGH
+    expression: 'headers["User-Agent"].contains("Firefox/") && (!("Sec-Fetch-Mode" in headers) || !("Accept-Encoding" in headers) || !headers["Accept-Encoding"].contains("br"))'
+    weight:
+      adjust: 15
+
+  # Non-standard engines: User-Agent is neither Chrome/Chromium nor Firefox
+  - name: weigh-non-chrome-and-firefox
+    action: WEIGH
+    expression: '!headers["User-Agent"].matches("(?i)(chrome|crios|chromium|firefox|fxios)")'
+    weight:
+      adjust: 10
+
+  # Known VPS, Datacenter, and Commercial VPN ASNs:
+  # Grouped inline list with YAML anchor (&datacenter_asns) for reuse across rules.
+  - name: weigh-datacenter-and-vpn-asns
+    action: WEIGH
+    asns:
+      match: &datacenter_asns [
+        # Hyperscalers: AWS, GCP, Azure, Oracle, Cloudflare
+        16509, 14618, 15169, 396982, 8075, 8068, 8069, 31898, 13335, 209242,
+        # Major VPS & Cloud: DigitalOcean, Hetzner, OVH, Linode/Akamai, Vultr/Choopa, Scaleway, Leaseweb, Contabo
+        14061, 24940, 213230, 16276, 35540, 63949, 20940, 20473, 12876, 16004, 16265, 60630, 28753, 51167, 40021,
+        # Community & Budget VPS (Popular crawler & proxy endpoints): RackNerd, Bandwagon/IT7, DMIT, GreenCloud, SpartanHost, HostHatch, Time4VPS, xTom
+        35916, 25820, 906, 32519, 132110, 202602, 50131, 201106, 63473, 212531, 3214, 9312,
+        # Hosting / Dedicated / Colo: Hostinger, Netcup, IONOS, Rackspace, UpCloud, Kamatera, Serverius, Fastly, ColoCrossing, QuadraNet, Psychz, Clouvider, FDCservers, BuyVM, Tzulo, Selectel, G-Core
+        47583, 197540, 8560, 19994, 27357, 202018, 35838, 50673, 54113, 36352, 8100, 40676, 62240, 30058, 53667, 11878, 49505, 202422,
+        # European & Regional Hosting: Voxility, Strato, Worldstream, Melbicom, Cherry Servers, AlexHost, PQ Hosting, VDSina, Beget, Reg.ru, FirstVDS
+        3223, 6724, 49981, 28836, 8849, 56630, 213896, 204770, 200019, 43624, 44477, 48282, 216071, 198610, 197695, 49352, 29182,
+        # US / Global Web & VPS Hosts: GoDaddy, Namecheap, DreamHost, Hostwinds, InterServer, Liquid Web
+        26496, 22612, 26347, 54290, 19318, 32244, 53824,
+        # Asia Cloud & VPS: Alibaba, Tencent, Huawei, Baidu, UCloud, Zenlayer, Sakura Internet, GMO/ConoHa
+        45102, 37963, 132203, 45090, 136907, 55990, 38365, 135377, 21859, 137409, 9370, 7684, 7506,
+        # Commercial VPN Infrastructure & Hosting: M247, DataCamp/CDN77, Latitude, Nord/Tefincom, PIA/Kape, Proton, Mullvad, Windscribe, StackPath/IPVanish, HideMyAss, Packethub, Cogent
+        9009, 60068, 212238, 204601, 206092, 396356, 62371, 209103, 208585, 397423, 33438, 39351, 58061, 174
+      ]
+    weight:
+      adjust: 15
+
+  # Escalated Geos: BRICS, HK/MO, Central Asia, Middle East, South & Central America (incl. Mexico), and all Africa:
+  # Grouped inline list with YAML anchor (&targeted_geos) for reuse across rules.
+  - name: weigh-targeted-geos
+    action: WEIGH
+    geoip:
+      countries: &targeted_geos [
+        # Greater China SARs & Eurasia:
+        HK, MO, CN, RU, IN, VN, ID, BD, PK, PH, TH, TR, UA,
+        # Central Asia:
+        KZ, UZ, KG, TJ, TM,
+        # Middle East:
+        SA, AE, IR, IQ, SY, YE, OM, QA, KW, BH, JO, LB, IL, PS,
+        # Mexico & Central America:
+        MX, GT, BZ, SV, HN, NI, CR, PA,
+        # South America:
+        BR, AR, CO, CL, PE, VE, EC, BO, PY, UY, GY, SR,
+        # North Africa:
+        EG, DZ, MA, TN, LY, SD, SS,
+        # West Africa:
+        NG, GH, CI, SN, ML, BF, NE, GN, BJ, TG, SL, LR, MR, GM, GW, CV,
+        # Central Africa:
+        CD, CG, CM, GA, GQ, CF, TD, ST, AO,
+        # East Africa:
+        ET, KE, UG, TZ, RW, BI, SO, DJ, ER, MG, MU, KM, SC,
+        # Southern Africa:
+        ZA, ZM, ZW, MZ, NA, BW, MW, LS, SZ
+      ]
+    weight:
+      adjust: 10
+
+  # Public JSON API (/space/.../json): Must work for RSS/scripts without JS,
+  # but strictly gated against abuse from datacenter IPs, VPNs, and high-risk regions:
+  - name: challenge-space-json-datacenter
+    action: CHALLENGE
+    expression: 'path.startsWith("/space/") && path.endsWith("/json")'
+    asns:
+      match: *datacenter_asns
+    challenge:
+      algorithm: fast
+      difficulty: 6
+      report_as: 6
+
+  - name: challenge-space-json-geos
+    action: CHALLENGE
+    expression: 'path.startsWith("/space/") && path.endsWith("/json")'
+    geoip:
+      countries: *targeted_geos
+    challenge:
+      algorithm: fast
+      difficulty: 6
+      report_as: 6
+
+  # Clean residential traffic: allowed freely without JS challenge
   - name: allow-space-json
     action: ALLOW
     expression: 'path.startsWith("/space/") && path.endsWith("/json")'
@@ -48,14 +184,6 @@ bots:
   #   action: ALLOW
   #   remote_addresses: ["91.242.162.0/24"]
 
-  # Datacenter/geo escalation (needs GeoIP). Opt-in.
-  # - name: weigh-aggressive-geos
-  #   action: WEIGH
-  #   geoip:
-  #     countries: [BR, CN]
-  #   weight:
-  #     adjust: 10
-
   # Under load, make new sessions prove themselves harder (tune to ~2x cores)
   - name: high-load-shed
     action: WEIGH
@@ -63,14 +191,56 @@ bots:
     weight:
       adjust: 20
 
-  # Default: challenge everything else (media stays behind PoW by design)
-  - name: force-challenge-all
-    user_agent_regex: .*
+# Evaluates the client's final accumulated weight from the WEIGH rules above.
+# Explicit ALLOW / DENY / CHALLENGE rules in 'bots' take precedence.
+thresholds:
+  - name: baseline
+    # Clean residential client (weight <= 0): baseline challenge (keeps media behind PoW).
+    # (To allow clean residential traffic through without challenge, set action to ALLOW).
+    expression: 'weight <= 0'
     action: CHALLENGE
     challenge:
       algorithm: fast
       difficulty: 4
       report_as: 4
+
+  - name: mild-suspicion
+    # Targeted regional traffic (weight 1-14, e.g. weigh-targeted-geos +10)
+    expression: 'weight > 0 && weight < 15'
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 6
+      report_as: 6
+
+  - name: moderate-suspicion
+    # Datacenter / VPS / VPN traffic (weight 15-24, e.g. weigh-datacenter-and-vpn-asns +15)
+    expression: 'weight >= 15 && weight < 25'
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 7
+      report_as: 7
+
+  - name: high-suspicion
+    # Compounded risk (weight 25-34, e.g. Datacenter ASN + Targeted Geo = +25)
+    expression: 'weight >= 25 && weight < 35'
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 8
+      report_as: 8
+
+  - name: extreme-suspicion
+    # Severe suspicion (weight >= 35, e.g. Datacenter IP + High Load or Fake Chrome + Proxy):
+    # Computational tarpit: burns attacker CPU cores on heavy cryptographic Proof-of-Work
+    expression: 'weight >= 35'
+    action: CHALLENGE
+    challenge:
+      algorithm: fast
+      difficulty: 10
+      report_as: 10
+
 
 # Production store (default memory backend is not for production):
 # store:
@@ -82,3 +252,22 @@ bots:
 # metrics:
 #   bind: "127.0.0.1:9090"
 #   network: tcp
+
+# Logging (optional: set asn: true to tag request logs with client ASN)
+# logging:
+#   sink: stdio
+#   asn: true
+
+# GeoIP databases (required for 'geoip' and 'asns' rules above):
+# Mount databases from host or configure auto_update if you have a MaxMind license.
+geoip:
+  asn:
+    path: /var/lib/GeoIP/GeoLite2-ASN.mmdb
+  country:
+    path: /var/lib/GeoIP/GeoLite2-Country.mmdb
+  # Optional automatic updates:
+  # auto_update:
+  #   account_id: 123456
+  #   license_key_env: MAXMIND_LICENSE_KEY
+  #   interval: 24h
+
