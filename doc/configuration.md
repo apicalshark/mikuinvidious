@@ -1,3 +1,7 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:eb9605817b0bad1ed21792dd774364204c06e4fcedbc3769b1ed418b7c1bdd93 -->
+
 # Configuration Reference
 
 MikuInvidious can be configured using `config.toml` (recommended) or environment variables. Configuration file settings (`config.toml`) override environment variable defaults, with the sole exception of `SITE_URL`, which overrides `site.site_url` if set in the environment.
@@ -144,10 +148,10 @@ Sliding-window Redis-backed rate limiting per IP address.
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master toggle for rate limiting. |
-| `trusted_proxies` | `TRUSTED_PROXIES` | `""` | Comma-separated list of IP addresses or CIDR blocks whose forwarding proxy headers (`X-Forwarded-For`, etc.) are trusted. |
+| `trusted_proxies` | `TRUSTED_PROXIES` | `""` | Comma-separated list of IP addresses or CIDR blocks whose forwarding proxy headers (`X-Forwarded-For`, etc.) are trusted. Loopback and private peers are also trusted even when this setting is empty. |
 
 > [!WARNING]
-> **Implicit Private Forwarder Trust:** `rate_limit.py` automatically treats loopback and RFC1918 / RFC4193 private addresses (`127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `::1`, `fc00::/7`, `fe80::/10`) as trusted forwarders even when `trusted_proxies` is empty. In multi-tenant environments, operators must ensure perimeter reverse proxies strip or overwrite untrusted forwarding headers to prevent header spoofing.
+> **Implicit Private Forwarder Trust:** `rate_limit.py` automatically trusts loopback peers and addresses classified as private by Python’s `ipaddress` module, even when `trusted_proxies` is empty. Restrict direct access to the application from those peers to controlled proxies, and ensure every trusted proxy overwrites `X-Real-IP` and `X-Forwarded-For` with validated client IP values so clients cannot spoof their rate-limit identity.
 
 ---
 
@@ -167,3 +171,6 @@ To support long-form video playback and media streaming without idle connection 
 - `RESPONSE_TIMEOUT = 10800` (3 hours)
 - `BODY_TIMEOUT = 10800` (3 hours)
 - `SESSION_COOKIE_SAMESITE = "Lax"` (can be overridden via `[quart]` in `config.toml`)
+
+
+<!-- /coderabbit-ai-generated:v1 -->

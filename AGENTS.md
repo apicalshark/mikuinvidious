@@ -1,3 +1,7 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:9fc7d837f736f11fec472a0667158a4cc010cc929960ca12e72c13594c19c86b -->
+
 # MikuInvidious — Agent Guidelines
 
 MikuInvidious is a lightweight, privacy-focused Bilibili frontend built with Python 3.15+, Quart (ASGI), Granian, Caddy (reverse proxy), Redis, and optional Cloudflare WARP (SOCKS5).
@@ -33,8 +37,8 @@ Do not run tests indiscriminately. Evaluate the scope of your changes first:
 | Modification Scope | Required Actions | Strictly FORBIDDEN / Redundant Actions |
 | :--- | :--- | :--- |
 | **Documentation / Markdown only** (`*.md`, `doc/*`) | Check git status & file links | **DO NOT run unit tests, compileall, or linters.** |
-| **Frontend assets only** (`static/*`, `templates/*`) | `npm run lint:frontend`<br>`npm run build:css` (if Tailwind CSS modified)<br>`npm run build:i18n` (if translatable strings in templates or Python modified: extracts, syncs, and compiles catalogs)<br>`npm run check:i18n` (to verify catalogs) | **DO NOT run Python unit tests.** |
-| **Python code modified** (`python/*`, `tests/*`) | `uv run ruff check python`<br>`uv run python -m compileall -q python tests tools`<br>`NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests` | Do not skip bytecode or ruff checks before PRs. |
+| **Frontend assets only** (`static/*`, `templates/*`) | `npm run lint:frontend`<br>`npm run build:css` (if Tailwind CSS modified)<br>`npm run build:i18n` (if translatable strings change: extracts the catalog, then updates and compiles translations)<br>`npm run check:i18n` (to verify catalogs) | **DO NOT run Python unit tests.** |
+| **Python code modified** (`python/*`, `tests/*`) | `uv run ruff check python`<br>`uv run python -m compileall -q python tests tools` (syntax only; verify affected imports separately)<br>`npm run build:i18n` (if translatable strings change: extracts the catalog, then updates and compiles translations)<br>`npm run check:i18n` (if catalogs change)<br>`NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests` | Do not skip bytecode or ruff checks before PRs. |
 
 ### Command Reference
 
@@ -43,6 +47,7 @@ Do not run tests indiscriminately. Evaluate the scope of your changes first:
 NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests
 
 # Bytecode Compilation Check (Syntax Errors; Does Not Verify Imports)
+# Verify affected imports separately in the configured application environment.
 uv run python -m compileall -f python tests tools
 
 # Python Linting & Formatting
@@ -101,3 +106,6 @@ Use `call_mcp_tool(ServerName, ToolName, Arguments)`:
 - **Library Docs:** Use `context7_context7` (`query-docs`) for Quart, Tailwind, Redis, Caddy.
 - **Web Standards:** Use `mdn` (`get-doc`, `get-compat`) for Web APIs/CSS.
 - **Complex Tasks:** Use `sequential-thinking` (`sequentialthinking`) for multi-step reasoning.
+
+
+<!-- /coderabbit-ai-generated:v1 -->

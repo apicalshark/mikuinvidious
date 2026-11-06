@@ -1,3 +1,7 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:b1d5ea61411e2ea841ef74e6e2782fdfb3790fff1b61203f47a9a1477a29b969 -->
+
 # Bilibili Upstream API Reference & Signatures
 
 This document catalogs the Bilibili API endpoints, parameters, and cryptographic signing schemes implemented across the local client module (`python/api/`).
@@ -77,6 +81,9 @@ A cryptographic proof header required for CDN media access:
 
 ### Gaia Risk Avoidance (`api/video.py`, `api/user.py`)
 Upstream bot detection gates requests via captcha challenges (`v_voucher`) or `-352`/`412` risk codes. MikuInvidious mitigates these through lane-specific fallbacks:
-- **Playurl Avoidance Lane:** When a playurl endpoint returns `v_voucher` or `-352`, `api/video.py` retries via the avoidance lane with `gaia_source=pre-load`, `isGaiaAvoided=true`, `try_look=1`, and WebGL/canvas template parameters (`dm_img_list`, `dm_img_str`, `dm_cover_img_str`, `dm_img_inter`).
-- **Space Route Fallbacks:** When user space endpoints trigger risk controls, `api/user.py` falls back from `/x/space/wbi/acc/info` to `/x/web-interface/card`, and from `/x/space/wbi/arc/search` to `/x/series/recArchivesByKeywords`.
-- **Operational Reality:** Fingerprint emulation and alternative routes mitigate common triggers but do not guarantee bypass against aggressive datacenter IP blocks. Deploying an upstream proxy or residential/WARP egress via `proxy_url` remains required for datacenter hosting.
+- **Playurl Avoidance Lane:** When a playurl endpoint returns `v_voucher` or `-352`, `api/video.py` retries once with fresh WebGL/canvas fingerprint parameters (`dm_img_list`, `dm_img_str`, `dm_cover_img_str`, `dm_img_inter`) and `gaia_source=pre-load`, `isGaiaAvoided=true`, and `try_look=1`.
+- **Space Route Fallbacks:** `api/user.py` falls back from `/x/space/wbi/acc/info` to `/x/web-interface/card` on errors or when neither `name` nor `face` is present, and from `/x/space/wbi/arc/search` to `/x/series/recArchivesByKeywords` on errors or when `list.vlist` is empty or absent. Missing expected fields can trigger these fallbacks even without an explicit risk code.
+- **Operational Reality:** These retries and alternative endpoints do not guarantee a risk-control bypass or the requested endpoint data. Fallback responses may be incomplete or empty. An upstream proxy or residential/WARP egress via `proxy_url` may help with datacenter IP blocks but does not guarantee success.
+
+
+<!-- /coderabbit-ai-generated:v1 -->
