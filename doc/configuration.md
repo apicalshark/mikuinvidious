@@ -1,154 +1,166 @@
 # Configuration Reference
 
-MikuInvidious can be configured using a `config.toml` file or through environment variables. Environment variables always take precedence over the values in the configuration file.
+MikuInvidious can be configured using `config.toml` (recommended) or environment variables. Environment variables take precedence over settings in the configuration file.
 
-This document provides a comprehensive reference for all available options.
+---
 
 ## `[site]`
-Settings related to the site's identity and features.
+Settings related to site identity, security flags, and features.
 
 | Key | Environment Variable | Default | Description |
-| --- | --- | --- | --- |
+| :--- | :--- | :--- | :--- |
 | `site_name` | `SITE_NAME` | `MikuInvidious` | The public name of your instance. |
-| `site_url` | `SITE_URL` | `http://localhost:8888` | The public URL of your instance, including its actual HTTP/HTTPS scheme. Used for metadata, links, and the default Secure session cookie setting. |
-| `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | A boolean (`true`/`false`) to show a link to the modified source code. |
-| `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | A boolean (`true`/`false`) to enable or disable video download buttons. |
-| `max_download_size_mb` | `MAX_DOWNLOAD_SIZE_MB` | `1024` | Maximum allowed size (in MB) per downloaded track. A DASH download fetches a video track plus an audio track; jobs with a track over this limit are rejected with an error stating this instance's limit. |
-| `site_show_unsafe_error_response` | `SITE_SHOW_UNSAFE_ERROR_RESPONSE` | `false` | A boolean (`true`/`false`) to show detailed, potentially unsafe error messages. **Use with caution.** |
-| `nyaa_bangumi` | `NYAA_BANGUMI` | `true` | A boolean (`true`/`false`) to enable or disable Nyaa search in Bangumi view. |
-| `robots_policy` | `ROBOTS_POLICY` | `strict` | Controls the `robots.txt` policy. Can be `strict` (disallow all), `relaxed` (allow articles and search), or `PLEASE_INDEX_EVERYTHING` (use with extreme caution). |
+| `site_url` | `SITE_URL` | `http://localhost:8888` | The public URL of your instance, including actual HTTP/HTTPS scheme. The session cookie `Secure` flag dynamically derives from `site_url.startswith("https://")`. |
+| `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | Link to modified source code (required by AGPL-3.0 if you modified the code). Set to `false` if unmodified. |
+| `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | When `false`, hides video download UI elements (media proxy remains available). |
+| `max_download_size_mb` | `MAX_DOWNLOAD_SIZE_MB` | `1024` | Maximum allowed size (in MB) per downloaded track. Jobs exceeding this limit are rejected. |
+| `site_show_unsafe_error_response` | `SITE_SHOW_UNSAFE_ERROR_RESPONSE` | `false` | When `true`, exposes raw backend error responses directly in the UI. **Use only for local debugging.** |
+| `nyaa_bangumi` | `NYAA_BANGUMI` | `false` | Enable or disable Nyaa.si torrent search in the Bangumi view. |
+| `robots_policy` | `ROBOTS_POLICY` | `strict` | Controls `robots.txt`: `strict` (disallow all), `relaxed` (allows articles/search), or `PLEASE_INDEX_EVERYTHING`. |
 
 ---
 
 ## `[server]`
-Configuration for the web server.
+Configuration for the web server (Granian / Quart).
 
 | Key | Environment Variable | Default | Description |
-| --- | --- | --- | --- |
-| `host` | `SERVER_HOST` | `0.0.0.0` | The IP address the application server binds to. |
-| `port` | `SERVER_PORT` | `8888` | The port the application server binds to. |
-| `secret_key` | `QUART_SECRET_KEY` | (Random Hex) | A long, random string used to secure user sessions. If not set, a random 24-character hex string is generated at startup. **It is highly recommended to set a persistent key.** |
+| :--- | :--- | :--- | :--- |
+| `host` | `SERVER_HOST` | `0.0.0.0` | Host IP address to bind to (`::` for dual-stack IPv4/IPv6). |
+| `port` | `SERVER_PORT` | `8888` | Port to bind to. |
+| `debug` | `QUART_DEBUG` | `false` | Enables Quart debug mode and auto-reload. |
+| `access_log` | `SERVER_ACCESS_LOG` | `false` | Granian per-request access log. Disabled by default because media proxying/polling floods application logs. |
+| `monitor_fd` | `MONITOR_FD` | `false` | Enables file descriptor leak monitoring. |
+
+> [!NOTE]
+> **Session Secret Key:** For security, `shared.py` generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at every startup. User sessions are intentionally invalidated across server restarts; static secret keys in configuration files are ignored.
 
 ---
 
 ## `[display]`
-Settings related to the user interface and themes.
+UI themes and internationalization.
 
 | Key | Environment Variable | Default | Description |
-| --- | --- | --- | --- |
-| `default_theme` | (None) | `modern` | The default theme to use for new visitors. |
-| `default_locale` | `DEFAULT_LOCALE` | `zh-CN` | Default UI locale when no `?lang=` / cookie / `Accept-Language` match. Any locale under `locales/*/LC_MESSAGES`. |
-| `supported_locales` | `SUPPORTED_LOCALES` | (auto-discover) | Optional comma-separated allowlist of locales. Unset = offer every locale found under `locales/`. |
-
-Locale order: `?lang=` > `lang` cookie > `Accept-Language` > `default_locale`. Only UI chrome is translated, never video titles/comments/danmaku. Strings live in `locales/*/LC_MESSAGES/messages.po`; after editing, run `npm run build:i18n` (re-extracts, syncs, recompiles), `npm run check:i18n` to verify.
-
-**New language?** Copy `locales/messages.pot` to `locales/<tag>/LC_MESSAGES/messages.po` (e.g. `pt_BR`), set `Language`/`Plural-Forms`, translate, build, open a PR. Partial translations fall back to English; no code changes needed.
+| :--- | :--- | :--- | :--- |
+| `default_theme` | (None) | `modern` | Default theme for new visitors (`modern` is the active Tailwind CSS theme). |
+| `default_locale` | `DEFAULT_LOCALE` | `zh-CN` | Fallback UI locale when no query param (`?lang=`), cookie, or `Accept-Language` match. |
+| `supported_locales` | `SUPPORTED_LOCALES` | (auto-discover) | Comma-separated list of allowed locales (e.g. `en,zh-CN,zh-TW,ja`). If unset, offers all locales under `locales/`. |
 
 ---
 
 ## `[live]`
-Settings for live stream playback. The server picks one format per room and the player never switches mid-stream.
+Live stream format policies.
 
 | Key | Environment Variable | Default | Description |
-| --- | --- | --- | --- |
-| `prefer_hls` | `LIVE_PREFER_HLS` | `false` | A boolean (`true`/`false`) to reverse the live format policy. When `false` (default), FLV is served first with the HLS master as fallback; when `true`, HLS is served first with FLV as fallback. |
+| :--- | :--- | :--- | :--- |
+| `prefer_hls` | `LIVE_PREFER_HLS` | `false` | When `false`, FLV is served first with HLS master as fallback. When `true`, HLS is served first with FLV fallback. |
 
 ---
 
 ## `[credential]`
-Allows the instance to make authenticated requests to Bilibili, which can provide access to higher-quality streams or content.
+Authentication credentials for accessing higher video resolutions (e.g., 1080p+), paid content, or reducing datacenter IP risk-control gating.
 
 | Key | Environment Variable | Default | Description |
-| --- | --- | --- | --- |
-| `use_cred` | `USE_CRED` | `false` | A boolean (`true`/`false`) to enable or disable the use of authenticated credentials. |
-| `sessdata` | `SESSDATA` | (None) | Your `SESSDATA` cookie value from Bilibili. |
-| `bili_jct` | `BILI_JCT` | (None) | Your `bili_jct` cookie value from Bilibili. |
-| `buvid3` | `BUVID3` | (None) | Your `buvid3` cookie value from Bilibili. |
-| `buvid4` | `BUVID4` | (None) | Your `buvid4` cookie value from Bilibili. |
-| `dedeuserid` | `DEDEUSERID` | (None) | Your `DedeUserID` cookie value from Bilibili. |
-| `ac_time_value` | `AC_TIME_VALUE` | (None) | Your `ac_time_value` refresh token from Bilibili local storage. |
+| :--- | :--- | :--- | :--- |
+| `use_cred` | `USE_CRED` | `false` | Enable or disable credential usage. Automatically set to `true` if `sessdata` is provided. |
+| `sessdata` | `SESSDATA` | (None) | Bilibili `SESSDATA` cookie. |
+| `bili_jct` | `BILI_JCT` | (None) | Bilibili `bili_jct` CSRF token. |
+| `buvid3` | `BUVID3` | (None) | Bilibili `buvid3` cookie. |
+| `buvid4` | `BUVID4` | (None) | Bilibili `buvid4` cookie. |
+| `dedeuserid` | `DEDEUSERID` | (None) | Bilibili `DedeUserID`. |
+| `ac_time_value` | `AC_TIME_VALUE` | (None) | Bilibili local-storage refresh token (`window.localStorage.ac_time_value`). |
+
+> [!TIP]
+> **Encrypted Credentials:** Credentials can be encrypted using libsodium (XChaCha20-Poly1305) via `python tools/encrypt_secrets.py --encrypt SESSDATA "your_cookie"`. At runtime, set `SECRETS_MASTER_KEY` to automatically decrypt values in memory.
 
 ---
 
 ## `[proxy]`
-Configures the use of a proxy (typically SOCKS5) for all outgoing requests to Bilibili. **This is essential for the application to function.**
+Outbound network proxy for upstream Bilibili API and CDN traffic.
 
 | Key | Environment Variable | Default | Description |
-| --- | --- | --- | --- |
-| `proxy_url` | `HTTP_PROXY` or `http_proxy` | (None) | The full URL of the SOCKS5 proxy. Example: `socks5://127.0.0.1:1080`. Media proxying itself is always on. |
+| :--- | :--- | :--- | :--- |
+| `proxy_url` | `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` | (None) | Proxy URL (e.g. `socks5://127.0.0.1:1080` for Cloudflare WARP or HTTP proxy). Required on datacenter IPs to bypass HTTP 412 / `-352` risk control. Media proxying itself is always active. |
 
 ---
 
 ## `[render]`
-Settings for rendering Bilibili articles.
+Settings for rendering Bilibili articles using Pandoc.
 
 | Key | Environment Variable | Default | Description |
-| --- | --- | --- | --- |
-| `use_pandoc` | `USE_PANDOC` | `false` | A boolean (`true`/`false`) to enable the use of Pandoc for article rendering. |
-| `article_allowed_formats` | `ARTICLE_ALLOWED_FORMATS`| `markdown,plain,html` | A comma-separated list of formats that Pandoc is allowed to convert from. |
+| :--- | :--- | :--- | :--- |
+| `use_pandoc` | `USE_PANDOC` | `false` | When `true`, uses system `pandoc` to convert articles. |
+| `article_allowed_formats` | `ARTICLE_ALLOWED_FORMATS` | `markdown,plain,html` | Comma-separated list of formats Pandoc is permitted to convert from. |
+
+---
+
+## `[bili]`
+Upstream Bilibili client headers and platform parameters.
+
+| Key | Environment Variable | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `user_agent` | `BILI_USER_AGENT` | `DEFAULT_APP_UA` | Default User-Agent for Bilibili app API calls (Android BiliDroid). |
+| `referer` | `BILI_REFERER` | `https://www.bilibili.com` | Upstream Referer header. |
+| `env` | `BILI_ENV` | `prod` | Upstream API environment. |
+| `app_key` | `BILI_APP_KEY` | `android64` | App key identifier for signed API endpoints. |
+| `ip_region` | `BILI_IP_REGION` | `CN` | Region header for API routing. |
+| `legal_region` | `BILI_LEGAL_REGION` | `CN` | Legal region compliance header. |
 
 ---
 
 ## `[redis]`
-Configuration for connecting to the Redis database, which is required for caching and sessions.
+Redis database connection settings (required for session storage, media caching, rate limiting, and ticket storage).
 
 | Key | Environment Variable | Default | Description |
-| --- | --- | --- | --- |
-| `redis_url` | `REDIS_URL` | (None) | The full connection URL for Redis. Example: `redis://127.0.0.1:6379`. **If set, this overrides all other Redis keys.** |
-| `host` | `REDIS_HOST` | `localhost` | The hostname or IP address of the Redis server. |
-| `port` | `REDIS_PORT` | `6379` | The port of the Redis server. |
-| `username` | `REDIS_USERNAME` | (None) | The username for Redis authentication. |
-| `password` | `REDIS_PASSWORD` | (None) | The password for Redis authentication. |
+| :--- | :--- | :--- | :--- |
+| `redis_url` | `REDIS_URL` | (None) | Full Redis connection string (e.g., `redis://127.0.0.1:6379`). Overrides `host`, `port`, `username`, and `password`. |
+| `host` | `REDIS_HOST` | `localhost` | Redis server hostname. |
+| `port` | `REDIS_PORT` | `6379` | Redis server port. |
+| `username` | `REDIS_USERNAME` | (None) | Redis username (if ACL enabled). |
+| `password` | `REDIS_PASSWORD` | (None) | Redis password. |
 
 ---
 
 ## `[cache]`
-Settings for Redis-backed response caching.
-
-The space page (`/space/<mid>`, page 1) and the JSON feed (`/space/<mid>/json`) share a single upstream payload cached in Redis as `space:data:<mid>`, so one Bilibili fetch serves both routes and halves upstream bandwidth. Each payload is stamped with `fetched_at`: the Redis key expires after the *longer* of the two TTLs, while each route enforces its own max-age on read — so divergent intervals are each strictly respected (a route whose policy expired refetches and refreshes the shared entry). Only healthy payloads (valid profile + non-empty video list) are cached — transient failures that would render as "0 videos" are served live and never stored. Errors are never cached. Deeper space/author pages (`?i=N`, N>1) get their own per-page keys (`space:data:<mid>:<pn>`, `author:data:<mid>:<pn>`).
-
-| Key | Environment Variable | Default | Description |
-| --- | --- | --- | --- |
-| `space_minutes` | `SPACE_CACHE_MINUTES` | `5` | TTL for the `/space/<mid>` page-1 payload, in minutes. Set to `0` to disable. |
-| `space_json_minutes` | `SPACE_JSON_CACHE_MINUTES` | `5` | TTL for the `/space/<mid>/json` feed payload, in minutes. Set to `0` to disable. |
-| `video_minutes` | `VIDEO_CACHE_MINUTES` | `15` | TTL for the `/video/<vid>` detail payload (info/tags/related/pages), in minutes. Cached on healthy detail even if tags/related fall back to empty. `?listen=1` bypasses. Set to `0` to disable. |
-| `bangumi_minutes` | `BANGUMI_CACHE_MINUTES` | `60` | TTL for the `/bangumi/view/<ssid>` season payload, in minutes. Only cached with non-empty meta. Set to `0` to disable. |
-| `author_minutes` | `AUTHOR_CACHE_MINUTES` | `30` | TTL for the `/author/<mid>` payload, in minutes (page 1 on the base key, deeper pages on per-page keys). Set to `0` to disable. |
-| `article_minutes` | `ARTICLE_CACHE_MINUTES` | `30` | TTL for `/read/<cid>` + `/opus/<cid>` articles, in minutes. Only fully parsed bodies are cached; `?format=` exports bypass. Set to `0` to disable. |
-| `audio_minutes` | `AUDIO_CACHE_MINUTES` | `30` | TTL for `/audio/<auid>` + `/audio_list/<amid>` track payloads, in minutes. Comments stay live on cache HITs. Set to `0` to disable. |
-| `home_minutes` | `HOME_CACHE_MINUTES` | `30` | TTL for the `/` homepage feed, in minutes. Only non-empty feeds are cached. Set to `0` to disable. |
-
-All page caches emit `X-Cache: HIT` / `MISS` response headers (absent when caching is bypassed or disabled). Comments on video/audio pages load via separate component requests and are never part of the cached payload.
-
----
-
-## `[image_cache]`
-Settings for the local disk cache for proxied images (`/proxy/pic/*`).
+TTLs in minutes for Redis-backed page data. Set any TTL to `0` to disable caching for that route.
 
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `cache_dir` | `IMAGE_CACHE_DIR` | `data/img_cache` | Path on disk to store cached images. |
-| `max_size_mb` | `IMAGE_CACHE_MAX_SIZE_MB` | `2048` | Maximum disk usage in MB before automatic LRU pruning triggers down to 80% capacity. |
-| `ttl_days` | `IMAGE_CACHE_TTL_DAYS` | `7` | Time-to-live for cached images in days. |
+| `space_minutes` | `SPACE_CACHE_MINUTES` | `5` | `/space/<mid>` page 1 payload. Shared with JSON feed. |
+| `space_json_minutes` | `SPACE_JSON_CACHE_MINUTES` | `5` | `/space/<mid>/json` feed payload. Shared with HTML space page. |
+| `video_minutes` | `VIDEO_CACHE_MINUTES` | `15` | `/video/<vid>` metadata payload (info/tags/related/pages). Comments stay live. |
+| `bangumi_minutes` | `BANGUMI_CACHE_MINUTES` | `60` | `/bangumi/view/<ssid>` season metadata payload. |
+| `author_minutes` | `AUTHOR_CACHE_MINUTES` | `30` | `/author/<mid>` user overview payload. |
+| `article_minutes` | `ARTICLE_CACHE_MINUTES` | `30` | `/read/<cid>` and `/opus/<cid>` parsed article payloads. |
+| `audio_minutes` | `AUDIO_CACHE_MINUTES` | `30` | `/audio/<auid>` and `/audio_list/<amid>` metadata payloads. |
+| `home_minutes` | `HOME_CACHE_MINUTES` | `30` | `/` homepage feed payload. |
+
+All cached pages emit `X-Cache: HIT` or `X-Cache: MISS`.
 
 ---
 
 ## `[rate_limit]`
-Per-IP sliding-window rate limiting (Redis-backed). Disabled by default.
+Sliding-window Redis-backed rate limiting per IP address.
 
-| Key | Env var | Default | Description |
+| Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master switch. |
-| `trusted_proxies` | `TRUSTED_PROXIES` | `""` | Extra IPs/CIDRs whose proxy headers are trusted. |
-
-Proxy headers are only honored from loopback/private peers or listed proxies; otherwise the TCP peer is used.
+| `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master toggle for rate limiting. |
+| `trusted_proxies` | `TRUSTED_PROXIES` | `""` | Comma-separated list of IP addresses or CIDR blocks whose forwarding proxy headers (`X-Forwarded-For`, etc.) are trusted. |
 
 ---
 
-## `[quart]`
-This section can be used to pass any specific configuration options directly to the Quart framework (e.g., `TEMPLATES_AUTO_RELOAD = true`). These are advanced settings.
+## Image Disk Cache (Environment Configured)
+The local disk cache for proxied images (`/proxy/pic/*`) in `python/image_cache.py` is configured via environment variables:
 
-**Hardcoded Timeouts:**
-The application sets the following Quart timeouts to **10800 seconds (3 hours)** to support long-form streaming:
-- `RESPONSE_TIMEOUT`
-- `BODY_TIMEOUT`
+| Environment Variable | Default | Description |
+| :--- | :--- | :--- |
+| `IMAGE_CACHE_DIR` | `data/img_cache` | Filesystem path for caching images. Falls back to `/tmp/miku_img_cache` if unwritable. |
+| `IMAGE_CACHE_MAX_SIZE_MB` | `2048` | Maximum cache size in MB before LRU pruning trims disk usage to 80%. |
+| `IMAGE_CACHE_TTL_DAYS` | `7` | Retention period in days for cached images. |
+
+---
+
+## Hardcoded Framework Timeouts (`python/shared.py`)
+To support long-form video playback and media streaming without idle connection drops, Quart is configured with:
+- `RESPONSE_TIMEOUT = 10800` (3 hours)
+- `BODY_TIMEOUT = 10800` (3 hours)
+- `SESSION_COOKIE_SAMESITE = "Lax"`
