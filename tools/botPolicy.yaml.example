@@ -20,7 +20,7 @@ bots:
 
   # Vulnerability scanners: drop exploit extensions instantly without processing
   - name: drop-exploit-extensions
-    path_regex: (?i)\.(env|git|svn|bak|sql|tar|gz|zip|swp|php|asp|aspx|jsp|cgi|htm)$
+    path_regex: (?i)\.(env|git|svn|bak|sql|tar|gz|zip|swp|php|asp|aspx|jsp|cgi)$
     action: DENY
 
   # Web probe paths: drop admin panel, CMS, and debug endpoint probes instantly
