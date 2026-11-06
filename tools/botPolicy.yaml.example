@@ -180,7 +180,7 @@ bots:
     geoip:
       countries: &targeted_geos [
         # Greater China SARs & Eurasia:
-        HK, MO, CN, RU, IN, VN, ID, BD, PK, PH, TH, TR, UA,
+        HK, MO, CN, RU, IN, VN, ID, BD, PK, PH, TH,
         # Central Asia:
         KZ, UZ, KG, TJ, TM,
         # Middle East:
