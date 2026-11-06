@@ -101,8 +101,8 @@ bots:
     action: WEIGH
     asns:
       match: &datacenter_asns [
-        # Hyperscalers: AWS, GCP, Azure, Oracle, Cloudflare
-        16509, 14618, 15169, 396982, 8075, 8068, 8069, 31898, 13335, 209242,
+        # Hyperscalers: AWS, GCP, Azure, Oracle, etc
+        16509, 14618, 15169, 396982, 8075, 8068, 8069, 31898, 209242,
         # Major VPS & Cloud: DigitalOcean, Hetzner, OVH, Linode/Akamai, Vultr/Choopa, Scaleway, Leaseweb, Contabo
         14061, 24940, 213230, 16276, 35540, 63949, 20940, 20473, 12876, 16004, 16265, 60630, 28753, 51167, 40021,
         # Community & Budget VPS (Popular crawler & proxy endpoints): RackNerd, Bandwagon/IT7, DMIT, GreenCloud, SpartanHost, HostHatch, Time4VPS, xTom
