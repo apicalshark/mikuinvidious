@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="csrf-token" content="{{ csrf_token }}" />
         <meta name="csp-nonce" content="{{ csp_nonce }}" />
+        <meta name="asset-version" content="{{ asset_version }}" />
         <script nonce="{{ csp_nonce }}">try{var __m=localStorage.getItem("dark_mode");if(__m){try{__m=decodeURIComponent(__m);var __p=JSON.parse(__m);if(typeof __p==="string")__m=__p;}catch(__e){}if(__m.length>1&&__m.charAt(0)==='"')__m=__m.slice(1,-1);}else{__m=null;}if(__m!=="dark"&&__m!=="light"){__m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(__m==="dark")document.documentElement.classList.add("dark");}catch(__e){}</script>
         {% block head %}{% endblock %}
         <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />

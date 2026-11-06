@@ -46,6 +46,10 @@ class ThemeTemplateTests(unittest.TestCase):
         # Must run before the stylesheet to avoid a flash of the wrong theme.
         self.assertLess(src.index(inline), src.index("main.css"))
 
+    def test_asset_version_meta_tag_present(self):
+        src = BASE_HTML.read_text()
+        self.assertIn('<meta name="asset-version" content="{{ asset_version }}" />', src)
+
     def test_prepaint_script_is_valid_js(self):
         import subprocess
         import tempfile
@@ -91,6 +95,15 @@ class ThemesJsTests(unittest.TestCase):
         self.assertIsNotNone(m)
         self.assertIn("helpers.storage.get(STORAGE_KEY_THEME)", m.group(1))
         self.assertIn("setTheme(storedTheme)", m.group(1))
+
+    def test_ensure_opencc_includes_asset_version(self):
+        src = THEMES_JS.read_text()
+        m = re.search(r"function ensureOpenCC\(\) \{(.*?)\n\}", src, re.S)
+        self.assertIsNotNone(m, "missing ensureOpenCC function in themes.js")
+        body = m.group(1)
+        # s.src must include cache-busting ?v= parameter
+        self.assertIn("?v=", body)
+        self.assertIn("opencc.js", body)
 
 
 class ThemeServerTests(unittest.IsolatedAsyncioTestCase):

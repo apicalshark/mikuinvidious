@@ -133,7 +133,21 @@ function ensureOpenCC() {
   if (_openccPromise) return _openccPromise;
   _openccPromise = new Promise(function (resolve, reject) {
     var s = document.createElement("script");
-    s.src = "/static/opencc-js/opencc.js";
+    var v =
+      (typeof window !== "undefined" && window.asset_version) ||
+      document.querySelector('meta[name="asset-version"]')?.getAttribute("content") ||
+      "";
+    if (!v) {
+      var script = document.querySelector('script[src*="themes.js"], script[src*="?v="]');
+      if (script && script.src) {
+        var match = script.src.match(/[?&]v=([^&#]+)/);
+        if (match) v = match[1];
+      }
+    }
+    s.src = "/static/opencc-js/opencc.js" + (v ? "?v=" + encodeURIComponent(v) : "");
+    var nonce =
+      document.querySelector('meta[name="csp-nonce"]')?.getAttribute("content") || "";
+    if (nonce) s.nonce = nonce;
     s.defer = true;
     s.onload = function () {
       resolve(window.OpenCC);
