@@ -3,15 +3,14 @@ bots:
   - import: (data)/bots/_deny-pathological.yaml
   - import: (data)/bots/ai-robots-txt.yaml
   - import: (data)/bots/ai-catchall.yaml
-  - import: (data)/bots/aggressive-brazilian-scrapers.yaml
-
-  - import: (data)/common/acts-like-browser.yaml
-  - import: (data)/common/domain-fronting.yaml
-  - import: (data)/common/keep-internet-working.yaml
-  - import: (data)/common/rfc-violations.yaml
 
   # Optional: dynamically synced VPS ASN snippet from tools/update_vps_asns.sh
-  # - import: /data/cfg/vpsh_asns.yaml
+  - import: /data/cfg/vpsh_asns.yaml
+
+  # Infra paths: monitors can't solve PoW, never challenge them
+  - name: allow-infra-paths
+    path_regex: ^/(\.well-known/.*|favicon\.ico|robots\.txt)$
+    action: ALLOW
 
   # HTTP method restrictions: MikuInvidious only accepts GET, HEAD, and POST
   - name: deny-unsupported-methods
@@ -66,38 +65,6 @@ bots:
       difficulty: 6
       report_as: 6
 
-  # Spoofed Firefox via Chromium: User-Agent claims Firefox, but sends Chromium-exclusive Sec-Ch-Ua
-  - name: catch-spoofed-firefox-chromium
-    action: DENY
-    expression: 'headers["User-Agent"].contains("Firefox/") && ("Sec-Ch-Ua" in headers || "sec-ch-ua" in headers)'
-
-  # Missing Accept-Language header (standard browsers always send one; headless/scripts omit it)
-  - name: weigh-missing-accept-language
-    action: WEIGH
-    expression: '!headers.exists(h, h.matches("(?i)accept-language"))'
-    weight:
-      adjust: 10
-
-  # Spoofed Chrome: User-Agent claims Chrome, but lacks modern Sec-Ch-Ua client hint header
-  - name: weigh-spoofed-chrome
-    action: WEIGH
-    expression: 'headers["User-Agent"].contains("Chrome/") && !("Sec-Ch-Ua" in headers)'
-    weight:
-      adjust: 15
-
-  # Fake Firefox script: User-Agent claims Firefox, but lacks Sec-Fetch-Mode or Brotli (br) support
-  - name: weigh-fake-firefox-script
-    action: WEIGH
-    expression: 'headers["User-Agent"].contains("Firefox/") && (!("Sec-Fetch-Mode" in headers) || !("Accept-Encoding" in headers) || !headers["Accept-Encoding"].contains("br"))'
-    weight:
-      adjust: 15
-
-  # Non-standard engines: User-Agent is neither Chrome/Chromium nor Firefox
-  - name: weigh-non-chrome-and-firefox
-    action: WEIGH
-    expression: '!headers["User-Agent"].matches("(?i)(chrome|crios|chromium|firefox|fxios)")'
-    weight:
-      adjust: 10
 
   # Known VPS, Datacenter, and Commercial VPN ASNs:
   # Grouped inline list with YAML anchor (&datacenter_asns) for reuse across rules.
