@@ -1,8 +1,4 @@
 {% macro video_player(vid, vinfo, idx, supported_src, is_live=False, is_dash=False, dash_url='', subtitles=[], paywall=False) %}
-    {% set dim = vinfo.get('dimension') %}
-    {% set w = dim.get('width', 16) if dim else 16 %}
-    {% set h = dim.get('height', 9) if dim else 9 %}
-    {% set ratio = w / h %}
     <div id="player-wrapper"
          class="relative w-full bg-black md:rounded-xl rounded-none overflow-hidden shadow-2xl aspect-video"
          style="max-height: 85vh">
