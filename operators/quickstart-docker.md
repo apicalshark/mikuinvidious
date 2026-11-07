@@ -1,41 +1,82 @@
 # Quickstart with Docker
 
-Recommended deployment method. Redis and Caddy are preconfigured.
+The recommended and easiest method to deploy MikuInvidious. Caddy, Granian, Redis, and disk caching volumes are configured out-of-the-box.
 
-Prerequisites: Docker, Docker Compose, a domain name for HTTPS, firewall ports
-80 and 443 (TCP/UDP) open.
+---
 
-```bash
-git clone https://github.com/apicalshark/mikuinvidious
-cd mikuinvidious
-cp Caddyfile.example Caddyfile
-docker compose up -d
-```
+## 1. Prerequisites
 
-Open `http://localhost:8000`.
+- Docker Engine (v24.0+)
+- Docker Compose (v2.20+)
+- Firewall ports `80` (TCP), `443` (TCP/UDP), and `8000` (optional local testing) open.
 
-## Custom domain
+---
 
-1. Set `SITE_URL` of the `app` service in `compose.yml`
-   (e.g. `https://mi.example.com`).
-2. Set the first line of `Caddyfile` to the domain:
+## 2. Fast Deployment
 
-```text
-mi.example.com {
-    handle /static/* {
-        root * /usr/share/caddy
-        file_server
-    }
-    reverse_proxy app:8080
-}
-```
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/apicalshark/mikuinvidious
+   cd mikuinvidious
+   ```
 
-3. `docker compose up -d`. Caddy obtains and renews certificates from
-   Let's Encrypt / ZeroSSL automatically.
+2. **Prepare Caddy configuration**:
+   ```bash
+   cp Caddyfile.example Caddyfile
+   ```
 
-## Datacenter IPs
+3. **Start the containers**:
+   ```bash
+   docker compose up -d
+   ```
 
-Datacenter hosts (Hetzner, OVH, …) are risk-controlled by Bilibili (HTTP 412,
-`-352`): space pages and search come back empty. Point `[proxy]` at a WARP
-egress — see [Troubleshooting](troubleshooting). Home broadband connects
-directly.
+Your instance will immediately be available at `http://localhost:8000`.
+
+---
+
+## 3. Configuring a Custom Public Domain
+
+1. Open `compose.yml` and set the public domain in the `app` service environment:
+   ```yaml
+   environment:
+     - SITE_NAME=My MikuInvidious Instance
+     - SITE_URL=https://miku.example.com
+   ```
+
+2. Edit the first line of `Caddyfile` to replace `:8000` with your actual domain:
+   ```text
+   miku.example.com {
+       root * /usr/share/caddy
+
+       handle /static/* {
+           file_server
+       }
+       handle /site.webmanifest {
+           root * /usr/share/caddy/static
+           header Content-Type "application/manifest+json"
+           file_server
+       }
+
+       @notProxy not path /proxy/*
+       encode @notProxy zstd gzip
+
+       handle {
+           reverse_proxy app:8080 {
+               header_up X-Real-IP {remote_host}
+           }
+       }
+   }
+   ```
+
+3. Restart the stack:
+   ```bash
+   docker compose up -d
+   ```
+
+Caddy will automatically request and renew trusted SSL/TLS certificates from Let's Encrypt or ZeroSSL.
+
+---
+
+## 4. Datacenter IP Note
+
+If hosting on cloud providers (Hetzner, OVH, DigitalOcean, AWS), Bilibili may challenge or block server IPs with HTTP 412 or `-352` errors. Route outbound requests through the included `warp` container or provide a residential/SOCKS5 proxy via `HTTP_PROXY` / `HTTPS_PROXY` in `compose.yml`.

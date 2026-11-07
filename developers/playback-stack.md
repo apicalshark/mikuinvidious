@@ -1,81 +1,101 @@
-# Playback & download
+# DASH Playback & Download Subsystem Specification
 
-DASH is the playback path. Progressive `durl` is fallback only, for uploads with
-no DASH tracks.
+MikuInvidious employs Dynamic Adaptive Streaming over HTTP (ISO/IEC 23009-1 DASH) as its primary VOD pipeline, with progressive MP4 (`durl`) retained as an automated fallback for legacy uploads.
 
-## DASH chain
+---
 
-1. **Playurl** (`api/video.py:get_dash_playurl`,
-   `dash_proxy.py:video_get_dash_for_qn`). UGC: WBI playurl
-   (`fnval=4048, fourk=1, qn=120`). PGC: `/pgc/player/web/v2/playurl`. Redis cache
-   `miku_dash_<vid>_<idx>`, 1800 s.
-2. **MPD** (`generate_vod_mpd`), at `/video/dash/<vid>/<idx>/manifest.mpd`. Only
-   tracks with valid `SegmentBase.indexRange`. BaseURLs point at the track proxy,
-   resolved per request, never baked in.
-3. **Track proxy** (`/proxy/dash/<vid>/<idx>/<type>/<qn>/<cid>`). Forwards the
-   client `Range` untouched. Returns `206` + `Content-Range` / `Content-Length` /
-   `Accept-Ranges`. dash.js segments via sidx itself. **Only length-computable 206
-   counts** — the rest is skipped for the next mirror, or dash.js stalls on
-   "non-computable download size" (dash.js#4716). `fragmentRequestTimeout` 60 s,
-   abandon rules on.
-4. **Failover.** Healthy mirrors first, cross-request sick-mirror memory
-   (transport failures only — never 403/412/514; 120 s cooldown, cleared on
-   success). 2 mirrors per fragment max, 4 s handshake
-   (`DASH_PLAYBACK_ATTEMPT_TIMEOUT`): dash.js gives up after ~7 s anyway, so deeper
-   traversal only burns its budget. Fail fast; let it retry or drop quality. After
-   a completed handshake, disconnects / 5 silent seconds resume the remaining
-   `Range` on the next mirror (byte-continuous, invisible to dash.js). Pure
-   slowness never switches mirrors (backups are for faults; speed is ABR's job).
-5. **Re-fetch on signature expiry only.** CDN URLs are time-signed (~2 h TTL;
-   `expires|wsTime|txTime|um_deadline|deadline` all recognized). Re-fetch + retry
-   only on 403-class sweep or confirmed stamp expiry (same-stamp dedup).
-   `?fresh=1` forces refresh for player self-rescue. **Slowness never re-fetches**
-   — a fresh signature on the same bad edge changes nothing.
+## 1. Architectural Overview
 
-## Frontend
+The DASH engine is divided into six modular components located in `python/`:
 
-`static/vjs/dash.min.js` is vendored v5.2.1 (synced from `dashjs` via
-`npm run sync:static`). **Player code uses the v5 representations API only.**
-v4 `getBitrateInfoListFor` / `setQualityFor` are gone. `DashPlayerManager`:
-`static/themes/modern/js/player.js`.
+```
+               [ Client Browser (dash.js v5) ]
+                              |
+            +-----------------+-----------------+
+            |                                   |
+            v /video/dash/.../manifest.mpd      v /proxy/dash/... (Fragments)
+    +-----------------+                 +-----------------------+
+    |   dash_mpd.py   |                 |    dash_stream.py     |
+    | Dynamic MPD Gen |                 | HTTP Range Track Proxy|
+    |                 |                 | Socket Keep-Alive Pool|
+    +-----------------+                 +-----------------------+
+            |                                       |
+            v                                       v
+    +-----------------+                 +-----------------------+
+    |  dash_fetch.py  |                 |    dash_common.py     |
+    | Playurl Fetch & |                 | Mirror Health & Cache |
+    | Dual-Layer Cache|                 |                       |
+    +-----------------+                 +-----------------------+
+            |                                       |
+            +-------------------+-------------------+
+                                |
+                                v
+               [ Background Download Queue ]
+                                |
+                +-------------------------------+
+                |     dash_download_job.py      |
+                |   Concurrency & REST Endpoints|
+                +-------------------------------+
+                                |
+                +-------------------------------+
+                |     dash_download_track.py    |
+                | Segment Downloader & Muxer    |
+                +-------------------------------+
+```
 
-## durl-only fallback
+---
 
-Some uploads return `durl` with no `dash` node under every endpoint/param
-combination (verified 2026-09-11). `has_valid_dash_tracks()` gates it: no DASH →
-`fetch_durl_supported_src()` (non-WBI playurl + PGC retries, parallel), cached as
-`mikuinv_<vid>_<idx>_<qn>` (`+_bak` for backups), played via native
-`/proxy/video/...`. PGC durl returns one node per qn — exact matches only, or the
-menu lists one file under four names. **Progressive CDN fetches need a web Chrome
-UA** (`build_cdn_headers()`; BiliDroid UAs get 403s from upos/akamaized edges).
+## 2. Core Subsystems
 
-## Downloads
+### A. Playurl Fetch & Dual-Layer Caching (`dash_fetch.py`)
+- **Resolution Strategy**: Requests upstream UGC playurl via WBI with `fnval=4048, fourk=1, qn=120`, falling back to `/pgc/player/web/v2/playurl` for Bangumi/PGC media.
+- **Dual-Layer Cache**:
+  - **L1 Process Memory**: In-memory LRU cache (`_DASH_MEM_MAX = 64` entries, `_DASH_MEM_TTL = 30s`) serves hot fragment bursts. Fresh entries bypass Redis entirely, eliminating lookup overhead for consecutive fragments. Misses fall back to Redis unless in cooldown.
+  - **L2 Redis Cache**: Cached under `miku_dash_<vid>_<idx>` with an 1800-second TTL. Keys normalize `base_url` and `backup_url` lists.
+- **Fail-Fast Protection**: Hot paths degrade gracefully on Redis timeouts or disconnections without throwing exceptions. A 30-second cooldown (`_DASH_REDIS_COOLDOWN`) prevents repeated Redis timeouts on subsequent fragments. Expired or 403-invalidated tokens trigger proactive memory drops.
 
-`POST /download` opens a background job (max 3, uuid as ID), returns `{"job_id"}`.
-The floating window (`static/themes/modern/js/download.js`) polls
-`GET /download/status/<job>` (progress, speed, phase:
-queued/resolving/downloading/muxing/ready) and auto-saves
-`GET /download/file/<job>`. Cancel: `POST /download/cancel/<job>` (beacon works).
-Drops the CDN connection, kills ffmpeg, clears temp files.
+### B. Dynamic MPD Generation (`dash_mpd.py`)
+- Emits a standards-compliant `isoff-on-demand` MPD at `/video/dash/<vid>/<idx>/manifest.mpd`.
+- Only audio and video tracks containing valid `SegmentBase.indexRange` headers are included.
+- BaseURLs dynamically point to the local track proxy (`/proxy/dash/...`), resolved per request rather than hardcoded in the manifest.
 
-Same mirror/watchdog machinery as playback, **bigger budget** (8 s handshake, full
-sweep, 5 backoff retries per segment): downloads have no client intelligence, the
-server holds the connection instead. 32 MB Range segments, video+audio in parallel
-(dash.js-style dual adaptation sets), 1 MB batched writes. Start-mirror rotation
-per segment (sick sinks, M-CDN last). Adaptive pacing (2/4/6/8/10 s stepped backoff
-on sustained slowness — per-IP throttling accumulates and decays; clean fast
-stretches reset to zero). Keep-alive reuse. Slowdown watchdog (three consecutive
-1 s windows under 300 KB/s after proving ≥1 MB/s → drop, reconnect after 10 s;
-instant reconnects land back in the penalty box). Playurl refresh on dead
-signatures only (403 sweep or stamp expiry), unlimited, same-stamp dedup.
+### C. Track Proxying & Upstream Socket Pooling (`dash_stream.py`)
+- **Range Forwarding**: Proxies client `Range` headers using raw-socket `CdnConnection` (direct or via WARP SOCKS5). Responds with `206 Partial Content`.
+- **Bounded Range Requirement**: Clients must request bounded ranges (`bytes=<start>-<end>`) with a maximum span of 32 MiB (`DASH_MAX_FRAGMENT_BYTES = 32 * 1024 * 1024`); open-ended ranges (`bytes=0-`) or requests exceeding 32 MiB are rejected with `HTTP 416 Range Not Satisfiable`.
+- **Derivable Content-Length**: `dash.js` relies on computable sizes for ABR and throughput profiling. Responses missing explicit content sizes are rejected or synthesized from `Content-Range` to avoid client abandon timeouts.
+- **Upstream Socket Reuse (`_PlaybackKeepAlivePool`)**: Banks exactly consumed, length-framed connections by `(proxy, url)`. Consecutive fragments reuse existing TCP+TLS handshakes, significantly reducing latency and eliminating slow-start penalties. Idle connections are reaped after 30 seconds (pool capacity: 8).
+- **Persistent TLS Context**: Reuses a process-global `_TLS_CONTEXT` in `stream.py` to prevent redundant CA certificate bundle parsing on every connection.
 
-Finished DASH downloads mux with `ffmpeg -c copy -movflags +faststart` (ffmpeg
-ships in the app image). durl-only content is already a single MP4 — stored
-directly.
+### D. Mirror Failover & Edge Health Memory (`dash_common.py`)
+- **Mirror Selection**: Candidates are sorted healthy-first. Transport failures trigger a 120-second sick cooldown, while successful requests immediately clear error marks.
+- **Range-Shy Edge Detection**: Thin CDN edges that return mid-file `416 Range Not Satisfiable` errors are marked as "range-shy" with offset granularity, preventing future fragments from attempting doomed mirrors.
+- **Wall-Clock Sweep Budget**: Sweeps are bounded by time and attempt count (`DASH_PLAYBACK_MIN_MIRRORS = 2`, `DASH_PLAYBACK_MIRROR_BUDGET = 3s`, `DASH_PLAYBACK_ATTEMPT_TIMEOUT = 4s`). The 3-second budget gates whether *additional* mirrors are attempted after the first two; because individual handshake attempts have a 4-second timeout, the total sweep duration across multiple attempts can exceed 3 seconds. Fast connection resets quickly check alternative mirrors, while slow edges fail over before client-side player timeouts trip.
+- **Mid-Body Failover**: Stream dropouts or idle pauses past `DASH_BODY_IDLE_TIMEOUT` (5s) automatically resume the remaining byte range on the next available healthy mirror.
 
-## Constraints
+### E. Background Download Pipeline (`dash_download_*.py`)
+- **Queue & Concurrency**: Managed by `dash_download_job.py` (capped at 3 concurrent downloads). Each job is assigned an unguessable UUID.
+- **Segment Downloading**: Downloads video and audio tracks concurrently as 32MB `Range` segments with 1MB disk write batches.
+- **Adaptive Pacing & Slowdown Watchdog**: Consecutive slow transfers trigger an adaptive backoff ladder (2s to 10s). A 1-second rolling watchdog detects edge throttling, dropping stalled connections and pausing before reconnecting.
+- **Muxing & Delivery**: Completed tracks are remuxed with stream copy (`ffmpeg -c copy -movflags +faststart`) up to 1080p anonymous ceiling. Cancelled jobs cleanly abort CDN transfers and prune temporary files.
 
-- DASH CDN wants a web UA. Android app UAs get 403s.
-- `bili_ticket` cookie never goes to web APIs (only `x-bili-ticket` on the CDN
-  proxy) — otherwise the `v_voucher` pre-check fires.
-- **Playback fails fast, downloads hold on. By design.** Don't unify the paths.
+### F. Progressive `durl` Fallback (`proxy.py`)
+- **Legacy Fallback**: UGC uploads lacking DASH tracks automatically fall back to progressive MP4 streams served by `/proxy/video/...`.
+- **Validation**: `has_valid_dash_tracks()` inspects playurl payloads; if invalid, `fetch_durl_supported_src()` resolves quality-specific progressive sources.
+
+---
+
+## 3. Frontend Players
+
+- **VOD Player (`dash.js`)**: Vendored v5 representations API (`static/themes/modern/js/player.js`).
+- **Live Stream Players**: `hls.js` (v1.7.4 for HLS fmp4 master) and `mpegts.js` (for FLV streams). Live player scripts are strictly segregated and never loaded on VOD pages.
+
+---
+
+## 4. Invariant Rules
+
+- **DASH CDN User-Agent**: MUST send web Chrome UA (`build_cdn_headers()` in `python/fingerprints.py`). Android UA (`BiliDroid`) triggers HTTP 403 on `.bilivideo.com`.
+- **Ticket Cookie vs. Header**: NEVER send the `bili_ticket` cookie to web APIs (triggers anti-bot `v_voucher` precheck). Send it ONLY via the `x-bili-ticket` header for CDN/DASH proxying.
+- **Playback vs. Download Segregation**:
+  - *Playback*: Fails fast (2 mirrors min, 4s handshake, 3s sweep budget). dash.js owns abandon/ABR. Reuses upstream sockets.
+  - *Downloads*: Persists (adaptive pacing ladder, 1s slowdown watchdog, 10s cooldown on slow probes, 32MB segment resumes).
+  - *Never unify the two loops.*

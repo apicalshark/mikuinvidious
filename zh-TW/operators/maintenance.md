@@ -1,25 +1,52 @@
-# 日常維運
+# 日常維運與維護
 
-## 查閱紀錄
+查閱即時日誌、版本更新與資料備份之完整指南。
+
+---
+
+## 1. 查閱即時日誌
+
+即時檢視應用程式與反向代理日誌：
 
 ```bash
-docker compose logs -f app      # 主程式
-docker compose logs -f caddy    # 反向代理
+docker compose logs -f app      # Quart 應用程式與 DASH 串流日誌
+docker compose logs -f caddy    # Caddy 存取與 TLS 憑證日誌
+docker compose logs -f redis    # Redis 資料庫運作狀態
 ```
 
-Granian 存取紀錄的輸出量較大（每段影音、每張圖片、每次輪詢都會產生一行），由 `SERVER_ACCESS_LOG` 控制，預設關閉，建議保持關閉。
+> [!TIP]
+> Granian 逐筆請求日誌預設為關閉（`SERVER_ACCESS_LOG=false`）。開啟此選項會因大量的分段視訊抓取、圖片讀取與下載進度輪詢而產生巨量日誌。
 
-## 更新
+---
+
+## 2. 版本升級
+
+拉取最新功能更新、錯誤修正與套件升級：
 
 ```bash
 git pull
-docker compose up -d --build
+docker compose build --pull app
+docker compose up -d
 ```
 
-手動部署：`git pull` 後執行 `uv sync`，若前端有變更，另外執行 `npm run build:css`。
+對於手動（非 Docker）安裝環境：
+```bash
+git pull
+uv sync
+npm install
+npm run build:css     # 若前端樣式有異動
+```
 
-## 備份範圍
+---
 
-- `config.toml`（或 Compose 的環境變數）：站點組態的核心。
-- Redis：遺失時只需要重建快取與工作階段，無需備份。但若未設定固定的 `QUART_SECRET_KEY`，重新啟動本來就會讓工作階段失效，正式站點請務必設定。
-- 憑證：採用加密存放時，`SECRETS_MASTER_KEY` 應與組態檔分開保管。
+## 3. 備份策略
+
+**強烈建議備份**：
+- **組態設定**：您的 `config.toml` 設定檔（或 `compose.yml` 中的自訂環境變數）。
+- **TLS 憑證資料**：Caddy 的憑證儲存卷（`caddy_data`），可在遷移主機時避免觸發 Let's Encrypt 頻率限制。
+- **主加密金鑰**：若透過 `tools/encrypt_secrets.py` 加密了憑證，請將 `SECRETS_MASTER_KEY` 妥善保存於密碼管理器中，與程式碼分開儲存。
+
+**無需進行備份**：
+- **Redis 資料庫**：Redis 僅存放快取、暫態 Ticket 與速率限制計數器，隨時可清空重建。
+- **使用者工作階段**：工作階段採用客戶端簽章 Cookie，並於每次伺服器開機時以隨基金鑰加密；重啟伺服器本就會重設工作階段。
+- **圖片磁碟快取**：`img_cache` 目錄在需要時自動重新產生，並依照 LRU 演算法自動維護容量。

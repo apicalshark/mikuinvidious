@@ -1,33 +1,97 @@
-# 播放與下載架構
+# 播放與下載子系統規範
 
-DASH 是正式播放路徑，progressive `durl` 只留給沒有 DASH 軌道的上稿做備援。
+MikuInvidious 採用動態自適應 HTTP 串流（ISO/IEC 23009-1 DASH）作為其主要的隨選視訊管線，並保留傳統漸進式 MP4（`durl`）作為老舊投稿影片的自動備援。
 
-## DASH 鏈路
+---
 
-1. **取得 playurl**（`api/video.py:get_dash_playurl`、`dash_proxy.py:video_get_dash_for_qn`）：UGC 打 WBI playurl（`fnval=4048, fourk=1, qn=120`），PGC 退回 `/pgc/player/web/v2/playurl`。結果快取在 Redis（`miku_dash_<vid>_<idx>`，1800 秒）。
-2. **產生 MPD**（`generate_vod_mpd`）：位於 `/video/dash/<vid>/<idx>/manifest.mpd`，只收有合法 `SegmentBase.indexRange` 的軌道。BaseURL 指向軌道代理，每次請求即時解析，不預烘進 manifest。
-3. **軌道代理**（`/proxy/dash/<vid>/<idx>/<type>/<qn>/<cid>`）：把客戶端的 `Range` 標頭原樣轉發，回 `206` 和 `Content-Range`／`Content-Length`／`Accept-Ranges`。dash.js 靠 sidx 自己切段，**只有回得出長度的 206 才算有效**——算不出長度的直接跳過換 mirror，不然 dash.js 會卡在 "non-computable download size"（dash.js#4716）。前端 `fragmentRequestTimeout` 60 秒，abandon 規則開著。
-4. **容錯策略**：健康節點優先，加上跨請求的異常節點記憶（只記傳輸失敗，403／412／514 不記；冷卻 120 秒，成功馬上清除）。每個 fragment 最多試 2 個節點、握手 4 秒（`DASH_PLAYBACK_ATTEMPT_TIMEOUT`）——dash.js 自己大概 7 秒就放棄，再深的遍歷只會讓客戶端先超時，不如快點失敗讓它重試或降畫質。握手完成後如果斷線或 5 秒沒收到位元組，就對下一個 mirror 續傳剩下的 `Range`（位元組連續，dash.js 無感）；單純速度慢不換節點（備援 URL 是留給故障用的，慢速由 dash.js 的 ABR 處理）。
-5. **簽名過期才重拿**：CDN 網址是時效簽名（有效期約兩小時，認 `expires|wsTime|txTime|um_deadline|deadline` 五種參數寫法）。只有 403 級別掃蕩或戳記確認過期才重拿 playurl 並重試（相同戳記去重）；`?fresh=1` 強制重整，給播放器自救。**速度慢不重拿**——新簽名指到同一台爛機器也沒用。
+## 1. 架構宏觀概覽
 
-## 前端
+DASH 串流引擎在 `python/` 中拆分為六個解耦的模組：
 
-`static/vjs/dash.min.js` 是內嵌的 v5.2.1（用 `npm run sync:static` 從 `dashjs` 套件同步）。**播放器程式只能用 v5 representations API**，v4 的 `getBitrateInfoListFor`／`setQualityFor` 已經移除。`DashPlayerManager` 在 `static/themes/modern/js/player.js`。
+```
+               [ 瀏覽器客戶端 (dash.js v5) ]
+                              |
+            +-----------------+-----------------+
+            |                                   |
+            v /video/dash/.../manifest.mpd      v /proxy/dash/... (分段串流)
+    +-----------------+                 +-----------------------+
+    |   dash_mpd.py   |                 |    dash_stream.py     |
+    | 動態 MPD 清單   |                 | HTTP Range 分段代理   |
+    |                 |                 | Socket 連線複用池     |
+    +-----------------+                 +-----------------------+
+            |                                       |
+            v                                       v
+    +-----------------+                 +-----------------------+
+    |  dash_fetch.py  |                 |    dash_common.py     |
+    | 播放網址取得與  |                 | 鏡像健康狀態與快取    |
+    | 雙層快取機制    |                 |                       |
+    +-----------------+                 +-----------------------+
+            |                                       |
+            +-------------------+-------------------+
+                                |
+                                v
+               [ 背景非同步下載佇列 ]
+                                |
+                +-------------------------------+
+                |     dash_download_job.py      |
+                |   併發控制與 REST 輪詢端點    |
+                +-------------------------------+
+                                |
+                +-------------------------------+
+                |     dash_download_track.py    |
+                | 分段下載器與無損封裝          |
+                +-------------------------------+
+```
 
-## durl-only 備援
+---
 
-有些上稿不管換哪種 endpoint 和參數組合，都只回 `durl` 而沒有 `dash` 節點（2026-09-11 驗證）。`has_valid_dash_tracks()` 負責把關：沒有 DASH 軌道就改走 `fetch_durl_supported_src()`（非 WBI playurl 加 PGC 重試，並行解析），快取為 `mikuinv_<vid>_<idx>_<qn>`（`+_bak` 放備援），走原生 `/proxy/video/...` 播放。PGC durl 每個 qn 只回一個節點，所以只留精確匹配（不然選單會出現同一個檔案掛四個名字的錯誤）。**progressive 抓 CDN 要用 Web Chrome UA**（`build_cdn_headers()`，BiliDroid UA 會被 upos／akamaized 邊緣節點回 403）。
+## 2. 核心子系統
 
-## 下載任務
+### A. 播放網址取得與雙層快取（`dash_fetch.py`）
+- **解析策略**：透過 WBI 簽名帶有 `fnval=4048, fourk=1, qn=120` 向上游請求 UGC 播放網址，番劇動漫則自動退避至 `/pgc/player/web/v2/playurl`。
+- **雙層快取**：
+  - **L1 行程記憶體**：以記憶體 LRU 快取（`_DASH_MEM_MAX = 64` 筆，`_DASH_MEM_TTL = 30s`）承接密集的視訊分段請求。命中時完全繞過 Redis，消除連續分段的查詢負擔。
+  - **L2 Redis 快取**：快取於 `miku_dash_<vid>_<idx>`，預設 TTL 為 1800 秒。儲存鍵將 `base_url` 與 `backup_url` 完整規格化。
+- **快速失敗保護**：Redis 發生逾時或斷線時自動平滑降級，不拋出例外中斷播放。系統具備 30 秒冷卻時間（`_DASH_REDIS_COOLDOWN`），避免後續分段反覆遭遇 Redis 逾時阻滯。時效過期或 403 失效的權杖將主動清除記憶體快取。
 
-`POST /download` 開背景任務（最多 3 個並行，用 uuid 當 ID），回 `{"job_id"}`；`static/themes/modern/js/download.js` 的浮動窗輪詢 `GET /download/status/<job>`（進度、速度、階段：queued／resolving／downloading／muxing／ready），完成自動存 `GET /download/file/<job>`。取消走 `POST /download/cancel/<job>`（也支援 beacon），會斷掉 CDN 連線、殺掉 ffmpeg、清掉暫存檔。
+### B. 動態 MPD 生成（`dash_mpd.py`）
+- 於 `/video/dash/<vid>/<idx>/manifest.mpd` 輸出符合 `isoff-on-demand` 規範的標準 DASH 清單。
+- 僅收錄具備有效 `SegmentBase.indexRange` 標頭的音訊與視訊軌道。
+- BaseURL 動態指向本機分段代理路徑（`/proxy/dash/...`），於每次請求時動態計算，不硬編碼於靜態清單中。
 
-下載跟播放是同一套 mirror／watchdog 機制，但**預算放得更寬**（握手 8 秒、整輪掃、每段 5 次 backoff 重試）：下載沒有客戶端智慧，只能靠伺服器端撐住。用 32MB Range 分段抓，影像和音軌並行（學 dash.js 的雙 adaptation set），1MB 批次寫檔；每段輪換起始節點（異常的往後排、M-CDN 放最後），加上自適應 pacing（連續太慢就照 2／4／6／8／10 秒階梯拉長間隔——per-IP 節流會累積也會消退，出現乾淨的快速段就歸零）；keep-alive 連線重用；current-speed slowdown watchdog（連三個 1 秒視窗低於 300KB/s、而且之前證明跑得到 ≥1MB/s，就斷線 10 秒後再連——立刻重連只會回到節流區間）。只有簽名失效（403 掃蕩或戳記過期）才重整 playurl，無次數上限並做相同戳記去重。
+### C. 軌道代理與上游連線複用（`dash_stream.py`）
+- **Range 標頭轉送**：透過原生 Socket `CdnConnection`（直連或經由 WARP SOCKS5）轉發客戶端的 `Range` 標頭，回傳 `206 Partial Content`。
+- **有界範圍約束**：客戶端必須發送明確有界的 Range 請求（`bytes=<起點>-<終點>`），且最大長度不得超過 32 MiB（`DASH_MAX_FRAGMENT_BYTES = 32 * 1024 * 1024`）；無界請求（如 `bytes=0-`）或超出 32 MiB 者將直接以 `HTTP 416 Range Not Satisfiable` 拒絕。
+- **可計算的 Content-Length**：`dash.js` 仰賴確定的大小計算傳輸速率與 ABR 自動畫質。回應缺失長度者將被捨棄或由 `Content-Range` 推導補全，防範播放器逾時中斷。
+- **上游 Socket 複用（`_PlaybackKeepAlivePool`）**：依照 `(proxy, url)` 快取完全讀取完畢且長度明確的連線。連續分段直接複用已完成 TCP+TLS 交握的現有連線，消除慢啟動懲罰。閒置連線於 30 秒後自動回收（連線池容量上限為 8）。
+- **持久化 TLS 上下文**：全域複用 `stream.py` 中的 `_TLS_CONTEXT`，避免每次建立連線時反覆載入解析 CA 憑證鏈。
 
-DASH 下載完用 `ffmpeg -c copy -movflags +faststart` 合成（app 映像檔內建 ffmpeg）；durl-only 本來就是單一 MP4，直接存檔。
+### D. 鏡像容錯與邊緣健康狀態記憶（`dash_common.py`）
+- **鏡像挑選**：候選節點依照健康程度排序。傳輸失敗會記錄 120 秒病態冷卻期，請求成功則立即解除標記。
+- **Range 敏感節點辨識**：在檔案中間回傳 `416 Range Not Satisfiable` 的薄型 CDN 邊緣節點將依據偏移量標記為 Range 敏感節點，避免後續分段再度發送至該故障節點。
+- **掛鐘時間掃描預算**：嘗試鏡像受到嘗試次數與時間雙重限制（`DASH_PLAYBACK_MIN_MIRRORS = 2`，`DASH_PLAYBACK_MIRROR_BUDGET = 3s`，`DASH_PLAYBACK_ATTEMPT_TIMEOUT = 4s`）。3 秒預算用於限制在嘗試前兩個鏡像後是否繼續嘗試更多備援節點。快速斷線能迅速切換備援，而慢速卡死邊緣則在播放器逾時前果斷切換。
+- **串流中途容錯**：串流若遭遇停滯且無資料時間超過 `DASH_BODY_IDLE_TIMEOUT`（5 秒），系統自動在下一個健康鏡像無縫接續剩餘的位元組區段。
 
-## 實作約束
+### E. 背景下載管線（`dash_download_*.py`）
+- **佇列與併發**：由 `dash_download_job.py` 排程（上限為 3 個併發下載任務），每個任務獲派一組不可推測的 UUID。
+- **分段下載**：以 32 MB 為單元並行下載音訊與視訊軌道，並以 1 MB 進行本機磁碟批次寫入。
+- **自適應降速避障與看門狗**：連續遭遇傳輸慢速將觸發自適應退避階梯（2 至 10 秒）。1 秒滾動看門狗偵測到 CDN 節流時，自動中斷連線並暫停後重試。
+- **格式封裝與交付**：下載完畢後呼叫 `ffmpeg -c copy -movflags +faststart` 無損合成為可直接隨選預覽的 MP4 檔案。
 
-- DASH CDN 要 Web UA，Android App UA 直接回 403。
-- `bili_ticket` Cookie 永遠不送給 Web API（只走 CDN 代理的 `x-bili-ticket` 標頭），不然會觸發 `v_voucher` 預檢查。
-- **播放快速失敗、下載撐到底——這是設計決策，不是缺陷**。不要把兩條路「統一」。
+---
+
+## 3. 前端播放器
+
+- **VOD 播放器（`dash.js`）**：內嵌 v5 representations API（`static/themes/modern/js/player.js`）。
+- **直播串流播放器**：`hls.js`（v1.7.4，處理 HLS fmp4 master）與 `mpegts.js`（處理 FLV 串流）。直播播放腳本嚴格隔離，絕不於隨選視訊頁面載入。
+
+---
+
+## 4. 關鍵不變原則
+
+- **DASH CDN 使用者代理**：必須發送桌面 Chrome UA（`python/fingerprints.py` 中的 `build_cdn_headers()`）。發送 Android UA（`BiliDroid`）將直接引發 `.bilivideo.com` 403 存取拒絕。
+- **Ticket Cookie 與 Header 規範**：絕不能將 `bili_ticket` 當作 Cookie 傳送給 Web API（這會誘發防爬蟲 `v_voucher` 檢查）；它只能以 `x-bili-ticket` 標頭形式發送給 CDN 代理。
+- **播放與下載邏輯嚴格分離**：
+  - *播放路徑*：快速失敗（至少 2 個鏡像，4 秒交握，3 秒時間預算）。由前端 dash.js 自行調配 ABR 畫質。複用上游連線。
+  - *下載路徑*：持續堅持（自適應退避階梯，1 秒降速看門狗，10 秒冷卻，32 MB 續傳）。
+  - *絕不可將兩套迴圈合併。*

@@ -1,51 +1,90 @@
 # 手動安裝
 
-本章適用於不使用 Docker、需直接修改程式碼的開發者。系統需求為 Python 3.14 以上版本、Redis，以及 `uv` 套件管理工具。
+本章節適用於在裸機或自建虛擬機器上直接執行 MikuInvidious、不使用 Docker 的站長與貢獻者。
 
-## 系統依賴（Debian／Ubuntu）
+---
+
+## 1. 系統需求
+
+- **Python**：3.15 或更新版本
+- **套件管理工具**：[uv](https://astral.sh/uv)（極速 Python 套件管理器）
+- **資料庫**：[Redis](https://redis.io/)（埠號 6379）
+- **Web 伺服器**：[Caddy](https://caddyserver.com/)（處理 TLS 憑證與靜態資源）
+- **Node.js**：18+ 版本（僅於需要編譯前端 CSS 或同步靜態資源時需要）
+- **媒體工具**：[ffmpeg](https://ffmpeg.org/)（背景下載合併音視訊軌道必備）
 
 ```bash
+# Ubuntu / Debian
 sudo apt update
-sudo apt install python3 python3-venv git curl
+sudo apt install -y python3 python3-venv git curl redis-server ffmpeg
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-另需安裝 [Redis](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)（預設監聽 6379 即可）與 [Caddy](https://caddyserver.com/docs/install）。如需修改前端樣式，另需 Node.js 18 以上版本。
+---
 
-## 安裝步驟
+## 2. 下載與安裝流程
 
-```bash
-git clone https://github.com/apicalshark/mikuinvidious
-cd mikuinvidious
-uv sync
-npm install
-npm run build:css        # 編譯 Tailwind（僅於修改 CSS 後需要）
-cp config.toml.sample config.toml
-```
+1. **複製程式碼庫**：
+   ```bash
+   git clone https://github.com/apicalshark/mikuinvidious
+   cd mikuinvidious
+   ```
 
-編輯 `config.toml`：於 `[server]` 設定 secret（未設定時將於每次啟動自動產生，但重新啟動後工作階段將失效）；於 `[redis]` 確認 `url = "redis://localhost:6379"`；若主機位於資料中心，請於 `[proxy]` 設定 `proxy_url`。
+2. **同步 Python 相依套件**：
+   ```bash
+   uv sync
+   ```
+
+3. **安裝前端相依套件與編譯樣式**：
+   ```bash
+   npm install
+   npm run build:css     # 將 Tailwind CSS 4 編譯為 static/themes/modern/css/main.css
+   ```
+
+4. **初始化組態設定**：
+   ```bash
+   cp config.toml.sample config.toml
+   mkdir -p data/img_cache
+   ```
+
+5. **編輯 `config.toml`**：
+   - 設定 `site_url = "http://localhost:8888"`（或您的實際公開網域）。
+   - 設定 `[redis]` 連線網址（`redis://localhost:6379`）。
+   - 若伺服器位於資料中心，於 `[proxy]` 下配置 `proxy_url` 指向 SOCKS5 代理（如 WARP）。
+
+---
+
+## 3. 啟動應用程式伺服器
+
+透過開發執行腳本啟動 Granian ASGI：
 
 ```bash
 uv run python/main.py
 ```
 
-應用程式預設監聽 `http://localhost:8888`，經由 Caddy 轉發後為 8000：
+伺服器將監聽於 `http://0.0.0.0:8888`。
+
+開發除錯模式（支援程式碼熱重載）：
+```bash
+QUART_DEBUG=true uv run python/main.py
+```
+
+---
+
+## 4. 反向代理配置
+
+設定 Caddy 反向代理至 `localhost:8888` 並直接傳遞 `./static` 資源：
 
 ```text
 :8000 {
+    root * ./static
     handle /static/* {
-        root * ./static
         file_server
     }
-    reverse_proxy localhost:8888
+    handle {
+        reverse_proxy localhost:8888 {
+            header_up X-Real-IP {remote_host}
+        }
+    }
 }
-```
-
-開發期間建議啟用除錯模式以取得自動重新載入：`QUART_DEBUG=true uv run python/main.py`。
-
-## 提交前檢查
-
-```bash
-npm run lint      # 執行 ruff、prettier、djlint 完整檢查
-npm run format    # 自動格式化後再送出 PR
 ```

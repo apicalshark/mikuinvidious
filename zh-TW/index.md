@@ -1,27 +1,36 @@
-# MikuInvidious 概述
+# MikuInvidious 文件
 
-[MikuInvidious](https://github.com/apicalshark/mikuinvidious) 是一套自由開源的 Bilibili 前端服務，其設計理念源自 [Invidious](https://invidious.io)。本系統提供輕量化且注重隱私的介面，用於瀏覽與觀看 Bilibili 內容——無需註冊帳號，無需安裝官方應用程式，亦不進行任何追蹤。
+[MikuInvidious](https://github.com/apicalshark/mikuinvidious) 是一套自由且開源的 Bilibili 網頁前端服務，設計靈感源自 [Invidious](https://invidious.io)。本系統提供極致輕量、無追蹤且保護隱私的瀏覽體驗——無需註冊帳號，無需安裝官方客戶端，亦不傳送任何數位指紋。
 
-## 功能範圍
+---
 
-- **影片觀看**：支援 DASH 自適應串流、彈幕疊加、字幕及多分集（多 P）影片。
-- **純音訊模式**：任何影片均可改為僅播放音訊，適用於音樂聆聽、Podcast，或節省網路流量的場景。
-- **直播**：具備穩定的轉發代理、心跳維持機制與即時聊天室。
-- **番劇**：提供番劇與劇集的瀏覽及選集功能，並可選擇性整合 Nyaa.si 種子搜尋。
-- **專欄與動態**：Bilibili 的 `cv` 專欄與 `opus` 動態將轉換為簡潔的代理頁面。
-- **全站搜尋**：支援影片、上傳者（UP 主）、專欄、直播間及番劇，並提供篩選條件。
-- **隱私預設**：所有影音內容均經由伺服器端代理傳輸（客戶端 IP 不會直接暴露於 Bilibili CDN），免帳號、零追蹤。
+## 核心功能特色
 
-## 本書導讀
+- **高畫質影音播放**：支援動態 ISO/IEC 23009-1 DASH 自適應串流、上游鏡像節點自動容錯、彈幕疊加、字幕顯示與多分集（多 P）切換。
+- **萬用智慧搜尋列**：直接貼入官方 `b23.tv` 分享短網址、網頁/App 連結或純專屬代號（`BV...`、`ep...`、`cv...`），系統自動去追蹤並瞬間無痕跳轉。
+- **純聽模式（`?listen=1`）**：將任何影片轉換為純音訊串流，極致節省行動流量、電池耗損與背景分頁資源。
+- **多軌背景下載**：多軌併發分段下載音訊與視訊軌道，並由伺服器端 `ffmpeg` 自動無損封裝為標準 MP4 檔案。
+- **直播串流**：低延遲原生 FLV 與 HLS 串流轉發，內建心跳維持機制與即時聊天室彈幕。
+- **番劇與動畫**：作品簡介、劇集導覽與選用之 Nyaa.si BT 種子離線下載整合。
+- **專欄與動態閱讀**：將 Bilibili `cv` 專欄與 `opus` 動態重構為無腳本、圖片全代理的純淨閱讀版面。
+- **預設隱私隔絕**：所有視訊、音訊與圖片皆經由後端代理轉發並享有磁碟快取，客戶端 IP 絕不與 Bilibili CDN 產生接觸。
 
-| 章節 | 適用對象 |
-| :--- | :--- |
-| [站長指南](operators/) | 部署與管理實例的人員（Docker、Caddy、Redis、憑證設定）。 |
-| [開發者指南](developers/) | 參與 Quart 主程式、播放器、主題或 Bilibili API 封裝開發的貢獻者。 |
+---
+
+## 文件指南導讀
+
+| 指南專區 | 適用對象 | 涵蓋重點內容 |
+| :--- | :--- | :--- |
+| **[使用者指南](guide/)** | 一般訪客與觀眾 | 官方連結自動解析、搜尋列密技、網址路由參數、播放器快捷鍵與背景下載。 |
+| **[站長指南](operators/)** | 實例管理與維運人員 | 使用 Docker 快速啟動、Caddy TLS 終結、Redis 配置、完整組態參照與 Anubis 防禦。 |
+| **[開發者指南](developers/)** | 程式碼與架構貢獻者 | Python 3.15+ 系統架構、模組化 DASH 串流引擎、Bilibili API 簽名與測試驗證。 |
+| **[公開實例列表](instances)** | 所有使用者 | 社群志工架設並維護之公開可用實例清單。 |
+
+---
 
 ## 快速連結
 
-- **使用服務**：開啟所屬實例的網址（本地 Docker 部署的預設位址為 `http://localhost:8000`）。
-- **部署實例**：請參閱[使用 Docker 快速啟動](operators/quickstart-docker.md)，僅需兩個指令即可完成部署。
-- **理解架構**：請參閱[系統架構](developers/architecture.md)，內容涵蓋 Caddy、Granian／Quart、Redis 與媒體代理的整體設計。
-- **原始碼**：[apicalshark/mikuinvidious](https://github.com/apicalshark/mikuinvidious)，採用 GNU AGPL-3.0 授權。
+- **開始使用**：開啟您的實例網址（本地 Docker 預設位址為 `http://localhost:8000`）。
+- **部署實例**：請參閱[使用 Docker 快速啟動](operators/quickstart-docker)。
+- **理解系統設計**：請參閱[系統架構與設計](developers/architecture)。
+- **原始碼儲存庫**：[apicalshark/mikuinvidious](https://github.com/apicalshark/mikuinvidious)（GNU AGPL-3.0 授權）。

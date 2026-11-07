@@ -1,28 +1,52 @@
-# Maintenance
+# Maintenance & Operations
 
-Logs:
+Guidelines for inspecting logs, upgrading releases, and backing up instance configuration.
+
+---
+
+## 1. Inspecting Logs
+
+To view application and proxy logs in real time:
 
 ```bash
-docker compose logs -f app      # app
-docker compose logs -f caddy    # reverse proxy
+docker compose logs -f app      # Quart application & DASH streaming engine
+docker compose logs -f caddy    # Caddy access and TLS logs
+docker compose logs -f redis    # Redis cache operations
 ```
 
-Granian access logs are noisy (one line per segment, image, poll).
-`SERVER_ACCESS_LOG` controls them; off by default, keep it off.
+> [!TIP]
+> Granian per-request access logs are intentionally disabled by default (`SERVER_ACCESS_LOG=false`). Enabling them generates excessive log lines due to continuous DASH media fragment requests, image fetching, and download polling.
 
-Update:
+---
+
+## 2. Upgrading to New Releases
+
+To pull the latest improvements, fixes, and dependencies:
 
 ```bash
 git pull
-docker compose up -d --build
+docker compose build --pull app
+docker compose up -d
 ```
 
-Manual installs: `git pull`, `uv sync`, plus `npm run build:css` if the frontend
-changed.
+For manual (non-Docker) bare-metal installations:
+```bash
+git pull
+uv sync
+npm install
+npm run build:css     # if frontend styles updated
+```
 
-Back up:
+---
 
-- `config.toml` (or Compose env vars).
-- Redis needs no backup (cache + sessions rebuild). Without a fixed
-  `QUART_SECRET_KEY`, restarts invalidate sessions anyway — set one in production.
-- With encrypted credentials, store `SECRETS_MASTER_KEY` separately from the config.
+## 3. Backup Strategy
+
+What you should back up:
+- **Configuration**: Your `config.toml` file (or custom environment variables in `compose.yml`).
+- **TLS Data**: Caddy's certificate storage volume (`caddy_data`) if you want to avoid re-issuance rate limits when moving hosts.
+- **Master Encryption Key**: If you encrypted credentials with `tools/encrypt_secrets.py`, store `SECRETS_MASTER_KEY` in a secure password manager separate from your codebase.
+
+What does **not** need backup:
+- **Redis**: Redis holds transient caches, temporary tickets, and rate-limiting counters. It can be cleared or discarded at any time.
+- **User Sessions**: User sessions are cryptographically signed client-side cookies using an ephemeral secret key generated per startup. Restarting the server intentionally cycles session tokens.
+- **Image Disk Cache**: The `img_cache` directory automatically rebuilds on demand and prunes itself via LRU policies.

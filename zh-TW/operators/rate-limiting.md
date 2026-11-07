@@ -1,12 +1,55 @@
-# 速率限制
+# 速率限制與防爬蟲
 
-本系統提供基於 Redis sliding-window 的每 IP 速率限制，**預設關閉**，公開實例建議啟用。
+MikuInvidious 內建基於 Redis 權杖桶的滑動視窗速率限制器，保護公開實例免於惡意爬蟲掃描與阻斷服務攻擊（DoS）。
+
+速率限制**預設為關閉狀態**。對於直接暴露於公網之公開站點，強烈建議啟用此功能。
+
+---
+
+## 1. 啟用速率限制器
+
+於 `config.toml` 中配置：
 
 ```toml
 [rate_limit]
 enabled = true
-# trusted_proxies = '172.18.0.0/16'
+trusted_proxies = "172.18.0.0/16, 10.0.0.0/8"
 ```
 
-- `enabled`（`RATE_LIMIT_ENABLED`）：總開關。
-- `trusted_proxies`（`TRUSTED_PROXIES`）：額外信任的代理 IP／CIDR。代理標頭只對 loopback／私有網路／名單內來源採信，其餘一律採用 TCP 對端 IP，可防範標頭偽造。
+或透過環境變數傳遞：
+
+```bash
+RATE_LIMIT_ENABLED=true
+TRUSTED_PROXIES="172.18.0.0/16"
+```
+
+---
+
+## 2. 信任代理與客戶端 IP 辨識
+
+速率限制器透過 `python/rate_limit.py` 中的 `get_client_ip()` 判定客戶端 IP：
+
+1. **直接對端檢查**：若連線對端非私有網路位址且未列於 `trusted_proxies` 中，系統直接採信 TCP 對端 IP。任何由未受信任對端發送之 `X-Real-IP` 或 `X-Forwarded-For` 將被完全忽視，防止訪客偽造身分。
+2. **信任代理轉發**：若連線對端為本機 loopback（`127.0.0.1`、`::1`）、私有網路網段（如 Docker 虛擬網路 `172.18.0.0/16`），或明確符合 `trusted_proxies` 中的 CIDR 規則，應用程式採信 `X-Real-IP` 與 `X-Forwarded-For`。
+
+> [!WARNING]
+> **私有網路預設信任注意事項**：由於 loopback 與私有網路預設受採信，請務必將 8080 埠號透過防火牆保護，並確認您的反向代理（Caddy）在轉送時確實將 `X-Real-IP` 覆寫為驗證過的遠端 IP。
+
+---
+
+## 3. 預設速率限制等級
+
+系統依據端點敏感程度配置專屬配額：
+
+| 等級 | 配額上限 | 時間視窗 | 適用端點範圍 |
+| :--- | :--- | :--- | :--- |
+| **Strict** | 10 次 | 60 秒 | 敏感管理操作與憑證設定相關端點。 |
+| **Search** | 20 次 | 60 秒 | 分類與關鍵字搜尋端點（`/search`）。 |
+| **Normal** | 60 次 | 60 秒 | 一般影片詳情頁面、個人空間與番劇動漫。 |
+| **Proxy** | 100 次 | 60 秒 | 媒體串流分段與圖片代理。 |
+| **Loose** | 300 次 | 60 秒 | 輔助靜態資源。 |
+
+當客戶端超出配額時，伺服器回傳 `HTTP 429 Too Many Requests` 與 `Retry-After` 標頭。正常回應亦會附帶標準監控標頭：
+- `X-RateLimit-Limit`：該視窗內允許之最大請求量。
+- `X-RateLimit-Remaining`：當前視窗剩餘額度。
+- `X-RateLimit-Reset`：目前計數視窗重設之 UNIX 時間戳記。

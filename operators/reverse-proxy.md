@@ -1,32 +1,57 @@
-# Reverse proxy (Caddy)
+# Reverse Proxy (Caddy)
 
-Caddy terminates HTTPS, serves static files, forwards the rest to `app:8080`.
+Caddy serves as the public entry point for MikuInvidious: it handles automatic TLS certificate provisioning, serves static assets directly from disk, compresses text payloads, and forwards application traffic to Granian (`app:8080`).
+
+---
+
+## 1. Standard Production Caddyfile
 
 ```text
+{
+    # Disable HTTP/3 (QUIC) due to ERR_QUIC_PROTOCOL_ERROR on 206 Partial Content range requests
+    servers {
+        protocols h1 h2
+    }
+}
+
 :8000 {
+    # Set webroot for static assets
     root * /usr/share/caddy
+
+    # Serve static assets directly from disk (bypasses Python app entirely)
     handle /static/* {
+        header X-Content-Type-Options "nosniff"
+        header Cache-Control "public, max-age=86400"
         file_server
     }
+
     handle /site.webmanifest {
         root * /usr/share/caddy/static
         header Content-Type "application/manifest+json"
         file_server
     }
+
+    # Compress HTML, JSON, and text responses (never re-compress media streams)
     @notProxy not path /proxy/*
     encode @notProxy zstd gzip
+
+    # Forward all dynamic traffic to the application
     handle {
-        reverse_proxy app:8080
+        reverse_proxy app:8080 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 }
 ```
 
-`encode` skips `/proxy/*`: streams are already compressed; re-compressing wastes CPU.
+---
 
-## `ERR_QUIC_PROTOCOL_ERROR` during playback
+## 2. Critical Configuration Gotchas
 
-Browser QUIC stacks mishandle 206 Partial Content. Disable HTTP/3 at the top of
-`Caddyfile`:
+### Disabling HTTP/3 (QUIC)
+Modern browser QUIC implementations frequently encounter `ERR_QUIC_PROTOCOL_ERROR` when streaming segmented media via `206 Partial Content`. Always include:
 
 ```text
 {
@@ -36,15 +61,37 @@ Browser QUIC stacks mishandle 206 Partial Content. Disable HTTP/3 at the top of
 }
 ```
 
-Restart Caddy. Known issue, not a network problem.
+### Compression Exclusion (`@notProxy`)
+Media streams (`/proxy/*`) are already compressed video/audio payloads. Re-compressing them wastes CPU cycles and induces latency. Ensure `encode` targets `@notProxy not path /proxy/*`.
 
-## Own certificate
+### Client IP Forwarding
+Granian runs behind Caddy. To ensure the rate limiter and audit logs receive accurate visitor IP addresses instead of Caddy's internal Docker IP, Caddy must pass:
 
 ```text
-mi.example.com {
-    tls /path/to/cert.pem /path/to/key.pem
-    ...
+reverse_proxy app:8080 {
+    header_up X-Real-IP {remote_host}
 }
 ```
 
-Otherwise Caddy provisions from Let's Encrypt / ZeroSSL with no configuration.
+---
+
+## 3. High-Traffic Bot Defense with Anubis PoW
+
+For public instances experiencing aggressive scraper traffic or volumetric abuse, MikuInvidious includes an Anubis Proof-of-Work (PoW) configuration (`tools/botPolicy.yaml.example` and `tools/Caddyfile.prod.example`).
+
+```
+[ Browser / Scraper ]
+         |
+         v
+    [ Caddy ]
+         | (Static /static/* served directly)
+         v
+    [ Anubis PoW Gateway ] -- Challenges scrapers / headless bots
+         |
+         v (Verified Browsers)
+    [ Granian / Quart ]
+```
+
+- **Static Bypass**: `/static/*` and infra health checks bypass challenges completely.
+- **Image Proxy Route (`/proxy/pic/*`)**: Shielded by Anubis PoW challenges; behind Anubis, Python serves cached images from local disk in `< 1ms`.
+- **Targeted Bot Policies**: Drops vulnerability probes (`.env`, `.git`, `.php`), denies AI scraper User-Agents, and challenges datacenter / commercial VPN ASNs with lightweight client-side PoW challenges before they reach Python.
