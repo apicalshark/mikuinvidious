@@ -15,17 +15,20 @@ The recommended and easiest method to deploy MikuInvidious. Caddy, Granian, Redi
 ## 2. Fast Deployment
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/apicalshark/mikuinvidious
    cd mikuinvidious
    ```
 
 2. **Prepare Caddy configuration**:
+
    ```bash
    cp Caddyfile.example Caddyfile
    ```
 
 3. **Start the containers**:
+
    ```bash
    docker compose up -d
    ```
@@ -38,12 +41,15 @@ Your instance will immediately be available at `http://localhost:8000`.
 
 1. Open `compose.yml`:
    - Set the public domain in the `app` service environment (note that the modern theme header displays the "MikuInvidious" brand mark regardless of `SITE_NAME`):
+
      ```yaml
      environment:
        - SITE_NAME=My MikuInvidious Instance
        - SITE_URL=https://miku.example.com
      ```
+
    - Publish port `80:80` on the `caddy` service so Caddy can complete HTTP-01 ACME challenges and perform HTTP-to-HTTPS redirects:
+
      ```yaml
      caddy:
        ports:
@@ -80,6 +86,7 @@ Your instance will immediately be available at `http://localhost:8000`.
    ```
 
 3. Restart the stack:
+
    ```bash
    docker compose up -d --force-recreate
    ```

@@ -19,6 +19,7 @@ Do not run tests indiscriminately. Evaluate the scope of your changes first:
 ## 2. Command Reference
 
 ### Python Test Suite
+
 Run only when `python/*` or `tests/*` change:
 
 ```bash
@@ -26,6 +27,7 @@ NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH
 ```
 
 ### Bytecode Compilation Check
+
 Checks for syntax errors across all application modules and scripts without executing imports:
 
 ```bash
@@ -33,25 +35,30 @@ uv run python -m compileall -f python tests tools
 ```
 
 ### Python Linting & Formatting
+
 ```bash
 uv run ruff check python
 uv run ruff format python
 ```
 
 ### Frontend Linting & Formatting
+
 When static JS/CSS or Jinja templates change:
+
 ```bash
 npm run lint:frontend
 npm run format:frontend
 ```
 
 ### CSS & Static Asset Rebuild
+
 ```bash
 npm run build:css     # after editing static/themes/modern/css/tailwind-input.css
 npm run sync:static   # after bumping packages in package.json
 ```
 
 ### i18n Translation Check & Build
+
 ```bash
 npm run check:i18n
 npm run build:i18n

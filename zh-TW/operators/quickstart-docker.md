@@ -15,17 +15,20 @@
 ## 2. 快速部署
 
 1. **複製程式碼庫**：
+
    ```bash
    git clone https://github.com/apicalshark/mikuinvidious
    cd mikuinvidious
    ```
 
 2. **準備 Caddy 設定檔**：
+
    ```bash
    cp Caddyfile.example Caddyfile
    ```
 
 3. **啟動容器叢集**：
+
    ```bash
    docker compose up -d
    ```
@@ -38,12 +41,15 @@
 
 1. 開啟 `compose.yml`：
    - 在 `app` 服務的環境變數中設定您的公網網址（請注意：在現代主題下，頁首標誌一律顯示「MikuInvidious」商標，不受 `SITE_NAME` 影響）：
+
      ```yaml
      environment:
        - SITE_NAME=我的 MikuInvidious 實例
        - SITE_URL=https://miku.example.com
      ```
+
    - 在 `caddy` 服務的 `ports` 區段映射 `80:80` 埠，以允許 Caddy 進行 Let's Encrypt HTTP-01 憑證驗證與 HTTP 自動重新導向：
+
      ```yaml
      caddy:
        ports:
@@ -54,6 +60,7 @@
      ```
 
 2. 編輯 `Caddyfile`，將 `:8000` 站點位址替換為您的實際網域，並保留前方的全域選項區塊：
+
    ```text
    miku.example.com {
        root * /usr/share/caddy
@@ -79,6 +86,7 @@
    ```
 
 3. 重啟服務容器以重新載入組態：
+
    ```bash
    docker compose up -d --force-recreate
    ```

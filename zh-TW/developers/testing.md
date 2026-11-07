@@ -19,6 +19,7 @@
 ## 2. 指令參考手冊
 
 ### Python 單元測試集
+
 僅在 `python/*` 或 `tests/*` 異動時執行：
 
 ```bash
@@ -26,6 +27,7 @@ NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH
 ```
 
 ### 位元組碼語法編譯驗證
+
 檢查所有程式碼與工具腳本之 Python 語法錯誤（不載入執行模組）：
 
 ```bash
@@ -33,25 +35,30 @@ uv run python -m compileall -f python tests tools
 ```
 
 ### Python 程式碼風格與格式化
+
 ```bash
 uv run ruff check python
 uv run ruff format python
 ```
 
 ### 前端代碼風格與格式化
+
 當靜態 JS/CSS 或 Jinja 範本異動時：
+
 ```bash
 npm run lint:frontend
 npm run format:frontend
 ```
 
 ### CSS 與靜態資源重新編譯
+
 ```bash
 npm run build:css     # 編輯 static/themes/modern/css/tailwind-input.css 之後
 npm run sync:static   # 更新 package.json 相依性套件版本之後
 ```
 
 ### 多國語系字典檢查與編譯
+
 ```bash
 npm run check:i18n
 npm run build:i18n

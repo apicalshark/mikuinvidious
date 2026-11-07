@@ -64,6 +64,7 @@ Predefined bucket profiles are applied based on endpoint sensitivity:
 | **Loose** | 300 req | 60 sec | Auxiliary static assets and auxiliary resources. |
 
 When a client exceeds the quota, the server responds with `HTTP 429 Too Many Requests` and a `Retry-After` header. Allowed responses include standard telemetry headers:
+
 - `X-RateLimit-Limit`: Maximum requests permitted in the window.
 - `X-RateLimit-Remaining`: Remaining request allowance in current window.
 - `X-RateLimit-Reset`: UNIX epoch timestamp when the current window expires.

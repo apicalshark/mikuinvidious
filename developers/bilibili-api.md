@@ -7,6 +7,7 @@ This document catalogs the Bilibili API endpoints, parameters, and cryptographic
 ## 1. Upstream Endpoints
 
 ### Video (`api/video.py`)
+
 - `GET https://api.bilibili.com/x/web-interface/view` — Basic video metadata (aid/bvid).
 - `GET https://api.bilibili.com/x/web-interface/view/detail/tag` — Video tags.
 - `GET https://api.bilibili.com/x/web-interface/archive/related` — Related video recommendations.
@@ -15,12 +16,14 @@ This document catalogs the Bilibili API endpoints, parameters, and cryptographic
 - `GET https://api.bilibili.com/x/player/wbi/v2` — Subtitle and danmaku metadata (WBI signed).
 
 ### PGC & Bangumi (`api/bangumi.py`)
+
 - `GET https://api.bilibili.com/pgc/view/web/season` — Season details, episode index, title.
 - `GET https://api.bilibili.com/pgc/player/web/v2/playurl` — **PGC canonical playurl.** Accepts `ep_id` / `cid`.
 - `GET https://api.bilibili.com/pgc/web/season/section` — Extra clips and PV sections.
 - `GET https://api.bilibili.com/pgc/season/index/result` — Bangumi catalog filter.
 
 ### User & Space (`api/user.py`)
+
 - `GET https://api.bilibili.com/x/space/wbi/acc/info` — User profile (WBI signed).
   - *Risk Fallback:* Falls back to `GET https://api.bilibili.com/x/web-interface/card` if 412 / `-352` occurs.
 - `GET https://api.bilibili.com/x/space/wbi/arc/search` — Video archives (WBI signed, with `order_avoided="true"`).
@@ -28,16 +31,19 @@ This document catalogs the Bilibili API endpoints, parameters, and cryptographic
 - `GET https://api.bilibili.com/x/space/wbi/article` — User articles (WBI signed).
 
 ### Live Streaming (`api/live.py`, `api/live_area.py`)
+
 - `GET https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom` — Room details. Requires WBI signing with `web_location=444.8` and browser TLS impersonation via `curl_cffi`.
 - `GET https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo` — Stream format choices (FLV, HLS, codecs).
 - `GET https://api.live.bilibili.com/xlive/web-room/v1/playUrl/playUrl` — Live stream master URL.
 - `GET https://api.live.bilibili.com/xlive/web-interface/v1/second/getList` — Sub-area live taxonomy and tags.
 
 ### Search & Discussion (`api/search.py`, `api/comment.py`)
+
 - `GET https://api.bilibili.com/x/web-interface/wbi/search/type` — Category search (WBI signed).
 - `GET https://api.bilibili.com/x/v2/reply/main` — Video and article comment threads.
 
 ### Audio, Articles & Feeds (`api/audio.py`, `api/article.py`, `api/opus.py`, `api/homepage.py`, `api/video_zone.py`)
+
 - `GET https://www.bilibili.com/audio/music-service-c/web/song/info` — Song metadata.
 - `GET https://www.bilibili.com/audio/music-service-c/web/url` — Audio track stream URL.
 - `GET https://www.bilibili.com/audio/music-service-c/web/menu/info` — Playlist metadata.
@@ -52,6 +58,7 @@ This document catalogs the Bilibili API endpoints, parameters, and cryptographic
 ## 2. Signing Schemes & Security Tokens
 
 ### WBI Query Signing (`api/client.py`)
+
 1. **Key Extraction**: Retrieve `/x/web-interface/nav`. Extract `wbi_img.img_url` and `wbi_img.sub_url`.
 2. **Mixin Key Derivation**: Concatenate filename basenames and apply the Bilibili OE permutation table to produce a 32-character `mixin_key`.
 3. **Query Signing**:
@@ -64,6 +71,7 @@ This document catalogs the Bilibili API endpoints, parameters, and cryptographic
 4. **Invalidation**: If the upstream JSON response payload contains `"code": -403` (distinct from an HTTP 403 status code), invalidate the cached `mixin_key`, re-fetch fresh keys from `/x/web-interface/nav`, and retry.
 
 ### `bili_ticket` Token Generation
+
 1. Compute `HMAC-SHA256(key="XgwSnGZ1p", message=f"ts{int(time.time())}")`.
 2. `POST https://api.bilibili.com/bapis/bilibili.api.ticket.v1.Ticket/GenWebTicket` with POST parameters:
    - `key_id: "ec02"`
@@ -74,6 +82,7 @@ This document catalogs the Bilibili API endpoints, parameters, and cryptographic
 4. **Header Rule**: Send *only* via the `x-bili-ticket` HTTP request header for CDN proxying. Never send as a browser cookie (sending as cookie triggers empty anti-bot search results).
 
 ### Gaia Risk Avoidance (`api/video.py`, `api/user.py`)
+
 - **Playurl Avoidance Lane**: When a playurl endpoint returns `v_voucher` or `-352`, `api/video.py` retries once with fresh WebGL/canvas fingerprint parameters (`dm_img_list`, `dm_img_str`, `dm_cover_img_str`, `dm_img_inter`) and `gaia_source=pre-load`, `isGaiaAvoided=true`, and `try_look=1`.
 - **Space Route Fallbacks**: `api/user.py` falls back from `/x/space/wbi/acc/info` to `/x/web-interface/card` on errors or when neither `name` nor `face` is present, and from `/x/space/wbi/arc/search` to `/x/series/recArchivesByKeywords` with `dm_img_*` fingerprints.
 - **UGC Fake-404 on PGC**: Risk control causes UGC endpoints to return `-404` for PGC titles. Never let UGC `cid` resolution failure veto the PGC playurl path (`ep_id` fallback).

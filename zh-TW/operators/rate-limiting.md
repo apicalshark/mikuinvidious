@@ -64,6 +64,7 @@ uv run python/main.py
 | **Loose** | 300 次 | 60 秒 | 輔助靜態資源。 |
 
 當客戶端超出配額時，伺服器回傳 `HTTP 429 Too Many Requests` 與 `Retry-After` 標頭。正常回應亦會附帶標準監控標頭：
+
 - `X-RateLimit-Limit`：該視窗內允許之最大請求量。
 - `X-RateLimit-Remaining`：當前視窗剩餘額度。
 - `X-RateLimit-Reset`：目前計數視窗重設之 UNIX 時間戳記。

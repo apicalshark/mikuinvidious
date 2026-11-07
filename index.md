@@ -14,9 +14,7 @@ A free and open-source frontend for Bilibili, inspired by [Invidious](https://in
 - **Anime & Bangumi** — Series catalog and episode browser with optional Nyaa.si torrent integration.
 - **Articles & Opus** — Clean, distraction-free readers for Bilibili `cv` articles and dynamic `opus` posts with proxied images.
 
-
 - **Privacy by Default** — All video, audio, and images are server-side proxied. Local disk caching applies only to proxied images. Your IP never connects to Bilibili's CDN.
-
 
 ---
 

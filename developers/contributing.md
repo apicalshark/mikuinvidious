@@ -12,7 +12,7 @@ npm run format   # format first on failure
 npm run check:i18n   # strings changed only
 ```
 
-3. Issues, PRs, discussions all fine. Check `git status` / `git diff` before
+1. Issues, PRs, discussions all fine. Check `git status` / `git diff` before
    submitting — no secrets.
 
 License: app is GNU GPL-3.0. Frontend licenses: `/licenses` (hls.js, mpegts.js:

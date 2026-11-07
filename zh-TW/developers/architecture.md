@@ -165,6 +165,7 @@ graph TD
 ## 3. 模組完整清單（`python/`）
 
 ### 應用程式核心與組態
+
 - **`app.py`**：初始化 Quart 應用、配置安全標頭、註冊全域例外處理器並掛載藍圖。
 - **`main.py`**：本機開發執行入口，包裹 Granian ASGI 伺服器。
 - **`shared.py`**：全域系統設定物件（`appconf`）、Redis 連線池（`appredis`）、HTTP 連線池（`Network`）、代理設定與併發信號量。
@@ -174,6 +175,7 @@ graph TD
 - **`i18n.py` 與 `i18n_strings.py`**：多國語系國際化引擎，處理地區偏好解析與 gettext 翻譯字典。
 
 ### 視圖與介面呈現層
+
 - **`views.py`**：靜態轉發外觀模組，彙整並導出所有子視圖之路由處理函式。
 - **`views_home.py`**：首頁推薦動態、全站搜尋、分區導覽、觀看歷史、開源授權宣告與 `/convert` 短網址去追蹤解析。
 - **`views_video.py`**：影片中繼資料、多 P 分集清單、相關影片推薦與內嵌播放器組件。
@@ -186,6 +188,7 @@ graph TD
 - **`res.py`**：提供即時彈幕 XML 轉換與伺服器端重導向資源。
 
 ### 媒體串流與 DASH 管線
+
 - **`dash_proxy.py`**：DASH 隨選視訊與背景下載之中央轉發外觀。
 - **`dash_common.py`**：核心資料結構、鏡像節點健康度計數器與 Range 敏感節點標記。
 - **`dash_fetch.py`**：抓取播放串流連結、在 Redis 中標準化快取並管理 L1 記憶體 LRU 快取。
@@ -204,6 +207,7 @@ graph TD
 - **`refresher.py` 與 `ticket_legacy.py`**：上游憑證與 Web 票券定時更新維護任務。
 
 ### 本機 API 封裝（`python/api/`）
+
 - **`api/client.py`**：核心 HTTP 客戶端，實作 WBI 查詢雜湊簽名、`bili_ticket` 簽章與 Gaia 風控退避。
 - **`api/credential.py`**：帳號身分憑證容器（`SESSDATA`、`bili_jct`、`buvid3`、`buvid4`、`dedeuserid`）。
 - **`api/video.py`**：影片詳情、標籤、CID 解析、播放網址（DASH 與漸進式）與字幕。

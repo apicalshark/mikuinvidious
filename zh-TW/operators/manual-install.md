@@ -25,25 +25,30 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ## 2. 下載與安裝流程
 
 1. **複製程式碼庫**：
+
    ```bash
    git clone https://github.com/apicalshark/mikuinvidious
    cd mikuinvidious
    ```
 
 2. **同步 Python 相依套件**：
+
    ```bash
    uv sync
    ```
 
 3. **編譯前端資源（選用）**：
    原始碼庫中已追蹤預先編譯好的樣式檔。若您計劃修改主題或重新編譯 Tailwind CSS：
+
    ```bash
    npm install
    npm run build:css     # 將 Tailwind CSS 4 編譯為 static/themes/modern/css/main.css
    ```
+
    若直接使用預設主題，可安全略過此步驟。
 
 4. **初始化組態設定**：
+
    ```bash
    cp config.toml.sample config.toml
    mkdir -p data/img_cache
@@ -68,12 +73,16 @@ uv run python/main.py
 
 開發除錯模式（支援程式碼熱重載）：
 Granian 的重載機制是由 `config.toml` 中的 `[server] debug` 控制，優先權高於 `QUART_DEBUG` 等環境變數。若需啟用熱重載：
+
 1. 確認已安裝重載監視套件：
+
    ```bash
    uv add --dev watchfiles
    ```
+
 2. 在 `config.toml` 的 `[server]` 區段將 `debug` 設為 `true`。
 3. 啟動伺服器：
+
    ```bash
    uv run python/main.py
    ```

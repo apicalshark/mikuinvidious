@@ -16,6 +16,7 @@ https://b23.tv/AbCdEf
 > Official `b23.tv` links contain embedded tracking identifiers (such as `share_source`, `share_medium`, `bbid`, and `ts`) that Bilibili uses to link the sharer's account with the recipient's browsing fingerprint.
 
 When you paste any `b23.tv` link into the MikuInvidious search bar:
+
 1. **Server-Side Resolution**: The MikuInvidious backend performs an upstream HTTP redirect lookup without passing your browser's identity.
 2. **Telemetry Sanitization**: All surveillance query parameters (`spm_id_from`, `from_source`, `share_*`, `mid`, etc.) are stripped.
 3. **Instant Redirection**: You are immediately redirected to the clean video or resource page (e.g., `/video/BV1xx411c7mD`).
@@ -25,8 +26,6 @@ When you paste any `b23.tv` link into the MikuInvidious search bar:
 ## 2. Supported URL Formats
 
 You can paste any of the following official Bilibili URLs directly into the search bar:
-
-
 
 | URL Type | Example Bilibili Link | MikuInvidious Destination |
 | :--- | :--- | :--- |
@@ -42,14 +41,11 @@ You can paste any of the following official Bilibili URLs directly into the sear
 | **Audio Track** | `https://www.bilibili.com/audio/au123456` | `/audio/123456` |
 | **Audio Playlist** | `https://www.bilibili.com/audio/am123456` | `/audio_list/123456` |
 
-
 ---
 
 ## 3. Direct ID Lookups
 
 You do not need to paste the full URL. If you have an ID from a video, post, or channel, simply paste the ID into the search bar:
-
-
 
 - `BV1xx411c7mD` → Directly opens the video.
 - `av170001` → Directly opens the legacy AV video.
@@ -58,7 +54,6 @@ You do not need to paste the full URL. If you have an ID from a video, post, or 
 - `cv1234567` → Directly opens the article.
 - `au123456` → Directly opens the audio track.
 
-
 ---
 
 ## 4. Keyword Searching & Filters
@@ -66,14 +61,18 @@ You do not need to paste the full URL. If you have an ID from a video, post, or 
 If your search input is not a recognized URL or ID pattern, MikuInvidious treats it as a search query.
 
 ### Search Categories
+
 You can filter results by category tab:
+
 - **Videos**: General UGC video uploads.
 - **Bangumi / Anime**: Official anime, movies, and TV series.
 - **Users**: Channel creators and uploaders.
 - **Live**: Active live broadcasting rooms.
 
 ### Video Search Filters
+
 When searching for videos, the filter dropdown lets you refine:
+
 - **Sort Order**:
   - *Comprehensive / Total Rank* (default relevance)
   - *Most Viewed* (click count)

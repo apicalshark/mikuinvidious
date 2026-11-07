@@ -165,6 +165,7 @@ graph TD
 ## 3. Comprehensive Module Inventory (`python/`)
 
 ### Application Core & Configuration
+
 - **`app.py`**: Initializes the Quart application, sets up security headers, registers error handlers, and attaches blueprints.
 - **`main.py`**: Local development launcher wrapping the Granian ASGI server.
 - **`shared.py`**: Central system configuration (`appconf`), Redis pool manager (`appredis`), HTTP connection pools (`Network`), proxy configuration, and concurrency semaphores.
@@ -174,6 +175,7 @@ graph TD
 - **`i18n.py` & `i18n_strings.py`**: Internationalization engine providing locale resolution and translation catalog bindings.
 
 ### Views & Presentation Layer
+
 - **`views.py`**: Static re-export facade exposing route handlers across views.
 - **`views_home.py`**: Index feed, search endpoints, zone categories, history, licenses, and `/convert` B23 resolution.
 - **`views_video.py`**: Video metadata rendering, multi-part page lists, related recommendations, and inline player components.
@@ -186,6 +188,7 @@ graph TD
 - **`res.py`**: Dynamic auxiliary assets like Danmaku XML and server-side redirects.
 
 ### Media Streaming & DASH Pipeline
+
 - **`dash_proxy.py`**: Central re-export facade for DASH VOD and downloads.
 - **`dash_common.py`**: Core data structures, playback mirror health tracking, and range-shy cache.
 - **`dash_fetch.py`**: Fetches playurls, caches normalized tracks in Redis, and manages L1 in-memory LRU fallback.
@@ -204,6 +207,7 @@ graph TD
 - **`refresher.py` & `ticket_legacy.py`**: Upstream credential and web ticket refresh maintenance.
 
 ### Local API Wrapper (`python/api/`)
+
 - **`api/client.py`**: Core HTTP client implementing WBI query signing, `bili_ticket` generation, auto-cookies, and Gaia risk mitigation.
 - **`api/credential.py`**: Credential state container (`SESSDATA`, `bili_jct`, `buvid3`, `buvid4`, `dedeuserid`).
 - **`api/video.py`**: Video metadata, tags, cid resolution, playurls (DASH + progressive), and subtitles.

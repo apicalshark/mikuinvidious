@@ -5,6 +5,7 @@ MikuInvidious can be configured using `config.toml` (recommended) or environment
 ---
 
 ## `[site]`
+
 Settings related to site identity, security flags, and features.
 
 | Key | Environment Variable | Default | Description |
@@ -21,6 +22,7 @@ Settings related to site identity, security flags, and features.
 ---
 
 ## `[server]`
+
 Configuration for the web server (Granian / Quart).
 
 | Key | Environment Variable | Default | Description |
@@ -37,6 +39,7 @@ Configuration for the web server (Granian / Quart).
 ---
 
 ## `[display]`
+
 UI themes and internationalization.
 
 | Key | Environment Variable | Default | Description |
@@ -48,6 +51,7 @@ UI themes and internationalization.
 ---
 
 ## `[live]`
+
 Live stream format policies.
 
 | Key | Environment Variable | Default | Description |
@@ -57,6 +61,7 @@ Live stream format policies.
 ---
 
 ## `[credential]`
+
 Authentication credentials for accessing higher video resolutions (e.g., 1080P60, 4K), paid anime episodes, or mitigating datacenter IP risk gating.
 
 | Key | Environment Variable | Default | Description |
@@ -71,14 +76,17 @@ Authentication credentials for accessing higher video resolutions (e.g., 1080P60
 
 > [!TIP]
 > **Encrypted Credentials**: Credentials can be encrypted using libsodium XSalsa20-Poly1305 (via PyNaCl `SecretBox`). To avoid leaking cookies into shell command history, supply the secret via interactive input:
+>
 > ```bash
 > read -rs SESSDATA && python tools/encrypt_secrets.py --encrypt SESSDATA "$SESSDATA"
 > ```
+>
 > A 32-byte master key must first be exported as `SECRETS_MASTER_KEY`.
 
 ---
 
 ## `[proxy]`
+
 Outbound proxy configuration for routing traffic through residential or VPN egresses.
 
 | Key | Environment Variable | Default | Description |
@@ -88,6 +96,7 @@ Outbound proxy configuration for routing traffic through residential or VPN egre
 ---
 
 ## `[render]`
+
 Server-side rendering helpers.
 
 | Key | Environment Variable | Default | Description |
@@ -98,6 +107,7 @@ Server-side rendering helpers.
 ---
 
 ## `[bili]`
+
 Upstream Bilibili client headers and platform parameters. Used for image proxying, live streaming, and upstream API interactions.
 
 | Key | Environment Variable | Default | Description |
@@ -112,6 +122,7 @@ Upstream Bilibili client headers and platform parameters. Used for image proxyin
 ---
 
 ## `[redis]`
+
 Redis database connection settings.
 
 | Key | Environment Variable | Default | Description |
@@ -125,6 +136,7 @@ Redis database connection settings.
 ---
 
 ## `[cache]`
+
 TTLs in minutes for Redis-backed page data. Set any TTL to `0` to disable caching for that route.
 
 | Key | Environment Variable | Default | Description |
@@ -143,6 +155,7 @@ All cached pages emit `X-Cache: HIT` or `X-Cache: MISS`.
 ---
 
 ## `[rate_limit]`
+
 Sliding-window Redis token bucket rate limiting per client IP address.
 
 | Key | Environment Variable | Default | Description |
@@ -156,6 +169,7 @@ Sliding-window Redis token bucket rate limiting per client IP address.
 ---
 
 ## Image Disk Cache (Environment Variables)
+
 The local disk cache for proxied images (`/proxy/pic/*`) in `python/image_cache.py` is configured via environment variables:
 
 | Environment Variable | Default | Description |
@@ -167,7 +181,9 @@ The local disk cache for proxied images (`/proxy/pic/*`) in `python/image_cache.
 ---
 
 ## Framework Defaults & Timeouts (`python/shared.py`)
+
 To support long-form video playback and media streaming without idle connection drops, Quart is configured by default with:
+
 - `RESPONSE_TIMEOUT = 10800` (3 hours)
 - `BODY_TIMEOUT = 10800` (3 hours)
 - `SESSION_COOKIE_SAMESITE = "Lax"`

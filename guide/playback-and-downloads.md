@@ -9,6 +9,7 @@ MikuInvidious features an advanced media playback and background download engine
 The video player uses `dash.js` (v5 representations API) with a modern, mobile-friendly interface.
 
 ### Quality Tiers
+
 - **Anonymous Tier (Default)**: Supported up to **1080P High Definition** (1080P, 720P, 480P, 360P). No login or account required.
 - **Premium / 4K Tier**: Server-side Bilibili credentials do not automatically unlock all content. Access to higher qualities (**1080P 60fps**, **4K Ultra HD**) and paid episodes depends on the specific video and the configured account's membership or purchase entitlements.
 
@@ -43,6 +44,7 @@ Danmaku comments are loaded as server-converted XML and rendered smoothly over t
 ## 3. Playback Resilience & Mirror Failover
 
 MikuInvidious's media proxy handles all upstream Bilibili CDN connections server-side:
+
 - **Automatic Mirror Failover**: If a CDN edge slows down or drops the connection, the server automatically fails over to alternative healthy mirrors within seconds, maintaining seamless playback.
 - **Socket Reuse**: Upstream TCP+TLS connections are pooled across video fragments, eliminating repeated handshake overhead and reducing playback buffering.
 - **Privacy Assurance**: Your browser never connects directly to Bilibili CDN IP addresses (`*.bilivideo.com`).
@@ -63,28 +65,29 @@ Any video can be downloaded directly from the video page when enabled by the ins
 ```
 
 ### How to Download
+
 1. On any video page, click the **Download** button located below the player.
 2. Select your desired resolution.
 3. A floating download drawer appears at the bottom of the screen.
 
 ### Download Phases
+
 The download status updates in real-time through the following phases:
+
 1. **Queued**: The job is registered in the server's background download queue.
 2. **Resolving**: The server fetches fresh high-resolution video and audio CDN stream signatures.
 3. **Downloading**: Video and audio tracks are downloaded concurrently in 32 MB segments with an adaptive watchdog that avoids CDN rate throttling.
 4. **Muxing**: The server muxes the isolated video and audio streams using `ffmpeg -c copy -movflags +faststart` into a clean, seekable `.mp4` file.
 5. **Ready**: The file is ready and automatically prompts your browser to save it to your local storage.
 
-
-
 > [!TIP]
 > Remain on the video page until the browser download starts. Leaving the page attempts to cancel an unfinished job. If you need to stop, click **Cancel** to immediately abort upstream connections and delete temporary files.
-
 
 ---
 
 ## 5. Live Stream Playback
 
 Live stream rooms support real-time audio/video streaming via raw sockets:
+
 - **Format Policy**: By default, live rooms stream using high-speed FLV (via `mpegts.js`), automatically falling back to HLS master playlists (via `hls.js`) if required.
 - **Real-Time Danmaku**: Connects to Bilibili live room chat websockets server-side and broadcasts comments to your browser with low latency.

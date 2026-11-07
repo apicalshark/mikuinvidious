@@ -29,9 +29,8 @@ docker compose build --pull app
 docker compose up -d
 ```
 
-
-
 對於手動（非 Docker）安裝環境：
+
 ```bash
 git pull
 uv sync
@@ -41,19 +40,19 @@ npm run build:css     # 若前端樣式有異動
 
 完成上述指令後，請透過程序管理工具或部署時使用的啟動指令重新啟動應用程式，讓執行中的程序使用新版本。
 
-
 ---
 
 ## 3. 備份策略
 
 **強烈建議備份**：
+
 - **組態設定**：您的 `config.toml` 設定檔（或 `compose.yml` 中的自訂環境變數）。
 - **TLS 憑證資料**：Caddy 的憑證儲存卷（`caddy_data`），可在遷移主機時避免觸發 Let's Encrypt 頻率限制。
 - **主加密金鑰**：若透過 `tools/encrypt_secrets.py` 加密了憑證，請將 `SECRETS_MASTER_KEY` 妥善保存於密碼管理器中，與程式碼分開儲存。
 
 **無需進行備份**：
-- **Redis 資料庫**：Redis 僅存放快取、暫態 Ticket 與速率限制計數器，隨時可清空重建。
 
+- **Redis 資料庫**：Redis 僅存放快取、暫態 Ticket 與速率限制計數器，隨時可清空重建。
 
 - **使用者工作階段**：Quart 使用每次伺服器啟動時產生的隨機金鑰，為客戶端工作階段 Cookie 簽章，但不加密其內容；重新啟動伺服器會使既有工作階段失效。
 

@@ -51,6 +51,7 @@ Caddy 是 MikuInvidious 的公網入口閘道：它負責自動申請與展延 T
 ## 2. 關鍵組態注意事項
 
 ### 必須停用 HTTP/3（QUIC）
+
 現代瀏覽器的 QUIC 實作在串流分段媒體（`206 Partial Content`）時極易觸發 `ERR_QUIC_PROTOCOL_ERROR`。請務必在全域設定中加入：
 
 ```text
@@ -62,9 +63,11 @@ Caddy 是 MikuInvidious 的公網入口閘道：它負責自動申請與展延 T
 ```
 
 ### 排除媒體串流之重複壓縮（`@notProxy`）
+
 媒體串流（`/proxy/*`）本身已是高度壓縮的視訊與音訊編碼。若再次壓縮將浪費伺服器 CPU 運算並引發延遲阻滯。請務必使用 `@notProxy not path /proxy/*` 限制 `encode` 作用範圍。
 
 ### 客戶端真實 IP 轉發
+
 Granian 位於 Caddy 後方。為確保速率限制器與日誌能取得訪客的真實公網 IP 而非 Docker 內部橋接 IP，Caddy 必須設定傳遞解析出的客戶端 IP 與協定：
 
 ```text
@@ -79,6 +82,7 @@ reverse_proxy app:8080 {
 > 若 Caddy 前方另有上游 CDN 或負載平衡器（如 Cloudflare 或 AWS ALB），切勿直接使用 `{remote_host}`。因為在此架構下，`{remote_host}` 所取得的將是上游 CDN 節點的 IP 而非實際訪客 IP，會導致所有外部訪客共用同一個速率限制配額。
 >
 > 正確的做法是在 Caddy 的全域 `servers` 區段設定 `trusted_proxies` 僅信任已知之上游代理 CIDR 網段，並指定解析來源標頭：
+>
 > ```text
 > servers {
 >     protocols h1 h2
@@ -86,6 +90,7 @@ reverse_proxy app:8080 {
 >     client_ip_headers CF-Connecting-IP X-Forwarded-For
 > }
 > ```
+>
 > Caddy 將確認連線來自受信任的上游 CIDR 後，安全地自標頭提取真實訪客 IP 填入 `{client_ip}`，防範偽造標頭並保留 `{scheme}` 通訊協定。
 
 ---

@@ -6,8 +6,6 @@ Caddy serves as the public entry point for MikuInvidious: it handles automatic T
 
 ## 1. Standard Production Caddyfile
 
-
-
 ```text
 {
     # Disable HTTP/3 (QUIC) due to ERR_QUIC_PROTOCOL_ERROR on 206 Partial Content range requests
@@ -48,12 +46,12 @@ Caddy serves as the public entry point for MikuInvidious: it handles automatic T
 }
 ```
 
-
 ---
 
 ## 2. Critical Configuration Gotchas
 
 ### Disabling HTTP/3 (QUIC)
+
 Modern browser QUIC implementations frequently encounter `ERR_QUIC_PROTOCOL_ERROR` when streaming segmented media via `206 Partial Content`. Always include:
 
 ```text
@@ -65,9 +63,11 @@ Modern browser QUIC implementations frequently encounter `ERR_QUIC_PROTOCOL_ERRO
 ```
 
 ### Compression Exclusion (`@notProxy`)
+
 Media streams (`/proxy/*`) are already compressed video/audio payloads. Re-compressing them wastes CPU cycles and induces latency. Ensure `encode` targets `@notProxy not path /proxy/*`.
 
 ### Client IP Forwarding
+
 Granian runs behind Caddy. To ensure the rate limiter and audit logs receive accurate visitor IP addresses instead of Caddy's internal Docker IP, Caddy must pass the client IP and scheme:
 
 ```text
@@ -82,6 +82,7 @@ reverse_proxy app:8080 {
 > Do not use `{remote_host}` if Caddy sits behind an upstream proxy, CDN, or load balancer (such as Cloudflare or AWS ALB). Under those conditions, `{remote_host}` evaluates to the IP of the upstream proxy itself rather than the visitor, causing all external visitors to pool into a single rate-limiting bucket.
 >
 > To handle upstream proxies properly, configure Caddy's global `servers` block with `trusted_proxies` containing only the upstream proxy CIDRs, and specify the headers to inspect:
+>
 > ```text
 > servers {
 >     protocols h1 h2
@@ -89,6 +90,7 @@ reverse_proxy app:8080 {
 >     client_ip_headers CF-Connecting-IP X-Forwarded-For
 > }
 > ```
+>
 > Caddy will validate that incoming requests arrive from trusted proxy CIDRs before reading the specified client IP headers to populate `{client_ip}`, preventing spoofing from direct clients while preserving the visitor's real IP and `{scheme}`.
 
 ---

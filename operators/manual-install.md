@@ -25,25 +25,30 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ## 2. Setup & Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone https://github.com/apicalshark/mikuinvidious
    cd mikuinvidious
    ```
 
 2. **Sync Python dependencies**:
+
    ```bash
    uv sync
    ```
 
 3. **Build frontend assets (optional)**:
    Precompiled styles are already tracked in git. If you plan to customize themes or recompile Tailwind CSS:
+
    ```bash
    npm install
    npm run build:css     # compiles Tailwind CSS 4 to static/themes/modern/css/main.css
    ```
+
    If running the stock theme as-is, you can safely skip this step.
 
 4. **Initialize configuration**:
+
    ```bash
    cp config.toml.sample config.toml
    mkdir -p data/img_cache
@@ -68,12 +73,16 @@ The application will bind to the address specified in `config.toml` (default `ht
 
 For live-reloading during development:
 Granian's reload mechanism is controlled by `[server] debug` in `config.toml`, which takes precedence over environment variables like `QUART_DEBUG`. To enable auto-reload:
+
 1. Ensure the reload watcher is installed:
+
    ```bash
    uv add --dev watchfiles
    ```
+
 2. Set `debug = true` under `[server]` in `config.toml`.
 3. Launch the development server:
+
    ```bash
    uv run python/main.py
    ```
