@@ -13,7 +13,7 @@ npm run format   # 沒過就先排好
 npm run check:i18n   # 有動到字串才需要
 ```
 
-3. 開 issue、PR 或 discussion 都可以；提交前看一下 `git status`、`git diff`，確認沒有把機密資訊送上去。
+1. 開 issue、PR 或 discussion 都可以；提交前看一下 `git status`、`git diff`，確認沒有把機密資訊送上去。
 
 ## 授權
 

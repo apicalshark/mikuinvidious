@@ -1,24 +1,35 @@
-# 站長指南 — 總覽
+# 站長指南
 
-本指南適用於部署與管理 MikuInvidious 實例的人員。部署流程並不複雜，但建議先建立以下基本概念。
+架設 MikuInvidious 實例所需之基礎設施極為精簡。官方建議採用 Docker Compose（`compose.yml`）進行部署，其協調以下微服務：
 
-## 服務組成
+---
 
-`compose.yml` 定義三個服務（另有可選的 WARP 服務）：
+## 服務架構概覽
 
-| 服務 | 職責 | 對外連接埠 |
+| 服務名稱 | 職責說明 | 連接埠 ／ 儲存卷 |
 | :--- | :--- | :--- |
-| `app` | 以 Granian 執行 Quart 主程式，所有應用邏輯均位於此服務 | 8080（內部網路） |
-| `caddy` | 反向代理與靜態檔案伺服器，為使用者實際連接的入口 | 8000 |
-| `redis` | 快取 API 回應並管理工作階段（session），為必要元件 | — |
-| `warp`（可選） | 提供 Cloudflare WARP 的 SOCKS5 出口，供資料中心 IP 繞過風險控制使用 | 1080 |
+| `app` | 以 Granian ASGI 執行 Quart Python 3.15+ 應用程式。掛載 `img_cache:/app/data/img_cache`。 | `8080`（容器內部） |
+| `caddy` | 反向代理與靜態資源伺服器（`file_server`）。對外公開的 HTTP/HTTPS 入口閘道。 | `8000`（HTTP）、`443`（HTTPS） |
+| `redis` | 頁面快取、DASH 播放網址規格化、速率限制與時效憑證資料庫。*（使用者工作階段採用客戶端簽名 Cookie）。* | `6379`（容器內部） |
+| `warp`（選用） | 提供 Cloudflare WARP 的 SOCKS5 代理出口（`1080`），供資料中心主機繞過 Bilibili 風險控制。 | `1080`（容器內部） |
 
-請求路徑：使用者 → Caddy（8000）→ Granian（8080）→ Bilibili（直接連接，或經由 WARP 轉發）。
+---
 
-## 建議閱讀順序
+## 請求資料流向
 
-1. [使用 Docker 快速啟動](quickstart-docker.md)——先完成部署並確認服務正常運作。
-2. [組態參照](configuration.md)——查閱完整組態選項。
-3. [反向代理](reverse-proxy.md)——綁定網域名稱並啟用 HTTPS。
-4. [Bilibili 憑證](credentials.md)——評估是否需要登入憑證及其設定方式。
-5. 其餘章節供日常查閱：[快取](caching.md)、[速率限制](rate-limiting.md)、[日常維運](maintenance.md)、[故障排除](troubleshooting.md)。
+1. **入口流量**：瀏覽器連線至 Caddy（埠號 `:8000` 或 `:443`）。
+2. **靜態資源**：Caddy 直接以 `file_server` 從磁碟傳遞 `/static/*`，附帶長效快取與 gzip/zstd 壓縮。
+3. **應用程式與媒體代理**：Caddy 將動態請求轉送至 Granian（`:8080`），並注入客戶端真實 IP 標頭（`X-Real-IP`）。
+4. **上游 API 與串流**：Granian/Quart 向上游 Bilibili 直連（家用寬頻環境）或經由 WARP 轉發（資料中心環境）。
+
+---
+
+## 站長建議閱讀路徑
+
+1. [使用 Docker 快速啟動](quickstart-docker) —— 兩分鐘內完成容器化部署與驗證。
+2. [組態參照](configuration) —— `config.toml` 與環境變數完整說明書。
+3. [反向代理（Caddy）](reverse-proxy) —— TLS 憑證終結、靜態資源優化與 Anubis 機器人防禦。
+4. [Bilibili 憑證](credentials) —— 透過加密儲存解鎖 1080P60、4K 與大會員付費番劇。
+5. [快取](caching) —— Redis TTL 快取策略、雙層 DASH 快取與本機圖片磁碟儲存。
+6. [速率限制](rate-limiting) —— 權杖桶滑動視窗防護與信任代理 CIDR 規範。
+7. [日常維運](maintenance) 與 [故障排除](troubleshooting) —— 即時日誌、版本升級與風控應對。

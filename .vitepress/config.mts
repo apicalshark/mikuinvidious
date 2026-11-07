@@ -13,6 +13,13 @@ function toRoute(relativePath: string): string | null {
   return `/${p}`;
 }
 
+const guideSidebar = [
+  { text: "Overview", link: "/guide/" },
+  { text: "Bilibili links & search bar", link: "/guide/search-and-links" },
+  { text: "URL routes & features", link: "/guide/url-syntax" },
+  { text: "Player & downloads", link: "/guide/playback-and-downloads" },
+];
+
 const operatorSidebar = [
   { text: "Overview", link: "/operators/" },
   { text: "Quickstart with Docker", link: "/operators/quickstart-docker" },
@@ -36,6 +43,13 @@ const developerSidebar = [
   { text: "Internationalization", link: "/developers/i18n" },
   { text: "Testing", link: "/developers/testing" },
   { text: "Contributing", link: "/developers/contributing" },
+];
+
+const guideSidebarZhTw = [
+  { text: "總覽", link: "/zh-TW/guide/" },
+  { text: "Bilibili 連結與搜尋列", link: "/zh-TW/guide/search-and-links" },
+  { text: "網址路由與功能", link: "/zh-TW/guide/url-syntax" },
+  { text: "播放器與下載", link: "/zh-TW/guide/playback-and-downloads" },
 ];
 
 const operatorSidebarZhTw = [
@@ -88,8 +102,8 @@ export default withMermaid(
       const description =
         pageData.description ||
         (isZh
-          ? "MikuInvidious 站長與開發者文件"
-          : "MikuInvidious operator and developer docs");
+          ? "MikuInvidious 使用者、站長與開發者文件"
+          : "MikuInvidious user, operator, and developer docs");
       const url = `${SITE_URL}${route === "/" ? "/" : `${route}/`}`;
       return [
         ["link", { rel: "canonical", href: url }],
@@ -140,16 +154,17 @@ export default withMermaid(
       },
     },
     title: "MikuInvidious Docs",
-    description: "MikuInvidious operator and developer docs",
+    description: "MikuInvidious user, operator, and developer docs",
     locales: {
       root: {
         label: "English",
         lang: "en-US",
         themeConfig: {
           nav: [
-            { text: "Instances", link: "/instances/" },
+            { text: "User guide", link: "/guide/" },
             { text: "Operator guide", link: "/operators/" },
             { text: "Developer guide", link: "/developers/" },
+            { text: "Instances", link: "/instances/" },
           ],
           sidebar: {
             "/": [
@@ -157,11 +172,15 @@ export default withMermaid(
                 text: "Docs",
                 items: [
                   { text: "Home", link: "/" },
-                  { text: "Instances", link: "/instances/" },
+                  { text: "User guide", link: "/guide/" },
                   { text: "Operator guide", link: "/operators/" },
                   { text: "Developer guide", link: "/developers/" },
+                  { text: "Instances", link: "/instances/" },
                 ],
               },
+            ],
+            "/guide/": [
+              { text: "User guide", items: guideSidebar },
             ],
             "/operators/": [
               { text: "Operator guide", items: operatorSidebar },
@@ -178,12 +197,13 @@ export default withMermaid(
         lang: "zh-TW",
         link: "/zh-TW/",
         title: "MikuInvidious 文件",
-        description: "MikuInvidious 站長與開發者文件（正體中文）",
+        description: "MikuInvidious 使用者、站長與開發者文件（正體中文）",
         themeConfig: {
           nav: [
-            { text: "公開實例", link: "/zh-TW/instances/" },
+            { text: "使用者指南", link: "/zh-TW/guide/" },
             { text: "站長指南", link: "/zh-TW/operators/" },
             { text: "開發者指南", link: "/zh-TW/developers/" },
+            { text: "公開實例", link: "/zh-TW/instances/" },
           ],
           sidebar: {
             "/zh-TW/": [
@@ -191,11 +211,15 @@ export default withMermaid(
                 text: "指南",
                 items: [
                   { text: "首頁", link: "/zh-TW/" },
-                  { text: "公開實例", link: "/zh-TW/instances/" },
+                  { text: "使用者指南", link: "/zh-TW/guide/" },
                   { text: "站長指南", link: "/zh-TW/operators/" },
                   { text: "開發者指南", link: "/zh-TW/developers/" },
+                  { text: "公開實例", link: "/zh-TW/instances/" },
                 ],
               },
+            ],
+            "/zh-TW/guide/": [
+              { text: "使用者指南", items: guideSidebarZhTw },
             ],
             "/zh-TW/operators/": [
               { text: "站長指南", items: operatorSidebarZhTw },
