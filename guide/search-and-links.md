@@ -26,11 +26,15 @@ When you paste any `b23.tv` link into the MikuInvidious search bar:
 
 You can paste any of the following official Bilibili URLs directly into the search bar:
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:6f7cd813fd7dc74c8c614b2cd7947508fd2aef6b6c052dcf6f212704beea2d42 -->
+
 | URL Type | Example Bilibili Link | MikuInvidious Destination |
 | :--- | :--- | :--- |
 | **Video (BV)** | `https://www.bilibili.com/video/BV1xx411c7mD` | `/video/BV1xx411c7mD` |
 | **Video (av)** | `https://www.bilibili.com/video/av170001` | `/video/av170001` |
-| **Video with Part** | `https://www.bilibili.com/video/BV1xx411c7mD?p=3` | `/video/BV1xx411c7mD?p=3` |
+| **Video with Part** | `https://www.bilibili.com/video/BV1xx411c7mD?p=3` | `/video/BV1xx411c7mD` (the `p` parameter is dropped, opening the first part). Select part three on the video page or use `/video/BV1xx411c7mD:2`. |
 | **Anime Episode** | `https://www.bilibili.com/bangumi/play/ep312456` | `/bangumi/play/ep312456` |
 | **Anime Season** | `https://www.bilibili.com/bangumi/play/ss28241` | `/bangumi/view/28241` |
 | **User Space** | `https://space.bilibili.com/1234567` | `/space/1234567` |
@@ -40,18 +44,26 @@ You can paste any of the following official Bilibili URLs directly into the sear
 | **Audio Track** | `https://www.bilibili.com/audio/au123456` | `/audio/123456` |
 | **Audio Playlist** | `https://www.bilibili.com/audio/am123456` | `/audio_list/123456` |
 
+<!-- /coderabbit-ai-generated:v1 -->
+
 ---
 
 ## 3. Direct ID Lookups
 
 You do not need to paste the full URL. If you have an ID from a video, post, or channel, simply paste the ID into the search bar:
 
-- `BV1xx411c7mD` or `bv1xx411c7mD` → Directly opens the video.
-- `av170001` or `AV170001` → Directly opens the legacy AV video.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:cfa438f5f04f0059bae87d11070d5885b9784541fb1b20c27f92e4f1926d1a37 -->
+
+- `BV1xx411c7mD` → Directly opens the video.
+- `av170001` → Directly opens the legacy AV video.
 - `ep312456` → Directly opens the Bangumi episode.
 - `ss28241` → Directly opens the Bangumi season overview.
 - `cv1234567` → Directly opens the article.
 - `au123456` → Directly opens the audio track.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 

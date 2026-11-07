@@ -75,8 +75,14 @@ The download status updates in real-time through the following phases:
 4. **Muxing**: The server muxes the isolated video and audio streams using `ffmpeg -c copy -movflags +faststart` into a clean, seekable `.mp4` file.
 5. **Ready**: The file is ready and automatically prompts your browser to save it to your local storage.
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:e2c5b4f2b49b20ca5abefd465a392599cd760d9da4459bb695a111e72e0de2e0 -->
+
 > [!TIP]
-> You can navigate to other pages, watch other videos, or search while a download is running. The background job will continue processing on the server. If you need to stop, click **Cancel** to immediately abort upstream connections and delete temporary files.
+> Remain on the video page until the browser download starts. Leaving the page attempts to cancel an unfinished job. If you need to stop, click **Cancel** to immediately abort upstream connections and delete temporary files.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 

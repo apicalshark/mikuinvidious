@@ -43,7 +43,13 @@ Your instance will immediately be available at `http://localhost:8000`.
      - SITE_URL=https://miku.example.com
    ```
 
-2. Edit the first line of `Caddyfile` to replace `:8000` with your actual domain:
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:772aede6813f903e03f6b030530218db21a5d1adb2879ded8203e410f5d3975f -->
+
+2. In `Caddyfile`, replace the `:8000` site address with your actual domain. Preserve the preceding global options block:
+
+<!-- /coderabbit-ai-generated:v1 -->
    ```text
    miku.example.com {
        root * /usr/share/caddy

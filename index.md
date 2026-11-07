@@ -13,7 +13,13 @@ A free and open-source frontend for Bilibili, inspired by [Invidious](https://in
 - **Live Streams** — Low-latency FLV and HLS stream forwarding with heartbeat keep-alive and real-time danmaku chat.
 - **Anime & Bangumi** — Series catalog and episode browser with optional Nyaa.si torrent integration.
 - **Articles & Opus** — Clean, distraction-free readers for Bilibili `cv` articles and dynamic `opus` posts with proxied images.
-- **Privacy by Default** — All video, audio, and images are server-side proxied with local disk caching. Your IP never connects to Bilibili's CDN.
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:f87d02b83650c0fcbd46658aa28338cdf9fba7730cadbfa11d2ad6085489fbdf -->
+
+- **Privacy by Default** — All video, audio, and images are server-side proxied. Local disk caching applies only to proxied images. Your IP never connects to Bilibili's CDN.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 

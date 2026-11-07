@@ -19,13 +19,19 @@ MikuInvidious allows you to search, watch, read, and listen to Bilibili content 
 
 ## Interface Tour
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:c4ad2de0c162287fb30ae742ced998dd7bddbd931ece2a59b3bb41a6c5448235 -->
+
 1. **Top Navigation Bar**:
    - **Search Bar**: Universal input supporting keywords, IDs, and official Bilibili URLs.
    - **Anime / Bangumi Index**: Browse seasonal anime, movies, and documentary series.
    - **Theme Selector**: Quick toggle between Light, Dark, and System color schemes.
    - **Language Menu**: Switch between English, 正體中文 (Traditional Chinese), 简体中文 (Simplified Chinese), and 日本語 (Japanese).
-   - **History**: Local browser-based watch history (stored strictly in your browser's local storage; never sent to the server).
+   - **History**: Opened video IDs are stored server-side in Redis and associated with a browser cookie. The History page reads those IDs from Redis.
    - **Preferences**: Customize default video playback quality, danmaku display options, and player behavior.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 2. **Content Views**:
    - **Home / Feeds**: Popular trending videos and sub-zone discovery.

@@ -29,6 +29,10 @@ docker compose build --pull app
 docker compose up -d
 ```
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:06d330e36bf783ff64994a5d48c88f7906f7a6efff40e8b1b60460466d65acae -->
+
 For manual (non-Docker) bare-metal installations:
 ```bash
 git pull
@@ -36,6 +40,10 @@ uv sync
 npm install
 npm run build:css     # if frontend styles updated
 ```
+
+After these commands complete, restart the application using your process manager or deployment startup command so the running process uses the new release.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 

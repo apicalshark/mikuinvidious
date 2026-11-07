@@ -6,6 +6,10 @@ Caddy serves as the public entry point for MikuInvidious: it handles automatic T
 
 ## 1. Standard Production Caddyfile
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:c3300b5d15c8fa938179a3f7e5ac4c1c09fcc769383f54d5fbb859490bd38bf1 -->
+
 ```text
 {
     # Disable HTTP/3 (QUIC) due to ERR_QUIC_PROTOCOL_ERROR on 206 Partial Content range requests
@@ -21,7 +25,7 @@ Caddy serves as the public entry point for MikuInvidious: it handles automatic T
     # Serve static assets directly from disk (bypasses Python app entirely)
     handle /static/* {
         header X-Content-Type-Options "nosniff"
-        header Cache-Control "public, max-age=86400"
+        header Cache-Control "public, no-cache"
         file_server
     }
 
@@ -45,6 +49,8 @@ Caddy serves as the public entry point for MikuInvidious: it handles automatic T
     }
 }
 ```
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 
