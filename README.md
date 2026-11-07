@@ -11,6 +11,8 @@
   <a href="https://mikuinv.apicalshark.dedyn.io/"><img src="https://img.shields.io/badge/Demo-Try_it-39d353?style=flat-square&logo=rss&logoColor=white" alt="Demo" /></a>
 </p>
 
+# MikuInvidious
+
 > A free as in freedom frontend for Bilibili.
 
 This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxina/mikuinvidious) plus AI slop.
@@ -50,11 +52,13 @@ This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xaca
 
 The application will be available at `http://localhost:8000`.
 
-For detailed setup, configuration, and troubleshooting, see the full documentation: [apicalshark.github.io/mikuinvidious](https://apicalshark.github.io/mikuinvidious/) (English / 正體中文).
+For detailed setup, configuration, and troubleshooting, see the full documentation: 
+
+* [apicalshark.github.io/mikuinvidious](https://apicalshark.github.io/mikuinvidious/) (English / 正體中文 / 簡体中文).
 
 ### Local Installation (Without Docker)
 
-For users who want to run the application manually, see the [local installation guide](doc/setup.md). This project uses `uv` for dependency management.
+For users who want to run the application manually, see the [local installation guide](doc/setup.md) and the [Documentation](https://apicalshark.github.io/mikuinvidious/operators/manual-install). This project uses `uv` for dependency management.
 
 ## Tech Stack
 
