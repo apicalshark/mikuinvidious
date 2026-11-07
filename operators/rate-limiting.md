@@ -16,12 +16,26 @@ enabled = true
 trusted_proxies = "172.18.0.0/16, 10.0.0.0/8"
 ```
 
-Or via environment variables:
+Alternatively, configure via environment variables:
+
+For Docker deployments, set them under the `app` service environment in `compose.yml`:
+
+```yaml
+environment:
+  - RATE_LIMIT_ENABLED=true
+  - TRUSTED_PROXIES=172.18.0.0/16
+```
+
+For direct CLI launches, export the environment variables before starting the server:
 
 ```bash
-RATE_LIMIT_ENABLED=true
-TRUSTED_PROXIES="172.18.0.0/16"
+export RATE_LIMIT_ENABLED=true
+export TRUSTED_PROXIES="172.18.0.0/16"
+uv run python/main.py
 ```
+
+> [!IMPORTANT]
+> Values configured in `config.toml` take precedence over environment variables. If `config.toml` contains `[rate_limit] enabled = false`, it overrides `RATE_LIMIT_ENABLED=true`. To enable rate limiting when using environment variables, either remove the conflicting `enabled` setting from `config.toml` or set it to `true`.
 
 ---
 
@@ -33,7 +47,7 @@ The rate limiter evaluates client IPs using `get_client_ip()` in `python/rate_li
 2. **Trusted Proxy Forwarding**: If the connecting peer is loopback (`127.0.0.1`, `::1`), a private RFC 1918 address (such as Docker bridge `172.18.0.0/16`), or explicitly matches a CIDR in `trusted_proxies`, the application trusts `X-Real-IP` and `X-Forwarded-For`.
 
 > [!WARNING]
-> **Implicit Private Forwarder Trust**: Because loopback and private networks are trusted implicitly, you must ensure that direct access to port 8080 is firewalled and that your reverse proxy (Caddy) always overwrites `X-Real-IP` with the validated client remote address.
+> **Implicit Private Forwarder Trust**: Because loopback and private RFC 1918 networks are trusted implicitly, you must ensure that direct access to the application's configured listening port (e.g. 8888 for bare-metal or 8080 in container networks) is firewalled, and that your reverse proxy (Caddy) always overwrites `X-Real-IP` with the validated client remote address.
 
 ---
 

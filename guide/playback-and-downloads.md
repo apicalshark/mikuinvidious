@@ -10,7 +10,7 @@ The video player uses `dash.js` (v5 representations API) with a modern, mobile-f
 
 ### Quality Tiers
 - **Anonymous Tier (Default)**: Supported up to **1080P High Definition** (1080P, 720P, 480P, 360P). No login or account required.
-- **Premium / 4K Tier**: Qualities such as **1080P 60fps**, **4K Ultra HD**, and paid episodes are accessible if the instance administrator has configured server-side Bilibili credentials.
+- **Premium / 4K Tier**: Server-side Bilibili credentials do not automatically unlock all content. Access to higher qualities (**1080P 60fps**, **4K Ultra HD**) and paid episodes depends on the specific video and the configured account's membership or purchase entitlements.
 
 ### Keyboard Shortcuts
 
@@ -75,14 +75,11 @@ The download status updates in real-time through the following phases:
 4. **Muxing**: The server muxes the isolated video and audio streams using `ffmpeg -c copy -movflags +faststart` into a clean, seekable `.mp4` file.
 5. **Ready**: The file is ready and automatically prompts your browser to save it to your local storage.
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:e2c5b4f2b49b20ca5abefd465a392599cd760d9da4459bb695a111e72e0de2e0 -->
 
 > [!TIP]
 > Remain on the video page until the browser download starts. Leaving the page attempts to cancel an unfinished job. If you need to stop, click **Cancel** to immediately abort upstream connections and delete temporary files.
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 

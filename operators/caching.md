@@ -16,7 +16,7 @@ Standard HTML views and metadata payloads are cached in Redis. TTLs are configur
 | `/bangumi/view/<ssid>` | 60 min | `BANGUMI_CACHE_MINUTES` | Anime season metadata and episode list. |
 | `/author/<mid>` | 30 min | `AUTHOR_CACHE_MINUTES` | Compact author profile payload. |
 | `/read/<cid>`, `/opus/<cid>` | 30 min | `ARTICLE_CACHE_MINUTES` | Parsed article and dynamic post content. |
-| `/audio/<auid>` | 30 min | `AUDIO_CACHE_MINUTES` | Audio track metadata and stream signatures. |
+| `/audio/<auid>`, `/audio_list/<amid>` | 30 min | `AUDIO_CACHE_MINUTES` | Audio track and playlist metadata and stream signatures. |
 | `/` (Homepage) | 30 min | `HOME_CACHE_MINUTES` | Homepage trending recommendation feed. |
 
 All cached page responses emit an `X-Cache: HIT` or `X-Cache: MISS` HTTP response header.

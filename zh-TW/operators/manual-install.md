@@ -10,7 +10,7 @@
 - **套件管理工具**：[uv](https://astral.sh/uv)（極速 Python 套件管理器）
 - **資料庫**：[Redis](https://redis.io/)（埠號 6379）
 - **Web 伺服器**：[Caddy](https://caddyserver.com/)（處理 TLS 憑證與靜態資源）
-- **Node.js**：18+ 版本（僅於需要編譯前端 CSS 或同步靜態資源時需要）
+- **Node.js**：18+ 版本（選用；僅於修改 Tailwind CSS 樣式或從原始碼重新建置前端資源時需要）
 - **媒體工具**：[ffmpeg](https://ffmpeg.org/)（背景下載合併音視訊軌道必備）
 
 ```bash
@@ -35,11 +35,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
    uv sync
    ```
 
-3. **安裝前端相依套件與編譯樣式**：
+3. **編譯前端資源（選用）**：
+   原始碼庫中已追蹤預先編譯好的樣式檔。若您計劃修改主題或重新編譯 Tailwind CSS：
    ```bash
    npm install
    npm run build:css     # 將 Tailwind CSS 4 編譯為 static/themes/modern/css/main.css
    ```
+   若直接使用預設主題，可安全略過此步驟。
 
 4. **初始化組態設定**：
    ```bash
@@ -62,12 +64,19 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv run python/main.py
 ```
 
-伺服器將監聽於 `http://0.0.0.0:8888`。
+伺服器將監聽於 `config.toml` 中指定的位址（預設為 `http://[::]:8888` 或 `http://0.0.0.0:8888`）。在 Caddy 等反向代理後方執行時，建議在 `config.toml` 中將 `host` 限制為 `"127.0.0.1"` 或設定防火牆封鎖 8888 埠，避免公網流量繞過反向代理防護直接存取後端。
 
 開發除錯模式（支援程式碼熱重載）：
-```bash
-QUART_DEBUG=true uv run python/main.py
-```
+Granian 的重載機制是由 `config.toml` 中的 `[server] debug` 控制，優先權高於 `QUART_DEBUG` 等環境變數。若需啟用熱重載：
+1. 確認已安裝重載監視套件：
+   ```bash
+   uv add --dev watchfiles
+   ```
+2. 在 `config.toml` 的 `[server]` 區段將 `debug` 設為 `true`。
+3. 啟動伺服器：
+   ```bash
+   uv run python/main.py
+   ```
 
 ---
 
@@ -77,8 +86,8 @@ QUART_DEBUG=true uv run python/main.py
 
 ```text
 :8000 {
-    root * ./static
-    handle /static/* {
+    handle_path /static/* {
+        root * ./static
         file_server
     }
     handle {

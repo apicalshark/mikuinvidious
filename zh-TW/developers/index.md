@@ -7,7 +7,7 @@ MikuInvidious 是一套非同步、隱私優先的 Bilibili 網頁前端與媒�
 ## 技術棧
 
 - **執行環境與框架**：Python 3.15+、[Quart](https://pgjones.gitlab.io/quart/)（現代化非同步 ASGI 框架）、[Granian](https://github.com/emmett-framework/granian)
-- **Web 伺服器與反向代理**：[Caddy](https://caddyserver.com/)（負責 TLS 終結、以 `file_server` 直接傳遞 `/static/*` 靜態檔案，並將動態路由轉送給 Granian）
+- **Web 伺服器與反向代理**：[Caddy](https://caddyserver.com/)（以 `file_server` 直接傳遞 `/static/*` 靜態檔案，並將動態路由轉送給 Granian；預設 `:8000` 監聽埠採用 HTTP，TLS 終結需配置網域名稱或外部 TLS 終結點）
 - **資料庫與快取**：[Redis](https://redis.io/)（用於影片播放連結規格化、頁面快取、速率限制與時效憑證儲存；Quart 客戶端工作階段採用客戶端簽名 Cookie）
 - **本機 API 封裝**：自建並維護的 `python/api/` 模組，內建 WBI 查詢簽名、`bili_ticket` 產生、Gaia 風控規避與 PGC 自動退避機制
 - **前端與播放器**：Tailwind CSS 4、`dash.js`（隨選視訊 DASH v5）、`hls.js` + `mpegts.js`（直播串流）、`media-chrome`

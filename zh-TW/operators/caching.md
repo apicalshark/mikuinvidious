@@ -16,7 +16,7 @@ MikuInvidious 採用跨行程記憶體、Redis 與本機磁碟的多層次快取
 | `/bangumi/view/<ssid>` | 60 分鐘 | `BANGUMI_CACHE_MINUTES` | 番劇季度中繼資料與劇集清單。 |
 | `/author/<mid>` | 30 分鐘 | `AUTHOR_CACHE_MINUTES` | 創作者摘要資料。 |
 | `/read/<cid>`, `/opus/<cid>` | 30 分鐘 | `ARTICLE_CACHE_MINUTES` | 專欄文章與動態解析結果。 |
-| `/audio/<auid>` | 30 分鐘 | `AUDIO_CACHE_MINUTES` | 音訊資訊與串流連結。 |
+| `/audio/<auid>`, `/audio_list/<amid>` | 30 分鐘 | `AUDIO_CACHE_MINUTES` | 音訊單曲與歌單中繼資料及串流連結。 |
 | `/`（首頁） | 30 分鐘 | `HOME_CACHE_MINUTES` | 首頁熱門推薦動態。 |
 
 命中快取的回應皆會帶有 `X-Cache: HIT` 標頭，未命中則標記 `X-Cache: MISS`。

@@ -36,20 +36,25 @@ Your instance will immediately be available at `http://localhost:8000`.
 
 ## 3. Configuring a Custom Public Domain
 
-1. Open `compose.yml` and set the public domain in the `app` service environment:
-   ```yaml
-   environment:
-     - SITE_NAME=My MikuInvidious Instance
-     - SITE_URL=https://miku.example.com
-   ```
-
-<!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:772aede6813f903e03f6b030530218db21a5d1adb2879ded8203e410f5d3975f -->
+1. Open `compose.yml`:
+   - Set the public domain in the `app` service environment (note that the modern theme header displays the "MikuInvidious" brand mark regardless of `SITE_NAME`):
+     ```yaml
+     environment:
+       - SITE_NAME=My MikuInvidious Instance
+       - SITE_URL=https://miku.example.com
+     ```
+   - Publish port `80:80` on the `caddy` service so Caddy can complete HTTP-01 ACME challenges and perform HTTP-to-HTTPS redirects:
+     ```yaml
+     caddy:
+       ports:
+         - "80:80"
+         - "443:443/tcp"
+         - "443:443/udp"
+         - "8000:8000"
+     ```
 
 2. In `Caddyfile`, replace the `:8000` site address with your actual domain. Preserve the preceding global options block:
 
-<!-- /coderabbit-ai-generated:v1 -->
    ```text
    miku.example.com {
        root * /usr/share/caddy
@@ -76,7 +81,7 @@ Your instance will immediately be available at `http://localhost:8000`.
 
 3. Restart the stack:
    ```bash
-   docker compose up -d
+   docker compose up -d --force-recreate
    ```
 
 Caddy will automatically request and renew trusted SSL/TLS certificates from Let's Encrypt or ZeroSSL.
@@ -85,4 +90,4 @@ Caddy will automatically request and renew trusted SSL/TLS certificates from Let
 
 ## 4. Datacenter IP Note
 
-If hosting on cloud providers (Hetzner, OVH, DigitalOcean, AWS), Bilibili may challenge or block server IPs with HTTP 412 or `-352` errors. Route outbound requests through the included `warp` container or provide a residential/SOCKS5 proxy via `HTTP_PROXY` / `HTTPS_PROXY` in `compose.yml`.
+If hosting on cloud providers (Hetzner, OVH, DigitalOcean, AWS), Bilibili may challenge or block server IPs with HTTP 412 or `-352` errors. WARP is not enabled by default in the root `compose.yml`; to route outbound requests through Cloudflare WARP, follow the instructions in `tools/warp/` to launch the optional companion stack, or configure an external residential/SOCKS5 proxy via `HTTP_PROXY` and `HTTPS_PROXY` in `compose.yml`.

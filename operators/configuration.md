@@ -9,7 +9,7 @@ Settings related to site identity, security flags, and features.
 
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `site_name` | `SITE_NAME` | `MikuInvidious` | The public brand name of your instance. |
+| `site_name` | `SITE_NAME` | `MikuInvidious` | The public brand name of your instance (note that in the default modern theme, the header logo text remains hard-coded as MikuInvidious). |
 | `site_url` | `SITE_URL` | `http://localhost:8888` | The public URL of your instance, including scheme (`http://` or `https://`). The session cookie `Secure` flag dynamically defaults based on `site_url.startswith("https://")`, but can be explicitly overridden by `SESSION_COOKIE_SECURE` in `[quart]`. |
 | `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | Link to modified source code (required by AGPL-3.0 if you modified the code). Set to `false` if unmodified. |
 | `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | When `false`, hides video download UI elements (media proxy remains available). |
@@ -32,7 +32,7 @@ Configuration for the web server (Granian / Quart).
 | `monitor_fd` | `MONITOR_FD` | `false` | Enables file descriptor leak monitoring. |
 
 > [!NOTE]
-> **Ephemeral Session Secret Key**: For security, `shared.py` generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at every startup. User sessions are intentionally invalidated across server restarts; static secret keys in configuration files are ignored.
+> **Ephemeral Session Secret Key & Process Affinity**: For security, `shared.py` generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at every startup. User sessions are intentionally invalidated across server restarts; static secret keys in configuration files are ignored. Because independently started worker processes generate different keys and will reject each other's session cookies (causing intermittent CSRF failures on downloads and language switches), deployments must run a single worker process or enforce strict session affinity (sticky sessions) across backend instances.
 
 ---
 
@@ -70,7 +70,11 @@ Authentication credentials for accessing higher video resolutions (e.g., 1080P60
 | `ac_time_value` | `AC_TIME_VALUE` | (None) | Bilibili local-storage refresh token (`window.localStorage.ac_time_value`). |
 
 > [!TIP]
-> **Encrypted Credentials**: Credentials can be encrypted using libsodium XSalsa20-Poly1305 (via PyNaCl `SecretBox`) with `python tools/encrypt_secrets.py --encrypt SESSDATA "your_cookie"`. A 32-byte master key must first be exported as `SECRETS_MASTER_KEY`.
+> **Encrypted Credentials**: Credentials can be encrypted using libsodium XSalsa20-Poly1305 (via PyNaCl `SecretBox`). To avoid leaking cookies into shell command history, supply the secret via interactive input:
+> ```bash
+> read -rs SESSDATA && python tools/encrypt_secrets.py --encrypt SESSDATA "$SESSDATA"
+> ```
+> A 32-byte master key must first be exported as `SECRETS_MASTER_KEY`.
 
 ---
 
@@ -90,6 +94,20 @@ Server-side rendering helpers.
 | :--- | :--- | :--- | :--- |
 | `use_pandoc` | `USE_PANDOC` | `false` | When `true`, uses system `pandoc` to convert articles. |
 | `article_allowed_formats` | `ARTICLE_ALLOWED_FORMATS` | `markdown,plain,html` | Allowed formats Pandoc is permitted to convert from. |
+
+---
+
+## `[bili]`
+Upstream Bilibili client headers and platform parameters. Used for image proxying, live streaming, and upstream API interactions.
+
+| Key | Environment Variable | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `user_agent` | `BILI_USER_AGENT` | `DEFAULT_APP_UA` | Default User-Agent for Bilibili app API calls (Android BiliDroid). Note: DASH CDN media streaming always sends web Chrome UA (`build_cdn_headers()`). |
+| `referer` | `BILI_REFERER` | `https://www.bilibili.com` | Upstream Referer header for API and media requests. |
+| `env` | `BILI_ENV` | `prod` | Upstream API environment. |
+| `app_key` | `BILI_APP_KEY` | `android64` | App key identifier for signed API endpoints. |
+| `ip_region` | `BILI_IP_REGION` | `CN` | Region header for API routing. |
+| `legal_region` | `BILI_LEGAL_REGION` | `CN` | Legal region compliance header. |
 
 ---
 

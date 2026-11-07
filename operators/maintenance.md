@@ -29,9 +29,7 @@ docker compose build --pull app
 docker compose up -d
 ```
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:06d330e36bf783ff64994a5d48c88f7906f7a6efff40e8b1b60460466d65acae -->
 
 For manual (non-Docker) bare-metal installations:
 ```bash
@@ -43,7 +41,6 @@ npm run build:css     # if frontend styles updated
 
 After these commands complete, restart the application using your process manager or deployment startup command so the running process uses the new release.
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 
@@ -56,5 +53,5 @@ What you should back up:
 
 What does **not** need backup:
 - **Redis**: Redis holds transient caches, temporary tickets, and rate-limiting counters. It can be cleared or discarded at any time.
-- **User Sessions**: User sessions are cryptographically signed client-side cookies using an ephemeral secret key generated per startup. Restarting the server intentionally cycles session tokens.
+- **User Sessions**: Quart cryptographically signs client-side session cookies with an ephemeral secret key generated per startup, but does not encrypt their contents. Restarting the server intentionally invalidates sessions.
 - **Image Disk Cache**: The `img_cache` directory automatically rebuilds on demand and prunes itself via LRU policies.

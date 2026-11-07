@@ -18,10 +18,24 @@ trusted_proxies = "172.18.0.0/16, 10.0.0.0/8"
 
 或透過環境變數傳遞：
 
-```bash
-RATE_LIMIT_ENABLED=true
-TRUSTED_PROXIES="172.18.0.0/16"
+若使用 Docker 部署，請在 `compose.yml` 的 `app` 服務環境變數中設定：
+
+```yaml
+environment:
+  - RATE_LIMIT_ENABLED=true
+  - TRUSTED_PROXIES=172.18.0.0/16
 ```
+
+若直接以 CLI 啟動伺服器，請在執行指令前先匯出環境變數：
+
+```bash
+export RATE_LIMIT_ENABLED=true
+export TRUSTED_PROXIES="172.18.0.0/16"
+uv run python/main.py
+```
+
+> [!IMPORTANT]
+> `config.toml` 中的設定值優先權高於環境變數。若 `config.toml` 中含有 `[rate_limit] enabled = false`，將會覆蓋 `RATE_LIMIT_ENABLED=true`。若希望由環境變數控制，請自 `config.toml` 移除衝突的 `enabled` 設定項，或直接在 `config.toml` 中將其設為 `true`。
 
 ---
 
@@ -33,7 +47,7 @@ TRUSTED_PROXIES="172.18.0.0/16"
 2. **信任代理轉發**：若連線對端為本機 loopback（`127.0.0.1`、`::1`）、私有網路網段（如 Docker 虛擬網路 `172.18.0.0/16`），或明確符合 `trusted_proxies` 中的 CIDR 規則，應用程式採信 `X-Real-IP` 與 `X-Forwarded-For`。
 
 > [!WARNING]
-> **私有網路預設信任注意事項**：由於 loopback 與私有網路預設受採信，請務必將 8080 埠號透過防火牆保護，並確認您的反向代理（Caddy）在轉送時確實將 `X-Real-IP` 覆寫為驗證過的遠端 IP。
+> **私有網路預設信任注意事項**：由於 loopback 與 RFC 1918 私有網路預設受採信，請務必將應用程式所配置之監聽埠號（如裸機部署的 8888 或容器網路的 8080）透過防火牆阻擋外部直接存取，並確認您的反向代理（Caddy）在轉送時確實將 `X-Real-IP` 覆寫為驗證過的客戶端遠端 IP。
 
 ---
 

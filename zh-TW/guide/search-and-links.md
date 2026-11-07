@@ -46,9 +46,7 @@ https://b23.tv/AbCdEf
 
 您完全不需要複製完整網址。只要在搜尋列輸入或貼入純代號，系統即可自動識別：
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:12c1b15250bc3eec0e8bcf7336c8d6c7cd6f86a0c042d49ed624de5854afa757 -->
 
 - `BV1xx411c7mD` → 直接開啟該影片。
 - `av170001` → 直接開啟該傳統 av 號影片。
@@ -57,7 +55,6 @@ https://b23.tv/AbCdEf
 - `cv1234567` → 直接開啟專欄文章。
 - `au123456` → 直接開啟單曲播放頁。
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 

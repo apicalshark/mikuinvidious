@@ -6,9 +6,7 @@ Caddy serves as the public entry point for MikuInvidious: it handles automatic T
 
 ## 1. Standard Production Caddyfile
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:c3300b5d15c8fa938179a3f7e5ac4c1c09fcc769383f54d5fbb859490bd38bf1 -->
 
 ```text
 {
@@ -42,15 +40,14 @@ Caddy serves as the public entry point for MikuInvidious: it handles automatic T
     # Forward all dynamic traffic to the application
     handle {
         reverse_proxy app:8080 {
-            header_up X-Real-IP {remote_host}
-            header_up X-Forwarded-For {remote_host}
+            header_up X-Real-IP {client_ip}
+            header_up X-Forwarded-For {client_ip}
             header_up X-Forwarded-Proto {scheme}
         }
     }
 }
 ```
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 
@@ -71,13 +68,28 @@ Modern browser QUIC implementations frequently encounter `ERR_QUIC_PROTOCOL_ERRO
 Media streams (`/proxy/*`) are already compressed video/audio payloads. Re-compressing them wastes CPU cycles and induces latency. Ensure `encode` targets `@notProxy not path /proxy/*`.
 
 ### Client IP Forwarding
-Granian runs behind Caddy. To ensure the rate limiter and audit logs receive accurate visitor IP addresses instead of Caddy's internal Docker IP, Caddy must pass:
+Granian runs behind Caddy. To ensure the rate limiter and audit logs receive accurate visitor IP addresses instead of Caddy's internal Docker IP, Caddy must pass the client IP and scheme:
 
 ```text
 reverse_proxy app:8080 {
-    header_up X-Real-IP {remote_host}
+    header_up X-Real-IP {client_ip}
+    header_up X-Forwarded-For {client_ip}
+    header_up X-Forwarded-Proto {scheme}
 }
 ```
+
+> [!WARNING]
+> Do not use `{remote_host}` if Caddy sits behind an upstream proxy, CDN, or load balancer (such as Cloudflare or AWS ALB). Under those conditions, `{remote_host}` evaluates to the IP of the upstream proxy itself rather than the visitor, causing all external visitors to pool into a single rate-limiting bucket.
+>
+> To handle upstream proxies properly, configure Caddy's global `servers` block with `trusted_proxies` containing only the upstream proxy CIDRs, and specify the headers to inspect:
+> ```text
+> servers {
+>     protocols h1 h2
+>     trusted_proxies static <upstream_proxy_cidrs>
+>     client_ip_headers CF-Connecting-IP X-Forwarded-For
+> }
+> ```
+> Caddy will validate that incoming requests arrive from trusted proxy CIDRs before reading the specified client IP headers to populate `{client_ip}`, preventing spoofing from direct clients while preserving the visitor's real IP and `{scheme}`.
 
 ---
 

@@ -27,7 +27,7 @@ This document maps all public web routes, media streaming proxies, and auxiliary
 | `/read/<cid>`, `/opus/<cid>` | `views_space.py` | Proxied column articles and dynamic opus posts. |
 | `/audio/<auid>` | `views_audio.py` | Single audio track player with lyrics. |
 | `/audio_list/<amid>` | `views_audio.py` | Audio album/playlist player. |
-| `/history` | `views_home.py` | Client-side local watch history. |
+| `/history` | `views_home.py` | Browsing history view (stored in Redis, keyed by visitor cookie). |
 | `/preferences` | `views_home.py` | User preferences (theme, language, player defaults). |
 | `/licenses` | `views_home.py` | Open-source software licenses and notices. |
 | `/robots.txt` | `views_home.py` | Dynamic robots crawler policy (`strict`, `relaxed`, `PLEASE_INDEX_EVERYTHING`). |
@@ -41,6 +41,7 @@ This document maps all public web routes, media streaming proxies, and auxiliary
 | `/proxy/pic/*` | `proxy.py`, `image_cache.py` | Proxies Bilibili images (`*.hdslb.com`) with local LRU disk caching and WebP conversion. |
 | `/proxy/dash/<vid>/<idx>/<type>/<qn>/<cid>` | `dash_stream.py` | Bounded HTTP Range DASH track proxy (max 32 MiB per request; open-ended rejected with 416). |
 | `/proxy/video/*` | `proxy.py` | Progressive MP4 proxy for legacy `durl` uploads lacking DASH. |
+| `/proxy/download/<vid>/<idx>/<qual>` | `proxy.py` | Legacy direct media download endpoint for non-JavaScript environments. |
 | `/proxy/live/disconnect` (POST) | `views_live.py` | Gracefully closes active upstream live stream connections. |
 | `/res/danmaku/<vid>[:<idx>]` | `res.py`, `danmaku.py` | Fetches, decodes protobuf, and emits Danmaku XML. |
 | `/res/subtitle/<vid>[:<idx>[:<lan>]]` | `res.py` | Fetches and formats video subtitle tracks. |
@@ -58,5 +59,6 @@ This document maps all public web routes, media streaming proxies, and auxiliary
 | `/api/component/player/<vid>/<idx>` | GET | HTML snippet for player component. |
 | `/api/component/meta/<vid>/<idx>` | GET | HTML snippet for video metadata. |
 | `/api/component/comments/<vid>/<idx>/more` | GET | Paginated video comments. |
+| `/api/component/comments/<vid>/<rpid>` | GET | Sub-thread replies for a specific comment. |
 | `/toggle_theme` | POST | Updates theme cookie preference. |
 | `/set_lang` | POST | Updates locale cookie preference. |

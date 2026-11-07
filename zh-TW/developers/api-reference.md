@@ -27,7 +27,7 @@
 | `/read/<cid>`, `/opus/<cid>` | `views_space.py` | 純淨專欄文章與動態圖文閱讀器。 |
 | `/audio/<auid>` | `views_audio.py` | 單曲播放介面（含歌詞同步）。 |
 | `/audio_list/<amid>` | `views_audio.py` | 音樂專輯與歌單播放介面。 |
-| `/history` | `views_home.py` | 客戶端本機觀看歷史紀錄。 |
+| `/history` | `views_home.py` | 觀看歷史紀錄頁面（存放於 Redis，依訪客 Cookie 關聯）。 |
 | `/preferences` | `views_home.py` | 使用者個人偏好設定（主題、語言、播放器設定）。 |
 | `/licenses` | `views_home.py` | 開源軟體授權與第三方套件宣告。 |
 | `/robots.txt` | `views_home.py` | 動態網路爬蟲政策（`strict`, `relaxed`, `PLEASE_INDEX_EVERYTHING`）。 |
@@ -41,6 +41,7 @@
 | `/proxy/pic/*` | `proxy.py`, `image_cache.py` | 代理 Bilibili 圖片（`*.hdslb.com`），具備本機磁碟 LRU 快取與 WebP 轉換。 |
 | `/proxy/dash/<vid>/<idx>/<type>/<qn>/<cid>` | `dash_stream.py` | 有界 HTTP Range DASH 分段代理（單次上限 32 MiB，無界請求拒絕 416）。 |
 | `/proxy/video/*` | `proxy.py` | 針對缺失 DASH 節點的老舊投稿提供傳統漸進式 MP4 代理。 |
+| `/proxy/download/<vid>/<idx>/<qual>` | `proxy.py` | 傳統直接媒體下載端點（適用於無 JavaScript 環境）。 |
 | `/proxy/live/disconnect` (POST) | `views_live.py` | 優雅關閉伺服器上游活躍的直播連線。 |
 | `/res/danmaku/<vid>[:<idx>]` | `res.py`, `danmaku.py` | 抓取、Protobuf 解碼並輸出彈幕 XML。 |
 | `/res/subtitle/<vid>[:<idx>[:<lan>]]` | `res.py` | 取得並格式化字幕軌道。 |
@@ -58,5 +59,6 @@
 | `/api/component/player/<vid>/<idx>` | GET | 播放器 HTML 片段組件。 |
 | `/api/component/meta/<vid>/<idx>` | GET | 影片詳情中繼資料 HTML 片段。 |
 | `/api/component/comments/<vid>/<idx>/more` | GET | 分頁載入影片留言評論。 |
+| `/api/component/comments/<vid>/<rpid>` | GET | 載入特定留言的子樓層回覆。 |
 | `/toggle_theme` | POST | 更新佈景主題偏好 Cookie。 |
 | `/set_lang` | POST | 更新介面語言偏好 Cookie。 |

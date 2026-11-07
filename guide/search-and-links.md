@@ -26,9 +26,7 @@ When you paste any `b23.tv` link into the MikuInvidious search bar:
 
 You can paste any of the following official Bilibili URLs directly into the search bar:
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:6f7cd813fd7dc74c8c614b2cd7947508fd2aef6b6c052dcf6f212704beea2d42 -->
 
 | URL Type | Example Bilibili Link | MikuInvidious Destination |
 | :--- | :--- | :--- |
@@ -44,7 +42,6 @@ You can paste any of the following official Bilibili URLs directly into the sear
 | **Audio Track** | `https://www.bilibili.com/audio/au123456` | `/audio/123456` |
 | **Audio Playlist** | `https://www.bilibili.com/audio/am123456` | `/audio_list/123456` |
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 
@@ -52,9 +49,7 @@ You can paste any of the following official Bilibili URLs directly into the sear
 
 You do not need to paste the full URL. If you have an ID from a video, post, or channel, simply paste the ID into the search bar:
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:cfa438f5f04f0059bae87d11070d5885b9784541fb1b20c27f92e4f1926d1a37 -->
 
 - `BV1xx411c7mD` → Directly opens the video.
 - `av170001` → Directly opens the legacy AV video.
@@ -63,7 +58,6 @@ You do not need to paste the full URL. If you have an ID from a video, post, or 
 - `cv1234567` → Directly opens the article.
 - `au123456` → Directly opens the audio track.
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 

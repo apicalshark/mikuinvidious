@@ -29,9 +29,7 @@ docker compose build --pull app
 docker compose up -d
 ```
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:550537684deb05ae191b2d17b985c9d15a50da65cec1e3c546013bd6867d3288 -->
 
 對於手動（非 Docker）安裝環境：
 ```bash
@@ -43,7 +41,6 @@ npm run build:css     # 若前端樣式有異動
 
 完成上述指令後，請透過程序管理工具或部署時使用的啟動指令重新啟動應用程式，讓執行中的程序使用新版本。
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 
@@ -56,11 +53,8 @@ npm run build:css     # 若前端樣式有異動
 
 **無需進行備份**：
 - **Redis 資料庫**：Redis 僅存放快取、暫態 Ticket 與速率限制計數器，隨時可清空重建。
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:cc3c66213a57ca41ca29bf701d6a5a5f538e41de27637ef5579ee02de7cf53f0 -->
 
 - **使用者工作階段**：Quart 使用每次伺服器啟動時產生的隨機金鑰，為客戶端工作階段 Cookie 簽章，但不加密其內容；重新啟動伺服器會使既有工作階段失效。
 
-<!-- /coderabbit-ai-generated:v1 -->
 - **圖片磁碟快取**：`img_cache` 目錄在需要時自動重新產生，並依照 LRU 演算法自動維護容量。

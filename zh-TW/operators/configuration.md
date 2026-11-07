@@ -9,7 +9,7 @@ MikuInvidious 可透過 `config.toml` 設定檔（建議方式）或環境變數
 
 | 設定鍵值 | 對應環境變數 | 預設值 | 說明 |
 | :--- | :--- | :--- | :--- |
-| `site_name` | `SITE_NAME` | `MikuInvidious` | 實例對外公開的網站名稱。 |
+| `site_name` | `SITE_NAME` | `MikuInvidious` | 實例對外公開的網站名稱（請注意在預設的 modern 主題中，頂部商標文字依然固定硬編碼為 MikuInvidious）。 |
 | `site_url` | `SITE_URL` | `http://localhost:8888` | 實例的完整對外公開網址（含協定 `http://` 或 `https://`）。Cookie 的 `Secure` 標記會根據 `site_url` 是否以 `https://` 開頭自動判斷，亦可在 `[quart]` 中透過 `SESSION_COOKIE_SECURE` 明確覆寫。 |
 | `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | 修改後之原始碼儲存庫連結（若修改了程式碼，為符合 AGPL-3.0 規範必須提供）。未修改請設為 `false`。 |
 | `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | 設為 `false` 時於前端隱藏下載按鈕（媒體代理本身仍維持運作）。 |
@@ -32,7 +32,7 @@ Web 伺服器核心設定（Granian / Quart）。
 | `monitor_fd` | `MONITOR_FD` | `false` | 啟用檔案描述子（File Descriptor）洩漏監控。 |
 
 > [!NOTE]
-> **暫態工作階段密鑰機制**：基於安全設計，`shared.py` 於每次應用程式啟動時隨機產生一組 32 位元組的金鑰（`os.urandom(32).hex()`）。重新啟動伺服器會刻意使所有使用者的工作階段 Cookie 失效；靜態設定檔中的固定密鑰會被忽略。
+> **暫態工作階段密鑰與行程黏性（Process Affinity）**：基於安全設計，`shared.py` 於每次應用程式啟動時隨機產生一組 32 位元組的金鑰（`os.urandom(32).hex()`）。重新啟動伺服器會刻意使所有使用者的工作階段 Cookie 失效；靜態設定檔中的固定密鑰會被忽略。由於各個獨立啟動的工作行程擁有不同的密鑰，若跨行程分發請求會導致工作階段 Cookie 被拒絕，進而造成下載與語系切換時發生 CSRF 驗證失敗。因此正式部署環境必須執行單一背景行程，或於反向代理層啟用工作階段黏性（Sticky Sessions）。
 
 ---
 
@@ -70,7 +70,11 @@ Web 伺服器核心設定（Granian / Quart）。
 | `ac_time_value` | `AC_TIME_VALUE` | （無） | Bilibili 本機更新權杖（`window.localStorage.ac_time_value`）。 |
 
 > [!TIP]
-> **憑證加密儲存**：可透過 libsodium XSalsa20-Poly1305（PyNaCl `SecretBox`）執行 `python tools/encrypt_secrets.py --encrypt SESSDATA "你的 Cookie"` 進行加密。必須先產生 32 位元組的主密鑰並匯出為 `SECRETS_MASTER_KEY`。
+> **憑證加密儲存**：可透過 libsodium XSalsa20-Poly1305（PyNaCl `SecretBox`）進行加密。為避免敏感 Cookie 洩漏至終端機歷史紀錄中，建議透過互動式輸入傳遞值：
+> ```bash
+> read -rs SESSDATA && python tools/encrypt_secrets.py --encrypt SESSDATA "$SESSDATA"
+> ```
+> 必須先產生 32 位元組的主密鑰並匯出為 `SECRETS_MASTER_KEY`。
 
 ---
 
@@ -90,6 +94,20 @@ Web 伺服器核心設定（Granian / Quart）。
 | :--- | :--- | :--- | :--- |
 | `use_pandoc` | `USE_PANDOC` | `false` | 設為 `true` 時使用系統安裝的 `pandoc` 轉換專欄文章。 |
 | `article_allowed_formats` | `ARTICLE_ALLOWED_FORMATS` | `markdown,plain,html` | 允許 Pandoc 進行轉換的來源格式清單。 |
+
+---
+
+## `[bili]`
+上游 Bilibili 客戶端標頭與環境參數設定，用於圖片代理、直播串流與上游 API 互動。
+
+| 設定鍵值 | 對應環境變數 | 預設值 | 說明 |
+| :--- | :--- | :--- | :--- |
+| `user_agent` | `BILI_USER_AGENT` | `DEFAULT_APP_UA` | Bilibili App 請求預設 User-Agent（Android BiliDroid）。請注意：DASH CDN 媒體串流一律強制傳送桌面 Chrome UA（`build_cdn_headers()`）。 |
+| `referer` | `BILI_REFERER` | `https://www.bilibili.com` | 上游 Referer 標頭。 |
+| `env` | `BILI_ENV` | `prod` | 上游 API 環境。 |
+| `app_key` | `BILI_APP_KEY` | `android64` | App 金鑰識別字串。 |
+| `ip_region` | `BILI_IP_REGION` | `CN` | 路由地區標頭。 |
+| `legal_region` | `BILI_LEGAL_REGION` | `CN` | 法規遵循地區標頭。 |
 
 ---
 
@@ -117,7 +135,7 @@ Redis 頁面快取存留時間（以分鐘為單位），設為 `0` 即可完全
 | `bangumi_minutes` | `BANGUMI_CACHE_MINUTES` | `60` | `/bangumi/view/<ssid>` 番劇季度資訊快取。 |
 | `author_minutes` | `AUTHOR_CACHE_MINUTES` | `30` | `/author/<mid>` 創作者概要快取。 |
 | `article_minutes` | `ARTICLE_CACHE_MINUTES` | `30` | `/read/<cid>` 與 `/opus/<cid>` 文章解析結果快取。 |
-| `audio_minutes` | `AUDIO_CACHE_MINUTES` | `30` | `/audio/<auid>` 音訊資訊與串流快取。 |
+| `audio_minutes` | `AUDIO_CACHE_MINUTES` | `30` | `/audio/<auid>` 與 `/audio_list/<amid>` 的音訊及歌單中繼資料快取。 |
 | `home_minutes` | `HOME_CACHE_MINUTES` | `30` | `/` 首頁熱門推薦快取。 |
 
 所有命中快取的回應皆會帶有 `X-Cache: HIT` 標頭，未命中則標記 `X-Cache: MISS`。

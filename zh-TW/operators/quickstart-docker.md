@@ -36,14 +36,24 @@
 
 ## 3. 設定自訂公網網域名稱
 
-1. 開啟 `compose.yml`，在 `app` 服務的環境變數中設定您的公網網址：
-   ```yaml
-   environment:
-     - SITE_NAME=我的 MikuInvidious 實例
-     - SITE_URL=https://miku.example.com
-   ```
+1. 開啟 `compose.yml`：
+   - 在 `app` 服務的環境變數中設定您的公網網址（請注意：在現代主題下，頁首標誌一律顯示「MikuInvidious」商標，不受 `SITE_NAME` 影響）：
+     ```yaml
+     environment:
+       - SITE_NAME=我的 MikuInvidious 實例
+       - SITE_URL=https://miku.example.com
+     ```
+   - 在 `caddy` 服務的 `ports` 區段映射 `80:80` 埠，以允許 Caddy 進行 Let's Encrypt HTTP-01 憑證驗證與 HTTP 自動重新導向：
+     ```yaml
+     caddy:
+       ports:
+         - "80:80"
+         - "443:443/tcp"
+         - "443:443/udp"
+         - "8000:8000"
+     ```
 
-2. 編輯 `Caddyfile`，將第一行的 `:8000` 替換為您的實際網域：
+2. 編輯 `Caddyfile`，將 `:8000` 站點位址替換為您的實際網域，並保留前方的全域選項區塊：
    ```text
    miku.example.com {
        root * /usr/share/caddy
@@ -68,9 +78,9 @@
    }
    ```
 
-3. 重啟服務容器：
+3. 重啟服務容器以重新載入組態：
    ```bash
-   docker compose up -d
+   docker compose up -d --force-recreate
    ```
 
 Caddy 將自動自 Let's Encrypt 或 ZeroSSL 申請並定期自動展延 HTTPS 憑證。
@@ -79,4 +89,4 @@ Caddy 將自動自 Let's Encrypt 或 ZeroSSL 申請並定期自動展延 HTTPS �
 
 ## 4. 資料中心 IP 提示
 
-若主機架設於雲端機房（如 Hetzner、OVH、DigitalOcean、AWS），Bilibili 可能以 HTTP 412 或 `-352` 進行風控阻擋。請透過隨附的 `warp` 服務進行連線，或於 `compose.yml` 中設定 `HTTP_PROXY` / `HTTPS_PROXY` 指向家寬或 SOCKS5 出口。
+若主機架設於雲端機房（如 Hetzner、OVH、DigitalOcean、AWS），Bilibili 可能以 HTTP 412 或 `-352` 進行風控阻擋。根目錄預設的 `compose.yml` 未啟用 WARP；若需透過 Cloudflare WARP 出口連線，請參考 `tools/warp/` 目錄中的指引啟動選用的 WARP 堆疊，或於 `compose.yml` 中設定 `HTTP_PROXY` / `HTTPS_PROXY` 指向家寬或外部 SOCKS5 代理。

@@ -10,15 +10,12 @@ MikuInvidious is designed with clean, predictable URL patterns. You can bookmark
 - **Example**: `/video/BV1xx411c7mD` or `/video/av170001`
 - Loads video metadata, dynamic ISO/IEC 23009-1 DASH streaming manifest, danmaku comments, related recommendations, and comment threads.
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:e176258416ba017d93e3b234f316ba2f9a52dc41e4f2bf96e951c2e66732450d -->
 
 ### Multi-Part Videos: `/video/<bvid>:<index>`
 - **Example**: `/video/BV1xx411c7mD:1`
 - Specifies which episode or part of a multi-part upload to play. Part index starts at `0`, so this example opens the second part.
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ### Listen Mode: `?listen=1`
 - **Example**: `/video/BV1xx411c7mD?listen=1`
@@ -32,9 +29,7 @@ MikuInvidious is designed with clean, predictable URL patterns. You can bookmark
 
 ## 2. Anime & Bangumi Routes
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:221df65c45c65fd982b4d9aca04f0d28f696dda3f56755a019773e751ffd15e0 -->
 
 ### Season Overview: `/bangumi/view/<ssid>`
 - **Example**: `/bangumi/view/28241`
@@ -46,7 +41,6 @@ MikuInvidious is designed with clean, predictable URL patterns. You can bookmark
 - Opens the specific episode player with the complete episode rail on the right side.
 
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ---
 
@@ -99,23 +93,17 @@ MikuInvidious is designed with clean, predictable URL patterns. You can bookmark
 
 ### Shortlink Converter: `/convert?url=<url>`
 - **Example**: `/convert?url=https://b23.tv/AbCdEf`
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:dc380b0829be1e3d75072195293abd080a11e5ea848046f021bae2be9d93baf7 -->
 
 - The `url` parameter prefills the converter form. Select **Convert**, then open the resulting MikuInvidious link to visit the sanitized destination.
 
-<!-- /coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated:v1 -->
 
-<!-- coderabbit-ai-generated-section:v1:4e8271f0dbb8b2542addbefdedbf2562961931072721b98866c5cbd0007a3f81 -->
 
 ### Watch History: `/history`
 - Displays opened video IDs read from server-side Redis storage.
 - **Privacy Note**: A browser cookie associates your browser with those IDs in Redis.
 
-<!-- /coderabbit-ai-generated:v1 -->
 
 ### Preferences: `/preferences`
 - Configure local settings:
