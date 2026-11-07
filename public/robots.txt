@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://apicalshark.github.io/mikuinvidious/sitemap.xml
+Sitemap: https://apicalshark.github.io/mikuinvidious/sitemap.txt

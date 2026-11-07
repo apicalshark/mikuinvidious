@@ -1,6 +1,4 @@
-// Generate sitemap.xml from the built (directory-style) output.
-// lastmod comes from git history of the source markdown file.
-import { execSync } from "node:child_process";
+// Generate sitemap.xml and sitemap.txt from the built (directory-style) output.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,42 +12,24 @@ for (const file of walk(dist)) {
   const rel = path.relative(dist, file).replaceAll(path.sep, "/");
   if ((!rel.endsWith("/index.html") && rel !== "index.html") || rel === "404.html") continue;
   const route = rel === "index.html" ? "/" : "/" + rel.slice(0, -"/index.html".length);
-  const src = sourceFor(rel);
-  if (!src) {
-    console.warn(`sitemap: no source for ${rel}, skipped`);
-    continue;
-  }
-  urls.push({ loc: SITE + (route === "/" ? "/" : route + "/"), lastmod: lastmod(src) });
+  urls.push(SITE + (route === "/" ? "/" : route + "/"));
 }
 
-urls.sort((a, b) => (a.loc < b.loc ? -1 : 1));
+urls.sort();
+
+// Generate standard XML sitemap compliant with Google Search Console
 const xml =
   `<?xml version="1.0" encoding="UTF-8"?>\n` +
   `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-  urls.map((u) => `  <url><loc>${u.loc}</loc>${u.lastmod ? `<lastmod>${u.lastmod}</lastmod>` : ""}</url>`).join("\n") +
+  urls.map((loc) => `  <url>\n    <loc>${loc}</loc>\n  </url>`).join("\n") +
   `\n</urlset>\n`;
-fs.writeFileSync(path.join(dist, "sitemap.xml"), xml);
-console.log(`sitemap: ${urls.length} urls`);
+fs.writeFileSync(path.join(dist, "sitemap.xml"), xml, "utf-8");
+console.log(`sitemap.xml: ${urls.length} urls`);
 
-function sourceFor(rel) {
-  // dist path -> source markdown. Directory indexes (operators/index.html)
-  // and converted pages (operators/configuration/index.html) look alike,
-  // so resolve by whichever source file actually exists.
-  const p = rel.slice(0, -"/index.html".length);
-  for (const cand of [p === "" ? "index.md" : `${p}.md`, p === "" ? null : `${p}/index.md`]) {
-    if (cand && fs.existsSync(path.join(root, cand))) return cand;
-  }
-  return null;
-}
-
-function lastmod(src) {
-  try {
-    const gitSrc = src.startsWith("zh-CN/") ? `zh-TW/${src.slice("zh-CN/".length)}` : src;
-    return execSync(`git log -1 --format=%cI -- ${gitSrc}`, { cwd: root }).toString().trim() || null;
-  } catch {
-    return null;
-  }
-}
+// Generate plain text sitemap (supported by Google Search Console)
+const txt = urls.join("\n") + "\n";
+fs.writeFileSync(path.join(dist, "sitemap.txt"), txt, "utf-8");
+console.log(`sitemap.txt: ${urls.length} urls`);
 
 function* walk(dir) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -58,3 +38,4 @@ function* walk(dir) {
     else yield full;
   }
 }
+
