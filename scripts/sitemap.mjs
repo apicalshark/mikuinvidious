@@ -44,7 +44,8 @@ function sourceFor(rel) {
 
 function lastmod(src) {
   try {
-    return execSync(`git log -1 --format=%cI -- ${src}`, { cwd: root }).toString().trim() || null;
+    const gitSrc = src.startsWith("zh-CN/") ? `zh-TW/${src.slice("zh-CN/".length)}` : src;
+    return execSync(`git log -1 --format=%cI -- ${gitSrc}`, { cwd: root }).toString().trim() || null;
   } catch {
     return null;
   }

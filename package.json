@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vitepress dev",
-    "build": "rm -rf .vitepress/dist .vitepress/cache && vitepress build && node scripts/clean-urls.mjs && node scripts/sitemap.mjs",
+    "build": "bash scripts/generate-zh-cn.sh && rm -rf .vitepress/dist .vitepress/cache && vitepress build && node scripts/clean-urls.mjs && node scripts/sitemap.mjs",
+    "generate:zh-cn": "bash scripts/generate-zh-cn.sh",
     "preview": "vitepress preview"
   },
   "devDependencies": {

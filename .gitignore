@@ -3,3 +3,4 @@ node_modules/
 .vitepress/cache/
 .superpowers/
 docs/superpowers/
+zh-CN/

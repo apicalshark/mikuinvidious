@@ -5,6 +5,7 @@ Documentation source for the MikuInvidious site, built with
 
 - Default language is English (`/`, `lang: en-US`).
 - Traditional Chinese lives under `/zh-TW/`.
+- Simplified Chinese lives under `/zh-CN/` (generated via `scripts/generate-zh-cn.sh`).
 - Project pages base: `/mikuinvidious/`.
 
 ## Preview locally

@@ -77,6 +77,38 @@ const developerSidebarZhTw = [
   { text: "參與貢獻", link: "/zh-TW/developers/contributing" },
 ];
 
+const guideSidebarZhCn = [
+  { text: "总览", link: "/zh-CN/guide/" },
+  { text: "Bilibili 链接与搜索栏", link: "/zh-CN/guide/search-and-links" },
+  { text: "网址路由与功能", link: "/zh-CN/guide/url-syntax" },
+  { text: "播放器与下载", link: "/zh-CN/guide/playback-and-downloads" },
+];
+
+const operatorSidebarZhCn = [
+  { text: "总览", link: "/zh-CN/operators/" },
+  { text: "使用 Docker 快速启动", link: "/zh-CN/operators/quickstart-docker" },
+  { text: "手动安装", link: "/zh-CN/operators/manual-install" },
+  { text: "配置参考", link: "/zh-CN/operators/configuration" },
+  { text: "反向代理（Caddy）", link: "/zh-CN/operators/reverse-proxy" },
+  { text: "Bilibili 凭证", link: "/zh-CN/operators/credentials" },
+  { text: "缓存", link: "/zh-CN/operators/caching" },
+  { text: "速率限制", link: "/zh-CN/operators/rate-limiting" },
+  { text: "日常运维", link: "/zh-CN/operators/maintenance" },
+  { text: "故障排除", link: "/zh-CN/operators/troubleshooting" },
+];
+
+const developerSidebarZhCn = [
+  { text: "总览", link: "/zh-CN/developers/" },
+  { text: "系统架构", link: "/zh-CN/developers/architecture" },
+  { text: "播放与下载架构", link: "/zh-CN/developers/playback-stack" },
+  { text: "路由与 API 参考", link: "/zh-CN/developers/api-reference" },
+  { text: "Bilibili API 封装", link: "/zh-CN/developers/bilibili-api" },
+  { text: "主题开发", link: "/zh-CN/developers/theming" },
+  { text: "多语言国际化", link: "/zh-CN/developers/i18n" },
+  { text: "测试", link: "/zh-CN/developers/testing" },
+  { text: "参与贡献", link: "/zh-CN/developers/contributing" },
+];
+
 export default withMermaid(
   defineConfig({
     base: "/mikuinvidious/",
@@ -95,29 +127,38 @@ export default withMermaid(
     transformHead({ pageData }) {
       const route = toRoute(pageData.relativePath);
       if (!route) return [];
-      const isZh = pageData.relativePath.startsWith("zh-TW/");
-      const enRoute = isZh ? route.replace(/^\/zh-TW/, "") || "/" : route;
-      const zhRoute = isZh ? route : route === "/" ? "/zh-TW" : `/zh-TW${route}`;
+      const isZhTw = pageData.relativePath.startsWith("zh-TW/");
+      const isZhCn = pageData.relativePath.startsWith("zh-CN/");
+      let subPath = route;
+      if (isZhTw) subPath = route.replace(/^\/zh-TW/, "") || "/";
+      else if (isZhCn) subPath = route.replace(/^\/zh-CN/, "") || "/";
+
+      const enRoute = subPath;
+      const zhTwRoute = subPath === "/" ? "/zh-TW" : `/zh-TW${subPath}`;
+      const zhCnRoute = subPath === "/" ? "/zh-CN" : `/zh-CN${subPath}`;
+
       const title = pageData.title || "MikuInvidious Docs";
       const description =
         pageData.description ||
-        (isZh
+        (isZhTw
           ? "MikuInvidious 使用者、站長與開發者文件"
+          : isZhCn
+          ? "MikuInvidious 用户、站长与开发者文档"
           : "MikuInvidious user, operator, and developer docs");
       const url = `${SITE_URL}${route === "/" ? "/" : `${route}/`}`;
+      const locale = isZhTw ? "zh_TW" : isZhCn ? "zh_CN" : "en_US";
+      const altLocales = ["en_US", "zh_TW", "zh_CN"].filter((l) => l !== locale);
+
       return [
         ["link", { rel: "canonical", href: url }],
         ["meta", { property: "og:title", content: title }],
         ["meta", { property: "og:description", content: description }],
         ["meta", { property: "og:url", content: url }],
-        ["meta", { property: "og:locale", content: isZh ? "zh_TW" : "en_US" }],
-        [
+        ["meta", { property: "og:locale", content: locale }],
+        ...altLocales.map((alt) => [
           "meta",
-          {
-            property: "og:locale:alternate",
-            content: isZh ? "en_US" : "zh_TW",
-          },
-        ],
+          { property: "og:locale:alternate", content: alt },
+        ]),
         [
           "link",
           {
@@ -131,7 +172,15 @@ export default withMermaid(
           {
             rel: "alternate",
             hreflang: "zh-TW",
-            href: `${SITE_URL}${zhRoute}/`,
+            href: `${SITE_URL}${zhTwRoute}/`,
+          },
+        ],
+        [
+          "link",
+          {
+            rel: "alternate",
+            hreflang: "zh-CN",
+            href: `${SITE_URL}${zhCnRoute}/`,
           },
         ],
         [
@@ -254,6 +303,70 @@ export default withMermaid(
           returnToTopLabel: "回到頂端",
           sidebarMenuLabel: "選單",
           darkModeSwitchLabel: "切換深色模式",
+        },
+      },
+      "zh-CN": {
+        label: "简体中文",
+        lang: "zh-CN",
+        link: "/zh-CN/",
+        title: "MikuInvidious 文档",
+        description: "MikuInvidious 用户、站长与开发者文档（简体中文）",
+        themeConfig: {
+          nav: [
+            { text: "用户指南", link: "/zh-CN/guide/" },
+            { text: "站长指南", link: "/zh-CN/operators/" },
+            { text: "开发者指南", link: "/zh-CN/developers/" },
+            { text: "公开实例", link: "/zh-CN/instances/" },
+          ],
+          sidebar: {
+            "/zh-CN/": [
+              {
+                text: "指南",
+                items: [
+                  { text: "首页", link: "/zh-CN/" },
+                  { text: "用户指南", link: "/zh-CN/guide/" },
+                  { text: "站长指南", link: "/zh-CN/operators/" },
+                  { text: "开发者指南", link: "/zh-CN/developers/" },
+                  { text: "公开实例", link: "/zh-CN/instances/" },
+                ],
+              },
+            ],
+            "/zh-CN/guide/": [
+              { text: "用户指南", items: guideSidebarZhCn },
+            ],
+            "/zh-CN/operators/": [
+              { text: "站长指南", items: operatorSidebarZhCn },
+            ],
+            "/zh-CN/developers/": [
+              { text: "开发者指南", items: developerSidebarZhCn },
+            ],
+          },
+          search: {
+            provider: "local",
+            options: {
+              translations: {
+                button: {
+                  buttonText: "搜索文档",
+                  buttonAriaLabel: "搜索文档",
+                },
+                modal: {
+                  noResultsText: "找不到相关结果",
+                  resetButtonTitle: "清除查询条件",
+                  footer: {
+                    selectText: "选择",
+                    navigateText: "切换",
+                    closeText: "关闭",
+                  },
+                },
+              },
+            },
+          },
+          outline: { label: "本页目录" },
+          docFooter: { prev: "上一页", next: "下一页" },
+          langMenuLabel: "切换语言",
+          returnToTopLabel: "回到顶部",
+          sidebarMenuLabel: "菜单",
+          darkModeSwitchLabel: "切换深色模式",
         },
       },
     },
