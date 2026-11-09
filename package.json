@@ -31,7 +31,7 @@
   },
   "homepage": "https://gitlab.com/apicalshark/mikuinvidious#readme",
   "devDependencies": {
-    "@tailwindcss/cli": "^4.3.3",
+    "@tailwindcss/cli": "^4.3.4",
     "@tailwindcss/typography": "^0.5.20",
     "prettier": "^3.9.10",
     "tailwindcss": "^4.3.4"
