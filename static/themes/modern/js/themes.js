@@ -145,8 +145,7 @@ function ensureOpenCC() {
       }
     }
     s.src = "/static/opencc-js/opencc.js" + (v ? "?v=" + encodeURIComponent(v) : "");
-    var nonce =
-      document.querySelector('meta[name="csp-nonce"]')?.getAttribute("content") || "";
+    var nonce = document.querySelector('meta[name="csp-nonce"]')?.getAttribute("content") || "";
     if (nonce) s.nonce = nonce;
     s.defer = true;
     s.onload = function () {
