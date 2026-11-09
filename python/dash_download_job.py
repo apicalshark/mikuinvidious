@@ -55,7 +55,7 @@ from dash_fetch import (
 from dash_stream import _dash_candidate_urls
 from quart import Response, jsonify, redirect
 from rate_limit import RATE_LIMITS, ip_family_key, rate_limit
-from shared import Network, appcred, appredis
+from shared import Network, appconf, appcred, appredis
 
 
 async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
@@ -100,6 +100,8 @@ async def proxy_download(vid, idx, qual):
     redirect at the native progressive ``/proxy/video/`` path — those MP4s
     are already muxed, so no ffmpeg step is needed.
     """
+    if not appconf.get("site_allow_download", True):
+        return Response("Forbidden: downloads are disabled on this instance", status=403)
     if not _is_valid_vid(vid):
         return Response("Bad Request: invalid video ID", status=400)
 
@@ -403,6 +405,8 @@ async def _get_job(job_id: str) -> _DownloadJob | None:
 
 async def create_download_job(vid: str, idx: int, qual: int) -> str:
     """Register a download job and launch its background worker. Returns job_id."""
+    if not appconf.get("site_allow_download", True):
+        raise RuntimeError("Downloads are disabled on this instance")
     if not _is_valid_vid(vid):
         raise RuntimeError("invalid video ID")
     await _sweep_jobs()

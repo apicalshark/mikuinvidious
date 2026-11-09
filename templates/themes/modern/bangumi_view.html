@@ -114,30 +114,75 @@
                         
                         if (iconPlaceholder && contentPlaceholder && epTorrents[epNum].length > 0) {
                             iconPlaceholder.classList.remove('hidden');
-                            iconPlaceholder.innerHTML = `<span class="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">${epTorrents[epNum].length}</span>`;
-                            
-                            let torrentsHtml = `<div class="pt-3">
-                                <p class="text-[9px] font-bold text-primary/60 uppercase tracking-widest mb-2 px-1">${MSG_NYAA_MAGNET}</p>
-                                <div class="grid grid-cols-1 gap-1.5">`;
-                            
+                            const badge = document.createElement('span');
+                            badge.className = 'text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono';
+                            badge.textContent = String(epTorrents[epNum].length);
+                            iconPlaceholder.replaceChildren(badge);
+
+                            const wrapper = document.createElement('div');
+                            wrapper.className = 'pt-3';
+
+                            const label = document.createElement('p');
+                            label.className = 'text-[9px] font-bold text-primary/60 uppercase tracking-widest mb-2 px-1';
+                            label.textContent = MSG_NYAA_MAGNET;
+                            wrapper.appendChild(label);
+
+                            const grid = document.createElement('div');
+                            grid.className = 'grid grid-cols-1 gap-1.5';
+
                             epTorrents[epNum].forEach(t => {
-                                torrentsHtml += `
-                                    <a href="${t.magnet}" 
-                                       class="w-full p-2 bg-black/5 dark:bg-white/5 hover:bg-primary/10 text-on-surface rounded-lg text-[11px] transition-all flex items-center justify-between group/torrent text-left"
-                                       title="${t.title}">
-                                        <span class="truncate pr-4 grow opacity-80 group-hover/torrent:opacity-100"><i class="icon ion-md-magnet text-primary mr-1 opacity-70"></i>${t.title}</span>
-                                        <div class="shrink-0 flex items-center gap-3">
-                                            <div class="flex gap-2 text-[9px] font-mono">
-                                                <span class="flex items-center gap-0.5 text-green-600/80 dark:text-green-400/80"><i class="icon ion-md-arrow-up"></i>${t.seeders}</span>
-                                                <span class="flex items-center gap-0.5 text-red-600/80 dark:text-red-400/80"><i class="icon ion-md-arrow-down"></i>${t.leechers}</span>
-                                            </div>
-                                            <span class="shrink-0 font-mono text-[10px] opacity-40 group-hover/torrent:opacity-100">${t.size}</span>
-                                        </div>
-                                    </a>`;
+                                const a = document.createElement('a');
+                                a.className = 'w-full p-2 bg-black/5 dark:bg-white/5 hover:bg-primary/10 text-on-surface rounded-lg text-[11px] transition-all flex items-center justify-between group/torrent text-left';
+                                
+                                const magnet = (typeof t.magnet === 'string' && t.magnet.startsWith('magnet:?')) ? t.magnet : '#';
+                                a.setAttribute('href', magnet);
+                                a.setAttribute('title', String(t.title || ''));
+
+                                const titleSpan = document.createElement('span');
+                                titleSpan.className = 'truncate pr-4 grow opacity-80 group-hover/torrent:opacity-100';
+
+                                const magnetIcon = document.createElement('i');
+                                magnetIcon.className = 'icon ion-md-magnet text-primary mr-1 opacity-70';
+                                titleSpan.appendChild(magnetIcon);
+                                titleSpan.appendChild(document.createTextNode(String(t.title || '')));
+                                a.appendChild(titleSpan);
+
+                                const statsWrapper = document.createElement('div');
+                                statsWrapper.className = 'shrink-0 flex items-center gap-3';
+
+                                const peersDiv = document.createElement('div');
+                                peersDiv.className = 'flex gap-2 text-[9px] font-mono';
+
+                                const seedersSpan = document.createElement('span');
+                                seedersSpan.className = 'flex items-center gap-0.5 text-green-600/80 dark:text-green-400/80';
+                                const upIcon = document.createElement('i');
+                                upIcon.className = 'icon ion-md-arrow-up';
+                                seedersSpan.appendChild(upIcon);
+                                seedersSpan.appendChild(document.createTextNode(String(t.seeders || '0')));
+
+                                const leechersSpan = document.createElement('span');
+                                leechersSpan.className = 'flex items-center gap-0.5 text-red-600/80 dark:text-red-400/80';
+                                const downIcon = document.createElement('i');
+                                downIcon.className = 'icon ion-md-arrow-down';
+                                leechersSpan.appendChild(downIcon);
+                                leechersSpan.appendChild(document.createTextNode(String(t.leechers || '0')));
+
+                                peersDiv.appendChild(seedersSpan);
+                                peersDiv.appendChild(leechersSpan);
+
+                                const sizeSpan = document.createElement('span');
+                                sizeSpan.className = 'shrink-0 font-mono text-[10px] opacity-40 group-hover/torrent:opacity-100';
+                                sizeSpan.textContent = String(t.size || '');
+
+                                statsWrapper.appendChild(peersDiv);
+                                statsWrapper.appendChild(sizeSpan);
+                                a.appendChild(statsWrapper);
+
+                                grid.appendChild(a);
                             });
-                            
-                            torrentsHtml += `</div></div>`;
-                            contentPlaceholder.innerHTML = torrentsHtml;
+
+                            wrapper.appendChild(grid);
+                            contentPlaceholder.replaceChildren(wrapper);
                         }
                     }
                 })

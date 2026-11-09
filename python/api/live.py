@@ -306,7 +306,7 @@ class LiveDanmaku:
         self.max_retry = max_retry
         self.retry_after = retry_after
         self._handlers = {}
-        self._tasks = []
+        self._tasks = set()
         self._ws = None
         self._session = None
         self._connector = None
@@ -333,7 +333,8 @@ class LiveDanmaku:
             result = handler(*args, **kwargs)
             if asyncio.iscoroutine(result):
                 task = asyncio.create_task(result)
-                self._tasks.append(task)
+                self._tasks.add(task)
+                task.add_done_callback(self._tasks.discard)
 
     async def connect(self) -> None:
         import aiohttp
@@ -529,3 +530,7 @@ class LiveDanmaku:
                 pass
         self._ws = None
         self._status = 0
+        for task in list(self._tasks):
+            if not task.done():
+                task.cancel()
+        self._tasks.clear()

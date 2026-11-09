@@ -193,9 +193,15 @@ async def set_lang_api():
     redirect_to = request.headers.get("Referer") or "/preferences"
     if redirect_to:
         parsed = urlparse(redirect_to)
-        q = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if k != "lang"]
-        clean_query = urlencode(q)
-        redirect_to = urlunparse(parsed._replace(query=clean_query))
+        # Prevent open redirect: only allow redirect if netloc is empty or matches request host,
+        # and ensure path starts with a single / (not scheme-relative //)
+        if parsed.netloc and parsed.netloc != request.host:
+            redirect_to = "/preferences"
+        else:
+            path = parsed.path if parsed.path and not parsed.path.startswith(("//", "/\\")) else "/preferences"
+            q = [(k, v) for k, v in parse_qsl(parsed.query, keep_blank_values=True) if k != "lang"]
+            clean_query = urlencode(q)
+            redirect_to = urlunparse(parsed._replace(scheme="", netloc="", path=path, query=clean_query))
     resp = redirect(redirect_to)
     forwarded = request.headers.get("X-Forwarded-Proto", "").split(",")[0].strip().lower()
     is_secure = request.is_secure or forwarded == "https"
@@ -242,6 +248,8 @@ async def b32tv_redirect(b32tvid):
 @csrf_protect()
 @rate_limit(**RATE_LIMITS["strict"])
 async def dl_redirect():
+    if not appconf.get("site_allow_download", True):
+        return Response("Forbidden: downloads are disabled on this instance", status=403)
     form = await request.form
     bvid = form.get("id")
     cvid = form.get("cvid")
@@ -372,8 +380,19 @@ async def general_exception_view(e):
     traceback.print_exc()
     print(f"[ERROR] {error_msg}")
     # Never expose internal error details to users
-    return await render_template_with_theme(
-        "error.html",
-        status="Server error",
-        desc="Internal server error. Please try again later or contact the administrator.",
-    ), 500
+    try:
+        return await render_template_with_theme(
+            "error.html",
+            status="Server error",
+            desc="Internal server error. Please try again later or contact the administrator.",
+        ), 500
+    except Exception:
+        try:
+            return await render_template_with_theme(
+                "error.html",
+                theme="modern",
+                status="Server error",
+                desc="Internal server error. Please try again later or contact the administrator.",
+            ), 500
+        except Exception:
+            return Response("500 Internal Server Error", status=500, content_type="text/plain; charset=utf-8")

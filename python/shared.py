@@ -1,6 +1,7 @@
 import asyncio
 import functools
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -781,18 +782,23 @@ if appconf["credential"]["use_cred"]:
 ##########################################
 
 
+_THEME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
 def detect_theme():
     """Determine the theme of the users' request.
 
-    Falls back to 'modern' if the requested theme directory does not exist,
-    preventing 500 TemplateNotFound crashes when users have stale cookies
-    or query parameters (e.g. legacy 'light' theme).
+    Falls back to 'modern' if the requested theme contains invalid characters,
+    traversal sequences, or if the directory does not exist, preventing 500
+    TemplateNotFound crashes.
     """
-    theme = request.args.get("theme") or request.cookies.get("theme") or appconf["display"]["default_theme"]
-    theme_path = os.path.join(app.root_path, "../templates/themes", theme)
+    raw_theme = request.args.get("theme") or request.cookies.get("theme") or appconf["display"]["default_theme"]
+    if not raw_theme or not _THEME_RE.match(raw_theme):
+        return "modern"
+    theme_path = os.path.join(app.root_path, "../templates/themes", raw_theme)
     if not os.path.isdir(theme_path):
-        theme = "modern"
-    return theme
+        return "modern"
+    return raw_theme
 
 
 def detect_locale():

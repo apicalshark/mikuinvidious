@@ -3,7 +3,7 @@ import ipaddress
 import re
 import uuid
 import weakref
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from api.live import ScreenResolution
 from image_cache import image_cache
@@ -148,10 +148,29 @@ async def render_proxy_pic(req_path):
 
         client = await Network.get_image_client()
         resp = None
+        current_url = url
+        redirect_count = 0
+        MAX_REDIRECTS = 3
         try:
-            req = client.build_request("GET", url, headers=headers)
-            # Headers are validated before reading body
-            resp = await client.send(req, stream=True, follow_redirects=True)
+            while True:
+                req = client.build_request("GET", current_url, headers=headers)
+                # Headers are validated before reading body
+                resp = await client.send(req, stream=True, follow_redirects=False)
+
+                if resp.is_redirect and "location" in resp.headers:
+                    if redirect_count >= MAX_REDIRECTS:
+                        await resp.aclose()
+                        return Response("Forbidden: Too many redirects", status=403)
+                    redirect_count += 1
+                    loc = resp.headers["location"]
+                    await resp.aclose()
+                    next_url = urljoin(current_url, loc)
+                    if not await is_safe_proxy_url(next_url):
+                        print(f"[Proxy] Forbidden redirect destination: {next_url}")
+                        return Response("Forbidden: Invalid redirect target", status=403)
+                    current_url = next_url
+                    continue
+                break
 
             content_type = resp.headers.get("content-type", "").lower().split(";")[0].strip()
             # Bilibili's image CDN sometimes returns a bare extension
