@@ -28,7 +28,7 @@
                 <div class="flex flex-wrap items-center gap-3 pt-1">
                     <button type="button"
                             data-seed="#a85383"
-                            title="Sakura Pink (Default)"
+                            title="Sakura Pink"
                             class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
                             style="background-color: #a85383">
                         <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
@@ -75,12 +75,16 @@
                             style="background-color: #2563eb">
                         <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
                     </button>
+                    <button type="button"
+                            data-seed="{{ default_accent }}"
+                            class="m3-seed-swatch md3-button md3-button-tonal">{{ _("Reset theme color") }}</button>
                     <!-- Custom Hex Color Input -->
                     <label class="relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-outline-variant/40 cursor-pointer overflow-hidden bg-surface-container-high"
                            title="{{ _('Custom Color') }}">
                         <i class="icon ion-md-color-filter text-on-surface-variant text-lg"></i>
                         <input type="color"
                                id="m3-custom-color"
+                               aria-label="{{ _('Custom Color') }}"
                                value="#a85383"
                                class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
                     </label>

@@ -221,6 +221,16 @@
                     border: none !important;
                 }
 
+                #searchbox:focus-visible {
+                    outline: 3px solid var(--md-sys-color-primary) !important;
+                    outline-offset: 2px;
+                }
+
+                #m3-seed-picker label:focus-within {
+                    outline: 3px solid var(--md-sys-color-primary) !important;
+                    outline-offset: 2px;
+                }
+
                 header.sticky {
                     -webkit-backdrop-filter: blur(24px);
                     backdrop-filter: blur(24px);
@@ -460,7 +470,7 @@
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
         <!-- Sticky M3 Top App Bar with Glassmorphism -->
         <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/65 transition-colors duration-200 border-b border-outline-variant/15">
-            <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-2.5 flex items-center justify-between gap-3 md:gap-6">
+            <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-2.5 flex flex-wrap md:flex-nowrap items-center justify-between gap-3 md:gap-6">
                 <!-- Brand -->
                 <div class="flex items-center gap-3 shrink-0">
                     <a href="/"
@@ -468,7 +478,8 @@
                 </div>
 
                 <!-- Search Bar Container (Flex on desktop, compact on mobile) -->
-                <div id="search_container" class="flex-1 max-w-2xl mx-auto searchbar">
+                <div id="search_container"
+                     class="order-last w-full min-w-0 md:order-none md:flex-1 max-w-2xl mx-auto searchbar">
                     <form class="w-full" action="/search" method="get">
                         <div class="relative group flex items-center">
                             <span class="absolute left-4 flex items-center text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">

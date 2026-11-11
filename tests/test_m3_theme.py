@@ -85,7 +85,7 @@ class TestM3Theme(unittest.IsolatedAsyncioTestCase):
                 await shared.render_template_with_theme("search.html")
                 kwargs = dict(render.await_args.kwargs)
                 self.assertEqual(kwargs.get("user_accent"), "#00aeec")
-                self.assertEqual(kwargs.get("default_accent"), "#a85383")
+                self.assertEqual(kwargs.get("default_accent"), shared.appconf["display"]["default_accent"])
 
     def test_bilibili_pink_distinguished_from_sakura(self):
         js = M3_THEME_JS.read_text(encoding="utf-8")

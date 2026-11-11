@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-28 12:29+0800\n"
+"POT-Creation-Date: 2026-11-11 16:27+0000\n"
 "Language: ko\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -178,60 +178,60 @@ msgstr "영상을 불러오지 못했습니다"
 msgid "You have no browsing history yet."
 msgstr "아직 탐색 기록이 없습니다."
 
-#: templates/macros.html:17
+#: templates/macros.html:13
 msgid "Resolving video URL..."
 msgstr "영상 URL을 해석하는 중..."
 
-#: static/themes/modern/js/player.js:1698
-#: static/themes/modern/js/player.js:1768 templates/macros.html:66
+#: static/themes/modern/js/player.js:1724
+#: static/themes/modern/js/player.js:1794 templates/macros.html:62
 msgid "Resolution"
 msgstr "화질"
 
-#: templates/macros.html:86
+#: templates/macros.html:82
 msgid "Click to play"
 msgstr "클릭하여 재생"
 
-#: templates/macros.html:87
+#: templates/macros.html:83
 msgid "Browser blocked autoplay"
 msgstr "브라우저가 자동 재생을 차단했습니다"
 
-#: templates/macros.html:99
+#: templates/macros.html:95
 msgid "Volume"
 msgstr "음량"
 
-#: templates/macros.html:107
+#: templates/macros.html:103
 msgid "LIVE"
 msgstr "생방송"
 
-#: templates/macros.html:115
+#: templates/macros.html:111
 msgid "Toggle danmaku"
 msgstr "단막 전환"
 
-#: templates/macros.html:121
+#: templates/macros.html:117
 msgid "Switch resolution"
 msgstr "화질 전환"
 
-#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:35
+#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:38
 msgid "This user has no bio yet."
 msgstr "이 사용자는 아직 자기소개가 없습니다."
 
-#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:43
+#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:47
 msgid "Bilibili Space"
 msgstr "Bilibili 스페이스"
 
 #: templates/themes/modern/author.html:48
-#: templates/themes/modern/search.html:12
+#: templates/themes/modern/search.html:15
 #: templates/themes/modern/search_article.html:12
 #: templates/themes/modern/search_user.html:12
-#: templates/themes/modern/space.html:60
+#: templates/themes/modern/space.html:65
 msgid "Videos"
 msgstr "영상"
 
 #: templates/themes/modern/author.html:55 templates/themes/modern/read.html:8
-#: templates/themes/modern/search.html:16
-#: templates/themes/modern/search_article.html:14
-#: templates/themes/modern/search_user.html:14
-#: templates/themes/modern/space.html:48
+#: templates/themes/modern/search.html:19
+#: templates/themes/modern/search_article.html:16
+#: templates/themes/modern/search_user.html:16
+#: templates/themes/modern/space.html:52
 msgid "Articles"
 msgstr "기사"
 
@@ -240,25 +240,25 @@ msgid "Read on Bilibili"
 msgstr "Bilibili에서 읽기"
 
 #: templates/themes/modern/author.html:99
-#: templates/themes/modern/search_article.html:70
+#: templates/themes/modern/search_article.html:72
 msgid "reads"
 msgstr "조회"
 
 #: templates/themes/modern/author.html:111
-#: templates/themes/modern/bangumi_index.html:154
-#: templates/themes/modern/search.html:117
-#: templates/themes/modern/search_article.html:82
-#: templates/themes/modern/search_user.html:56
-#: templates/themes/modern/space.html:144 templates/themes/modern/zone.html:75
+#: templates/themes/modern/bangumi_index.html:155
+#: templates/themes/modern/search.html:67
+#: templates/themes/modern/search_article.html:84
+#: templates/themes/modern/search_user.html:58
+#: templates/themes/modern/space.html:112 templates/themes/modern/zone.html:75
 msgid "Previous page"
 msgstr "이전 페이지"
 
 #: templates/themes/modern/author.html:117
-#: templates/themes/modern/bangumi_index.html:161
-#: templates/themes/modern/search.html:123
-#: templates/themes/modern/search_article.html:88
-#: templates/themes/modern/search_user.html:62
-#: templates/themes/modern/space.html:150 templates/themes/modern/zone.html:81
+#: templates/themes/modern/bangumi_index.html:162
+#: templates/themes/modern/search.html:73
+#: templates/themes/modern/search_article.html:90
+#: templates/themes/modern/search_user.html:64
+#: templates/themes/modern/space.html:118 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "다음 페이지"
 
@@ -270,31 +270,31 @@ msgstr "이 사용자는 아직 글이 없습니다."
 msgid "Bangumi index"
 msgstr "방구미 색인"
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Anime"
 msgstr "애니메이션"
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Chinese Original"
 msgstr "중국 창작 애니"
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Movies"
 msgstr "영화"
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "TV Series"
 msgstr "드라마"
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Variety"
 msgstr "예능"
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Documentary"
 msgstr "다큐멘터리"
 
-#: templates/themes/modern/bangumi_index.html:93
+#: templates/themes/modern/bangumi_index.html:94
 msgid "Sort"
 msgstr "정렬"
 
@@ -326,65 +326,66 @@ msgstr "Nyaa에서 검색 중..."
 msgid "Nyaa Magnet Resources"
 msgstr "Nyaa 마그넷 리소스"
 
-#: templates/themes/modern/bangumi_view.html:147
+#: templates/themes/modern/bangumi_view.html:192
 msgid "Failed to load Nyaa resources"
 msgstr "Nyaa 리소스를 불러오지 못했습니다"
 
-#: templates/themes/modern/base.html:414 templates/themes/modern/base.html:483
+#: templates/themes/modern/base.html:504 templates/themes/modern/base.html:639
 msgid "Bangumi"
 msgstr "방구미"
 
-#: templates/themes/modern/base.html:419 templates/themes/modern/base.html:488
+#: templates/themes/modern/base.html:511
 msgid "Toggle theme"
 msgstr "테마 전환"
 
-#: templates/themes/modern/base.html:425 templates/themes/modern/base.html:494
+#: templates/themes/modern/base.html:517
 msgid "Language"
 msgstr "언어"
 
-#: templates/themes/modern/base.html:451 templates/themes/modern/base.html:520
-#: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:9
+#: templates/themes/modern/base.html:546 templates/themes/modern/base.html:646
+#: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "설정"
 
-#: templates/themes/modern/base.html:474
+#: templates/themes/modern/base.html:495
+#: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "검색어를 입력하세요?"
 
-#: templates/themes/modern/base.html:539
+#: templates/themes/modern/base.html:565
 msgid "Original source code"
 msgstr "원본 소스 코드"
 
-#: templates/themes/modern/base.html:541
+#: templates/themes/modern/base.html:567
 msgid "Modified source code"
 msgstr "수정된 소스 코드"
 
-#: templates/themes/modern/base.html:544
+#: templates/themes/modern/base.html:570
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "소스 코드"
 
-#: templates/themes/modern/base.html:550
+#: templates/themes/modern/base.html:576
 msgid "Documentation"
 msgstr "문서"
 
-#: templates/themes/modern/base.html:555
+#: templates/themes/modern/base.html:581
 msgid "Link converter"
 msgstr ""
 
-#: templates/themes/modern/base.html:561
+#: templates/themes/modern/base.html:587
 msgid "Proudly released under AGPLv3"
 msgstr "AGPLv3 하에 배포됩니다"
 
-#: templates/themes/modern/base.html:568
+#: templates/themes/modern/base.html:594
 msgid "View JavaScript licenses"
 msgstr "JavaScript 라이선스 보기"
 
-#: templates/themes/modern/base.html:573
+#: templates/themes/modern/base.html:599
 msgid "Privacy policy"
 msgstr "개인정보처리방침"
 
-#: templates/themes/modern/base.html:580
+#: templates/themes/modern/base.html:606
 msgid "Donate"
 msgstr "후원"
 
@@ -467,68 +468,68 @@ msgid ""
 "source code link below."
 msgstr "요청을 확인해 주세요. 사이트 문제라고 생각되면 관리자에게 문의하세요. 관리자인 경우 아래 소스 코드 링크를 통해 보고해 주세요."
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:49
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:137
 msgid "Back to home"
 msgstr "홈으로 돌아가기"
 
-#: templates/themes/modern/home.html:3 templates/themes/modern/search.html:3
+#: templates/themes/modern/home.html:5 templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
 msgid "Search"
 msgstr "검색"
 
-#: templates/themes/modern/home.html:9
+#: templates/themes/modern/home.html:12
 msgid "Hey, this is MikuInvidious!"
 msgstr "안녕하세요, MikuInvidious입니다!"
 
-#: templates/themes/modern/home.html:9
+#: templates/themes/modern/home.html:12
 msgid "MikuInvidious is a free Bilibili frontend."
 msgstr "MikuInvidious는 자유로운 Bilibili 프론트엔드입니다."
 
-#: templates/themes/modern/home.html:13
+#: templates/themes/modern/home.html:16
 msgid ""
 "This is a MikuInvidious fork that supports pasting Bilibili links directly "
 "into the search box."
 msgstr "이 MikuInvidious 포크는 검색창에 Bilibili 링크를 직접 붙여넣을 수 있습니다."
 
-#: templates/themes/modern/home.html:15
+#: templates/themes/modern/home.html:19
 msgid "To convert a Bilibili link to MikuInvidious, replace"
 msgstr "Bilibili 링크를 MikuInvidious로 변환하려면 다음을 바꾸세요"
 
-#: templates/themes/modern/home.html:15
+#: templates/themes/modern/home.html:19
 msgid "and"
 msgstr "그리고"
 
-#: templates/themes/modern/home.html:15
+#: templates/themes/modern/home.html:19
 msgid "with this MikuInvidious instance’s domain."
 msgstr "를 이 MikuInvidious 인스턴스의 도메인으로 바꾸세요."
 
-#: templates/themes/modern/home.html:18
+#: templates/themes/modern/home.html:22
 msgid "For user spaces, paste the number after"
 msgstr "사용자 스페이스의 경우 다음 뒤의 숫자를 붙여넣으세요"
 
-#: templates/themes/modern/home.html:18
+#: templates/themes/modern/home.html:22
 msgid "after the instance domain +"
 msgstr "인스턴스 도메인 뒤에 +"
 
-#: templates/themes/modern/home.html:18
+#: templates/themes/modern/home.html:22
 msgid "suffix."
 msgstr "접미사를 붙이세요."
 
-#: templates/themes/modern/home.html:58 templates/themes/modern/search.html:95
-#: templates/themes/modern/space.html:107
-#: templates/themes/modern/video.html:138
+#: templates/themes/modern/components/m3_components.html:127
+#: templates/themes/modern/video.html:128
 #: templates/themes/modern/video_listen.html:127
 #: templates/themes/modern/zone.html:49
 msgid "Watch on Bilibili"
 msgstr "Bilibili에서 보기"
 
-#: templates/themes/modern/home.html:63 templates/themes/modern/space.html:112
-#: templates/themes/modern/video.html:69 templates/themes/modern/zone.html:54
+#: templates/themes/modern/components/m3_components.html:135
+#: templates/themes/modern/video.html:70 templates/themes/modern/zone.html:54
 msgid "Audio mode"
 msgstr "오디오 모드"
 
-#: templates/themes/modern/home.html:72
+#: templates/themes/modern/components/m3_components.html:147
+#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:361
 msgid "views"
 msgstr "조회수"
 
@@ -554,46 +555,46 @@ msgstr "스크립트 파일"
 msgid "License"
 msgstr "라이선스"
 
-#: templates/themes/modern/pref.html:13
+#: templates/themes/modern/pref.html:98
 msgid "Traditional Chinese conversion"
 msgstr "번체자 변환"
 
-#: templates/themes/modern/pref.html:14
+#: templates/themes/modern/pref.html:99
 msgid "Convert content to Traditional Chinese with OpenCC"
 msgstr "OpenCC를 사용하여 콘텐츠를 번체자로 변환"
 
-#: templates/themes/modern/pref.html:16 templates/themes/modern/pref.html:24
-#: templates/themes/modern/pref.html:33 templates/themes/modern/pref.html:42
-#: templates/themes/modern/video.html:414
-#: templates/themes/modern/video.html:565
+#: templates/themes/modern/pref.html:102 templates/themes/modern/pref.html:111
+#: templates/themes/modern/pref.html:120 templates/themes/modern/pref.html:129
+#: templates/themes/modern/video.html:408
+#: templates/themes/modern/video.html:559
 #: templates/themes/modern/video_listen.html:288
 #: templates/themes/modern/video_listen.html:386
 msgid "Loading..."
 msgstr "불러오는 중..."
 
-#: templates/themes/modern/pref.html:21
+#: templates/themes/modern/pref.html:107
 msgid "Auto-convert search to Simplified Chinese"
 msgstr "검색어를 간체자로 자동 변환"
 
-#: templates/themes/modern/pref.html:22
+#: templates/themes/modern/pref.html:108
 msgid "Automatically convert keywords to Simplified Chinese when searching"
 msgstr "검색 시 키워드를 간체자로 자동 변환합니다"
 
-#: templates/themes/modern/pref.html:30
+#: templates/themes/modern/pref.html:116
 msgid "Pin best audio quality"
 msgstr "최고 음질 고정"
 
-#: templates/themes/modern/pref.html:31
+#: templates/themes/modern/pref.html:117
 msgid ""
 "Always play the highest available audio track instead of following video "
 "quality"
 msgstr "화질과 관계없이 항상 최고 음질 트랙을 재생"
 
-#: templates/themes/modern/pref.html:39
+#: templates/themes/modern/pref.html:125
 msgid "Lock video resolution"
 msgstr ""
 
-#: templates/themes/modern/pref.html:40
+#: templates/themes/modern/pref.html:126
 msgid ""
 "Always play the highest available video track instead of auto-switching "
 "quality"
@@ -603,219 +604,212 @@ msgstr ""
 msgid "Illustrations"
 msgstr "일러스트"
 
-#: templates/themes/modern/search.html:10
+#: templates/themes/modern/search.html:13
 #: templates/themes/modern/search_article.html:10
 #: templates/themes/modern/search_user.html:10
 msgid "Search category:"
 msgstr "검색 분류:"
 
-#: templates/themes/modern/search.html:14
+#: templates/themes/modern/search.html:17
+#: templates/themes/modern/search_article.html:14
+#: templates/themes/modern/search_user.html:14
 msgid "Live"
 msgstr "생방송"
 
-#: templates/themes/modern/search.html:18
-#: templates/themes/modern/search_article.html:16
-#: templates/themes/modern/search_user.html:16
+#: templates/themes/modern/search.html:21
+#: templates/themes/modern/search_article.html:18
+#: templates/themes/modern/search_user.html:18
 msgid "Creators"
 msgstr "크리에이터"
 
-#: templates/themes/modern/search.html:22
-#: templates/themes/modern/search_article.html:20
-#: templates/themes/modern/search_user.html:20
+#: templates/themes/modern/search.html:25
+#: templates/themes/modern/search_article.html:22
+#: templates/themes/modern/search_user.html:22
 msgid "Sort by:"
 msgstr "정렬 기준:"
 
-#: templates/themes/modern/search.html:23
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search.html:26
+#: templates/themes/modern/search_article.html:23
 msgid "Comprehensive"
 msgstr "종합"
 
-#: templates/themes/modern/search.html:23
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search.html:26
+#: templates/themes/modern/search_article.html:23
 msgid "Most clicks"
 msgstr "클릭순"
 
-#: templates/themes/modern/search.html:23
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search.html:26
+#: templates/themes/modern/search_article.html:23
 msgid "Newest"
 msgstr "최신순"
 
-#: templates/themes/modern/search.html:23
+#: templates/themes/modern/search.html:26
 msgid "Most danmaku"
 msgstr "단막순"
 
-#: templates/themes/modern/search.html:23
+#: templates/themes/modern/search.html:26
 msgid "Most favorites"
 msgstr "즐겨찾기순"
 
-#: templates/themes/modern/search.html:23
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search.html:26
+#: templates/themes/modern/search_article.html:23
 msgid "Most comments"
 msgstr "댓글순"
 
-#: templates/themes/modern/search.html:36
+#: templates/themes/modern/search.html:40
 msgid "No results found"
 msgstr "결과가 없습니다"
 
-#: templates/themes/modern/search.html:37
-#: templates/themes/modern/search_article.html:34
-#: templates/themes/modern/search_user.html:34
+#: templates/themes/modern/search.html:41
+#: templates/themes/modern/search_article.html:36
+#: templates/themes/modern/search_user.html:36
 msgid "Try another keyword?"
 msgstr "다른 키워드로 시도해 보세요?"
 
-#: templates/themes/modern/search.html:57
+#: templates/themes/modern/components/m3_components.html:147
+#: templates/themes/modern/search.html:51
 msgid "watching"
 msgstr "시청 중"
 
-#: templates/themes/modern/search.html:105
-msgid "popularity"
-msgstr "인기"
-
-#: templates/themes/modern/search.html:105
-#: templates/themes/modern/space.html:121 templates/themes/modern/zone.html:63
+#: templates/themes/modern/zone.html:63
 msgid "plays"
 msgstr "재생"
 
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search_article.html:23
 msgid "Most likes"
 msgstr "좋아요순"
 
-#: templates/themes/modern/search_article.html:33
+#: templates/themes/modern/search_article.html:35
 msgid "No articles found"
 msgstr "기사를 찾을 수 없습니다"
 
-#: templates/themes/modern/search_user.html:21
+#: templates/themes/modern/search_user.html:23
 msgid "Most fans"
 msgstr "팬순"
 
-#: templates/themes/modern/search_user.html:21
+#: templates/themes/modern/search_user.html:23
 msgid "Highest level"
 msgstr "레벨순"
 
-#: templates/themes/modern/search_user.html:33
+#: templates/themes/modern/search_user.html:35
 msgid "No users found"
 msgstr "사용자를 찾을 수 없습니다"
 
-#: templates/themes/modern/space.html:53
+#: templates/themes/modern/space.html:57
 msgid "RSS Feed"
 msgstr "RSS 피드"
 
-#: templates/themes/modern/space.html:65
+#: templates/themes/modern/space.html:71
 msgid ""
 "Video list temporarily unavailable — Bilibili rate-limited this instance. "
 "Profile shown; videos should return in a few minutes."
 msgstr "영상 목록을 일시적으로 사용할 수 없습니다——Bilibili에서 이 인스턴스에 속도 제한을 적용했습니다. 프로필은 표시됩니다. 몇 분 후 영상이 복구될 것입니다."
 
-#: templates/themes/modern/space.html:69
+#: templates/themes/modern/space.html:75
 msgid ""
 "Video list could not be loaded due to a network error. Profile shown; please "
 "retry shortly."
 msgstr "네트워크 오류로 영상 목록을 불러오지 못했습니다. 프로필은 표시됩니다. 잠시 후 다시 시도해 주세요."
 
-#: templates/themes/modern/space.html:130
+#: templates/themes/modern/space.html:97
 msgid "Nothing to show right now — see notice above."
 msgstr "현재 표시할 내용이 없습니다——위 안내를 확인해 주세요."
 
-#: templates/themes/modern/space.html:132
+#: templates/themes/modern/space.html:99
 msgid "Nothing to show right now — loading failed, see notice above."
 msgstr "현재 표시할 내용이 없습니다——불러오기에 실패했습니다. 위 안내를 확인해 주세요."
 
-#: templates/themes/modern/space.html:134
+#: templates/themes/modern/space.html:101
 msgid "This user has no videos yet."
 msgstr "이 사용자는 아직 영상이 없습니다."
 
-#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:89
+#: templates/themes/modern/video.html:88
 msgid "Online"
 msgstr "온라인"
 
-#: templates/themes/modern/video.html:88
-msgid "Views"
-msgstr "조회수"
-
-#: templates/themes/modern/video.html:92
+#: templates/themes/modern/video.html:90
 msgid "Likes"
 msgstr "좋아요"
 
-#: templates/themes/modern/video.html:95
+#: templates/themes/modern/video.html:91
 msgid "Coins"
 msgstr "코인"
 
-#: templates/themes/modern/video.html:98
+#: templates/themes/modern/video.html:92
 msgid "Favorites"
 msgstr "즐겨찾기"
 
-#: templates/themes/modern/video.html:101
+#: templates/themes/modern/video.html:93
 msgid "Share"
 msgstr "공유"
 
-#: templates/themes/modern/video.html:161
+#: templates/themes/modern/video.html:151
 msgid "Download"
 msgstr "다운로드"
 
 #: templates/themes/modern/components/meta_part.html:6
-#: templates/themes/modern/video.html:181
-#: templates/themes/modern/video.html:478
+#: templates/themes/modern/video.html:171
+#: templates/themes/modern/video.html:472
 #: templates/themes/modern/video_listen.html:158
 msgid "Comments"
 msgstr "댓글"
 
-#: templates/themes/modern/video.html:210
+#: templates/themes/modern/video.html:200
 msgid "Loading comments..."
 msgstr "댓글을 불러오는 중..."
 
-#: templates/themes/modern/video.html:229
-#: templates/themes/modern/video.html:232
+#: templates/themes/modern/video.html:219
+#: templates/themes/modern/video.html:222
 msgid "Live chat"
 msgstr "생방송 채팅"
 
-#: templates/themes/modern/video.html:240
+#: templates/themes/modern/video.html:230
 msgid "Connecting to chat..."
 msgstr "채팅에 연결하는 중..."
 
-#: templates/themes/modern/video.html:313
+#: templates/themes/modern/video.html:303
 #: templates/themes/modern/video_listen.html:221
 msgid "Episodes"
 msgstr "회차"
 
-#: templates/themes/modern/video.html:319
+#: templates/themes/modern/video.html:309
 #: templates/themes/modern/video_listen.html:227
 msgid "Autoplay next"
 msgstr "다음 자동 재생"
 
-#: templates/themes/modern/video.html:348
+#: templates/themes/modern/video.html:340
 #: templates/themes/modern/video_listen.html:255
 msgid "Recommended"
 msgstr "추천"
 
-#: templates/themes/modern/video.html:367
 #: templates/themes/modern/video_listen.html:274
 msgid "Play"
 msgstr "재생"
 
-#: templates/themes/modern/video.html:412
+#: templates/themes/modern/video.html:406
 #: templates/themes/modern/video_listen.html:286
 msgid "Fold"
 msgstr "접기"
 
-#: templates/themes/modern/video.html:413
+#: templates/themes/modern/video.html:407
 #: templates/themes/modern/video_listen.html:287
 msgid "Load more replies"
 msgstr "답글 더 보기"
 
 #: templates/themes/modern/components/meta_part.html:25
-#: templates/themes/modern/video.html:415
+#: templates/themes/modern/video.html:409
 #: templates/themes/modern/video_listen.html:210
 #: templates/themes/modern/video_listen.html:290
 msgid "Load more comments"
 msgstr "댓글 더 보기"
 
-#: templates/themes/modern/video.html:478
+#: templates/themes/modern/video.html:472
 msgid "Failed to load comments, please try again later"
 msgstr "댓글을 불러오지 못했습니다. 나중에 다시 시도해 주세요"
 
-#: templates/themes/modern/video.html:537
-#: templates/themes/modern/video.html:577
-#: templates/themes/modern/video.html:638
+#: templates/themes/modern/video.html:531
+#: templates/themes/modern/video.html:571
+#: templates/themes/modern/video.html:632
 #: templates/themes/modern/video_listen.html:289
 #: templates/themes/modern/video_listen.html:398
 msgid "Load failed"
@@ -1003,40 +997,56 @@ msgstr "스트림 종료"
 msgid "Live stream has ended"
 msgstr "생방송이 종료되었습니다"
 
-#: static/themes/modern/js/player.js:1442
+#: static/themes/modern/js/player.js:1468
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "자동 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1465
-#: static/themes/modern/js/player.js:1469
-#: static/themes/modern/js/player.js:1500
-#: static/themes/modern/js/player.js:1504
+#: static/themes/modern/js/player.js:1491
+#: static/themes/modern/js/player.js:1495
+#: static/themes/modern/js/player.js:1526
+#: static/themes/modern/js/player.js:1530
 msgid "Auto"
 msgstr "자동"
 
-#: static/themes/modern/js/player.js:1629
+#: static/themes/modern/js/player.js:1655
 msgid "Back"
 msgstr "뒤로"
 
-#: static/themes/modern/js/player.js:1699
+#: static/themes/modern/js/player.js:1725
 msgid "Audio"
 msgstr "오디오"
 
-#: static/themes/modern/js/player.js:1700
-#: static/themes/modern/js/player.js:1769
+#: static/themes/modern/js/player.js:1726
+#: static/themes/modern/js/player.js:1795
 msgid "Playback speed"
 msgstr "재생 속도"
 
-#: static/themes/modern/js/themes.js:229 static/themes/modern/js/themes.js:241
-#: static/themes/modern/js/themes.js:257 static/themes/modern/js/themes.js:267
+#: static/themes/modern/js/themes.js:248 static/themes/modern/js/themes.js:260
+#: static/themes/modern/js/themes.js:276 static/themes/modern/js/themes.js:286
 msgid "On"
 msgstr "켬"
 
-#: static/themes/modern/js/themes.js:232 static/themes/modern/js/themes.js:244
-#: static/themes/modern/js/themes.js:254 static/themes/modern/js/themes.js:270
+#: static/themes/modern/js/themes.js:251 static/themes/modern/js/themes.js:263
+#: static/themes/modern/js/themes.js:273 static/themes/modern/js/themes.js:289
 msgid "Off"
 msgstr "끔"
+
+#: templates/themes/modern/base.html:632
+msgid "Home"
+msgstr ""
+
+#: templates/themes/modern/pref.html:22
+msgid "Theme Color"
+msgstr ""
+
+#: templates/themes/modern/pref.html:80
+msgid "Reset theme color"
+msgstr ""
+
+#: templates/themes/modern/pref.html:83 templates/themes/modern/pref.html:87
+msgid "Custom Color"
+msgstr ""
 
 #~ msgid "No articles yet"
 #~ msgstr "아직 기사가 없습니다"
@@ -1044,3 +1054,11 @@ msgstr "끔"
 #~ #: templates/themes/modern/base.html:503
 #~ msgid "Version info unavailable :-("
 #~ msgstr "버전 정보를 사용할 수 없습니다 :-("
+
+#~ #: templates/themes/modern/search.html:105
+#~ msgid "popularity"
+#~ msgstr "인기"
+
+#~ #: templates/themes/modern/video.html:88
+#~ msgid "Views"
+#~ msgstr "조회수"

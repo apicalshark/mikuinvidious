@@ -44,6 +44,8 @@
         .map((c) => c + c)
         .join("");
     }
+    // Seeds define opaque palettes: ignore the alpha byte in #RRGGBBAA.
+    if (clean.length === 8) clean = clean.slice(0, 6);
     const num = parseInt(clean, 16);
     return [((num >> 16) & 255) / 255, ((num >> 8) & 255) / 255, (num & 255) / 255];
   }
@@ -120,6 +122,8 @@
   ];
 
   function computeTokens(hex, isDark) {
+    // Apply the same opaque-seed policy to tokens that use the seed directly.
+    if (/^#[0-9a-f]{8}$/i.test(hex)) hex = hex.slice(0, 7);
     // Exact original Sakura theme tokens when sakura seed is active
     if (isSakura(hex)) {
       if (isDark) {
@@ -273,7 +277,10 @@
   function getStoredSeed() {
     try {
       const match = document.cookie.match(/(?:^|;\s*)m3_seed=([^;]+)/);
-      if (match) return decodeURIComponent(match[1]);
+      if (match) {
+        const seed = decodeURIComponent(match[1]);
+        return Object.hasOwn(PRESETS, seed) ? PRESETS[seed] : seed;
+      }
       const stored = localStorage.getItem(STORAGE_KEY_SEED);
       if (stored) return stored;
     } catch {}

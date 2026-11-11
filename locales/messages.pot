@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-28 12:29+0800\n"
+"POT-Creation-Date: 2026-11-11 16:27+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -189,60 +189,60 @@ msgstr ""
 msgid "You have no browsing history yet."
 msgstr ""
 
-#: templates/macros.html:17
+#: templates/macros.html:13
 msgid "Resolving video URL..."
 msgstr ""
 
-#: static/themes/modern/js/player.js:1698
-#: static/themes/modern/js/player.js:1768 templates/macros.html:66
+#: static/themes/modern/js/player.js:1724
+#: static/themes/modern/js/player.js:1794 templates/macros.html:62
 msgid "Resolution"
 msgstr ""
 
-#: templates/macros.html:86
+#: templates/macros.html:82
 msgid "Click to play"
 msgstr ""
 
-#: templates/macros.html:87
+#: templates/macros.html:83
 msgid "Browser blocked autoplay"
 msgstr ""
 
-#: templates/macros.html:99
+#: templates/macros.html:95
 msgid "Volume"
 msgstr ""
 
-#: templates/macros.html:107
+#: templates/macros.html:103
 msgid "LIVE"
 msgstr ""
 
-#: templates/macros.html:115
+#: templates/macros.html:111
 msgid "Toggle danmaku"
 msgstr ""
 
-#: templates/macros.html:121
+#: templates/macros.html:117
 msgid "Switch resolution"
 msgstr ""
 
-#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:35
+#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:38
 msgid "This user has no bio yet."
 msgstr ""
 
-#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:43
+#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:47
 msgid "Bilibili Space"
 msgstr ""
 
 #: templates/themes/modern/author.html:48
-#: templates/themes/modern/search.html:12
+#: templates/themes/modern/search.html:15
 #: templates/themes/modern/search_article.html:12
 #: templates/themes/modern/search_user.html:12
-#: templates/themes/modern/space.html:60
+#: templates/themes/modern/space.html:65
 msgid "Videos"
 msgstr ""
 
 #: templates/themes/modern/author.html:55 templates/themes/modern/read.html:8
-#: templates/themes/modern/search.html:16
-#: templates/themes/modern/search_article.html:14
-#: templates/themes/modern/search_user.html:14
-#: templates/themes/modern/space.html:48
+#: templates/themes/modern/search.html:19
+#: templates/themes/modern/search_article.html:16
+#: templates/themes/modern/search_user.html:16
+#: templates/themes/modern/space.html:52
 msgid "Articles"
 msgstr ""
 
@@ -251,25 +251,25 @@ msgid "Read on Bilibili"
 msgstr ""
 
 #: templates/themes/modern/author.html:99
-#: templates/themes/modern/search_article.html:70
+#: templates/themes/modern/search_article.html:72
 msgid "reads"
 msgstr ""
 
 #: templates/themes/modern/author.html:111
-#: templates/themes/modern/bangumi_index.html:154
-#: templates/themes/modern/search.html:117
-#: templates/themes/modern/search_article.html:82
-#: templates/themes/modern/search_user.html:56
-#: templates/themes/modern/space.html:144 templates/themes/modern/zone.html:75
+#: templates/themes/modern/bangumi_index.html:155
+#: templates/themes/modern/search.html:67
+#: templates/themes/modern/search_article.html:84
+#: templates/themes/modern/search_user.html:58
+#: templates/themes/modern/space.html:112 templates/themes/modern/zone.html:75
 msgid "Previous page"
 msgstr ""
 
 #: templates/themes/modern/author.html:117
-#: templates/themes/modern/bangumi_index.html:161
-#: templates/themes/modern/search.html:123
-#: templates/themes/modern/search_article.html:88
-#: templates/themes/modern/search_user.html:62
-#: templates/themes/modern/space.html:150 templates/themes/modern/zone.html:81
+#: templates/themes/modern/bangumi_index.html:162
+#: templates/themes/modern/search.html:73
+#: templates/themes/modern/search_article.html:90
+#: templates/themes/modern/search_user.html:64
+#: templates/themes/modern/space.html:118 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr ""
 
@@ -281,31 +281,31 @@ msgstr ""
 msgid "Bangumi index"
 msgstr ""
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Anime"
 msgstr ""
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Chinese Original"
 msgstr ""
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Movies"
 msgstr ""
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "TV Series"
 msgstr ""
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Variety"
 msgstr ""
 
-#: templates/themes/modern/bangumi_index.html:62
+#: templates/themes/modern/bangumi_index.html:63
 msgid "Documentary"
 msgstr ""
 
-#: templates/themes/modern/bangumi_index.html:93
+#: templates/themes/modern/bangumi_index.html:94
 msgid "Sort"
 msgstr ""
 
@@ -337,66 +337,71 @@ msgstr ""
 msgid "Nyaa Magnet Resources"
 msgstr ""
 
-#: templates/themes/modern/bangumi_view.html:147
+#: templates/themes/modern/bangumi_view.html:192
 msgid "Failed to load Nyaa resources"
 msgstr ""
 
-#: templates/themes/modern/base.html:414 templates/themes/modern/base.html:483
-msgid "Bangumi"
-msgstr ""
-
-#: templates/themes/modern/base.html:419 templates/themes/modern/base.html:488
-msgid "Toggle theme"
-msgstr ""
-
-#: templates/themes/modern/base.html:425 templates/themes/modern/base.html:494
-msgid "Language"
-msgstr ""
-
-#: templates/themes/modern/base.html:451 templates/themes/modern/base.html:520
-#: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:9
-msgid "Preferences"
-msgstr ""
-
-#: templates/themes/modern/base.html:474
+#: templates/themes/modern/base.html:495
+#: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr ""
 
-#: templates/themes/modern/base.html:539
+#: templates/themes/modern/base.html:504 templates/themes/modern/base.html:639
+msgid "Bangumi"
+msgstr ""
+
+#: templates/themes/modern/base.html:511
+msgid "Toggle theme"
+msgstr ""
+
+#: templates/themes/modern/base.html:517
+msgid "Language"
+msgstr ""
+
+#: templates/themes/modern/base.html:546 templates/themes/modern/base.html:646
+#: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
+msgid "Preferences"
+msgstr ""
+
+#: templates/themes/modern/base.html:565
 msgid "Original source code"
 msgstr ""
 
-#: templates/themes/modern/base.html:541
+#: templates/themes/modern/base.html:567
 msgid "Modified source code"
 msgstr ""
 
-#: templates/themes/modern/base.html:544
+#: templates/themes/modern/base.html:570
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr ""
 
-#: templates/themes/modern/base.html:550
+#: templates/themes/modern/base.html:576
 msgid "Documentation"
 msgstr ""
 
-#: templates/themes/modern/base.html:555
+#: templates/themes/modern/base.html:581
 msgid "Link converter"
 msgstr ""
 
-#: templates/themes/modern/base.html:561
+#: templates/themes/modern/base.html:587
 msgid "Proudly released under AGPLv3"
 msgstr ""
 
-#: templates/themes/modern/base.html:568
+#: templates/themes/modern/base.html:594
 msgid "View JavaScript licenses"
 msgstr ""
 
-#: templates/themes/modern/base.html:573
+#: templates/themes/modern/base.html:599
 msgid "Privacy policy"
 msgstr ""
 
-#: templates/themes/modern/base.html:580
+#: templates/themes/modern/base.html:606
 msgid "Donate"
+msgstr ""
+
+#: templates/themes/modern/base.html:632
+msgid "Home"
 msgstr ""
 
 #: templates/themes/modern/convert.html:2
@@ -478,69 +483,52 @@ msgid ""
 "the source code link below."
 msgstr ""
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:49
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:137
 msgid "Back to home"
 msgstr ""
 
-#: templates/themes/modern/home.html:3 templates/themes/modern/search.html:3
+#: templates/themes/modern/home.html:5 templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
 msgid "Search"
 msgstr ""
 
-#: templates/themes/modern/home.html:9
+#: templates/themes/modern/home.html:12
 msgid "Hey, this is MikuInvidious!"
 msgstr ""
 
-#: templates/themes/modern/home.html:9
+#: templates/themes/modern/home.html:12
 msgid "MikuInvidious is a free Bilibili frontend."
 msgstr ""
 
-#: templates/themes/modern/home.html:13
+#: templates/themes/modern/home.html:16
 msgid ""
 "This is a MikuInvidious fork that supports pasting Bilibili links "
 "directly into the search box."
 msgstr ""
 
-#: templates/themes/modern/home.html:15
+#: templates/themes/modern/home.html:19
 msgid "To convert a Bilibili link to MikuInvidious, replace"
 msgstr ""
 
-#: templates/themes/modern/home.html:15
+#: templates/themes/modern/home.html:19
 msgid "and"
 msgstr ""
 
-#: templates/themes/modern/home.html:15
+#: templates/themes/modern/home.html:19
 msgid "with this MikuInvidious instance’s domain."
 msgstr ""
 
-#: templates/themes/modern/home.html:18
+#: templates/themes/modern/home.html:22
 msgid "For user spaces, paste the number after"
 msgstr ""
 
-#: templates/themes/modern/home.html:18
+#: templates/themes/modern/home.html:22
 msgid "after the instance domain +"
 msgstr ""
 
-#: templates/themes/modern/home.html:18
+#: templates/themes/modern/home.html:22
 msgid "suffix."
-msgstr ""
-
-#: templates/themes/modern/home.html:58 templates/themes/modern/search.html:95
-#: templates/themes/modern/space.html:107
-#: templates/themes/modern/video.html:138
-#: templates/themes/modern/video_listen.html:127
-#: templates/themes/modern/zone.html:49
-msgid "Watch on Bilibili"
-msgstr ""
-
-#: templates/themes/modern/home.html:63 templates/themes/modern/space.html:112
-#: templates/themes/modern/video.html:69 templates/themes/modern/zone.html:54
-msgid "Audio mode"
-msgstr ""
-
-#: templates/themes/modern/home.html:72
-msgid "views"
 msgstr ""
 
 #: templates/themes/modern/licenses.html:2
@@ -565,46 +553,58 @@ msgstr ""
 msgid "License"
 msgstr ""
 
-#: templates/themes/modern/pref.html:13
+#: templates/themes/modern/pref.html:22
+msgid "Theme Color"
+msgstr ""
+
+#: templates/themes/modern/pref.html:80
+msgid "Reset theme color"
+msgstr ""
+
+#: templates/themes/modern/pref.html:83 templates/themes/modern/pref.html:87
+msgid "Custom Color"
+msgstr ""
+
+#: templates/themes/modern/pref.html:98
 msgid "Traditional Chinese conversion"
 msgstr ""
 
-#: templates/themes/modern/pref.html:14
+#: templates/themes/modern/pref.html:99
 msgid "Convert content to Traditional Chinese with OpenCC"
 msgstr ""
 
-#: templates/themes/modern/pref.html:16 templates/themes/modern/pref.html:24
-#: templates/themes/modern/pref.html:33 templates/themes/modern/pref.html:42
-#: templates/themes/modern/video.html:414
-#: templates/themes/modern/video.html:565
+#: templates/themes/modern/pref.html:102 templates/themes/modern/pref.html:111
+#: templates/themes/modern/pref.html:120 templates/themes/modern/pref.html:129
+#: templates/themes/modern/video.html:408
+#: templates/themes/modern/video.html:559
 #: templates/themes/modern/video_listen.html:288
 #: templates/themes/modern/video_listen.html:386
 msgid "Loading..."
 msgstr ""
 
-#: templates/themes/modern/pref.html:21
+#: templates/themes/modern/pref.html:107
 msgid "Auto-convert search to Simplified Chinese"
 msgstr ""
 
-#: templates/themes/modern/pref.html:22
+#: templates/themes/modern/pref.html:108
 msgid "Automatically convert keywords to Simplified Chinese when searching"
 msgstr ""
 
-#: templates/themes/modern/pref.html:30
+#: templates/themes/modern/pref.html:116
 msgid "Pin best audio quality"
 msgstr ""
 
-#: templates/themes/modern/pref.html:31
+#: templates/themes/modern/pref.html:117
 msgid ""
 "Always play the highest available audio track instead of following video "
 "quality"
 msgstr ""
 
-#: templates/themes/modern/pref.html:39
+#: templates/themes/modern/pref.html:125
 msgid "Lock video resolution"
 msgstr ""
 
-#: templates/themes/modern/pref.html:40
+#: templates/themes/modern/pref.html:126
 msgid ""
 "Always play the highest available video track instead of auto-switching "
 "quality"
@@ -614,219 +614,221 @@ msgstr ""
 msgid "Illustrations"
 msgstr ""
 
-#: templates/themes/modern/search.html:10
+#: templates/themes/modern/search.html:13
 #: templates/themes/modern/search_article.html:10
 #: templates/themes/modern/search_user.html:10
 msgid "Search category:"
 msgstr ""
 
-#: templates/themes/modern/search.html:14
+#: templates/themes/modern/search.html:17
+#: templates/themes/modern/search_article.html:14
+#: templates/themes/modern/search_user.html:14
 msgid "Live"
 msgstr ""
 
-#: templates/themes/modern/search.html:18
-#: templates/themes/modern/search_article.html:16
-#: templates/themes/modern/search_user.html:16
+#: templates/themes/modern/search.html:21
+#: templates/themes/modern/search_article.html:18
+#: templates/themes/modern/search_user.html:18
 msgid "Creators"
 msgstr ""
 
-#: templates/themes/modern/search.html:22
-#: templates/themes/modern/search_article.html:20
-#: templates/themes/modern/search_user.html:20
+#: templates/themes/modern/search.html:25
+#: templates/themes/modern/search_article.html:22
+#: templates/themes/modern/search_user.html:22
 msgid "Sort by:"
 msgstr ""
 
-#: templates/themes/modern/search.html:23
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search.html:26
+#: templates/themes/modern/search_article.html:23
 msgid "Comprehensive"
 msgstr ""
 
-#: templates/themes/modern/search.html:23
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search.html:26
+#: templates/themes/modern/search_article.html:23
 msgid "Most clicks"
 msgstr ""
 
-#: templates/themes/modern/search.html:23
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search.html:26
+#: templates/themes/modern/search_article.html:23
 msgid "Newest"
 msgstr ""
 
-#: templates/themes/modern/search.html:23
+#: templates/themes/modern/search.html:26
 msgid "Most danmaku"
 msgstr ""
 
-#: templates/themes/modern/search.html:23
+#: templates/themes/modern/search.html:26
 msgid "Most favorites"
 msgstr ""
 
-#: templates/themes/modern/search.html:23
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search.html:26
+#: templates/themes/modern/search_article.html:23
 msgid "Most comments"
 msgstr ""
 
-#: templates/themes/modern/search.html:36
+#: templates/themes/modern/search.html:40
 msgid "No results found"
 msgstr ""
 
-#: templates/themes/modern/search.html:37
-#: templates/themes/modern/search_article.html:34
-#: templates/themes/modern/search_user.html:34
+#: templates/themes/modern/search.html:41
+#: templates/themes/modern/search_article.html:36
+#: templates/themes/modern/search_user.html:36
 msgid "Try another keyword?"
 msgstr ""
 
-#: templates/themes/modern/search.html:57
+#: templates/themes/modern/components/m3_components.html:147
+#: templates/themes/modern/search.html:51
 msgid "watching"
 msgstr ""
 
-#: templates/themes/modern/search.html:105
-msgid "popularity"
-msgstr ""
-
-#: templates/themes/modern/search.html:105
-#: templates/themes/modern/space.html:121 templates/themes/modern/zone.html:63
-msgid "plays"
-msgstr ""
-
-#: templates/themes/modern/search_article.html:21
+#: templates/themes/modern/search_article.html:23
 msgid "Most likes"
 msgstr ""
 
-#: templates/themes/modern/search_article.html:33
+#: templates/themes/modern/search_article.html:35
 msgid "No articles found"
 msgstr ""
 
-#: templates/themes/modern/search_user.html:21
+#: templates/themes/modern/search_user.html:23
 msgid "Most fans"
 msgstr ""
 
-#: templates/themes/modern/search_user.html:21
+#: templates/themes/modern/search_user.html:23
 msgid "Highest level"
 msgstr ""
 
-#: templates/themes/modern/search_user.html:33
+#: templates/themes/modern/search_user.html:35
 msgid "No users found"
 msgstr ""
 
-#: templates/themes/modern/space.html:53
+#: templates/themes/modern/space.html:57
 msgid "RSS Feed"
 msgstr ""
 
-#: templates/themes/modern/space.html:65
+#: templates/themes/modern/space.html:71
 msgid ""
 "Video list temporarily unavailable — Bilibili rate-limited this instance."
 " Profile shown; videos should return in a few minutes."
 msgstr ""
 
-#: templates/themes/modern/space.html:69
+#: templates/themes/modern/space.html:75
 msgid ""
 "Video list could not be loaded due to a network error. Profile shown; "
 "please retry shortly."
 msgstr ""
 
-#: templates/themes/modern/space.html:130
+#: templates/themes/modern/space.html:97
 msgid "Nothing to show right now — see notice above."
 msgstr ""
 
-#: templates/themes/modern/space.html:132
+#: templates/themes/modern/space.html:99
 msgid "Nothing to show right now — loading failed, see notice above."
 msgstr ""
 
-#: templates/themes/modern/space.html:134
+#: templates/themes/modern/space.html:101
 msgid "This user has no videos yet."
 msgstr ""
 
-#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:89
-msgid "Online"
+#: templates/themes/modern/components/m3_components.html:135
+#: templates/themes/modern/video.html:70 templates/themes/modern/zone.html:54
+msgid "Audio mode"
 msgstr ""
 
 #: templates/themes/modern/video.html:88
-msgid "Views"
+msgid "Online"
 msgstr ""
 
-#: templates/themes/modern/video.html:92
+#: templates/themes/modern/components/m3_components.html:147
+#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:361
+msgid "views"
+msgstr ""
+
+#: templates/themes/modern/video.html:90
 msgid "Likes"
 msgstr ""
 
-#: templates/themes/modern/video.html:95
+#: templates/themes/modern/video.html:91
 msgid "Coins"
 msgstr ""
 
-#: templates/themes/modern/video.html:98
+#: templates/themes/modern/video.html:92
 msgid "Favorites"
 msgstr ""
 
-#: templates/themes/modern/video.html:101
+#: templates/themes/modern/video.html:93
 msgid "Share"
 msgstr ""
 
-#: templates/themes/modern/video.html:161
+#: templates/themes/modern/components/m3_components.html:127
+#: templates/themes/modern/video.html:128
+#: templates/themes/modern/video_listen.html:127
+#: templates/themes/modern/zone.html:49
+msgid "Watch on Bilibili"
+msgstr ""
+
+#: templates/themes/modern/video.html:151
 msgid "Download"
 msgstr ""
 
 #: templates/themes/modern/components/meta_part.html:6
-#: templates/themes/modern/video.html:181
-#: templates/themes/modern/video.html:478
+#: templates/themes/modern/video.html:171
+#: templates/themes/modern/video.html:472
 #: templates/themes/modern/video_listen.html:158
 msgid "Comments"
 msgstr ""
 
-#: templates/themes/modern/video.html:210
+#: templates/themes/modern/video.html:200
 msgid "Loading comments..."
 msgstr ""
 
-#: templates/themes/modern/video.html:229
-#: templates/themes/modern/video.html:232
+#: templates/themes/modern/video.html:219
+#: templates/themes/modern/video.html:222
 msgid "Live chat"
 msgstr ""
 
-#: templates/themes/modern/video.html:240
+#: templates/themes/modern/video.html:230
 msgid "Connecting to chat..."
 msgstr ""
 
-#: templates/themes/modern/video.html:313
+#: templates/themes/modern/video.html:303
 #: templates/themes/modern/video_listen.html:221
 msgid "Episodes"
 msgstr ""
 
-#: templates/themes/modern/video.html:319
+#: templates/themes/modern/video.html:309
 #: templates/themes/modern/video_listen.html:227
 msgid "Autoplay next"
 msgstr ""
 
-#: templates/themes/modern/video.html:348
+#: templates/themes/modern/video.html:340
 #: templates/themes/modern/video_listen.html:255
 msgid "Recommended"
 msgstr ""
 
-#: templates/themes/modern/video.html:367
-#: templates/themes/modern/video_listen.html:274
-msgid "Play"
-msgstr ""
-
-#: templates/themes/modern/video.html:412
+#: templates/themes/modern/video.html:406
 #: templates/themes/modern/video_listen.html:286
 msgid "Fold"
 msgstr ""
 
-#: templates/themes/modern/video.html:413
+#: templates/themes/modern/video.html:407
 #: templates/themes/modern/video_listen.html:287
 msgid "Load more replies"
 msgstr ""
 
 #: templates/themes/modern/components/meta_part.html:25
-#: templates/themes/modern/video.html:415
+#: templates/themes/modern/video.html:409
 #: templates/themes/modern/video_listen.html:210
 #: templates/themes/modern/video_listen.html:290
 msgid "Load more comments"
 msgstr ""
 
-#: templates/themes/modern/video.html:478
+#: templates/themes/modern/video.html:472
 msgid "Failed to load comments, please try again later"
 msgstr ""
 
-#: templates/themes/modern/video.html:537
-#: templates/themes/modern/video.html:577
-#: templates/themes/modern/video.html:638
+#: templates/themes/modern/video.html:531
+#: templates/themes/modern/video.html:571
+#: templates/themes/modern/video.html:632
 #: templates/themes/modern/video_listen.html:289
 #: templates/themes/modern/video_listen.html:398
 msgid "Load failed"
@@ -860,8 +862,16 @@ msgstr[1] ""
 msgid "No comments yet or failed to load"
 msgstr ""
 
+#: templates/themes/modern/video_listen.html:274
+msgid "Play"
+msgstr ""
+
 #: templates/themes/modern/zone.html:3
 msgid "Zone"
+msgstr ""
+
+#: templates/themes/modern/zone.html:63
+msgid "plays"
 msgstr ""
 
 #: templates/themes/modern/components/meta_part.html:11
@@ -1015,38 +1025,38 @@ msgstr ""
 msgid "Live stream has ended"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1442
+#: static/themes/modern/js/player.js:1468
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1465
-#: static/themes/modern/js/player.js:1469
-#: static/themes/modern/js/player.js:1500
-#: static/themes/modern/js/player.js:1504
+#: static/themes/modern/js/player.js:1491
+#: static/themes/modern/js/player.js:1495
+#: static/themes/modern/js/player.js:1526
+#: static/themes/modern/js/player.js:1530
 msgid "Auto"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1629
+#: static/themes/modern/js/player.js:1655
 msgid "Back"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1699
+#: static/themes/modern/js/player.js:1725
 msgid "Audio"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1700
-#: static/themes/modern/js/player.js:1769
+#: static/themes/modern/js/player.js:1726
+#: static/themes/modern/js/player.js:1795
 msgid "Playback speed"
 msgstr ""
 
-#: static/themes/modern/js/themes.js:229 static/themes/modern/js/themes.js:241
-#: static/themes/modern/js/themes.js:257 static/themes/modern/js/themes.js:267
+#: static/themes/modern/js/themes.js:248 static/themes/modern/js/themes.js:260
+#: static/themes/modern/js/themes.js:276 static/themes/modern/js/themes.js:286
 msgid "On"
 msgstr ""
 
-#: static/themes/modern/js/themes.js:232 static/themes/modern/js/themes.js:244
-#: static/themes/modern/js/themes.js:254 static/themes/modern/js/themes.js:270
+#: static/themes/modern/js/themes.js:251 static/themes/modern/js/themes.js:263
+#: static/themes/modern/js/themes.js:273 static/themes/modern/js/themes.js:289
 msgid "Off"
 msgstr ""
 
