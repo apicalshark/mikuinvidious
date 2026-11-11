@@ -5,9 +5,10 @@ ROOT = Path(__file__).resolve().parent.parent
 BASE_HTML = ROOT / "templates" / "themes" / "modern" / "base.html"
 
 class TestM3Nav(unittest.TestCase):
-    def test_nav_contains_mobile_bottom_bar(self):
+    def test_nav_mobile_elements(self):
         html = BASE_HTML.read_text(encoding="utf-8")
-        self.assertIn('id="m3-bottom-nav"', html)
+        self.assertNotIn('id="m3-bottom-nav"', html)
+        self.assertIn('id="mobile_search_btn"', html)
         self.assertIn('href="/bangumi"', html)
         self.assertIn('href="/preferences"', html)
 

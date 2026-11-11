@@ -220,6 +220,7 @@
                     box-shadow: none !important;
                     border: none !important;
                 }
+
                 /* DO NOT UNCOMMENT: IT'S A DESIGN CHOICE */
                 /* #searchbox:focus-visible {
                     outline: 3px solid var(--md-sys-color-primary) !important;
@@ -230,7 +231,7 @@
                     outline: 3px solid var(--md-sys-color-primary) !important;
                     outline-offset: 2px;
                 } */
-                 /* DO NOT UNCOMMENT: IT'S A DESIGN CHOICE */
+                /* DO NOT UNCOMMENT: IT'S A DESIGN CHOICE */
 
                 header.sticky {
                     -webkit-backdrop-filter: blur(24px);
@@ -446,16 +447,20 @@
                 }
 
                 /* Popover Anchor Positioning */
-                #lang_btn {
-                    anchor-name: --lang-btn;
-                }
+                @supports (anchor-name: --lang-btn) {
 
-                #lang_menu {
-                    position-anchor: --lang-btn;
-                    inset: auto;
-                    top: anchor(bottom);
-                    right: anchor(right);
-                    margin: 8px 0 0 0;
+                    #lang_btn,
+                    #mobile_lang_btn {
+                        anchor-name: --lang-btn;
+                    }
+
+                    #lang_menu {
+                        position-anchor: --lang-btn;
+                        inset: auto;
+                        top: anchor(bottom);
+                        right: anchor(right);
+                        margin: 8px 0 0 0;
+                    }
                 }
             }
 
@@ -471,16 +476,55 @@
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
         <!-- Sticky M3 Top App Bar with Glassmorphism -->
         <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/65 transition-colors duration-200 border-b border-outline-variant/15">
-            <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-2.5 flex flex-wrap md:flex-nowrap items-center justify-between gap-3 md:gap-6">
-                <!-- Brand -->
-                <div class="flex items-center gap-3 shrink-0">
+            <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-2.5 flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">
+                <!-- Brand & Mobile Action Buttons Row -->
+                <div class="w-full md:w-auto flex justify-between items-center">
                     <a href="/"
                        class="text-2xl font-bold index-link tracking-tight shrink-0 text-primary hover:opacity-90 transition-opacity">MikuInvidious</a>
+
+                    <!-- Mobile Action Buttons (Visible only on mobile) -->
+                    <div class="flex items-center gap-0.5 md:hidden">
+                        <button id="mobile_search_btn"
+                                class="md3-icon-button"
+                                title="{{ _('Search') }}">
+                            <i class="icon ion-ios-search"></i>
+                        </button>
+                        <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button">
+                            <i class="icon ion-ios-film"></i>
+                        </a>
+                        <button type="button"
+                                id="toggle_theme_mobile"
+                                title="{{ _('Toggle theme') }}"
+                                class="md3-icon-button">
+                            <i class="icon ion-ios-moon"></i>
+                        </button>
+                        <button id="mobile_lang_btn"
+                                title="{{ _('Language') }}"
+                                class="md3-icon-button"
+                                popovertarget="lang_menu"
+                                aria-haspopup="true">
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 width="22"
+                                 height="22"
+                                 fill="currentColor"
+                                 class="bi bi-translate"
+                                 viewBox="0 0 16 16"
+                                 aria-hidden="true">
+                                <path d="M4.545 6.714 4.11 8H3l1.862-5h1.284L8 8H6.833l-.435-1.286zm1.634-.736L5.5 3.956h-.049l-.679 2.022z" />
+                                <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31" />
+                            </svg>
+                        </button>
+                        <a title="{{ _('Preferences') }}"
+                           href="/preferences"
+                           class="md3-icon-button">
+                            <i class="icon ion-ios-cog"></i>
+                        </a>
+                    </div>
                 </div>
 
-                <!-- Search Bar Container (Flex on desktop, compact on mobile) -->
+                <!-- Search Bar Container (Hidden on mobile by default, flex on desktop) -->
                 <div id="search_container"
-                     class="order-last w-full min-w-0 md:order-0 md:flex-1 max-w-2xl mx-auto searchbar">
+                     class="hidden md:flex w-full md:flex-1 max-w-2xl mx-auto searchbar">
                     <form class="w-full" action="/search" method="get">
                         <div class="relative group flex items-center">
                             <span class="absolute left-4 flex items-center text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
@@ -500,11 +544,9 @@
                     </form>
                 </div>
 
-                <!-- Action Buttons Row -->
-                <div class="flex items-center gap-1 md:gap-2 user-field shrink-0">
-                    <a title="{{ _('Bangumi') }}"
-                       href="/bangumi"
-                       class="md3-icon-button hidden sm:inline-flex">
+                <!-- Desktop Action Buttons Row -->
+                <div class="hidden md:flex items-center gap-1 md:gap-2 user-field shrink-0">
+                    <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button">
                         <i class="icon ion-ios-film"></i>
                     </a>
                     <button type="button"
@@ -530,29 +572,30 @@
                                 <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31" />
                             </svg>
                         </button>
-                        <!-- Native HTML Popover Language Menu -->
-                        <div id="lang_menu"
-                             popover="auto"
-                             class="m3-popover bg-surface-container-high text-on-surface rounded-2xl shadow-2xl border border-outline-variant/20 p-2 min-w-42.5 backdrop-blur-md">
-                            <div class="flex flex-col gap-1">
-                                {% for lang_code, lang_label in locale_choices %}
-                                    <button data-lang="{{ lang_code }}"
-                                            class="lang-option group w-full text-left px-3.5 py-2 text-sm text-on-surface/80 hover:bg-surface-container-highest hover:text-on-surface transition-colors rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active font-semibold text-primary{% endif %}">
-                                        <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100 text-primary"></i>
-                                    </button>
-                                {% endfor %}
-                            </div>
-                        </div>
                     </div>
                     <a title="{{ _('Preferences') }}"
                        href="/preferences"
-                       class="md3-icon-button hidden sm:inline-flex">
+                       class="md3-icon-button">
                         <i class="icon ion-ios-cog"></i>
                     </a>
                 </div>
+
+                <!-- Native HTML Popover Language Menu -->
+                <div id="lang_menu"
+                     popover="auto"
+                     class="m3-popover bg-surface-container-high text-on-surface rounded-2xl shadow-2xl border border-outline-variant/20 p-2 min-w-42.5 backdrop-blur-md">
+                    <div class="flex flex-col gap-1">
+                        {% for lang_code, lang_label in locale_choices %}
+                            <button data-lang="{{ lang_code }}"
+                                    class="lang-option group w-full text-left px-3.5 py-2 text-sm text-on-surface/80 hover:bg-surface-container-highest hover:text-on-surface transition-colors rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active font-semibold text-primary{% endif %}">
+                                <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100 text-primary"></i>
+                            </button>
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
         </header>
-        <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-4 md:py-8 grow flex flex-col pb-24 md:pb-8">
+        <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-4 md:py-8 grow flex flex-col">
             <div id="contents" class="grow">
                 {% block content %}{% endblock %}
             </div>
@@ -622,31 +665,6 @@
                 </div>
             </footer>
         </div>
-        <!-- Mobile Bottom Navigation Bar (M3) -->
-        <nav id="m3-bottom-nav"
-             class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-container/90 backdrop-blur-xl border-t border-outline-variant/20 px-6 py-2 flex items-center justify-around">
-            <a href="/"
-               class="flex flex-col items-center gap-0.5 py-1 px-4 rounded-full text-xs font-medium transition-colors hover:text-primary active:scale-95 text-on-surface-variant">
-                <div class="w-12 h-7 rounded-full flex items-center justify-center transition-colors">
-                    <i class="icon ion-ios-home text-xl"></i>
-                </div>
-                <span>{{ _("Home") }}</span>
-            </a>
-            <a href="/bangumi"
-               class="flex flex-col items-center gap-0.5 py-1 px-4 rounded-full text-xs font-medium transition-colors hover:text-primary active:scale-95 text-on-surface-variant">
-                <div class="w-12 h-7 rounded-full flex items-center justify-center transition-colors">
-                    <i class="icon ion-ios-film text-xl"></i>
-                </div>
-                <span>{{ _("Bangumi") }}</span>
-            </a>
-            <a href="/preferences"
-               class="flex flex-col items-center gap-0.5 py-1 px-4 rounded-full text-xs font-medium transition-colors hover:text-primary active:scale-95 text-on-surface-variant">
-                <div class="w-12 h-7 rounded-full flex items-center justify-center transition-colors">
-                    <i class="icon ion-ios-cog text-xl"></i>
-                </div>
-                <span>{{ _("Preferences") }}</span>
-            </a>
-        </nav>
         <script defer src="/static/themes/modern/js/themes.js?v={{ asset_version }}"></script>
         {% block lowerbody %}{% endblock %}
     </body>

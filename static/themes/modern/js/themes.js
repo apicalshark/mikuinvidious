@@ -482,10 +482,18 @@ function positionPopover(popover, trigger) {
 document.querySelectorAll("[popover]").forEach((popover) => {
   const id = popover.id;
   if (!id) return;
-  const trigger = document.querySelector(`[popovertarget="${id}"]`);
-  if (!trigger) return;
 
-  const updatePos = () => positionPopover(popover, trigger);
+  const updatePos = () => {
+    const triggers = document.querySelectorAll(`[popovertarget="${id}"]`);
+    let trigger = triggers[0];
+    for (const t of triggers) {
+      if (t.offsetParent !== null || t.offsetWidth > 0 || t.offsetHeight > 0) {
+        trigger = t;
+        break;
+      }
+    }
+    if (trigger) positionPopover(popover, trigger);
+  };
 
   popover.addEventListener("beforetoggle", (e) => {
     if (e.newState === "open") updatePos();
