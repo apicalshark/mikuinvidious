@@ -13,7 +13,8 @@
             </div>
 
             <!-- Material You Theme Palette Section -->
-            <div id="m3-seed-picker" class="p-5 rounded-2xl bg-surface-container space-y-4">
+            <div id="m3-seed-picker"
+                 class="p-5 rounded-2xl bg-surface-container space-y-4">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="font-bold text-on-surface text-base flex items-center gap-2">
@@ -29,49 +30,49 @@
                             data-seed="#a85383"
                             title="Sakura Pink (Default)"
                             class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
-                            style="background-color: #a85383;">
+                            style="background-color: #a85383">
                         <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
                     </button>
                     <button type="button"
                             data-seed="#fb7299"
                             title="Bilibili Pink"
                             class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
-                            style="background-color: #fb7299;">
+                            style="background-color: #fb7299">
                         <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
                     </button>
                     <button type="button"
                             data-seed="#00aeec"
                             title="Bilibili Cyan"
                             class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
-                            style="background-color: #00aeec;">
+                            style="background-color: #00aeec">
                         <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
                     </button>
                     <button type="button"
                             data-seed="#39c5bb"
                             title="Miku Cyan"
                             class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
-                            style="background-color: #39c5bb;">
+                            style="background-color: #39c5bb">
                         <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
                     </button>
                     <button type="button"
                             data-seed="#ff7a00"
                             title="Orange"
                             class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
-                            style="background-color: #ff7a00;">
+                            style="background-color: #ff7a00">
                         <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
                     </button>
                     <button type="button"
                             data-seed="#795290"
                             title="Lavender"
                             class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
-                            style="background-color: #795290;">
+                            style="background-color: #795290">
                         <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
                     </button>
                     <button type="button"
                             data-seed="#2563eb"
                             title="Ocean Blue"
                             class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
-                            style="background-color: #2563eb;">
+                            style="background-color: #2563eb">
                         <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
                     </button>
                     <!-- Custom Hex Color Input -->
@@ -93,7 +94,8 @@
                         <div class="font-bold text-sm text-on-surface">{{ _("Traditional Chinese conversion") }}</div>
                         <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Convert content to Traditional Chinese with OpenCC") }}</div>
                     </div>
-                    <button id="toggle_opencc" class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
+                    <button id="toggle_opencc"
+                            class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
                 </div>
 
                 <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
@@ -101,7 +103,8 @@
                         <div class="font-bold text-sm text-on-surface">{{ _("Auto-convert search to Simplified Chinese") }}</div>
                         <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Automatically convert keywords to Simplified Chinese when searching") }}</div>
                     </div>
-                    <button id="toggle_search_opencc" class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
+                    <button id="toggle_search_opencc"
+                            class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
                 </div>
 
                 <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
@@ -109,7 +112,8 @@
                         <div class="font-bold text-sm text-on-surface">{{ _("Pin best audio quality") }}</div>
                         <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Always play the highest available audio track instead of following video quality") }}</div>
                     </div>
-                    <button id="toggle_best_audio" class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
+                    <button id="toggle_best_audio"
+                            class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
                 </div>
 
                 <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
@@ -117,12 +121,14 @@
                         <div class="font-bold text-sm text-on-surface">{{ _("Lock video resolution") }}</div>
                         <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Always play the highest available video track instead of auto-switching quality") }}</div>
                     </div>
-                    <button id="toggle_lock_video" class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
+                    <button id="toggle_lock_video"
+                            class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
                 </div>
             </div>
 
             <div class="pt-2 text-center">
-                <a href="/" class="md3-button md3-button-filled inline-flex items-center gap-2">
+                <a href="/"
+                   class="md3-button md3-button-filled inline-flex items-center gap-2">
                     <i class="icon ion-ios-home text-lg"></i>
                     {{ _("Back to home") }}
                 </a>

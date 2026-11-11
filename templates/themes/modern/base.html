@@ -6,7 +6,8 @@
         <meta name="csrf-token" content="{{ csrf_token }}" />
         <meta name="csp-nonce" content="{{ csp_nonce }}" />
         <meta name="asset-version" content="{{ asset_version }}" />
-        <meta name="default-accent" content="{{ default_accent|default('#a85383') }}" />
+        <meta name="default-accent"
+              content="{{ default_accent|default('#a85383') }}" />
         {% if user_accent %}<meta name="user-accent" content="{{ user_accent }}" />{% endif %}
         <script nonce="{{ csp_nonce }}">try{var __m=localStorage.getItem("dark_mode");if(__m){try{__m=decodeURIComponent(__m);var __p=JSON.parse(__m);if(typeof __p==="string")__m=__p;}catch(__e){}if(__m.length>1&&__m.charAt(0)==='"')__m=__m.slice(1,-1);}else{__m=null;}if(__m!=="dark"&&__m!=="light"){__m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(__m==="dark")document.documentElement.classList.add("dark");var __s=null;try{var __sc=document.cookie.match(/(?:^|;\s*)m3_seed=([^;]+)/);if(__sc)__s=decodeURIComponent(__sc[1]);else __s=localStorage.getItem("m3_seed");}catch(__e){}var __ua="{{ user_accent|default('') }}";if(!__s&&__ua){__s=__ua;}var __da="{{ default_accent|default('#a85383') }}";if(!__s&&__da&&__da!=="#a85383"){__s=__da;}if(__s){var __pMap={sakura:"#a85383",bili_pink:"#fb7299",bili_blue:"#00aeec",miku:"#39c5bb",orange:"#ff7a00",lavender:"#795290",ocean:"#2563eb"};if(__pMap[__s])__s=__pMap[__s];document.documentElement.dataset.m3Seed=__s;var __isD=(__m==="dark");var __isSak=(__s==="#a85383"||__s==="sakura"||__s==="#ff97b5");var __p=__isSak?(__isD?"#ff97b5":"#a85383"):__s;var __playerP=__isSak?"#ff97b5":__s;document.documentElement.style.setProperty("--theme-primary",__p);document.documentElement.style.setProperty("--md-sys-color-primary",__p);document.documentElement.style.setProperty("--player-primary",__playerP);document.documentElement.style.setProperty("--media-primary-color",__playerP);}}catch(__e){}</script>
         {% block head %}{% endblock %}
@@ -437,6 +438,7 @@
                 #lang_btn {
                     anchor-name: --lang-btn;
                 }
+
                 #lang_menu {
                     position-anchor: --lang-btn;
                     inset: auto;
@@ -469,8 +471,8 @@
                 <div id="search_container" class="flex-1 max-w-2xl mx-auto searchbar">
                     <form class="w-full" action="/search" method="get">
                         <div class="relative group flex items-center">
-                            <span class="absolute left-3.5 flex items-center text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
-                                <i class="icon ion-ios-search text-lg"></i>
+                            <span class="absolute left-4 flex items-center text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
+                                <i class="icon ion-ios-search text-xl"></i>
                             </span>
                             <input type="search"
                                    id="searchbox"
@@ -480,7 +482,7 @@
                                    spellcheck="false"
                                    name="q"
                                    placeholder="{{ _('Search for something?') }}"
-                                   class="w-full pl-10 pr-4 py-2 rounded-full bg-surface-container text-on-surface text-sm placeholder-on-surface-variant/70 focus:bg-surface-container-high focus:outline-none focus:ring-0 focus:border-none transition-all shadow-xs border-none appearance-none"
+                                   class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface-container text-on-surface text-base placeholder:text-sm md:placeholder:text-base placeholder-on-surface-variant/70 focus:bg-surface-container-high focus:outline-none focus:ring-0 focus:border-none transition-all shadow-xs border-none appearance-none"
                                    {% if q %}value="{{ q }}"{% endif %} />
                         </div>
                     </form>
@@ -488,7 +490,9 @@
 
                 <!-- Action Buttons Row -->
                 <div class="flex items-center gap-1 md:gap-2 user-field shrink-0">
-                    <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button hidden sm:inline-flex">
+                    <a title="{{ _('Bangumi') }}"
+                       href="/bangumi"
+                       class="md3-icon-button hidden sm:inline-flex">
                         <i class="icon ion-ios-film"></i>
                     </a>
                     <button type="button"

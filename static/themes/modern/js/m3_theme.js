@@ -39,14 +39,13 @@
   function hexToRgb(hex) {
     let clean = hex.replace(/^#/, "");
     if (clean.length === 3) {
-      clean = clean.split("").map((c) => c + c).join("");
+      clean = clean
+        .split("")
+        .map((c) => c + c)
+        .join("");
     }
     const num = parseInt(clean, 16);
-    return [
-      ((num >> 16) & 255) / 255,
-      ((num >> 8) & 255) / 255,
-      (num & 255) / 255,
-    ];
+    return [((num >> 16) & 255) / 255, ((num >> 8) & 255) / 255, (num & 255) / 255];
   }
 
   // sRGB to linear sRGB
@@ -197,7 +196,7 @@
     // If the accent is bright (L >= 0.60, like #fb7299, #00aeec, #39c5bb, #ff7a00),
     // use the exact brand seed color. If darker (like lavender or deep blue),
     // lift luminance to OKLCH L=0.78 for pristine contrast on black.
-    const playerPrimary = L < 0.60 ? `oklch(0.78 ${c.toFixed(3)} ${h})` : hex;
+    const playerPrimary = L < 0.6 ? `oklch(0.78 ${c.toFixed(3)} ${h})` : hex;
     const playerOnPrimary = "#000000";
 
     if (isDark) {
@@ -237,7 +236,7 @@
       const cLow = Math.max(0.003, Math.min(0.005, c * 0.025));
       const cMid = Math.max(0.005, Math.min(0.008, c * 0.04));
       const cHigh = Math.max(0.007, Math.min(0.012, c * 0.06));
-      const cHighest = Math.max(0.010, Math.min(0.016, c * 0.08));
+      const cHighest = Math.max(0.01, Math.min(0.016, c * 0.08));
       return {
         "--theme-primary": hex,
         "--md-sys-color-primary": balancedPrimary,

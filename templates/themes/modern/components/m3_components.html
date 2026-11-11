@@ -4,19 +4,26 @@
 {# --- M3 Button Macro --- #}
 {% macro m3_button(text, href='', variant='filled', icon='', id='', cls='', type='button', disabled=False, title='') %}
     {% set variant_classes = {
-        'filled': 'md3-button-filled bg-primary text-on-primary hover:shadow-md active:scale-95',
-        'tonal': 'md3-button-tonal bg-secondary-container text-on-secondary-container hover:bg-secondary-container/90 active:scale-95',
-        'outlined': 'md3-button-outlined border border-outline text-primary hover:bg-primary/8 active:scale-95',
-        'text': 'md3-button-text text-primary hover:bg-primary/8 active:scale-95'
+        "filled": "md3-button-filled bg-primary text-on-primary hover:shadow-md active:scale-95",
+        "tonal": "md3-button-tonal bg-secondary-container text-on-secondary-container hover:bg-secondary-container/90 active:scale-95",
+        "outlined": "md3-button-outlined border border-outline text-primary hover:bg-primary/8 active:scale-95",
+        "text": "md3-button-text text-primary hover:bg-primary/8 active:scale-95"
     } %}
     {% set base_class = 'md3-button inline-flex items-center justify-center gap-2 h-10 px-5 rounded-full font-medium text-sm transition-all duration-200 select-none ' ~ variant_classes.get(variant, variant_classes['filled']) ~ ' ' ~ cls %}
     {% if href %}
-        <a href="{{ href }}" {% if id %}id="{{ id }}"{% endif %} class="{{ base_class }}" {% if title %}title="{{ title }}"{% endif %}>
+        <a href="{{ href }}"
+           {% if id %}id="{{ id }}"{% endif %}
+           class="{{ base_class }}"
+           {% if title %}title="{{ title }}"{% endif %}>
             {% if icon %}<i class="icon {{ icon }} text-lg"></i>{% endif %}
             <span>{{ text }}</span>
         </a>
     {% else %}
-        <button type="{{ type }}" {% if id %}id="{{ id }}"{% endif %} class="{{ base_class }}" {% if disabled %}disabled{% endif %} {% if title %}title="{{ title }}"{% endif %}>
+        <button type="{{ type }}"
+                {% if id %}id="{{ id }}"{% endif %}
+                class="{{ base_class }}"
+                {% if disabled %}disabled{% endif %}
+                {% if title %}title="{{ title }}"{% endif %}>
             {% if icon %}<i class="icon {{ icon }} text-lg"></i>{% endif %}
             <span>{{ text }}</span>
         </button>
@@ -27,11 +34,20 @@
 {% macro m3_icon_button(icon, href='', title='', id='', cls='', popovertarget='', aria_label='') %}
     {% set base_class = 'md3-icon-button w-10 h-10 md:w-11 md:h-11 rounded-full inline-flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-on-surface-variant/10 active:scale-90 transition-all duration-200 ' ~ cls %}
     {% if href %}
-        <a href="{{ href }}" {% if id %}id="{{ id }}"{% endif %} class="{{ base_class }}" title="{{ title }}" aria-label="{{ aria_label or title }}">
+        <a href="{{ href }}"
+           {% if id %}id="{{ id }}"{% endif %}
+           class="{{ base_class }}"
+           title="{{ title }}"
+           aria-label="{{ aria_label or title }}">
             <i class="icon {{ icon }} text-xl"></i>
         </a>
     {% else %}
-        <button type="button" {% if id %}id="{{ id }}"{% endif %} class="{{ base_class }}" title="{{ title }}" aria-label="{{ aria_label or title }}" {% if popovertarget %}popovertarget="{{ popovertarget }}"{% endif %}>
+        <button type="button"
+                {% if id %}id="{{ id }}"{% endif %}
+                class="{{ base_class }}"
+                title="{{ title }}"
+                aria-label="{{ aria_label or title }}"
+                {% if popovertarget %}popovertarget="{{ popovertarget }}"{% endif %}>
             <i class="icon {{ icon }} text-xl"></i>
         </button>
     {% endif %}
@@ -41,13 +57,18 @@
 {% macro m3_chip(label, icon='', href='', count='', is_interactive=False, cls='', id='', title='') %}
     {% set base_class = 'inline-flex items-center gap-1.5 h-8 px-3.5 rounded-full text-xs font-medium border border-outline-variant/40 bg-surface-container-low text-on-surface-variant transition-all duration-200 ' ~ ('hover:bg-surface-container hover:text-on-surface hover:shadow-xs active:scale-95 cursor-pointer ' if is_interactive else 'cursor-default ') ~ cls %}
     {% if href and is_interactive %}
-        <a href="{{ href }}" {% if id %}id="{{ id }}"{% endif %} class="{{ base_class }}" {% if title %}title="{{ title }}"{% endif %}>
+        <a href="{{ href }}"
+           {% if id %}id="{{ id }}"{% endif %}
+           class="{{ base_class }}"
+           {% if title %}title="{{ title }}"{% endif %}>
             {% if icon %}<i class="icon {{ icon }} text-sm"></i>{% endif %}
             <span>{{ label }}</span>
             {% if count %}<span class="text-on-surface-variant/70 ml-0.5">{{ count }}</span>{% endif %}
         </a>
     {% else %}
-        <div {% if id %}id="{{ id }}"{% endif %} class="{{ base_class }}" {% if title %}title="{{ title }}"{% endif %}>
+        <div {% if id %}id="{{ id }}"{% endif %}
+             class="{{ base_class }}"
+             {% if title %}title="{{ title }}"{% endif %}>
             {% if icon %}<i class="icon {{ icon }} text-sm"></i>{% endif %}
             <span>{{ label }}</span>
             {% if count %}<span class="text-on-surface-variant/70 ml-0.5">{{ count }}</span>{% endif %}
@@ -60,12 +81,14 @@
     {% set target_url = ('/live/' ~ room_id) if is_live else (('/video/' ~ bvid) if bvid else url) %}
     <div class="group bg-surface-container-low dark:bg-surface-container-low rounded-2xl overflow-hidden hover:bg-surface-container hover:shadow-lg dark:hover:shadow-[0_4px_20px_rgba(0,0,0,0.4)] hover:-translate-y-1 flex flex-col transition-all duration-300 {{ cls }}">
         <!-- Thumbnail -->
-        <a href="{{ target_url }}" class="relative block aspect-video overflow-hidden bg-black/10">
+        <a href="{{ target_url }}"
+           class="relative block aspect-video overflow-hidden bg-black/10">
             <img loading="lazy"
                  class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                  src="{{ (pic ~ '@320w_180h.webp' if is_live else pic ~ '@320w')|pic }}"
                  alt="" />
-            <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div class="absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            </div>
             {% if is_live %}
                 <span class="absolute bottom-2 right-2 bg-red-600/90 backdrop-blur-md text-white text-xs px-2.5 py-0.5 rounded-lg font-bold shadow-xs uppercase tracking-wider animate-pulse">
                     LIVE
@@ -79,7 +102,8 @@
         <!-- Content -->
         <div class="p-4 flex flex-col grow">
             <a href="{{ target_url }}" class="block mb-2.5">
-                <p dir="auto" class="font-bold text-sm md:text-base text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors">
+                <p dir="auto"
+                   class="font-bold text-sm md:text-base text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors">
                     {{ title }}
                 </p>
             </a>
@@ -87,7 +111,8 @@
                 {% if author %}
                     <div class="flex justify-between items-center text-xs text-on-surface-variant">
                         {% if author_id %}
-                            <a href="/space/{{ author_id }}" class="hover:text-primary truncate max-w-[70%] flex items-center gap-1.5 transition-colors">
+                            <a href="/space/{{ author_id }}"
+                               class="hover:text-primary truncate max-w-[70%] flex items-center gap-1.5 transition-colors">
                                 <div class="w-5 h-5 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
                                     <i class="icon ion-ios-person text-xs"></i>
                                 </div>
@@ -100,7 +125,8 @@
                             {% if bvid %}
                                 <a title="{{ _('Watch on Bilibili') }}"
                                    href="https://{{ 'live' if is_live else 'www' }}.bilibili.com/{{ '' if is_live else 'video/' }}{{ bvid }}"
-                                   target="_blank" rel="noopener noreferrer"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
                                    class="md3-icon-button-small w-7 h-7 rounded-full inline-flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors">
                                     <i class="icon ion-logo-youtube text-sm"></i>
                                 </a>

@@ -187,7 +187,7 @@
                                                    class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
                                                 <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
                                             </div>
-                                            <p class="text-sm text-on-surface-variant leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
+                                            <p class="text-sm text-on-surface leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
                                             <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
                                                 <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
                                             </div>
@@ -342,7 +342,8 @@
                 <div class="space-y-3">
                     {% for rv in vrelated %}
                         {% set rv_link = '/bangumi/play/' + rv['bvid'] if rv['bvid'].startswith('ep') else '/video/' + rv['bvid'] %}
-                        <a href="{{ rv_link }}" class="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-surface-container/50 hover:bg-surface-container transition-all group">
+                        <a href="{{ rv_link }}"
+                           class="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-surface-container/50 hover:bg-surface-container transition-all group">
                             <div class="w-full sm:w-36 aspect-video shrink-0 relative rounded-xl overflow-hidden bg-black/10">
                                 <img loading="lazy"
                                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
