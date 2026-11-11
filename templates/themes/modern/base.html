@@ -6,7 +6,9 @@
         <meta name="csrf-token" content="{{ csrf_token }}" />
         <meta name="csp-nonce" content="{{ csp_nonce }}" />
         <meta name="asset-version" content="{{ asset_version }}" />
-        <script nonce="{{ csp_nonce }}">try{var __m=localStorage.getItem("dark_mode");if(__m){try{__m=decodeURIComponent(__m);var __p=JSON.parse(__m);if(typeof __p==="string")__m=__p;}catch(__e){}if(__m.length>1&&__m.charAt(0)==='"')__m=__m.slice(1,-1);}else{__m=null;}if(__m!=="dark"&&__m!=="light"){__m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(__m==="dark")document.documentElement.classList.add("dark");}catch(__e){}</script>
+        <meta name="default-accent" content="{{ default_accent|default('#a85383') }}" />
+        {% if user_accent %}<meta name="user-accent" content="{{ user_accent }}" />{% endif %}
+        <script nonce="{{ csp_nonce }}">try{var __m=localStorage.getItem("dark_mode");if(__m){try{__m=decodeURIComponent(__m);var __p=JSON.parse(__m);if(typeof __p==="string")__m=__p;}catch(__e){}if(__m.length>1&&__m.charAt(0)==='"')__m=__m.slice(1,-1);}else{__m=null;}if(__m!=="dark"&&__m!=="light"){__m=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}if(__m==="dark")document.documentElement.classList.add("dark");var __s=null;try{var __sc=document.cookie.match(/(?:^|;\s*)m3_seed=([^;]+)/);if(__sc)__s=decodeURIComponent(__sc[1]);else __s=localStorage.getItem("m3_seed");}catch(__e){}var __ua="{{ user_accent|default('') }}";if(!__s&&__ua){__s=__ua;}var __da="{{ default_accent|default('#a85383') }}";if(!__s&&__da&&__da!=="#a85383"){__s=__da;}if(__s){var __pMap={sakura:"#a85383",bili_pink:"#fb7299",bili_blue:"#00aeec",miku:"#39c5bb",orange:"#ff7a00",lavender:"#795290",ocean:"#2563eb"};if(__pMap[__s])__s=__pMap[__s];document.documentElement.dataset.m3Seed=__s;var __isD=(__m==="dark");var __isSak=(__s==="#a85383"||__s==="sakura"||__s==="#ff97b5");var __p=__isSak?(__isD?"#ff97b5":"#a85383"):__s;var __playerP=__isSak?"#ff97b5":__s;document.documentElement.style.setProperty("--theme-primary",__p);document.documentElement.style.setProperty("--md-sys-color-primary",__p);document.documentElement.style.setProperty("--player-primary",__playerP);document.documentElement.style.setProperty("--media-primary-color",__playerP);}}catch(__e){}</script>
         {% block head %}{% endblock %}
         <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
         <link rel="icon"
@@ -65,13 +67,28 @@
                     --md-sys-color-on-surface: #201A1D;
                     /* Text/icons on neutral surfaces */
 
+                    /* Material Design 3 5-Tier Surface Container System */
+                    --md-sys-color-surface-container-lowest: #ffffff;
+                    --md-sys-color-surface-container-low: color-mix(in srgb, #ffffff, var(--theme-primary) 1.5%);
+                    --md-sys-color-surface-container: color-mix(in srgb, #ffffff, var(--theme-primary) 4%);
+                    --md-sys-color-surface-container-high: color-mix(in srgb, #ffffff, var(--theme-primary) 7%);
+                    --md-sys-color-surface-container-highest: color-mix(in srgb, #ffffff, var(--theme-primary) 11%);
+
                     /* Dynamic contrast calculation */
                     --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 20%);
                     /* Distinct containers like cards and search bars */
                     --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), black 60%);
                     /* Lower-emphasis text/icons on surface-variant */
                     --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 40%);
-                    /* Decorative elements, borders, and dividers */
+                    --md-sys-color-outline-variant: color-mix(in srgb, var(--md-sys-color-surface), var(--theme-primary) 18%);
+                    --md-sys-color-tertiary: color-mix(in srgb, var(--theme-primary), #2563eb 40%);
+                    --md-sys-color-tertiary-container: color-mix(in srgb, var(--theme-primary), white 80%);
+                    --md-sys-color-on-tertiary-container: color-mix(in srgb, var(--theme-primary), black 75%);
+
+                    /* Video Player Tokens */
+                    --player-primary: #ff97b5;
+                    --player-on-primary: #000000;
+                    --media-primary-color: var(--player-primary);
                 }
 
                 .dark {
@@ -80,6 +97,11 @@
                     /* Primary accent color for dark theme prominence */
                     --theme-contrast: 10%;
                     /* Increased contrast for OLED/Dark surfaces */
+
+                    /* Video Player Tokens */
+                    --player-primary: #ff97b5;
+                    --player-on-primary: #000000;
+                    --media-primary-color: var(--player-primary);
 
                     /* Material You Sakura Dark - Base Mapping */
                     --md-sys-color-primary: var(--theme-primary);
@@ -110,13 +132,23 @@
                     --md-sys-color-on-surface: #ECE0E3;
                     /* Text/icons on surfaces */
 
+                    /* Material Design 3 5-Tier Surface Container System (Dark) */
+                    --md-sys-color-surface-container-lowest: oklch(0.06 0.008 350);
+                    --md-sys-color-surface-container-low: oklch(0.13 0.014 350);
+                    --md-sys-color-surface-container: oklch(0.17 0.018 350);
+                    --md-sys-color-surface-container-high: oklch(0.22 0.022 350);
+                    --md-sys-color-surface-container-highest: oklch(0.27 0.026 350);
+
                     /* Dynamic contrast calculation */
                     --md-sys-color-surface-variant: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 20%);
                     /* Glowing card backgrounds and inputs */
                     --md-sys-color-on-surface-variant: color-mix(in srgb, var(--theme-primary), white 80%);
                     /* High-readability secondary text */
                     --md-sys-color-outline: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 50%);
-                    /* Dividers and structural borders */
+                    --md-sys-color-outline-variant: color-mix(in srgb, var(--md-sys-color-background), var(--theme-primary) 30%);
+                    --md-sys-color-tertiary: color-mix(in srgb, var(--theme-primary), #60a5fa 40%);
+                    --md-sys-color-tertiary-container: color-mix(in srgb, var(--theme-primary), black 50%);
+                    --md-sys-color-on-tertiary-container: color-mix(in srgb, var(--theme-primary), white 85%);
                 }
 
                 body {
@@ -179,6 +211,18 @@
                 /* Remove outlines/borders globally as requested, use focus rings */
                 *:focus {
                     outline: none !important;
+                }
+
+                #searchbox,
+                #searchbox:focus {
+                    outline: none !important;
+                    box-shadow: none !important;
+                    border: none !important;
+                }
+
+                header.sticky {
+                    -webkit-backdrop-filter: blur(24px);
+                    backdrop-filter: blur(24px);
                 }
 
                 /* Material Design 3 (Material You) Icon Button */
@@ -388,82 +432,45 @@
                     background-color: color-mix(in srgb, var(--md-sys-color-primary), transparent 88%);
                     transform: scale(0.96);
                 }
+
+                /* Popover Anchor Positioning */
+                #lang_btn {
+                    anchor-name: --lang-btn;
+                }
+                #lang_menu {
+                    position-anchor: --lang-btn;
+                    inset: auto;
+                    top: anchor(bottom);
+                    right: anchor(right);
+                    margin: 8px 0 0 0;
+                }
             }
 
             /* @layer components */
         </style>
         <link rel="stylesheet"
               href="/static/themes/modern/css/ionicons.min.css?v={{ asset_version }}" />
+        <script src="/static/themes/modern/js/m3_theme.js?v={{ asset_version }}"></script>
         <script defer
                 src="/static/themes/modern/js/_helpers.js?v={{ asset_version }}"></script>
         <script nonce="{{ csp_nonce }}">window.I18N={locale:"{{ locale }}",msgs:{{ i18n_catalog | tojson }}};</script>
     </head>
     <body class="min-h-screen bg-background text-on-background font-sans transition-colors duration-200">
-        <!-- Sticky Header with Glassmorphism (No Border) -->
-        <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/80 transition-colors duration-200">
-            <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-3 flex flex-col md:flex-row items-center justify-between gap-2 md:gap-4">
-                <!-- Brand & Mobile Icons Row -->
-                <div class="w-full md:w-auto flex justify-between items-center">
+        <!-- Sticky M3 Top App Bar with Glassmorphism -->
+        <header class="sticky top-0 z-50 w-full backdrop-blur-xl bg-background/65 transition-colors duration-200 border-b border-outline-variant/15">
+            <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-2.5 flex items-center justify-between gap-3 md:gap-6">
+                <!-- Brand -->
+                <div class="flex items-center gap-3 shrink-0">
                     <a href="/"
-                       class="text-2xl font-bold index-link tracking-tight shrink-0 text-sakura-dark dark:text-primary">MikuInvidious</a>
-
-                    <!-- Mobile Action Buttons (Visible only on mobile) -->
-                    <div class="flex items-center gap-0.5 md:hidden">
-                        <button id="mobile_search_btn" class="md3-icon-button">
-                            <i class="icon ion-ios-search"></i>
-                        </button>
-                        <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button">
-                            <i class="icon ion-ios-film"></i>
-                        </a>
-                        <button type="button"
-                                id="toggle_theme_mobile"
-                                title="{{ _('Toggle theme') }}"
-                                class="md3-icon-button">
-                            <i class="icon ion-ios-moon"></i>
-                        </button>
-                        <div class="relative">
-                            <button id="mobile_lang_btn"
-                                    title="{{ _('Language') }}"
-                                    class="md3-icon-button"
-                                    aria-haspopup="true">
-                                <svg xmlns="http://www.w3.org/2000/svg"
-                                     width="24"
-                                     height="24"
-                                     fill="currentColor"
-                                     class="bi bi-translate"
-                                     viewBox="0 0 16 16"
-                                     aria-hidden="true">
-                                    <path d="M4.545 6.714 4.11 8H3l1.862-5h1.284L8 8H6.833l-.435-1.286zm1.634-.736L5.5 3.956h-.049l-.679 2.022z" />
-                                    <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31" />
-                                </svg>
-                            </button>
-                            <div id="mobile_lang_menu"
-                                 class="absolute right-0 top-full mt-2 opacity-0 pointer-events-none scale-95 transition-all origin-top-right z-50 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
-                                <div class="flex flex-col gap-1">
-                                    {% for lang_code, lang_label in locale_choices %}
-                                        <button data-lang="{{ lang_code }}"
-                                                class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
-                                            <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
-                                        </button>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-                        <a title="{{ _('Preferences') }}"
-                           href="/preferences"
-                           class="md3-icon-button">
-                            <i class="icon ion-ios-cog"></i>
-                        </a>
-                    </div>
+                       class="text-2xl font-bold index-link tracking-tight shrink-0 text-primary hover:opacity-90 transition-opacity">MikuInvidious</a>
                 </div>
 
-                <!-- Search Container (Hidden on mobile by default, flex on desktop) -->
-                <div id="search_container"
-                     class="hidden md:flex w-full md:flex-1 max-w-2xl searchbar">
+                <!-- Search Bar Container (Flex on desktop, compact on mobile) -->
+                <div id="search_container" class="flex-1 max-w-2xl mx-auto searchbar">
                     <form class="w-full" action="/search" method="get">
-                        <div class="relative group">
-                            <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
-                                <i class="icon ion-ios-search text-xl"></i>
+                        <div class="relative group flex items-center">
+                            <span class="absolute left-3.5 flex items-center text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
+                                <i class="icon ion-ios-search text-lg"></i>
                             </span>
                             <input type="search"
                                    id="searchbox"
@@ -473,15 +480,15 @@
                                    spellcheck="false"
                                    name="q"
                                    placeholder="{{ _('Search for something?') }}"
-                                   class="w-full pl-11 pr-4 py-2.5 rounded-full bg-surface text-on-surface focus:outline-hidden focus:opacity-90 transition-all shadow-xs placeholder-on-surface-variant/80 border-none appearance-none"
+                                   class="w-full pl-10 pr-4 py-2 rounded-full bg-surface-container text-on-surface text-sm placeholder-on-surface-variant/70 focus:bg-surface-container-high focus:outline-none focus:ring-0 focus:border-none transition-all shadow-xs border-none appearance-none"
                                    {% if q %}value="{{ q }}"{% endif %} />
                         </div>
                     </form>
                 </div>
 
-                <!-- Desktop Action Buttons (Hidden on mobile) -->
-                <div class="hidden md:flex items-center gap-1 md:gap-2 user-field">
-                    <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button">
+                <!-- Action Buttons Row -->
+                <div class="flex items-center gap-1 md:gap-2 user-field shrink-0">
+                    <a title="{{ _('Bangumi') }}" href="/bangumi" class="md3-icon-button hidden sm:inline-flex">
                         <i class="icon ion-ios-film"></i>
                     </a>
                     <button type="button"
@@ -494,10 +501,11 @@
                         <button id="lang_btn"
                                 title="{{ _('Language') }}"
                                 class="md3-icon-button"
+                                popovertarget="lang_menu"
                                 aria-haspopup="true">
                             <svg xmlns="http://www.w3.org/2000/svg"
-                                 width="24"
-                                 height="24"
+                                 width="22"
+                                 height="22"
                                  fill="currentColor"
                                  class="bi bi-translate"
                                  viewBox="0 0 16 16"
@@ -506,13 +514,15 @@
                                 <path d="M0 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v3h3a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H2a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1zm7.138 9.995q.289.451.63.846c-.748.575-1.673 1.001-2.768 1.292.178.217.451.635.555.867 1.125-.359 2.08-.844 2.886-1.494.777.665 1.739 1.165 2.93 1.472.133-.254.414-.673.629-.89-1.125-.253-2.057-.694-2.82-1.284.681-.747 1.222-1.651 1.621-2.757H14V8h-3v1.047h.765c-.318.844-.74 1.546-1.272 2.13a6 6 0 0 1-.415-.492 2 2 0 0 1-.94.31" />
                             </svg>
                         </button>
+                        <!-- Native HTML Popover Language Menu -->
                         <div id="lang_menu"
-                             class="absolute right-0 top-full mt-2 opacity-0 pointer-events-none scale-95 transition-all origin-top-right z-50 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
+                             popover="auto"
+                             class="m3-popover bg-surface-container-high text-on-surface rounded-2xl shadow-2xl border border-outline-variant/20 p-2 min-w-[170px] backdrop-blur-md">
                             <div class="flex flex-col gap-1">
                                 {% for lang_code, lang_label in locale_choices %}
                                     <button data-lang="{{ lang_code }}"
-                                            class="lang-option group w-full text-left px-4 py-2.5 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active{% endif %}">
-                                        <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100"></i>
+                                            class="lang-option group w-full text-left px-3.5 py-2 text-sm text-on-surface/80 hover:bg-surface-container-highest hover:text-on-surface transition-colors rounded-xl flex items-center justify-between gap-3{% if locale == lang_code %} active font-semibold text-primary{% endif %}">
+                                        <span>{{ lang_label }}</span><i class="icon ion-md-checkmark opacity-0 group-[.active]:opacity-100 text-primary"></i>
                                     </button>
                                 {% endfor %}
                             </div>
@@ -520,13 +530,13 @@
                     </div>
                     <a title="{{ _('Preferences') }}"
                        href="/preferences"
-                       class="md3-icon-button">
+                       class="md3-icon-button hidden sm:inline-flex">
                         <i class="icon ion-ios-cog"></i>
                     </a>
                 </div>
             </div>
         </header>
-        <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-4 md:py-8 grow flex flex-col">
+        <div class="mx-auto w-full max-w-[1750px] px-4 md:px-6 py-4 md:py-8 grow flex flex-col pb-24 md:pb-8">
             <div id="contents" class="grow">
                 {% block content %}{% endblock %}
             </div>
@@ -596,6 +606,31 @@
                 </div>
             </footer>
         </div>
+        <!-- Mobile Bottom Navigation Bar (M3) -->
+        <nav id="m3-bottom-nav"
+             class="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-container/90 backdrop-blur-xl border-t border-outline-variant/20 px-6 py-2 flex items-center justify-around">
+            <a href="/"
+               class="flex flex-col items-center gap-0.5 py-1 px-4 rounded-full text-xs font-medium transition-colors hover:text-primary active:scale-95 text-on-surface-variant">
+                <div class="w-12 h-7 rounded-full flex items-center justify-center transition-colors">
+                    <i class="icon ion-ios-home text-xl"></i>
+                </div>
+                <span>{{ _("Home") }}</span>
+            </a>
+            <a href="/bangumi"
+               class="flex flex-col items-center gap-0.5 py-1 px-4 rounded-full text-xs font-medium transition-colors hover:text-primary active:scale-95 text-on-surface-variant">
+                <div class="w-12 h-7 rounded-full flex items-center justify-center transition-colors">
+                    <i class="icon ion-ios-film text-xl"></i>
+                </div>
+                <span>{{ _("Bangumi") }}</span>
+            </a>
+            <a href="/preferences"
+               class="flex flex-col items-center gap-0.5 py-1 px-4 rounded-full text-xs font-medium transition-colors hover:text-primary active:scale-95 text-on-surface-variant">
+                <div class="w-12 h-7 rounded-full flex items-center justify-center transition-colors">
+                    <i class="icon ion-ios-cog text-xl"></i>
+                </div>
+                <span>{{ _("Preferences") }}</span>
+            </a>
+        </nav>
         <script defer src="/static/themes/modern/js/themes.js?v={{ asset_version }}"></script>
         {% block lowerbody %}{% endblock %}
     </body>
