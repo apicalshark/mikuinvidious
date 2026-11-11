@@ -95,7 +95,7 @@ def merge_po(po_path: Path, pot_entries: list[dict], pot_date: str) -> bool:  # 
     for e in live_by_id.values():
         pot_e = pot_by_id.get(e["msgid"])
         if pot_e is None:
-            newly_obsolete.append(render_entry(e, _forms_of(e), obsolete=True))
+            newly_obsolete.append(render_entry(e, _forms_of(e), comments=[], obsolete=True))
             continue
         pot_refs = [c for c in pot_e["comments"] if c.startswith("#:") or c.startswith("#,")]
         _old_refs, keep = split_ref_flags(e["comments"])
@@ -116,8 +116,12 @@ def merge_po(po_path: Path, pot_entries: list[dict], pot_date: str) -> bool:  # 
         refs = [c for c in e["comments"] if c.startswith("#:") or c.startswith("#,")]
         out_blocks.append(render_entry(e, [""] * want, comments=refs))
 
-    # Preserve previously-obsoleted blocks verbatim at the end.
-    out_blocks.extend(obsolete + newly_obsolete)
+    # Preserve previously-obsoleted blocks at the end (stripping stale comments).
+    cleaned_obsolete = []
+    for b in obsolete:
+        cleaned_b = "\n".join(ln for ln in b.split("\n") if not ln.startswith("#~ #"))
+        cleaned_obsolete.append(cleaned_b)
+    out_blocks.extend(cleaned_obsolete + newly_obsolete)
 
     # Refresh POT-Creation-Date so translators see the template vintage.
     # NOTE: replacement must be a function — a plain string would let re

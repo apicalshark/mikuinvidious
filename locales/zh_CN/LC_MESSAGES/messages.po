@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-11 16:27+0000\n"
+"POT-Creation-Date: 2026-11-12 01:56+0800\n"
 "Language: zh_CN\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -330,62 +330,62 @@ msgstr "Nyaa Magnet 资源"
 msgid "Failed to load Nyaa resources"
 msgstr "无法加载 Nyaa 资源"
 
-#: templates/themes/modern/base.html:504 templates/themes/modern/base.html:639
+#: templates/themes/modern/base.html:492 templates/themes/modern/base.html:549
 msgid "Bangumi"
 msgstr "番剧"
 
-#: templates/themes/modern/base.html:511
+#: templates/themes/modern/base.html:497 templates/themes/modern/base.html:554
 msgid "Toggle theme"
 msgstr "切换主题"
 
-#: templates/themes/modern/base.html:517
+#: templates/themes/modern/base.html:502 templates/themes/modern/base.html:560
 msgid "Language"
 msgstr "语言"
 
-#: templates/themes/modern/base.html:546 templates/themes/modern/base.html:646
+#: templates/themes/modern/base.html:517 templates/themes/modern/base.html:576
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "偏好设置"
 
-#: templates/themes/modern/base.html:495
+#: templates/themes/modern/base.html:540
 #: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "想要搜索点什么？"
 
-#: templates/themes/modern/base.html:565
+#: templates/themes/modern/base.html:609
 msgid "Original source code"
 msgstr "原始项目源代码"
 
-#: templates/themes/modern/base.html:567
+#: templates/themes/modern/base.html:611
 msgid "Modified source code"
 msgstr "修改后的源代码"
 
-#: templates/themes/modern/base.html:570
+#: templates/themes/modern/base.html:614
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "源代码"
 
-#: templates/themes/modern/base.html:576
+#: templates/themes/modern/base.html:620
 msgid "Documentation"
 msgstr "文档"
 
-#: templates/themes/modern/base.html:581
+#: templates/themes/modern/base.html:625
 msgid "Link converter"
 msgstr "链接转换器"
 
-#: templates/themes/modern/base.html:587
+#: templates/themes/modern/base.html:631
 msgid "Proudly released under AGPLv3"
 msgstr "自豪地以 AGPLv3 发布"
 
-#: templates/themes/modern/base.html:594
+#: templates/themes/modern/base.html:638
 msgid "View JavaScript licenses"
 msgstr "查看 JavaScript 许可证"
 
-#: templates/themes/modern/base.html:599
+#: templates/themes/modern/base.html:643
 msgid "Privacy policy"
 msgstr "隐私条款"
 
-#: templates/themes/modern/base.html:606
+#: templates/themes/modern/base.html:650
 msgid "Donate"
 msgstr "赞助我们"
 
@@ -472,7 +472,8 @@ msgstr "请检查您的请求。如果您认为这是网站问题，请联系管
 msgid "Back to home"
 msgstr "返回首页"
 
-#: templates/themes/modern/home.html:5 templates/themes/modern/search.html:5
+#: templates/themes/modern/base.html:489 templates/themes/modern/home.html:5
+#: templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
 msgid "Search"
@@ -1032,21 +1033,17 @@ msgstr "已开启"
 msgid "Off"
 msgstr "已关闭"
 
-#: templates/themes/modern/base.html:632
-msgid "Home"
-msgstr ""
-
 #: templates/themes/modern/pref.html:22
 msgid "Theme Color"
-msgstr ""
+msgstr "主题颜色"
 
 #: templates/themes/modern/pref.html:80
 msgid "Reset theme color"
-msgstr ""
+msgstr "重置主题颜色"
 
 #: templates/themes/modern/pref.html:83 templates/themes/modern/pref.html:87
 msgid "Custom Color"
-msgstr ""
+msgstr "自定义颜色"
 
 #~ msgid "Personalization settings"
 #~ msgstr "个性化设置"
@@ -1069,14 +1066,14 @@ msgstr ""
 #~ msgid "No articles yet"
 #~ msgstr "暂无专栏文章"
 
-#~ #: templates/themes/modern/base.html:503
 #~ msgid "Version info unavailable :-("
 #~ msgstr "版本信息当前不可用 :-("
 
-#~ #: templates/themes/modern/search.html:105
 #~ msgid "popularity"
 #~ msgstr "人气"
 
-#~ #: templates/themes/modern/video.html:88
 #~ msgid "Views"
 #~ msgstr "播放量"
+
+#~ msgid "Home"
+#~ msgstr ""

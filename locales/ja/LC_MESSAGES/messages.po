@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-11 16:27+0000\n"
+"POT-Creation-Date: 2026-11-12 01:56+0800\n"
 "Language: ja\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -330,132 +330,132 @@ msgstr "Nyaa Magnet リソース"
 msgid "Failed to load Nyaa resources"
 msgstr "Nyaaリソースの読み込みに失敗"
 
-#: templates/themes/modern/base.html:504 templates/themes/modern/base.html:639
+#: templates/themes/modern/base.html:492 templates/themes/modern/base.html:549
 msgid "Bangumi"
 msgstr "番組"
 
-#: templates/themes/modern/base.html:511
+#: templates/themes/modern/base.html:497 templates/themes/modern/base.html:554
 msgid "Toggle theme"
 msgstr "テーマを切り替え"
 
-#: templates/themes/modern/base.html:517
+#: templates/themes/modern/base.html:502 templates/themes/modern/base.html:560
 msgid "Language"
 msgstr "言語"
 
-#: templates/themes/modern/base.html:546 templates/themes/modern/base.html:646
+#: templates/themes/modern/base.html:517 templates/themes/modern/base.html:576
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "設定"
 
-#: templates/themes/modern/base.html:495
+#: templates/themes/modern/base.html:540
 #: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "何か検索してみよう"
 
-#: templates/themes/modern/base.html:565
+#: templates/themes/modern/base.html:609
 msgid "Original source code"
 msgstr "オリジナルのソースコード"
 
-#: templates/themes/modern/base.html:567
+#: templates/themes/modern/base.html:611
 msgid "Modified source code"
 msgstr "修正後のソースコード"
 
-#: templates/themes/modern/base.html:570
+#: templates/themes/modern/base.html:614
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "ソースコード"
 
-#: templates/themes/modern/base.html:576
+#: templates/themes/modern/base.html:620
 msgid "Documentation"
 msgstr "ドキュメント"
 
-#: templates/themes/modern/base.html:581
+#: templates/themes/modern/base.html:625
 msgid "Link converter"
-msgstr ""
+msgstr "リンク変換"
 
-#: templates/themes/modern/base.html:587
+#: templates/themes/modern/base.html:631
 msgid "Proudly released under AGPLv3"
 msgstr "AGPLv3の下で誇りを持って公開"
 
-#: templates/themes/modern/base.html:594
+#: templates/themes/modern/base.html:638
 msgid "View JavaScript licenses"
 msgstr "JavaScriptライセンスを見る"
 
-#: templates/themes/modern/base.html:599
+#: templates/themes/modern/base.html:643
 msgid "Privacy policy"
 msgstr "プライバシーポリシー"
 
-#: templates/themes/modern/base.html:606
+#: templates/themes/modern/base.html:650
 msgid "Donate"
 msgstr "寄付する"
 
 #: templates/themes/modern/convert.html:2
 #: templates/themes/modern/convert.html:10
 msgid "Link Converter"
-msgstr ""
+msgstr "リンク変換"
 
 #: templates/themes/modern/convert.html:12
 msgid ""
 "Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links "
 "and MikuInvidious pages."
-msgstr ""
+msgstr "b23.tvの短縮リンクやBilibiliのURLを、追跡のないクリーンなリンクやMikuInvidiousページに変換します。"
 
 #: templates/themes/modern/convert.html:22
 msgid "Bilibili Link or Share Text"
-msgstr ""
+msgstr "Bilibiliリンクまたは共有テキスト"
 
 #: templates/themes/modern/convert.html:28
 msgid "Paste a b23.tv shortlink, bilibili.com URL, or app share text..."
-msgstr ""
+msgstr "b23.tv短縮リンク、bilibili.comのURL、またはアプリの共有テキストを貼り付け..."
 
 #: templates/themes/modern/convert.html:38
 msgid "Convert"
-msgstr ""
+msgstr "変換"
 
 #: templates/themes/modern/convert.html:42
 msgid "Converting..."
-msgstr ""
+msgstr "変換中..."
 
 #: templates/themes/modern/convert.html:60
 msgid "Resolved Target"
-msgstr ""
+msgstr "解決されたリンク先"
 
 #: templates/themes/modern/convert.html:67
 msgid "Clean Bilibili URL (no tracking)"
-msgstr ""
+msgstr "クリーンなBilibili URL（追跡なし）"
 
 #: templates/themes/modern/convert.html:77
 msgid "Copy clean URL"
-msgstr ""
+msgstr "クリーンURLをコピー"
 
 #: templates/themes/modern/convert.html:79
 #: templates/themes/modern/convert.html:98
 msgid "Copy"
-msgstr ""
+msgstr "コピー"
 
 #: templates/themes/modern/convert.html:86
 msgid "MikuInvidious Link"
-msgstr ""
+msgstr "MikuInvidiousリンク"
 
 #: templates/themes/modern/convert.html:96
 msgid "Copy MikuInvidious link"
-msgstr ""
+msgstr "MikuInvidiousリンクをコピー"
 
 #: templates/themes/modern/convert.html:104
 msgid "Open"
-msgstr ""
+msgstr "開く"
 
 #: templates/themes/modern/convert.html:140
 msgid "Copied!"
-msgstr ""
+msgstr "コピーしました！"
 
 #: templates/themes/modern/convert.html:216
 msgid "Failed to resolve URL"
-msgstr ""
+msgstr "URLの解決に失敗しました"
 
 #: templates/themes/modern/convert.html:239
 msgid "Network error. Please try again."
-msgstr ""
+msgstr "ネットワークエラーが発生しました。もう一度お試しください。"
 
 #: templates/themes/modern/error.html:2
 msgid "Error"
@@ -472,7 +472,8 @@ msgstr "リクエストを確認してください。サイトの問題だと思
 msgid "Back to home"
 msgstr "ホームに戻る"
 
-#: templates/themes/modern/home.html:5 templates/themes/modern/search.html:5
+#: templates/themes/modern/base.html:489 templates/themes/modern/home.html:5
+#: templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
 msgid "Search"
@@ -592,13 +593,13 @@ msgstr "画質に連動せず、常に最高の音声トラックを再生する
 
 #: templates/themes/modern/pref.html:125
 msgid "Lock video resolution"
-msgstr ""
+msgstr "画質を固定"
 
 #: templates/themes/modern/pref.html:126
 msgid ""
 "Always play the highest available video track instead of auto-switching "
 "quality"
-msgstr ""
+msgstr "画質の自動切り替えを行わず、常に利用可能な最高画質で再生します"
 
 #: templates/themes/modern/read.html:5
 msgid "Illustrations"
@@ -1032,21 +1033,17 @@ msgstr "オン"
 msgid "Off"
 msgstr "オフ"
 
-#: templates/themes/modern/base.html:632
-msgid "Home"
-msgstr ""
-
 #: templates/themes/modern/pref.html:22
 msgid "Theme Color"
-msgstr ""
+msgstr "テーマカラー"
 
 #: templates/themes/modern/pref.html:80
 msgid "Reset theme color"
-msgstr ""
+msgstr "テーマカラーをリセット"
 
 #: templates/themes/modern/pref.html:83 templates/themes/modern/pref.html:87
 msgid "Custom Color"
-msgstr ""
+msgstr "カスタムカラー"
 
 #~ msgid "Personalization settings"
 #~ msgstr "個人設定"
@@ -1069,14 +1066,14 @@ msgstr ""
 #~ msgid "No articles yet"
 #~ msgstr "まだコラムがありません"
 
-#~ #: templates/themes/modern/base.html:503
 #~ msgid "Version info unavailable :-("
 #~ msgstr "バージョン情報は現在利用できません :-("
 
-#~ #: templates/themes/modern/search.html:105
 #~ msgid "popularity"
 #~ msgstr "人気"
 
-#~ #: templates/themes/modern/video.html:88
 #~ msgid "Views"
 #~ msgstr "再生数"
+
+#~ msgid "Home"
+#~ msgstr ""

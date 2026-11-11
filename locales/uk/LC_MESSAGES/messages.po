@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-11 16:27+0000\n"
+"POT-Creation-Date: 2026-11-12 01:56+0800\n"
 "Language: uk\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -331,132 +331,132 @@ msgstr "Магніт-ресурси Nyaa"
 msgid "Failed to load Nyaa resources"
 msgstr "Не вдалося завантажити ресурси Nyaa"
 
-#: templates/themes/modern/base.html:504 templates/themes/modern/base.html:639
+#: templates/themes/modern/base.html:492 templates/themes/modern/base.html:549
 msgid "Bangumi"
 msgstr "Банґумі"
 
-#: templates/themes/modern/base.html:511
+#: templates/themes/modern/base.html:497 templates/themes/modern/base.html:554
 msgid "Toggle theme"
 msgstr "Перемкнути тему"
 
-#: templates/themes/modern/base.html:517
+#: templates/themes/modern/base.html:502 templates/themes/modern/base.html:560
 msgid "Language"
 msgstr "Мова"
 
-#: templates/themes/modern/base.html:546 templates/themes/modern/base.html:646
+#: templates/themes/modern/base.html:517 templates/themes/modern/base.html:576
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "Налаштування"
 
-#: templates/themes/modern/base.html:495
+#: templates/themes/modern/base.html:540
 #: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "Щось шукаєте?"
 
-#: templates/themes/modern/base.html:565
+#: templates/themes/modern/base.html:609
 msgid "Original source code"
 msgstr "Оригінальний сирцевий код"
 
-#: templates/themes/modern/base.html:567
+#: templates/themes/modern/base.html:611
 msgid "Modified source code"
 msgstr "Змінений сирцевий код"
 
-#: templates/themes/modern/base.html:570
+#: templates/themes/modern/base.html:614
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "Сирцевий код"
 
-#: templates/themes/modern/base.html:576
+#: templates/themes/modern/base.html:620
 msgid "Documentation"
 msgstr "Документація"
 
-#: templates/themes/modern/base.html:581
+#: templates/themes/modern/base.html:625
 msgid "Link converter"
-msgstr ""
+msgstr "Конвертер посилань"
 
-#: templates/themes/modern/base.html:587
+#: templates/themes/modern/base.html:631
 msgid "Proudly released under AGPLv3"
 msgstr "Гордо випущено під AGPLv3"
 
-#: templates/themes/modern/base.html:594
+#: templates/themes/modern/base.html:638
 msgid "View JavaScript licenses"
 msgstr "Переглянути ліцензії JavaScript"
 
-#: templates/themes/modern/base.html:599
+#: templates/themes/modern/base.html:643
 msgid "Privacy policy"
 msgstr "Політика конфіденційності"
 
-#: templates/themes/modern/base.html:606
+#: templates/themes/modern/base.html:650
 msgid "Donate"
 msgstr "Пожертвувати"
 
 #: templates/themes/modern/convert.html:2
 #: templates/themes/modern/convert.html:10
 msgid "Link Converter"
-msgstr ""
+msgstr "Конвертер посилань"
 
 #: templates/themes/modern/convert.html:12
 msgid ""
 "Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links "
 "and MikuInvidious pages."
-msgstr ""
+msgstr "Перетворюйте короткі посилання b23.tv та URL-адреси Bilibili на чисті посилання без відстеження та сторінки MikuInvidious."
 
 #: templates/themes/modern/convert.html:22
 msgid "Bilibili Link or Share Text"
-msgstr ""
+msgstr "Посилання Bilibili або текст спільного доступу"
 
 #: templates/themes/modern/convert.html:28
 msgid "Paste a b23.tv shortlink, bilibili.com URL, or app share text..."
-msgstr ""
+msgstr "Вставте коротке посилання b23.tv, URL-адресу bilibili.com або текст із додатка..."
 
 #: templates/themes/modern/convert.html:38
 msgid "Convert"
-msgstr ""
+msgstr "Конвертувати"
 
 #: templates/themes/modern/convert.html:42
 msgid "Converting..."
-msgstr ""
+msgstr "Конвертація..."
 
 #: templates/themes/modern/convert.html:60
 msgid "Resolved Target"
-msgstr ""
+msgstr "Отримане посилання"
 
 #: templates/themes/modern/convert.html:67
 msgid "Clean Bilibili URL (no tracking)"
-msgstr ""
+msgstr "Чиста URL-адреса Bilibili (без відстеження)"
 
 #: templates/themes/modern/convert.html:77
 msgid "Copy clean URL"
-msgstr ""
+msgstr "Копіювати чисту URL-адресу"
 
 #: templates/themes/modern/convert.html:79
 #: templates/themes/modern/convert.html:98
 msgid "Copy"
-msgstr ""
+msgstr "Копіювати"
 
 #: templates/themes/modern/convert.html:86
 msgid "MikuInvidious Link"
-msgstr ""
+msgstr "Посилання MikuInvidious"
 
 #: templates/themes/modern/convert.html:96
 msgid "Copy MikuInvidious link"
-msgstr ""
+msgstr "Копіювати посилання MikuInvidious"
 
 #: templates/themes/modern/convert.html:104
 msgid "Open"
-msgstr ""
+msgstr "Відкрити"
 
 #: templates/themes/modern/convert.html:140
 msgid "Copied!"
-msgstr ""
+msgstr "Скопійовано!"
 
 #: templates/themes/modern/convert.html:216
 msgid "Failed to resolve URL"
-msgstr ""
+msgstr "Не вдалося визначити URL-адресу"
 
 #: templates/themes/modern/convert.html:239
 msgid "Network error. Please try again."
-msgstr ""
+msgstr "Помилка мережі. Спробуйте ще раз."
 
 #: templates/themes/modern/error.html:2
 msgid "Error"
@@ -473,7 +473,8 @@ msgstr "Перевірте свій запит. Якщо вважаєте, що 
 msgid "Back to home"
 msgstr "На головну"
 
-#: templates/themes/modern/home.html:5 templates/themes/modern/search.html:5
+#: templates/themes/modern/base.html:489 templates/themes/modern/home.html:5
+#: templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
 msgid "Search"
@@ -593,13 +594,13 @@ msgstr "Завжди відтворювати найкращу доступну 
 
 #: templates/themes/modern/pref.html:125
 msgid "Lock video resolution"
-msgstr ""
+msgstr "Зафіксувати якість відео"
 
 #: templates/themes/modern/pref.html:126
 msgid ""
 "Always play the highest available video track instead of auto-switching "
 "quality"
-msgstr ""
+msgstr "Завжди відтворювати найвищу доступну якість замість автоматичного перемикання"
 
 #: templates/themes/modern/read.html:5
 msgid "Illustrations"
@@ -1035,33 +1036,29 @@ msgstr "Увімк"
 msgid "Off"
 msgstr "Вимк"
 
-#: templates/themes/modern/base.html:632
-msgid "Home"
-msgstr ""
-
 #: templates/themes/modern/pref.html:22
 msgid "Theme Color"
-msgstr ""
+msgstr "Колір теми"
 
 #: templates/themes/modern/pref.html:80
 msgid "Reset theme color"
-msgstr ""
+msgstr "Скинути колір теми"
 
 #: templates/themes/modern/pref.html:83 templates/themes/modern/pref.html:87
 msgid "Custom Color"
-msgstr ""
+msgstr "Власний колір"
 
 #~ msgid "No articles yet"
 #~ msgstr "Статей поки немає"
 
-#~ #: templates/themes/modern/base.html:503
 #~ msgid "Version info unavailable :-("
 #~ msgstr "Інформація про версію недоступна :-("
 
-#~ #: templates/themes/modern/search.html:105
 #~ msgid "popularity"
 #~ msgstr "популярність"
 
-#~ #: templates/themes/modern/video.html:88
 #~ msgid "Views"
 #~ msgstr "Перегляди"
+
+#~ msgid "Home"
+#~ msgstr ""
