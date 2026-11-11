@@ -1,5 +1,6 @@
 {% extends "themes/modern/base.html" %}
 {% from 'macros.html' import video_player, m3_spinner with context %}
+{% from 'themes/modern/components/m3_components.html' import m3_chip, m3_button, m3_icon_button with context %}
 
 {% block head %}
     <meta name="description" content="{{ vinfo['desc'] }}" />
@@ -54,7 +55,7 @@
         <div class="lg:col-span-3 space-y-6">
 
             <!-- Player Card -->
-            <div class="bg-surface dark:bg-background md:rounded-2xl rounded-none overflow-hidden shadow-xs">
+            <div class="bg-surface-container-low text-on-surface md:rounded-3xl rounded-none overflow-hidden shadow-xs">
                 <!-- Player Wrapper: Force Dark Background -->
                 <div id="player-placeholder-wrapper">{{ video_player(vid, vinfo, idx, supported_src, is_live) }}</div>
 
@@ -82,50 +83,39 @@
                         </div>
                     {% endif %}
 
-                    <!-- Stats Bar -->
-                    <div class="flex flex-wrap gap-4 md:gap-6 text-sm text-on-surface-variant pb-4">
-                        <div class="flex items-center gap-1.5"
-                             title="{{ _('Online') if is_live else _('Views') }}">
-                            <i class="icon ion-ios-eye text-lg"></i> {{ vinfo['stat']['view']|intsep }} {{ _("Online") if is_live else '' }}
-                        </div>
+                    <!-- M3 Action Chips Bar -->
+                    <div class="flex flex-wrap items-center gap-2 text-sm text-on-surface-variant pb-2">
+                        {{ m3_chip(label=vinfo['stat']['view']|intsep ~ (' ' ~ _('Online') if is_live else ' ' ~ _('views')), icon='ion-ios-eye') }}
                         {% if not is_live %}
-                            <div class="flex items-center gap-1.5" title="{{ _('Likes') }}">
-                                <i class="icon ion-ios-thumbs-up text-lg"></i> {{ vinfo['stat']['like']|intsep }}
-                            </div>
-                            <div class="flex items-center gap-1.5" title="{{ _('Coins') }}">
-                                <i class="icon ion-logo-bitcoin text-lg"></i> {{ vinfo['stat']['coin']|intsep }}
-                            </div>
-                            <div class="flex items-center gap-1.5" title="{{ _('Favorites') }}">
-                                <i class="icon ion-ios-bookmark text-lg"></i> {{ vinfo['stat']['favorite']|intsep }}
-                            </div>
-                            <div class="flex items-center gap-1.5" title="{{ _('Share') }}">
-                                <i class="icon ion-md-share text-lg"></i> {{ vinfo['stat']['share']|intsep }}
-                            </div>
+                            {{ m3_chip(label=vinfo['stat']['like']|intsep, icon='ion-ios-thumbs-up', title=_('Likes')) }}
+                            {{ m3_chip(label=vinfo['stat']['coin']|intsep, icon='ion-logo-bitcoin', title=_('Coins')) }}
+                            {{ m3_chip(label=vinfo['stat']['favorite']|intsep, icon='ion-ios-bookmark', title=_('Favorites')) }}
+                            {{ m3_chip(label=vinfo['stat']['share']|intsep, icon='ion-md-share', title=_('Share')) }}
                         {% endif %}
-                        <div class="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-                            <i class="icon ion-ios-pricetag"></i>
+                        <div class="ml-auto flex flex-wrap items-center justify-end gap-1.5 pt-1 md:pt-0">
+                            <i class="icon ion-ios-pricetag text-on-surface-variant/60"></i>
                             <a href="/vv/{{ vinfo['tid'] }}"
-                               class="hover:text-primary transition-colors">{{ vinfo['tname'] }}</a>
+                               class="hover:text-primary transition-colors text-xs font-medium">{{ vinfo['tname'] }}</a>
                             {% for t in (vtags|default([]))[:10] %}
                                 {% if t.get("tag_name") %}
                                     <a href="/search?q={{ t['tag_name']|urlencode }}"
-                                       class="px-2 py-0.5 rounded-full bg-surface-variant/30 text-xs text-on-surface-variant hover:text-primary hover:bg-primary/10 transition-colors">{{ t['tag_name'] }}</a>
+                                       class="px-2.5 py-0.5 rounded-full bg-surface-container text-xs text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors">{{ t['tag_name'] }}</a>
                                 {% endif %}
                             {% endfor %}
                         </div>
                     </div>
 
-                    <!-- Actions -->
-                    <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <!-- Channel Info & Actions -->
+                    <div class="flex flex-col md:flex-row gap-4 items-center justify-between p-4 rounded-2xl bg-surface-container">
                         <!-- Channel Info -->
                         <a href="/space/{{ vinfo['owner']['mid'] }}"
                            class="flex items-center gap-3 group w-full md:w-auto">
                             <img src="{{ (vinfo['owner']['face'] + "@48w_48h.webp")|pic }}"
                                  alt="{{ vinfo['owner']['name'] }}"
-                                 class="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-primary transition-all" />
+                                 class="w-11 h-11 rounded-full object-cover group-hover:opacity-90 transition-opacity" />
                             <div class="flex flex-col">
                                 <span class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ vinfo['owner']['name'] }}</span>
-                                <span class="text-xs text-on-surface-variant">{{ vinfo['pubdate']|date }}</span>
+                                <span class="text-xs text-on-surface-variant/80">{{ vinfo['pubdate']|date }}</span>
                             </div>
                         </a>
 
@@ -150,7 +140,7 @@
                                     <input type="hidden" name="cvid" value="{{ idx }}" />
                                     <select id="download-quality"
                                             name="qual"
-                                            class="px-4 h-10 rounded-full bg-surface-variant/30 dark:bg-surface-variant text-on-surface text-sm border-none focus:ring-2 focus:ring-primary cursor-pointer hover:bg-surface-variant/50 transition-colors">
+                                            class="px-4 h-10 rounded-full bg-surface-container-high text-on-surface text-sm border-none focus:ring-2 focus:ring-primary cursor-pointer hover:bg-surface-container-highest transition-colors">
                                         {% for src in supported_src %}<option value="{{ src['quality'] }}">{{ src['new_description'] }}</option>{% endfor %}
                                     </select>
                                     <button id="download-btn"
@@ -166,7 +156,7 @@
                     </div>
 
                     <!-- Description -->
-                    <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
+                    <div class="bg-surface-container rounded-2xl p-4 text-sm text-on-surface leading-relaxed break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
                         {{ vinfo['desc']|format_desc }}
                     </div>
                 </div>
@@ -175,7 +165,7 @@
             <!-- Comments -->
             {% if not is_live %}
                 <div id="comments-loader-container">
-                    <div class="bg-surface dark:bg-background rounded-2xl p-4 md:p-6 shadow-xs">
+                    <div class="bg-surface-container-low text-on-surface rounded-3xl p-5 md:p-6 shadow-xs">
                         <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
                             <i class="icon ion-ios-chatbubbles"></i>
                             {{ _("Comments") }} ({{ vcomments['page']['count'] }})
@@ -187,7 +177,7 @@
                                     <div class="flex gap-4 group">
                                         <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
                                             <img loading="lazy"
-                                                 class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
+                                                 class="w-10 h-10 rounded-full object-cover group-hover:opacity-90 transition-opacity"
                                                  src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
                                                  alt="" />
                                         </a>
@@ -197,7 +187,7 @@
                                                    class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
                                                 <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
                                             </div>
-                                            <p class="text-sm text-on-surface-variant leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
+                                            <p class="text-sm text-on-surface leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
                                             <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
                                                 <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
                                             </div>
@@ -344,18 +334,22 @@
             {% endif %}
 
             <!-- Recommendations -->
-            <div class="bg-surface dark:bg-background rounded-2xl p-4 shadow-xs">
-                <h3 class="font-bold text-on-surface mb-4">{{ _("Recommended") }}</h3>
-                <div class="space-y-4">
+            <div class="bg-surface-container-low text-on-surface rounded-3xl p-4 md:p-5 shadow-xs">
+                <h3 class="font-bold text-on-surface mb-4 flex items-center gap-2">
+                    <i class="icon ion-md-flame text-primary"></i>
+                    {{ _("Recommended") }}
+                </h3>
+                <div class="space-y-3">
                     {% for rv in vrelated %}
                         {% set rv_link = '/bangumi/play/' + rv['bvid'] if rv['bvid'].startswith('ep') else '/video/' + rv['bvid'] %}
-                        <a href="{{ rv_link }}" class="flex flex-col sm:flex-row gap-3 group">
-                            <div class="w-full sm:w-36 aspect-video shrink-0 relative rounded-lg overflow-hidden">
+                        <a href="{{ rv_link }}"
+                           class="flex flex-col sm:flex-row gap-3 p-2 rounded-2xl bg-surface-container/50 hover:bg-surface-container transition-all group">
+                            <div class="w-full sm:w-36 aspect-video shrink-0 relative rounded-xl overflow-hidden bg-black/10">
                                 <img loading="lazy"
                                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                      src="{{ "{}@320w".format(rv['pic']) |pic }}"
                                      alt="" />
-                                <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded shadow-xs">{{ rv['duration']|secdur }}</span>
+                                <span class="absolute bottom-1.5 right-1.5 bg-black/75 backdrop-blur-md text-white text-[10px] px-1.5 py-0.5 rounded-md font-medium shadow-xs">{{ rv['duration']|secdur }}</span>
                             </div>
                             <div class="grow min-w-0 py-0.5">
                                 <p class="text-sm font-bold text-on-surface line-clamp-2 leading-snug group-hover:text-primary transition-colors"
@@ -363,8 +357,8 @@
                                 <div class="mt-1 flex items-center gap-2 text-xs text-on-surface-variant">
                                     <span>{{ rv['owner']['name'] }}</span>
                                 </div>
-                                <div class="flex items-center gap-2 text-xs text-on-surface-variant/70">
-                                    <span>{{ rv['stat']['view']|intsep }} {{ _("Play") }}</span>
+                                <div class="flex items-center gap-2 text-xs text-on-surface-variant/75">
+                                    <span>{{ rv['stat']['view']|intsep }} {{ _("views") }}</span>
                                 </div>
                             </div>
                         </a>

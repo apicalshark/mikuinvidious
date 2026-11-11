@@ -2,18 +2,20 @@
 
 media-controller {
   /* Player chrome sticks to dark-mode styling in both page themes: the
-     player surface is always black, so accents stay sakura. */
-  --media-primary-color: var(--color-sakura-light, #ff9fba);
+     player surface is always black. Player accents follow Material You. */
+  --media-primary-color: var(--player-primary, var(--theme-primary, #ff97b5));
+  --media-range-bar-color: var(--media-primary-color);
   --media-range-track-active-background: var(--media-primary-color);
   --media-range-thumb-background: var(--media-primary-color);
   --media-button-icon-color: var(--media-primary-color);
+  --media-icon-color: var(--media-primary-color);
+  --media-loading-indicator-icon-color: var(--media-primary-color);
   /* Pin the native icon box: the vendored `width: var(--media-button-icon-width)`
      has no fallback, leaving icon sizing to an intrinsic-ratio path that
      collapses in our stack. rem keeps it unit-clean (1.5rem = stock 24px). */
   --media-button-icon-width: 1.5rem;
   --media-button-icon-height: 1.5rem;
-  /* --media-time-range-buffered-color: rgba(255, 177, 218, 0.4); */
-  /* --media-control-hover-background: rgba(255, 177, 218, 0.1); */
+  accent-color: var(--media-primary-color);
   background: #000;
 }
 
@@ -27,6 +29,16 @@ video#player {
   object-fit: contain !important;
   object-position: center center !important;
   background: #000;
+  accent-color: var(--media-primary-color, var(--player-primary, #ff97b5));
+}
+
+audio#player {
+  accent-color: var(--player-primary, var(--theme-primary, #ff97b5));
+}
+
+#autoplay-unlock-btn {
+  background-color: var(--player-primary, var(--md-sys-color-primary, #ff97b5)) !important;
+  color: var(--player-on-primary, var(--md-sys-color-on-primary, #000)) !important;
 }
 
 /* Danmaku Layer - ABSOLUTE PERSISTENCE */
@@ -145,8 +157,8 @@ media-controller[media-user-inactive] #danmaku-container {
 }
 
 #quality-list button.active {
-  background: var(--media-button-icon-color) !important;
-  color: #000 !important; /* on-primary color from dark mode */
+  background: var(--media-primary-color, var(--player-primary, #ff97b5)) !important;
+  color: var(--player-on-primary, #000) !important; /* on-primary color from dark mode */
 }
 
 /* Material You indeterminate circular progress, slotted as the
@@ -160,9 +172,9 @@ media-controller[media-user-inactive] #danmaku-container {
 .miku-m3-spinner circle {
   fill: none;
   /* --media-primary-color lives on media-controller scope; outside it
-     (comments, nyaa sidebar) fall back to the same sakura so the arc is
+     (comments, nyaa sidebar) fall back to player-primary or theme-primary so the arc is
      never left with the SVG default stroke:none (= invisible). */
-  stroke: var(--media-primary-color, #ff9fba);
+  stroke: var(--media-primary-color, var(--player-primary, var(--theme-primary, #ff97b5)));
   stroke-width: 4;
   stroke-linecap: round;
   stroke-dasharray: 80px, 200px;

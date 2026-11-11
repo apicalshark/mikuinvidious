@@ -263,6 +263,7 @@ appconf = {
     "display": {
         "default_theme": "modern",
         "default_locale": os.environ.get("DEFAULT_LOCALE", "zh-CN"),
+        "default_accent": os.environ.get("DEFAULT_ACCENT_COLOR") or os.environ.get("DEFAULT_ACCENT", "#a85383"),
         # Unset/empty means auto-discover from locales/*/LC_MESSAGES.
         "supported_locales": os.environ.get("SUPPORTED_LOCALES"),
     },
@@ -337,6 +338,11 @@ elif os.path.exists("../config.toml"):
 
 if "SITE_URL" in os.environ:
     appconf["site"]["site_url"] = os.environ["SITE_URL"]
+
+if "DEFAULT_ACCENT_COLOR" in os.environ:
+    appconf["display"]["default_accent"] = os.environ["DEFAULT_ACCENT_COLOR"]
+elif "DEFAULT_ACCENT" in os.environ:
+    appconf["display"]["default_accent"] = os.environ["DEFAULT_ACCENT"]
 
 # Install the locale allowlist now that config is merged, so locale resolution,
 # /set_lang validation and the template language menus all read the same list.
@@ -835,6 +841,33 @@ async def render_template_with_theme(fp, **kwargs):
     repo_url = appconf["site"].get("site_modified_source_code_url") or "https://0xacab.org/johnxina/mikuinvidious"
     commit_url = _compute_commit_url(repo_url, GIT_COMMIT)
 
+    cookie_accent = None
+    try:
+        from quart import request
+
+        raw_cookie = request.cookies.get("m3_seed")
+        if raw_cookie:
+            import urllib.parse
+
+            unquoted = urllib.parse.unquote(raw_cookie).strip()
+            preset_map = {
+                "sakura": "#a85383",
+                "bili_pink": "#fb7299",
+                "bili_blue": "#00aeec",
+                "miku": "#39c5bb",
+                "orange": "#ff7a00",
+                "lavender": "#795290",
+                "ocean": "#2563eb",
+            }
+            if unquoted in preset_map:
+                cookie_accent = preset_map[unquoted]
+            elif unquoted.startswith("#") and len(unquoted) in (4, 7, 9):
+                cookie_accent = unquoted
+    except Exception:
+        pass
+
+    site_default_accent = appconf["display"].get("default_accent", "#a85383")
+
     return await render_template(
         f"themes/{t}/{fp}",
         proxy_status=appconf["proxy"],
@@ -843,6 +876,8 @@ async def render_template_with_theme(fp, **kwargs):
         app_version=APP_VERSION,
         git_commit=GIT_COMMIT,
         commit_url=commit_url,
+        default_accent=site_default_accent,
+        user_accent=cookie_accent,
         _=_,
         gettext=lambda s: gettext_msg(locale, s),
         ngettext=lambda s, p, n: ngettext_msg(locale, s, p, n),

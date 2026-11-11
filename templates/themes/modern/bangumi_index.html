@@ -44,14 +44,15 @@
         }
 
         .compact-card {
-            background: var(--md-sys-color-surface-variant);
+            background: var(--md-sys-color-surface-container-low);
             border-radius: 1.25rem;
             transition: all 0.3s ease;
         }
 
         .compact-card:hover {
             transform: translateY(-4px);
-            background: color-mix(in srgb, var(--md-sys-color-surface-variant), var(--md-sys-color-primary) 10%);
+            background: var(--md-sys-color-surface-container-high);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
         }
     </style>
 {% endblock %}
@@ -61,14 +62,14 @@
         <div class="flex flex-wrap gap-2 items-center">
             {% for t_key, t_val in [('anime', _('Anime')), ('guochuang', _('Chinese Original')), ('movie', _('Movies')), ('tv', _('TV Series')), ('variety', _('Variety')), ('documentary', _('Documentary'))] %}
                 <a href="/bangumi?type={{ t_key }}"
-                   class="md3-button rounded-xl! {{ 'md3-button-filled' if current_type == t_key else 'md3-button-tonal' }}">
+                   class="md3-button rounded-full! {{ 'md3-button-filled' if current_type == t_key else 'md3-button-tonal' }}">
                     {{ t_val }}
                 </a>
             {% endfor %}
         </div>
 
         <!-- Filters Grid -->
-        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 p-4 bg-surface-variant/10 rounded-3xl">
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 p-4 bg-surface-container rounded-3xl">
             {% for f in filter_meta %}
                 <div class="flex flex-col gap-1.5 relative">
                     <label class="px-2 text-[11px] font-black uppercase tracking-widest text-on-surface-variant/40">{{ f['title'] }}</label>

@@ -2,11 +2,11 @@ import asyncio
 import unittest
 
 import httpx
+import proxy
 from api.live import LiveDanmaku
 from app import app
 from csrf import CSRF_TOKEN_KEY
 from dash_download_job import create_download_job
-import proxy
 from shared import Network, appconf, detect_theme
 
 

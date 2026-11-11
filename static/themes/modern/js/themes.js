@@ -120,6 +120,9 @@ function setTheme(theme) {
     document.documentElement.classList.remove("dark");
     document.documentElement.classList.add("light");
   }
+  if (window.M3Theme) {
+    window.M3Theme.applyTokens(null, theme === THEME_DARK);
+  }
 }
 
 // Handles theme change event caused by other tab
@@ -168,6 +171,9 @@ function initPreferences() {
     helpers.storage.set(STORAGE_KEY_THEME, storedTheme);
   }
   setTheme(storedTheme);
+  if (window.M3Theme) {
+    window.M3Theme.applyTokens(null, storedTheme === THEME_DARK);
+  }
 
   const openccPref =
     (typeof helpers !== "undefined" && helpers.storage.get("opencc")) || getCookie("opencc");
@@ -284,6 +290,50 @@ function initPreferences() {
     }
   }
 
+  // Material You Palette Picker
+  const seedPicker = document.getElementById("m3-seed-picker");
+  if (seedPicker && window.M3Theme) {
+    const currentSeed = window.M3Theme.getStoredSeed();
+    const swatches = seedPicker.querySelectorAll(".m3-seed-swatch");
+    const customColorInput = document.getElementById("m3-custom-color");
+
+    function updateActiveSwatch(seed) {
+      const isDef = !seed || (window.M3Theme && window.M3Theme.isDefault(seed));
+      swatches.forEach((sw) => {
+        const swSeed = sw.dataset.seed;
+        const match = isDef
+          ? window.M3Theme && window.M3Theme.isDefault(swSeed)
+          : swSeed.toLowerCase() === seed.toLowerCase();
+        if (match) {
+          sw.classList.add("active", "ring-2", "ring-offset-2", "ring-primary");
+        } else {
+          sw.classList.remove("active", "ring-2", "ring-offset-2", "ring-primary");
+        }
+      });
+      if (customColorInput && !isDef) {
+        customColorInput.value = seed;
+      }
+    }
+
+    updateActiveSwatch(currentSeed);
+
+    swatches.forEach((sw) => {
+      sw.addEventListener("click", () => {
+        const seed = sw.dataset.seed;
+        window.M3Theme.setSeedColor(seed);
+        updateActiveSwatch(seed);
+      });
+    });
+
+    if (customColorInput) {
+      customColorInput.addEventListener("input", (e) => {
+        const seed = e.target.value;
+        window.M3Theme.setSeedColor(seed);
+        updateActiveSwatch(seed);
+      });
+    }
+  }
+
   if (searchOpenccPref === "1") {
     const searchForm = document.querySelector('form[action="/search"]');
     if (searchForm) {
@@ -338,28 +388,9 @@ if (document.readyState === "loading") {
   initPreferences();
 }
 
-// Navbar language switcher: flag button toggles a quality-menu-styled
-// dropdown; picking a language POSTs to /set_lang (CSRF-protected) and
-// reloads. Works for both desktop and mobile menus.
-function toggleLangMenu(menu, show) {
-  if (!menu) return;
-  if (show) {
-    menu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
-    menu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
-  } else {
-    menu.classList.add("opacity-0", "pointer-events-none", "scale-95");
-    menu.classList.remove("opacity-100", "scale-100", "pointer-events-auto");
-  }
-}
-
-function closeAllLangMenus(except) {
-  document.querySelectorAll("#lang_menu, #mobile_lang_menu").forEach((m) => {
-    if (m !== except) toggleLangMenu(m, false);
-  });
-}
-
+// Navbar language switcher: picking a language POSTs to /set_lang (CSRF-protected)
+// and reloads. Works with native HTML Popover API.
 async function setLanguage(lang) {
-  // Set cookie on client directly so it applies immediately
   const secureFlag = location.protocol === "https:" ? "; Secure" : "";
   document.cookie =
     "lang=" +
@@ -411,34 +442,65 @@ async function setLanguage(lang) {
   );
 }
 
-for (const [btnId, menuId] of [
-  ["lang_btn", "lang_menu"],
-  ["mobile_lang_btn", "mobile_lang_menu"],
-]) {
-  const btn = document.getElementById(btnId);
-  const menu = document.getElementById(menuId);
-  if (btn && menu) {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const willShow = menu.classList.contains("opacity-0");
-      closeAllLangMenus(menu);
-      toggleLangMenu(menu, willShow);
-    });
-  }
-}
-
 document.querySelectorAll(".lang-option").forEach((opt) => {
   opt.addEventListener("click", (e) => {
     e.stopPropagation();
-    closeAllLangMenus(null);
+    const menu = opt.closest("[popover]");
+    if (menu && menu.hidePopover) {
+      try {
+        menu.hidePopover();
+      } catch (err) {}
+    }
     setLanguage(opt.dataset.lang);
   });
 });
 
-document.addEventListener("click", (e) => {
-  if (!e.target.closest("#lang_menu, #mobile_lang_menu, #lang_btn, #mobile_lang_btn")) {
-    closeAllLangMenus(null);
-  }
+// Popover positioning fallback for browsers without CSS Anchor Positioning
+function positionPopover(popover, trigger) {
+  const rect = trigger.getBoundingClientRect();
+  popover.style.margin = "0";
+  popover.style.position = "fixed";
+  popover.style.top = `${rect.bottom + 8}px`;
+
+  // Align right edge of popover with right edge of trigger button
+  const rightOffset = Math.max(8, window.innerWidth - rect.right);
+  popover.style.right = `${rightOffset}px`;
+  popover.style.left = "auto";
+
+  requestAnimationFrame(() => {
+    const popRect = popover.getBoundingClientRect();
+    if (popRect.bottom > window.innerHeight - 8) {
+      popover.style.top = `${Math.max(8, rect.top - popRect.height - 8)}px`;
+    }
+    if (popRect.left < 8) {
+      popover.style.left = "8px";
+      popover.style.right = "auto";
+    }
+  });
+}
+
+document.querySelectorAll("[popover]").forEach((popover) => {
+  const id = popover.id;
+  if (!id) return;
+
+  const updatePos = () => {
+    const triggers = document.querySelectorAll(`[popovertarget="${id}"]`);
+    let trigger = triggers[0];
+    for (const t of triggers) {
+      if (t.offsetParent !== null || t.offsetWidth > 0 || t.offsetHeight > 0) {
+        trigger = t;
+        break;
+      }
+    }
+    if (trigger) positionPopover(popover, trigger);
+  };
+
+  popover.addEventListener("beforetoggle", (e) => {
+    if (e.newState === "open") updatePos();
+  });
+  popover.addEventListener("toggle", (e) => {
+    if (e.newState === "open") updatePos();
+  });
 });
 
 /* @license-end */

@@ -2,12 +2,12 @@
 {% block head %}<title>{{ _("Link Converter") }} - MikuInvidious</title>{% endblock %}
 {% block content %}
     <div class="min-h-[70vh] flex items-center justify-center px-4 py-8">
-        <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-6 md:p-12 shadow-lg max-w-2xl w-full space-y-6">
+        <div class="bg-surface-container-low text-on-surface rounded-3xl p-6 md:p-12 shadow-lg max-w-2xl w-full space-y-6">
             <div class="text-center space-y-3">
-                <div class="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-full bg-primary/10 flex items-center justify-center text-primary text-3xl md:text-4xl">
+                <div class="w-16 h-16 md:w-20 md:h-20 mx-auto rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center text-3xl md:text-4xl">
                     <i class="icon ion-md-link"></i>
                 </div>
-                <h1 class="text-2xl md:text-3xl font-bold text-on-surface">{{ _("Link Converter") }}</h1>
+                <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-on-surface">{{ _("Link Converter") }}</h1>
                 <p class="text-sm md:text-base text-on-surface-variant max-w-md mx-auto">
                     {{ _("Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links and MikuInvidious pages.") }}
                 </p>
@@ -26,13 +26,13 @@
                               rows="3"
                               required
                               placeholder="{{ _('Paste a b23.tv shortlink, bilibili.com URL, or app share text...') }}"
-                              class="w-full px-4 py-3 rounded-2xl bg-surface-variant/20 dark:bg-surface-variant/30 border border-outline/30 focus:border-primary text-on-surface placeholder:text-on-surface-variant/50 resize-y transition-colors outline-none">{{ url or '' }}</textarea>
+                              class="w-full px-4 py-3 rounded-2xl bg-surface-container border border-outline-variant/40 focus:border-primary text-on-surface placeholder:text-on-surface-variant/50 resize-y transition-colors outline-hidden focus:ring-2 focus:ring-primary/40">{{ url or '' }}</textarea>
                 </div>
 
                 <div class="flex gap-3">
                     <button type="submit"
                             id="convert_btn"
-                            class="md3-button md3-button-filled grow justify-center text-base py-3">
+                            class="md3-button md3-button-filled grow justify-center text-base py-3 rounded-full!">
                         <span id="btn_text" class="flex items-center gap-2">
                             <i class="icon ion-md-swap"></i>
                             <span>{{ _("Convert") }}</span>
@@ -55,8 +55,8 @@
             <!-- Result Card -->
             <div id="result_container"
                  class="{% if not result or result.status != 'ok' %}hidden {% endif %}space-y-4 pt-2">
-                <div class="p-5 md:p-6 rounded-2xl bg-surface-variant/20 dark:bg-surface-variant/30 border border-outline/20 space-y-5">
-                    <div class="flex items-center justify-between border-b border-outline/20 pb-3">
+                <div class="p-5 md:p-6 rounded-2xl bg-surface-container border border-outline-variant/30 space-y-5">
+                    <div class="flex items-center justify-between border-b border-outline-variant/20 pb-3">
                         <span class="text-sm font-semibold text-on-surface-variant uppercase tracking-wider">{{ _("Resolved Target") }}</span>
                         <span id="type_badge"
                               class="px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-primary/10 text-primary">{{ (result.type if result else '')|upper }}</span>
@@ -70,7 +70,7 @@
                                    readonly
                                    id="clean_url_input"
                                    value="{{ result.clean_url if result else '' }}"
-                                   class="grow px-3 py-2 text-xs md:text-sm font-mono rounded-xl bg-surface dark:bg-background border border-outline/30 text-on-surface select-all overflow-ellipsis outline-none" />
+                                   class="grow px-3 py-2 text-xs md:text-sm font-mono rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface select-all overflow-ellipsis outline-hidden focus:ring-2 focus:ring-primary/40" />
                             <button type="button"
                                     id="copy_clean_btn"
                                     class="md3-button md3-button-tonal shrink-0 text-xs px-3 py-2 flex items-center gap-1.5"
@@ -89,7 +89,7 @@
                                    readonly
                                    id="local_url_input"
                                    value="{{ result.local_path if result else '' }}"
-                                   class="grow px-3 py-2 text-xs md:text-sm font-mono rounded-xl bg-surface dark:bg-background border border-outline/30 text-on-surface select-all overflow-ellipsis outline-none" />
+                                   class="grow px-3 py-2 text-xs md:text-sm font-mono rounded-xl bg-surface-container-high border border-outline-variant/30 text-on-surface select-all overflow-ellipsis outline-hidden focus:ring-2 focus:ring-primary/40" />
                             <button type="button"
                                     id="copy_local_btn"
                                     class="md3-button md3-button-tonal shrink-0 text-xs px-3 py-2 flex items-center gap-1.5"

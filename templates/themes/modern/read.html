@@ -19,7 +19,7 @@
                    class="flex items-center gap-3 group">
                     <img src="{{ arinfo['author']['face']|pic }}"
                          alt="{{ arinfo['author']['name'] }}"
-                         class="w-12 h-12 rounded-full ring-2 ring-surface-variant group-hover:ring-primary transition-all object-cover" />
+                         class="w-12 h-12 rounded-full object-cover group-hover:opacity-90 transition-opacity" />
                     <div>
                         <div class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ arinfo['author']['name'] }}</div>
                         <div class="text-xs text-on-surface-variant">{{ arinfo['publish_time']|date }}</div>

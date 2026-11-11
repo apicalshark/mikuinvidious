@@ -1,54 +1,142 @@
 {% extends "themes/modern/base.html" %}
 {% block head %}<title>{{ _("Preferences") }} - MikuInvidious</title>{% endblock %}
 {% block content %}
-    <div class="min-h-[60vh] flex items-center justify-center px-4">
-        <div class="bg-surface dark:bg-surface-variant/20 rounded-3xl p-10 md:p-16 shadow-lg max-w-lg w-full text-center space-y-8">
-            <div class="w-20 h-20 mx-auto rounded-full bg-secondary/10 flex items-center justify-center">
-                <i class="icon ion-ios-cog text-4xl text-secondary"></i>
+    <div class="min-h-[70vh] flex items-center justify-center px-4 py-8">
+        <div class="bg-surface-container-low text-on-surface rounded-3xl p-6 md:p-12 shadow-lg max-w-xl w-full space-y-8">
+            <div class="flex items-center gap-4 border-b border-outline-variant/20 pb-5">
+                <div class="w-14 h-14 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0">
+                    <i class="icon ion-ios-cog text-3xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-on-surface">{{ _("Preferences") }}</h1>
+                </div>
             </div>
-            <h1 class="text-1xl md:text-2xl font-bold text-on-surface">{{ _("Preferences") }}</h1>
-            <div class="space-y-4">
-                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
-                    <div class="text-left">
-                        <div class="font-bold text-on-surface">{{ _("Traditional Chinese conversion") }}</div>
-                        <div class="text-sm text-on-surface-variant">{{ _("Convert content to Traditional Chinese with OpenCC") }}</div>
+
+            <!-- Material You Theme Palette Section -->
+            <div id="m3-seed-picker"
+                 class="p-5 rounded-2xl bg-surface-container space-y-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="font-bold text-on-surface text-base flex items-center gap-2">
+                            <i class="icon ion-md-color-palette text-primary text-lg"></i>
+                            {{ _("Theme Color") }}
+                        </div>
                     </div>
-                    <button id="toggle_opencc" class="md3-button md3-button-tonal">{{ _("Loading...") }}</button>
                 </div>
 
-                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
-                    <div class="text-left">
-                        <div class="font-bold text-on-surface">{{ _("Auto-convert search to Simplified Chinese") }}</div>
-                        <div class="text-sm text-on-surface-variant">{{ _("Automatically convert keywords to Simplified Chinese when searching") }}</div>
+                <!-- Swatches Grid -->
+                <div class="flex flex-wrap items-center gap-3 pt-1">
+                    <button type="button"
+                            data-seed="#a85383"
+                            title="Sakura Pink"
+                            class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
+                            style="background-color: #a85383">
+                        <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
+                    </button>
+                    <button type="button"
+                            data-seed="#fb7299"
+                            title="Bilibili Pink"
+                            class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
+                            style="background-color: #fb7299">
+                        <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
+                    </button>
+                    <button type="button"
+                            data-seed="#00aeec"
+                            title="Bilibili Cyan"
+                            class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
+                            style="background-color: #00aeec">
+                        <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
+                    </button>
+                    <button type="button"
+                            data-seed="#39c5bb"
+                            title="Miku Cyan"
+                            class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
+                            style="background-color: #39c5bb">
+                        <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
+                    </button>
+                    <button type="button"
+                            data-seed="#ff7a00"
+                            title="Orange"
+                            class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
+                            style="background-color: #ff7a00">
+                        <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
+                    </button>
+                    <button type="button"
+                            data-seed="#795290"
+                            title="Lavender"
+                            class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
+                            style="background-color: #795290">
+                        <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
+                    </button>
+                    <button type="button"
+                            data-seed="#2563eb"
+                            title="Ocean Blue"
+                            class="m3-seed-swatch group relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-transparent"
+                            style="background-color: #2563eb">
+                        <i class="icon ion-md-checkmark text-white text-base opacity-0 group-[.active]:opacity-100"></i>
+                    </button>
+                    <button type="button"
+                            data-seed="{{ default_accent }}"
+                            class="m3-seed-swatch md3-button md3-button-tonal">{{ _("Reset theme color") }}</button>
+                    <!-- Custom Hex Color Input -->
+                    <label class="relative w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 active:scale-95 shadow-xs border-2 border-outline-variant/40 cursor-pointer overflow-hidden bg-surface-container-high"
+                           title="{{ _('Custom Color') }}">
+                        <i class="icon ion-md-color-filter text-on-surface-variant text-lg"></i>
+                        <input type="color"
+                               id="m3-custom-color"
+                               aria-label="{{ _('Custom Color') }}"
+                               value="#a85383"
+                               class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+                    </label>
+                </div>
+            </div>
+
+            <!-- Content & Playback Options -->
+            <div class="space-y-3">
+                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                    <div class="text-left pr-3">
+                        <div class="font-bold text-sm text-on-surface">{{ _("Traditional Chinese conversion") }}</div>
+                        <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Convert content to Traditional Chinese with OpenCC") }}</div>
                     </div>
-                    <button id="toggle_search_opencc" class="md3-button md3-button-tonal">{{ _("Loading...") }}</button>
-
-
+                    <button id="toggle_opencc"
+                            class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
                 </div>
-                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
-                    <div class="text-left">
-                        <div class="font-bold text-on-surface">{{ _("Pin best audio quality") }}</div>
-                        <div class="text-sm text-on-surface-variant">{{ _("Always play the highest available audio track instead of following video quality") }}</div>
+
+                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                    <div class="text-left pr-3">
+                        <div class="font-bold text-sm text-on-surface">{{ _("Auto-convert search to Simplified Chinese") }}</div>
+                        <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Automatically convert keywords to Simplified Chinese when searching") }}</div>
                     </div>
-                    <button id="toggle_best_audio" class="md3-button md3-button-tonal">{{ _("Loading...") }}</button>
-
-
+                    <button id="toggle_search_opencc"
+                            class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
                 </div>
-                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-variant/20">
-                    <div class="text-left">
-                        <div class="font-bold text-on-surface">{{ _("Lock video resolution") }}</div>
-                        <div class="text-sm text-on-surface-variant">{{ _("Always play the highest available video track instead of auto-switching quality") }}</div>
+
+                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                    <div class="text-left pr-3">
+                        <div class="font-bold text-sm text-on-surface">{{ _("Pin best audio quality") }}</div>
+                        <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Always play the highest available audio track instead of following video quality") }}</div>
                     </div>
-                    <button id="toggle_lock_video" class="md3-button md3-button-tonal">{{ _("Loading...") }}</button>
-
-
+                    <button id="toggle_best_audio"
+                            class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
                 </div>
-                <div class="pt-4">
-                    <a href="/" class="md3-button md3-button-filled">
-                        <i class="icon ion-ios-home"></i>
-                        {{ _("Back to home") }}
-                    </a>
+
+                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                    <div class="text-left pr-3">
+                        <div class="font-bold text-sm text-on-surface">{{ _("Lock video resolution") }}</div>
+                        <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Always play the highest available video track instead of auto-switching quality") }}</div>
+                    </div>
+                    <button id="toggle_lock_video"
+                            class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
                 </div>
+            </div>
+
+            <div class="pt-2 text-center">
+                <a href="/"
+                   class="md3-button md3-button-filled inline-flex items-center gap-2">
+                    <i class="icon ion-ios-home text-lg"></i>
+                    {{ _("Back to home") }}
+                </a>
             </div>
         </div>
+    </div>
 {% endblock %}

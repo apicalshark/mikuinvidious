@@ -108,6 +108,10 @@ legal_region = 'CN'
 # The default theme for new visitors. Currently only 'modern' is officially supported.
 default_theme = 'modern'
 
+# Default accent color for the theme (e.g. '#a85383' for Sakura Pink, '#fb7299' for Bilibili Pink, '#00aeec' for Bilibili Cyan, '#ff7a00' for Orange).
+# Also settable via DEFAULT_ACCENT or DEFAULT_ACCENT_COLOR env.
+default_accent = '#a85383'
+
 # Default UI locale when no ?lang=/cookie/Accept-Language match.
 # Any locale under locales/*/LC_MESSAGES (e.g. 'en', 'zh-CN', 'zh-TW', 'ja').
 # Also settable via DEFAULT_LOCALE env.

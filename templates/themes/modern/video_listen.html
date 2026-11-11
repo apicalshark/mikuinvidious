@@ -112,7 +112,7 @@
                            class="flex items-center gap-3 group w-full md:w-auto">
                             <img src="{{ vinfo['owner']['face']|pic }}"
                                  alt="{{ vinfo['owner']['name'] }}"
-                                 class="w-10 h-10 rounded-full object-cover group-hover:ring-2 group-hover:ring-primary transition-all" />
+                                 class="w-10 h-10 rounded-full object-cover group-hover:opacity-90 transition-opacity" />
                             <div class="flex flex-col">
                                 <span class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ vinfo['owner']['name'] }}</span>
                                 <span class="text-xs text-on-surface-variant">{{ vinfo['pubdate']|date }}</span>
@@ -166,7 +166,7 @@
                             <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
                                 <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
                                     <img loading="lazy"
-                                         class="w-10 h-10 rounded-full object-cover group-hover:ring-1 group-hover:ring-primary transition-all"
+                                         class="w-10 h-10 rounded-full object-cover group-hover:opacity-90 transition-opacity"
                                          src="{{ (rep['member']['avatar'] + '@48w_48h.webp')|pic }}"
                                          alt="" />
                                 </a>
@@ -176,7 +176,7 @@
                                            class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
                                         <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
                                     </div>
-                                    <p class="text-sm text-on-surface-variant leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
+                                    <p class="text-sm text-on-surface leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
                                     <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
                                         <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
                                         {% set rcount = rep.get('rcount', 0) %}
