@@ -479,7 +479,7 @@
 
                 <!-- Search Bar Container (Flex on desktop, compact on mobile) -->
                 <div id="search_container"
-                     class="order-last w-full min-w-0 md:order-none md:flex-1 max-w-2xl mx-auto searchbar">
+                     class="order-last w-full min-w-0 md:order-0 md:flex-1 max-w-2xl mx-auto searchbar">
                     <form class="w-full" action="/search" method="get">
                         <div class="relative group flex items-center">
                             <span class="absolute left-4 flex items-center text-on-surface-variant group-focus-within:text-primary transition-colors pointer-events-none">
@@ -532,7 +532,7 @@
                         <!-- Native HTML Popover Language Menu -->
                         <div id="lang_menu"
                              popover="auto"
-                             class="m3-popover bg-surface-container-high text-on-surface rounded-2xl shadow-2xl border border-outline-variant/20 p-2 min-w-[170px] backdrop-blur-md">
+                             class="m3-popover bg-surface-container-high text-on-surface rounded-2xl shadow-2xl border border-outline-variant/20 p-2 min-w-42.5 backdrop-blur-md">
                             <div class="flex flex-col gap-1">
                                 {% for lang_code, lang_label in locale_choices %}
                                     <button data-lang="{{ lang_code }}"
