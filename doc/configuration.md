@@ -32,7 +32,7 @@ Configuration for the web server (Granian / Quart).
 | `monitor_fd` | `MONITOR_FD` | `false` | Enables file descriptor leak monitoring. |
 
 > [!NOTE]
-> **Session Secret Key:** For security, `shared.py` generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at every startup. User sessions are intentionally invalidated across server restarts; static secret keys in configuration files are ignored.
+> **Session Secret Key:** `miku.core.app.create_app()` uses `[server].secret_key` (or `QUART_SECRET_KEY`) when configured, and otherwise generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at each startup.
 
 ---
 

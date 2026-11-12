@@ -1,7 +1,7 @@
 import unittest
 
-from api.exceptions import ArgsException
-from api.video import av2bv, bv2av
+from miku.api.exceptions import ArgsException
+from miku.api.video import av2bv, bv2av
 
 
 class TestBvid(unittest.TestCase):
@@ -22,7 +22,15 @@ class TestBvid(unittest.TestCase):
 
     def test_av2bv_valid(self):
         self.assertEqual(av2bv(170001), "BV17x411w7KC")
+        self.assertEqual(av2bv("170001"), "BV17x411w7KC")
+        self.assertEqual(av2bv("av170001"), "BV17x411w7KC")
         self.assertEqual(bv2av(av2bv(170001)), 170001)
+
+    def test_canonical_bvid_module_import(self):
+        import miku.api.bvid as bvid
+
+        self.assertEqual(bvid.av2bv(170001), "BV17x411w7KC")
+        self.assertEqual(bvid.bv2av("BV17x411w7KC"), 170001)
 
     def test_invalid_bvid_raises(self):
         invalid_bvids = [

@@ -7,8 +7,8 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 import httpx
-from image_cache import ImageCache
-from proxy import render_proxy_pic
+from miku.media.image_cache import ImageCache
+from miku.media.proxy import render_proxy_pic
 
 
 class TestImageCache(unittest.IsolatedAsyncioTestCase):
@@ -150,9 +150,9 @@ class TestProxyPicDiskCacheIntegration(unittest.IsolatedAsyncioTestCase):
         mock_client.send = mock_send
 
         with (
-            patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("proxy.image_cache", custom_cache),
-            patch("shared.Network.get_image_client", new=AsyncMock(return_value=mock_client)),
+            patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+            patch("miku.media.proxy.image_cache", custom_cache),
+            patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=mock_client)),
         ):
             url_path = "/proxy/pic/i0.hdslb.com/bfs/archive/hit_test.jpg"
 

@@ -23,7 +23,7 @@ sudo apt install python3 python3-venv git curl
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
   *Or via pip: `pip install uv`*
-- **Redis**: Required for caching and session storage. [Install Guide](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
+- **Redis**: Required for caching, ticket storage, and rate limiting. [Install Guide](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
 - **Caddy**: High-performance reverse proxy. [Install Guide](https://caddyserver.com/docs/install)
 - **Node.js v18+ & npm**: Required for building CSS and frontend tools. [Install Guide](https://nodejs.org/en/download/package-manager)
 

@@ -137,7 +137,8 @@ audio_minutes = 30
 home_minutes = 30
 
 [redis]
-# Redis connection settings. Redis is REQUIRED for caching and session management.
+# Redis connection settings. Redis is used for caching, ticket storage, and rate
+# limiting (user sessions are stored in signed client-side cookies).
 
 # The full connection URL for Redis. If set, this overrides all other Redis keys.
 # Example: 'redis://127.0.0.1:6379'

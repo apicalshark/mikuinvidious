@@ -15,7 +15,7 @@
 
 > A free as in freedom frontend for Bilibili.
 
-This is an opinionated fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxina/mikuinvidious) plus AI slop.
+This is an actively maintained, privacy-focused fork of [0xacab.org/johnxina/mikuinvidious](https://0xacab.org/johnxina/mikuinvidious).
 
 <img width="465" height="411" alt="screenshot1" src="https://github.com/user-attachments/assets/219957ad-871f-4a95-85f5-27eeaf6c3f1c" />
 

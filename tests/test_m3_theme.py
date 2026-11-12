@@ -20,10 +20,12 @@ class TestM3Theme(unittest.IsolatedAsyncioTestCase):
         self.assertIn("--theme-primary: #ff97b5;", html)
 
     def test_popover_anchor_positioning_defined_in_base_css(self):
-        html = BASE_HTML.read_text(encoding="utf-8")
-        self.assertIn("anchor-name: --lang-btn", html)
-        self.assertIn("position-anchor: --lang-btn", html)
-        self.assertIn("right: anchor(right)", html)
+        css = (ROOT / "static" / "themes" / "modern" / "css" / "tailwind-input.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("anchor-name: --lang-btn", css)
+        self.assertIn("position-anchor: --lang-btn", css)
+        self.assertIn("right: anchor(right)", css)
 
     def test_m3_theme_js_preserves_original_accent_colors_for_default(self):
         js = M3_THEME_JS.read_text(encoding="utf-8")
@@ -53,7 +55,7 @@ class TestM3Theme(unittest.IsolatedAsyncioTestCase):
         self.assertIn("default_accent", html)
 
     def test_default_accent_env_configuration_in_shared(self):
-        import shared
+        import miku.state as shared
         self.assertIn("default_accent", shared.appconf["display"])
         self.assertTrue(shared.appconf["display"]["default_accent"].startswith("#"))
 
@@ -77,7 +79,7 @@ class TestM3Theme(unittest.IsolatedAsyncioTestCase):
     async def test_cookie_m3_seed_in_shared_render(self):
         from unittest.mock import AsyncMock, patch
 
-        import shared
+        import miku.state as shared
 
         headers = {"Cookie": "m3_seed=%2300aeec"}
         async with shared.app.test_request_context("/search", headers=headers):

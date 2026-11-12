@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock
 
 import httpx
-from b23_resolver import (
+from miku.media.b23_resolver import (
     clean_bilibili_url,
     extract_b23_or_bili_url,
     resolve_b23_target,

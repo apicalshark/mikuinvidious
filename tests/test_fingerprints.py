@@ -1,6 +1,6 @@
 import unittest
 
-from fingerprints import (
+from miku.core.fingerprints import (
     CDN_CHROME_UA,
     CURL_IMPERSONATE,
     CURL_UA,
@@ -105,7 +105,7 @@ class TestFingerprints(unittest.TestCase):
 
     def test_unified_app_ua(self):
         # All App profiles must be unified to DEFAULT_APP_UA (BiliDroid/8.83.0)
-        from fingerprints import APP_UA, ARTICLE_SCRAPE_UA
+        from miku.core.fingerprints import APP_UA, ARTICLE_SCRAPE_UA
 
         self.assertEqual(APP_UA, DEFAULT_APP_UA)
         self.assertEqual(ARTICLE_SCRAPE_UA, DEFAULT_APP_UA)
@@ -114,7 +114,7 @@ class TestFingerprints(unittest.TestCase):
     def test_dm_img_params_format_and_formulas(self):
         import json
 
-        from api.video import _get_dm_img_params
+        from miku.api.video import _get_dm_img_params
 
         # Fingerprint enabled (default)
         params = _get_dm_img_params(fingerprint=True)
@@ -148,7 +148,7 @@ class TestFingerprints(unittest.TestCase):
     def test_space_device_req_json_structure(self):
         import json
 
-        from api.user import _SPACE_DEVICE_REQ_JSON
+        from miku.api.user import _SPACE_DEVICE_REQ_JSON
 
         parsed = json.loads(_SPACE_DEVICE_REQ_JSON)
         self.assertEqual(parsed.get("platform"), "web")

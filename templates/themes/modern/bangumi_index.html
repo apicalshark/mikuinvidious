@@ -1,60 +1,6 @@
 {% extends "themes/modern/base.html" %}
 {% block head %}
     <title>{{ _("Bangumi index") }} - MikuInvidious</title>
-    <style>
-        /* Force override grid layout to ensure enough columns for compact portrait cards */
-        .bangumi-grid {
-            display: grid;
-            gap: 1rem;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            /* 2 columns on mobile */
-        }
-
-        @media (min-width: 640px) {
-            .bangumi-grid {
-                grid-template-columns: repeat(3, minmax(0, 1fr));
-            }
-        }
-
-        @media (min-width: 768px) {
-            .bangumi-grid {
-                grid-template-columns: repeat(4, minmax(0, 1fr));
-            }
-        }
-
-        @media (min-width: 1024px) {
-            .bangumi-grid {
-                grid-template-columns: repeat(6, minmax(0, 1fr));
-            }
-        }
-
-        @media (min-width: 1280px) {
-            .bangumi-grid {
-                grid-template-columns: repeat(7, minmax(0, 1fr));
-            }
-        }
-
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-
-        .compact-card {
-            background: var(--md-sys-color-surface-container-low);
-            border-radius: 1.25rem;
-            transition: all 0.3s ease;
-        }
-
-        .compact-card:hover {
-            transform: translateY(-4px);
-            background: var(--md-sys-color-surface-container-high);
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-        }
-    </style>
 {% endblock %}
 {% block content %}
     <div class="mb-8 space-y-6">
@@ -164,21 +110,5 @@
         {% endif %}
     </div>
 
-    <script nonce="{{ csp_nonce }}">
-        document.querySelectorAll('.bangumi-filter').forEach(function(el) {
-            el.addEventListener('change', function() {
-                var url = new URL(window.location.href);
-                url.searchParams.set(el.dataset.key, el.value);
-                if (url.searchParams.has('page')) url.searchParams.delete('page');
-                window.location.href = url.toString();
-            });
-        });
-        document.querySelectorAll('.bangumi-page').forEach(function(el) {
-            el.addEventListener('click', function() {
-                var url = new URL(window.location.href);
-                url.searchParams.set(el.dataset.key, el.dataset.value);
-                window.location.href = url.toString();
-            });
-        });
-    </script>
+    <script defer src="/static/themes/modern/js/bangumi.js?v={{ asset_version }}"></script>
 {% endblock %}

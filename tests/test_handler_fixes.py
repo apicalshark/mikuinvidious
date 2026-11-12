@@ -2,12 +2,12 @@ import asyncio
 import unittest
 
 import httpx
-import proxy
-from api.live import LiveDanmaku
-from app import app
-from csrf import CSRF_TOKEN_KEY
-from dash_download_job import create_download_job
-from shared import Network, appconf, detect_theme
+import miku.media.proxy as proxy
+from miku.api.live import LiveDanmaku
+from miku.app import app
+from miku.core.csrf import CSRF_TOKEN_KEY
+from miku.dash.download_job import create_download_job
+from miku.state import Network, appconf, detect_theme
 
 
 class TestThemeSecurity(unittest.IsolatedAsyncioTestCase):

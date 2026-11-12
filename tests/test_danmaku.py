@@ -1,7 +1,7 @@
 import unittest
 from xml.dom import minidom
 
-from danmaku import danmaku_xml_conv, parse_danmaku
+from miku.media.danmaku import danmaku_xml_conv, parse_danmaku
 
 
 class TestDanmakuParser(unittest.TestCase):
@@ -67,14 +67,14 @@ class TestDanmakuParser(unittest.TestCase):
 
 class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        from app import app
+        from miku.app import app
 
         self.client = app.test_client()
 
     async def test_danmaku_res_caches_xml_in_redis_and_skips_second_upstream_fetch(self):
         from unittest.mock import AsyncMock, patch
 
-        import res
+        import miku.media.res as res
 
         store = {}
         ttls = {}
@@ -92,7 +92,7 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(res.appredis, "get", side_effect=fake_get),
             patch.object(res.appredis, "setex", side_effect=fake_setex),
-            patch("api.video.Video.get_danmaku_xml", mock_get_xml),
+            patch("miku.api.video.Video.get_danmaku_xml", mock_get_xml),
         ):
             r1 = await self.client.get("/res/danmaku/BV1xx411c7mD:0")
             self.assertEqual(r1.status_code, 200)
@@ -113,7 +113,7 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
     async def test_danmaku_res_does_not_cache_html_block_page(self):
         from unittest.mock import AsyncMock, patch
 
-        import res
+        import miku.media.res as res
 
         mock_setex = AsyncMock()
         mock_get_xml = AsyncMock(return_value="<!DOCTYPE html><html><body>412 Precondition Failed</body></html>")
@@ -121,7 +121,7 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(res.appredis, "get", new=AsyncMock(return_value=None)),
             patch.object(res.appredis, "setex", mock_setex),
-            patch("api.video.Video.get_danmaku_xml", mock_get_xml),
+            patch("miku.api.video.Video.get_danmaku_xml", mock_get_xml),
         ):
             r = await self.client.get("/res/danmaku/BV1xx411c7mD:0")
             self.assertEqual(r.status_code, 200)
@@ -131,14 +131,14 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
     async def test_danmaku_res_rejects_invalid_vid_without_touching_upstream(self):
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        import res
+        import miku.media.res as res
 
         mock_get = AsyncMock()
         mock_video_cls = MagicMock()
 
         with (
             patch.object(res.appredis, "get", mock_get),
-            patch("api.video.Video", mock_video_cls),
+            patch("miku.api.video.Video", mock_video_cls),
         ):
             r = await self.client.get("/res/danmaku/invalid_vid_123")
             self.assertEqual(r.status_code, 200)

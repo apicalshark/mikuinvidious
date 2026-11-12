@@ -2,7 +2,7 @@ import hashlib
 import unittest
 import urllib.parse
 
-from api.client import _enc_wbi, _mixin_from_keys
+from miku.api.client import _enc_wbi, _mixin_from_keys
 
 
 class TestWbiSigner(unittest.TestCase):
@@ -46,6 +46,24 @@ class TestWbiSigner(unittest.TestCase):
         self.assertIn("w_rid", signed)
         self.assertIn("wts", signed)
         self.assertEqual(signed["web_location"], 1315873)
+
+    def test_miku_api_wbi_direct(self):
+        from miku.api.wbi import enc_wbi, mixin_from_keys
+
+        mixin = mixin_from_keys(self.img_key, self.sub_key)
+        self.assertEqual(mixin, self.mixin_key)
+        params = {"bvid": "BV1xx411c7xx"}
+        signed = enc_wbi(params, mixin)
+        self.assertIn("w_rid", signed)
+        self.assertIn("wts", signed)
+
+    def test_oe_permutation_table_valid(self):
+        from miku.api.client import OE as client_oe
+        from miku.api.wbi import OE as wbi_oe
+
+        self.assertIs(client_oe, wbi_oe)
+        self.assertEqual(len(wbi_oe), 64)
+        self.assertEqual(set(wbi_oe), set(range(64)))
 
 
 if __name__ == "__main__":

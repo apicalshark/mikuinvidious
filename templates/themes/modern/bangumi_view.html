@@ -82,7 +82,7 @@
         <!-- Torrents (Right/Sidebar) - Asynchronously Loaded -->
         <div class="lg:col-span-1">
             {% if nyaa_enabled %}
-                <div id="nyaa-sidebar-container">
+                <div id="nyaa-sidebar-container" data-nyaa-ssid="{{ ssid }}">
                     <div class="flex flex-col items-center justify-center py-12 opacity-40">
                         {{ m3_spinner('24px', cls='mb-4') }}
                         <p class="text-sm">{{ _("Searching Nyaa...") }}</p>
@@ -93,106 +93,6 @@
     </div>
 
     {% if nyaa_enabled %}
-        <script nonce="{{ csp_nonce }}">
-        document.addEventListener('DOMContentLoaded', function() {
-            const MSG_NYAA_MAGNET = {{ _('Nyaa Magnet Resources')|tojson }};
-            const sidebarContainer = document.getElementById('nyaa-sidebar-container');
-            
-            fetch('/bangumi/api/nyaa/{{ ssid }}')
-                .then(response => response.json())
-                .then(data => {
-                    // 1. Render Sidebar (Collections)
-                    if (sidebarContainer) {
-                        sidebarContainer.innerHTML = data.sidebar_html;
-                    }
-                    
-                    // 2. Distribute Episode Torrents
-                    const epTorrents = data.ep_torrents;
-                    for (const epNum in epTorrents) {
-                        const iconPlaceholder = document.getElementById(`ep-nyaa-${epNum}`);
-                        const contentPlaceholder = document.querySelector(`#ep-torrents-${epNum} .ep-torrents-content`);
-                        
-                        if (iconPlaceholder && contentPlaceholder && epTorrents[epNum].length > 0) {
-                            iconPlaceholder.classList.remove('hidden');
-                            const badge = document.createElement('span');
-                            badge.className = 'text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono';
-                            badge.textContent = String(epTorrents[epNum].length);
-                            iconPlaceholder.replaceChildren(badge);
-
-                            const wrapper = document.createElement('div');
-                            wrapper.className = 'pt-3';
-
-                            const label = document.createElement('p');
-                            label.className = 'text-[9px] font-bold text-primary/60 uppercase tracking-widest mb-2 px-1';
-                            label.textContent = MSG_NYAA_MAGNET;
-                            wrapper.appendChild(label);
-
-                            const grid = document.createElement('div');
-                            grid.className = 'grid grid-cols-1 gap-1.5';
-
-                            epTorrents[epNum].forEach(t => {
-                                const a = document.createElement('a');
-                                a.className = 'w-full p-2 bg-black/5 dark:bg-white/5 hover:bg-primary/10 text-on-surface rounded-lg text-[11px] transition-all flex items-center justify-between group/torrent text-left';
-                                
-                                const magnet = (typeof t.magnet === 'string' && t.magnet.startsWith('magnet:?')) ? t.magnet : '#';
-                                a.setAttribute('href', magnet);
-                                a.setAttribute('title', String(t.title || ''));
-
-                                const titleSpan = document.createElement('span');
-                                titleSpan.className = 'truncate pr-4 grow opacity-80 group-hover/torrent:opacity-100';
-
-                                const magnetIcon = document.createElement('i');
-                                magnetIcon.className = 'icon ion-md-magnet text-primary mr-1 opacity-70';
-                                titleSpan.appendChild(magnetIcon);
-                                titleSpan.appendChild(document.createTextNode(String(t.title || '')));
-                                a.appendChild(titleSpan);
-
-                                const statsWrapper = document.createElement('div');
-                                statsWrapper.className = 'shrink-0 flex items-center gap-3';
-
-                                const peersDiv = document.createElement('div');
-                                peersDiv.className = 'flex gap-2 text-[9px] font-mono';
-
-                                const seedersSpan = document.createElement('span');
-                                seedersSpan.className = 'flex items-center gap-0.5 text-green-600/80 dark:text-green-400/80';
-                                const upIcon = document.createElement('i');
-                                upIcon.className = 'icon ion-md-arrow-up';
-                                seedersSpan.appendChild(upIcon);
-                                seedersSpan.appendChild(document.createTextNode(String(t.seeders || '0')));
-
-                                const leechersSpan = document.createElement('span');
-                                leechersSpan.className = 'flex items-center gap-0.5 text-red-600/80 dark:text-red-400/80';
-                                const downIcon = document.createElement('i');
-                                downIcon.className = 'icon ion-md-arrow-down';
-                                leechersSpan.appendChild(downIcon);
-                                leechersSpan.appendChild(document.createTextNode(String(t.leechers || '0')));
-
-                                peersDiv.appendChild(seedersSpan);
-                                peersDiv.appendChild(leechersSpan);
-
-                                const sizeSpan = document.createElement('span');
-                                sizeSpan.className = 'shrink-0 font-mono text-[10px] opacity-40 group-hover/torrent:opacity-100';
-                                sizeSpan.textContent = String(t.size || '');
-
-                                statsWrapper.appendChild(peersDiv);
-                                statsWrapper.appendChild(sizeSpan);
-                                a.appendChild(statsWrapper);
-
-                                grid.appendChild(a);
-                            });
-
-                            wrapper.appendChild(grid);
-                            contentPlaceholder.replaceChildren(wrapper);
-                        }
-                    }
-                })
-                .catch(err => {
-                    console.error('Nyaa Load Error:', err);
-                    if (sidebarContainer) {
-                        sidebarContainer.innerHTML = '<div class="text-center py-12 opacity-40 italic">{{ _('Failed to load Nyaa resources') }}</div>';
-                    }
-                });
-        });
-        </script>
+        <script defer src="/static/themes/modern/js/bangumi.js?v={{ asset_version }}"></script>
     {% endif %}
 {% endblock %}

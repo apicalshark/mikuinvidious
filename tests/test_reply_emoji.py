@@ -7,7 +7,7 @@ upstream HTML, JS, URL, or tracking param may reach the client.
 
 import unittest
 
-from transformers import _proxied_emote_src, render_reply_content
+from miku.media.transformers import _proxied_emote_src, render_reply_content
 
 DOGE = "https://i0.hdslb.com/bfs/emote/3087d273a78ccaff4bb1e9972e2ba2a7583c9f11.png"
 
@@ -156,7 +156,7 @@ class RenderReplyContentTests(unittest.TestCase):
 class SearchHighlightTests(unittest.TestCase):
     def test_decodes_entities_once_and_stays_escapable(self):
         from markupsafe import escape
-        from transformers import strip_search_highlight
+        from miku.media.transformers import strip_search_highlight
 
         out = strip_search_highlight('<em class="keyword">Miku</em> &amp; &quot;Hi&quot; &lt;3')
         self.assertEqual(out, 'Miku & "Hi" <3')

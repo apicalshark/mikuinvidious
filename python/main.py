@@ -16,11 +16,11 @@
 import sys
 
 # Import app to ensure it's initialized and hooks are registered
-import app as app_module  # noqa: F401
+import miku.app as app_module  # noqa: F401
 from granian import Granian
 from granian.constants import Interfaces, Loops, TaskImpl
 from granian.http import HTTP1Settings
-from shared import appconf
+from miku.state import appconf
 
 
 def main():
@@ -32,13 +32,13 @@ def main():
     debug_mode = appconf["server"]["debug"]
 
     # Granian handles the event loop (uvloop) and ASGI interface natively.
-    # We use the string target "app:app" to allow potential multi-worker support.
+    # We use the string target "miku.app:app" to allow potential multi-worker support.
     # NOTE: download jobs live in process memory (dash_proxy._download_jobs),
     # so workers must stay 1 — without sticky sessions, status/cancel/file
     # requests land on a worker that never saw the job (404/409). Revisit
     # only with shared job storage or guaranteed worker affinity.
     server = Granian(
-        "app:app",
+        "miku.app:app",
         address=host,
         port=port,
         workers=1,

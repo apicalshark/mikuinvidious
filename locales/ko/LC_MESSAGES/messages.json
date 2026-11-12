@@ -75,7 +75,6 @@
   "Failed to fetch this user's profile. Please try again later.": "이 사용자의 프로필을 가져오지 못했습니다. 나중에 다시 시도해 주세요.",
   "Failed to load Nyaa resources": "Nyaa 리소스를 불러오지 못했습니다",
   "Failed to load bangumi info. Please check your network or try again later.": "방구미 정보를 불러오지 못했습니다. 네트워크를 확인하거나 나중에 다시 시도해 주세요.",
-  "Failed to load comments, please try again later": "댓글을 불러오지 못했습니다. 나중에 다시 시도해 주세요",
   "Failed to load the live room. Please check your network or try again later.": "생방송 방을 불러오지 못했습니다. 네트워크를 확인하거나 나중에 다시 시도해 주세요.",
   "Failed to resolve URL": "URL 해석 실패",
   "Failed to resolve the redirect target.": "리디렉션 대상을 해석하지 못했습니다.",

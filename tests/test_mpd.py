@@ -1,6 +1,6 @@
 import unittest
 
-from dash_mpd import generate_vod_mpd
+from miku.dash.mpd import generate_vod_mpd
 
 
 class TestMpd(unittest.TestCase):
@@ -116,15 +116,15 @@ class TestMpd(unittest.TestCase):
 
 class TestDashHardening(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        import dash_mpd
-        import dash_stream
+        import miku.dash.mpd as dash_mpd
+        import miku.dash.stream as dash_stream
 
         dash_stream.dash_concurrency.reset()
         dash_mpd._manifest_fresh_at.clear()
 
     def tearDown(self):
-        import dash_mpd
-        import dash_stream
+        import miku.dash.mpd as dash_mpd
+        import miku.dash.stream as dash_stream
 
         dash_stream.dash_concurrency.reset()
         dash_mpd._manifest_fresh_at.clear()
@@ -132,8 +132,8 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
     async def test_proxy_dash_rejects_missing_or_unbounded_range(self):
         from unittest.mock import AsyncMock, patch
 
-        import dash_stream
-        from app import app
+        import miku.dash.stream as dash_stream
+        from miku.app import app
 
         load_mock = AsyncMock()
         with patch.object(dash_stream, "_load_dash_data", load_mock):
@@ -173,8 +173,8 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
     async def test_proxy_dash_rejects_invalid_vid_or_params(self):
         from unittest.mock import AsyncMock, patch
 
-        import dash_stream
-        from app import app
+        import miku.dash.stream as dash_stream
+        from miku.app import app
 
         load_mock = AsyncMock()
         with patch.object(dash_stream, "_load_dash_data", load_mock):
@@ -199,8 +199,8 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock, patch
 
-        import dash_stream
-        from app import app
+        import miku.dash.stream as dash_stream
+        from miku.app import app
 
         dash_data = {
             "dash": {
@@ -301,8 +301,8 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
     async def test_manifest_validates_vid_and_throttles_fresh_bust(self):
         from unittest.mock import AsyncMock, patch
 
-        import dash_mpd
-        from app import app
+        import miku.dash.mpd as dash_mpd
+        from miku.app import app
 
         sample_dash = {
             "dash": {

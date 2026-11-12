@@ -20,9 +20,9 @@ import time
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import dash_fetch
-import dns_cache
-import shared
+import miku.dash.fetch as dash_fetch
+import miku.core.dns_cache as dns_cache
+import miku.state as shared
 
 
 def _payload(expiry_offset: int = 7200, host: str = "upos-sz-mirrorcosov") -> dict:

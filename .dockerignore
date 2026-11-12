@@ -44,11 +44,10 @@ htmlcov/
 .tox
 
 # Project-specific (not needed at runtime)
-.understand-anything
+AGENTS.md
 GEMINI.md
 README.md
 LICENSE
-COPYING
 doc/
 tools/
 tests/

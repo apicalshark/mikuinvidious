@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 
 import rtoml
-from extra import sanitize_html
+from miku.media.extra import sanitize_html
 from zhconv_rs import zhconv
 
 

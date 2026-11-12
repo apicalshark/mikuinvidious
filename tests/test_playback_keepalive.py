@@ -12,8 +12,8 @@ import ssl
 import unittest
 from unittest.mock import AsyncMock, patch
 
-import dash_stream
-import stream
+import miku.dash.stream as dash_stream
+import miku.media.stream as stream
 
 
 class _Server:
@@ -91,8 +91,8 @@ class SharedTlsContextTests(unittest.IsolatedAsyncioTestCase):
         writer = AsyncMock()
         open_connection = AsyncMock(return_value=(AsyncMock(), writer))
         with (
-            patch("stream.asyncio.open_connection", open_connection),
-            patch("stream.ssl.create_default_context", side_effect=AssertionError("must not rebuild")),
+            patch("miku.media.stream.asyncio.open_connection", open_connection),
+            patch("miku.media.stream.ssl.create_default_context", side_effect=AssertionError("must not rebuild")),
         ):
             await conn.connect()
         kwargs = open_connection.await_args.kwargs

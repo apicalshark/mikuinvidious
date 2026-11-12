@@ -19,7 +19,7 @@ def setUpModule():
     # Quart test contexts carry no usable peer address; trust the test's
     # X-Real-IP header so per-IP behaviour can be exercised with two IPs.
     global _trust_patch
-    import rate_limit
+    import miku.core.rate_limit as rate_limit
 
     _trust_patch = patch.object(rate_limit, "_peer_is_trusted_proxy", return_value=True)
     _trust_patch.start()
@@ -31,7 +31,7 @@ def tearDownModule():
 
 class TestPerIpSlotLimiter(unittest.IsolatedAsyncioTestCase):
     def test_caps_per_ip_and_isolates_ips(self):
-        from ip_slots import PerIpSlotLimiter
+        from miku.core.ip_slots import PerIpSlotLimiter
 
         lim = PerIpSlotLimiter(max_per_ip=2)
         a1 = lim.try_acquire(IP_A)
@@ -48,7 +48,7 @@ class TestPerIpSlotLimiter(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(lim.try_acquire(IP_A))
 
     def test_no_global_ceiling(self):
-        from ip_slots import PerIpSlotLimiter
+        from miku.core.ip_slots import PerIpSlotLimiter
 
         lim = PerIpSlotLimiter(max_per_ip=1)
         slots = [lim.try_acquire(f"10.{i // 256}.{i % 256}.1") for i in range(5000)]
@@ -58,7 +58,7 @@ class TestPerIpSlotLimiter(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(lim.active_by_ip, {})
 
     def test_dash_limiter_has_no_global_ceiling(self):
-        import dash_stream
+        import miku.dash.stream as dash_stream
 
         lim = dash_stream._DashConcurrencyLimiter(max_per_ip=1)
         self.assertFalse(hasattr(lim, "max_global"))
@@ -66,8 +66,8 @@ class TestPerIpSlotLimiter(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(s is not None for s in slots))
 
     async def test_live_chat_has_no_default_global_ceiling_and_caps_per_ip(self):
-        import views_live
-        from app import app
+        import miku.views.live as views_live
+        from miku.app import app
 
         views_live.live_chat_slots.reset()
         try:
@@ -134,20 +134,20 @@ def _resp_headers(status=206):
 
 class TestProgressiveProxyFlood(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        import proxy
+        import miku.media.proxy as proxy
 
         proxy.direct_stream_slots.reset()
         proxy.live_stream_slots.reset()
 
     def tearDown(self):
-        import proxy
+        import miku.media.proxy as proxy
 
         proxy.direct_stream_slots.reset()
         proxy.live_stream_slots.reset()
 
     async def test_rejects_multi_range_before_touching_redis(self):
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         get_mock = AsyncMock(return_value=b"https://upos-sz-mirrorcos.bilivideo.com/x.mp4")
         for rng in ("bytes=0-10,20-30", "bytes=0-1,0-1,0-1,0-1", "bytes=abc", "items=0-10", "bytes=-"):
@@ -161,14 +161,14 @@ class TestProgressiveProxyFlood(unittest.IsolatedAsyncioTestCase):
 
     async def test_accepts_open_ended_and_suffix_ranges(self):
         """Native <video> opens with ``bytes=0-`` and resumes with ``bytes=N-``."""
-        import proxy
+        import miku.media.proxy as proxy
 
         for rng in ("bytes=0-", "bytes=12345-", "bytes=0-99", "bytes=-500", ""):
             self.assertTrue(proxy._is_acceptable_progressive_range(rng), rng)
 
     async def test_rejects_malformed_video_path(self):
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         get_mock = AsyncMock(return_value=None)
         for sub in ("video/..%2f_0_80", "video/BV1xx411c7xx_x_80", "video/BV1xx411c7xx_0_*", "video/a_b"):
@@ -179,8 +179,8 @@ class TestProgressiveProxyFlood(unittest.IsolatedAsyncioTestCase):
         get_mock.assert_not_awaited()
 
     async def test_per_ip_concurrent_stream_cap(self):
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         gate = asyncio.Event()
         conns = []
@@ -232,8 +232,8 @@ class TestProgressiveProxyFlood(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(c.closed for c in conns))
 
     async def test_upstream_failure_releases_slot(self):
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         with (
             patch.object(
@@ -250,8 +250,8 @@ class TestProgressiveProxyFlood(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(proxy.direct_stream_slots.active_by_ip, {})
 
     async def test_direct_stream_mid_body_timeout_and_oserror_truncate_without_raising(self):
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         for exc in (TimeoutError("read timed out"), ConnectionResetError("socket reset")):
             with self.subTest(exc=type(exc).__name__):
@@ -280,8 +280,8 @@ class TestProgressiveProxyFlood(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(proxy.direct_stream_slots.active_by_ip, {})
 
     async def test_direct_stream_mid_body_error_propagates_without_content_length(self):
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         for exc in (TimeoutError("read timed out"), ConnectionResetError("socket reset")):
             with self.subTest(exc=type(exc).__name__):
@@ -322,21 +322,21 @@ class _FakeLiveStream:
 
 class TestLiveProxyFlood(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        import proxy
+        import miku.media.proxy as proxy
 
         proxy.direct_stream_slots.reset()
         proxy.live_stream_slots.reset()
 
     def tearDown(self):
-        import proxy
+        import miku.media.proxy as proxy
 
         proxy.direct_stream_slots.reset()
         proxy.live_stream_slots.reset()
 
     async def test_rejects_glob_room_ids_without_keys_scan(self):
         """User input used to reach ``appredis.keys(f"miku_live_{room_id}_*")``."""
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         keys_mock = AsyncMock(return_value=[])
         get_mock = AsyncMock(return_value=None)
@@ -349,8 +349,8 @@ class TestLiveProxyFlood(unittest.IsolatedAsyncioTestCase):
         get_mock.assert_not_awaited()
 
     async def test_default_quality_fallback_never_uses_keys(self):
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         async def fake_scan(cursor=0, match=None, count=None):
             self.assertEqual(match, "miku_live_12345_*")
@@ -370,8 +370,8 @@ class TestLiveProxyFlood(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(resp.status_code, 404)
 
     async def test_per_ip_live_subscription_cap(self):
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         streams = []
 
@@ -420,8 +420,8 @@ class TestLiveProxyFlood(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(s.removed for s in streams))
 
     async def test_failed_subscribe_releases_slot(self):
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         with (
             patch.object(
@@ -439,8 +439,8 @@ class TestLiveProxyFlood(unittest.IsolatedAsyncioTestCase):
     async def test_live_manager_discard_finalizer_does_not_evict_after_start(self):
         import gc
 
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         stream = _FakeLiveStream()
         q = asyncio.Queue()
@@ -467,8 +467,8 @@ class TestLiveProxyFlood(unittest.IsolatedAsyncioTestCase):
     async def test_live_manager_discard_finalizer_cleans_up_when_unstarted(self):
         import gc
 
-        import proxy
-        from app import app
+        import miku.media.proxy as proxy
+        from miku.app import app
 
         stream = _FakeLiveStream()
         q = asyncio.Queue()
@@ -502,8 +502,8 @@ class TestRateLimitBucketSplitting(unittest.IsolatedAsyncioTestCase):
     """Path-keyed buckets give a crawler a fresh allowance per vid/quality."""
 
     async def _keys_for(self, coro_factory, path):
-        import rate_limit
-        from app import app
+        import miku.core.rate_limit as rate_limit
+        from miku.app import app
 
         rec = _RecordingLimiter()
         with (
@@ -515,13 +515,13 @@ class TestRateLimitBucketSplitting(unittest.IsolatedAsyncioTestCase):
         return rec.keys
 
     async def test_proxy_main_has_coarse_per_ip_bucket(self):
-        import proxy
+        import miku.media.proxy as proxy
 
         keys = await self._keys_for(lambda: proxy.proxy_main("teapot/x"), "/proxy/teapot/x")
         self.assertIn(f"{IP_A}:proxy", keys)
 
     async def test_component_routes_share_coarse_per_ip_bucket(self):
-        import views_video
+        import miku.views.video as views_video
 
         keys = await self._keys_for(
             lambda: views_video.api_component_player("not-a-vid", 0), "/api/component/player/not-a-vid/0"
@@ -535,8 +535,8 @@ class TestRateLimitBucketSplitting(unittest.IsolatedAsyncioTestCase):
 
 class TestComponentValidation(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_vid_rejected_before_upstream(self):
-        import views_video
-        from app import app
+        import miku.views.video as views_video
+        from miku.app import app
 
         bad = "BV1'; DROP--"
         video_ctor = MagicMock()
@@ -562,13 +562,13 @@ class TestComponentValidation(unittest.IsolatedAsyncioTestCase):
 
 class TestNyaaApi(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        import views_bangumi
+        import miku.views.bangumi as views_bangumi
 
         views_bangumi._nyaa_inflight.clear()
 
     async def test_cache_hit_skips_upstream(self):
-        import views_bangumi
-        from app import app
+        import miku.views.bangumi as views_bangumi
+        from miku.app import app
 
         cached = {"sidebar_html": "<p>x</p>", "ep_torrents": {"1": []}}
         search = AsyncMock(return_value=[])
@@ -586,8 +586,8 @@ class TestNyaaApi(unittest.IsolatedAsyncioTestCase):
         bg.assert_not_called()
 
     async def test_concurrent_misses_singleflight_and_cache(self):
-        import views_bangumi
-        from app import app
+        import miku.views.bangumi as views_bangumi
+        from miku.app import app
 
         gate = asyncio.Event()
 
@@ -622,8 +622,8 @@ class TestNyaaApi(unittest.IsolatedAsyncioTestCase):
         cache_set.assert_not_awaited()
 
     async def test_cache_and_singleflight_are_scoped_to_theme_and_locale(self):
-        import views_bangumi
-        from app import app
+        import miku.views.bangumi as views_bangumi
+        from miku.app import app
         from quart import request
 
         gate = asyncio.Event()
@@ -673,8 +673,8 @@ class TestNyaaApi(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(bg_inst.get_meta.await_count, 3)
 
     async def test_upstream_timeout_returns_empty_not_500(self):
-        import views_bangumi
-        from app import app
+        import miku.views.bangumi as views_bangumi
+        from miku.app import app
 
         bg_inst = MagicMock()
         bg_inst.get_meta = AsyncMock(side_effect=TimeoutError())
@@ -689,8 +689,8 @@ class TestNyaaApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body, {"sidebar_html": "", "ep_torrents": {}})
 
     async def test_nyaa_non_chinese_results_are_cached(self):
-        import views_bangumi
-        from app import app
+        import miku.views.bangumi as views_bangumi
+        from miku.app import app
 
         bg_inst = MagicMock()
         bg_inst.get_meta = AsyncMock(return_value={"media": {"title": "Test Non-Chinese"}})

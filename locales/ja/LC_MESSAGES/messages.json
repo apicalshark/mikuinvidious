@@ -75,7 +75,6 @@
   "Failed to fetch this user's profile. Please try again later.": "このユーザーのプロフィールを取得できませんでした。後でもう一度お試しください。",
   "Failed to load Nyaa resources": "Nyaaリソースの読み込みに失敗",
   "Failed to load bangumi info. Please check your network or try again later.": "番組情報の読み込みに失敗しました。ネットワークを確認するか、後でもう一度お試しください。",
-  "Failed to load comments, please try again later": "コメントの読み込みに失敗しました。後でもう一度お試しください",
   "Failed to load the live room. Please check your network or try again later.": "ライブルームの読み込みに失敗しました。ネットワークを確認するか、後でもう一度お試しください。",
   "Failed to resolve URL": "URLの解決に失敗しました",
   "Failed to resolve the redirect target.": "リダイレクト先を解決できませんでした。",

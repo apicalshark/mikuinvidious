@@ -3,7 +3,7 @@ import struct
 import unittest
 
 import brotli
-from api.live import LiveDanmaku
+from miku.api.live import LiveDanmaku
 
 
 class TestLive(unittest.TestCase):
@@ -60,7 +60,7 @@ class TestLive(unittest.TestCase):
 
 class TestLiveRoutes(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        from app import app
+        from miku.app import app
 
         self.client = app.test_client()
 
@@ -146,15 +146,15 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         from unittest.mock import AsyncMock, patch
 
-        import views_live
+        import miku.views.live as views_live
 
         _FakeLiveDanmaku.instances.clear()
         views_live.live_chat_slots.reset()
-        self._lookup_patch = patch("views_live._lookup_real_room_id", new=AsyncMock(return_value=None))
+        self._lookup_patch = patch("miku.views.live._lookup_real_room_id", new=AsyncMock(return_value=None))
         self._lookup_patch.start()
 
     async def asyncTearDown(self):
-        import views_live
+        import miku.views.live as views_live
 
         self._lookup_patch.stop()
         views_live.live_chat_slots.reset()
@@ -163,11 +163,11 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import patch
 
-        import views_live
-        from app import app
+        import miku.views.live as views_live
+        from miku.app import app
 
         with (
-            patch("api.live.LiveDanmaku", _FakeLiveDanmaku),
+            patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku),
             patch.object(views_live, "LIVE_CHAT_HANDSHAKE_DELAY", 0.3),
         ):
             async with app.test_request_context("/live/chat/4366430"):
@@ -192,11 +192,11 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
     async def test_sse_stream_delivers_messages_and_heartbeats_after_handshake(self):
         from unittest.mock import patch
 
-        import views_live
-        from app import app
+        import miku.views.live as views_live
+        from miku.app import app
 
         with (
-            patch("api.live.LiveDanmaku", _FakeLiveDanmaku),
+            patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku),
             patch.object(views_live, "LIVE_CHAT_HANDSHAKE_DELAY", 0.02),
             patch.object(views_live, "LIVE_CHAT_HEARTBEAT_INTERVAL", 0.05),
         ):
@@ -230,10 +230,10 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import patch
 
-        import views_live
+        import miku.views.live as views_live
 
         manager = views_live.LiveChatManager(idle_grace=0.5)
-        with patch("api.live.LiveDanmaku", _FakeLiveDanmaku):
+        with patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku):
             q1 = await manager.subscribe(4366430)
             q2 = await manager.subscribe(4366430)
             await asyncio.sleep(0.05)
@@ -255,10 +255,10 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import patch
 
-        import views_live
+        import miku.views.live as views_live
 
         manager = views_live.LiveChatManager(idle_grace=0.5)
-        with patch("api.live.LiveDanmaku", _FakeLiveDanmaku):
+        with patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku):
             # Simulate 10 rapid connect/disconnect cycles from a scanner or flaky client
             for _ in range(10):
                 q = await manager.subscribe(4366430)
@@ -275,10 +275,10 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import patch
 
-        import views_live
+        import miku.views.live as views_live
 
         manager = views_live.LiveChatManager(idle_grace=0.6)
-        with patch("api.live.LiveDanmaku", _FakeLiveDanmaku):
+        with patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku):
             q1 = await manager.subscribe(4366430)
             await asyncio.sleep(0.02)
             await manager.unsubscribe(4366430, q1)
@@ -308,12 +308,12 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import AsyncMock, patch
 
-        import views_live
+        import miku.views.live as views_live
 
         manager = views_live.LiveChatManager(idle_grace=0.5)
         with (
-            patch("api.live.LiveDanmaku", _FakeLiveDanmaku),
-            patch("views_live._lookup_real_room_id", new=AsyncMock(return_value=21144080)),
+            patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku),
+            patch("miku.views.live._lookup_real_room_id", new=AsyncMock(return_value=21144080)),
         ):
             # Subscribe via short display ID 100 and canonical ID 21144080
             q_short = await manager.subscribe(100)
@@ -342,7 +342,7 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import patch
 
-        import views_live
+        import miku.views.live as views_live
 
         async def slow_lookup(rid):
             await asyncio.sleep(10.0)
@@ -351,7 +351,7 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         manager = views_live.LiveChatManager(idle_grace=0.5)
         with (
             patch.object(views_live, "LIVE_CHAT_LOOKUP_TIMEOUT", 0.05),
-            patch("views_live._lookup_real_room_id", slow_lookup),
+            patch("miku.views.live._lookup_real_room_id", slow_lookup),
         ):
             resolved = await manager._resolve_room_id(12345)
             self.assertEqual(resolved, 12345)
@@ -360,10 +360,10 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import patch
 
-        import views_live
+        import miku.views.live as views_live
 
         manager = views_live.LiveChatManager(idle_grace=0.5, max_rooms=2)
-        with patch("api.live.LiveDanmaku", _FakeLiveDanmaku):
+        with patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku):
             q1 = await manager.subscribe(1001)
             q2 = await manager.subscribe(1002)
             await asyncio.sleep(0.02)
@@ -390,10 +390,10 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import patch
 
-        import views_live
+        import miku.views.live as views_live
 
         manager = views_live.LiveChatManager(idle_grace=0.05)
-        with patch("api.live.LiveDanmaku", _FakeLiveDanmaku):
+        with patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku):
             q = await manager.subscribe(4366430)
             await asyncio.sleep(0.02)
             self.assertEqual(len(_FakeLiveDanmaku.instances), 1)
@@ -408,10 +408,10 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
     async def test_bounded_subscriber_queue_drops_oldest_on_overflow(self):
         from unittest.mock import patch
 
-        import views_live
+        import miku.views.live as views_live
 
         manager = views_live.LiveChatManager(idle_grace=0.5, queue_maxsize=3)
-        with patch("api.live.LiveDanmaku", _FakeLiveDanmaku):
+        with patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku):
             q = await manager.subscribe(4366430)
             room = manager.rooms[4366430]
 
@@ -427,7 +427,7 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
 
 class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        from app import app
+        from miku.app import app
 
         self.client = app.test_client()
 
@@ -435,7 +435,7 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import AsyncMock, patch
 
-        import dash_download_track
+        import miku.dash.download_track as dash_download_track
 
         hang_event = asyncio.Event()
 
@@ -460,7 +460,7 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         fake_proc = _FakeProc()
 
         with (
-            patch("dash_download_track.shutil.which", return_value="/usr/bin/ffmpeg"),
+            patch("miku.dash.download_track.shutil.which", return_value="/usr/bin/ffmpeg"),
             patch("asyncio.create_subprocess_exec", new=AsyncMock(return_value=fake_proc)),
         ):
             task = asyncio.create_task(dash_download_track._mux_tracks("/tmp/v.m4s", "/tmp/a.m4s", "/tmp/o.mp4"))
@@ -492,9 +492,9 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         }
         mock_room_info = AsyncMock()
         with (
-            patch("views_live.cache_get", new=AsyncMock(return_value=cached_payload)),
-            patch("api.live.LiveRoom.get_room_info", mock_room_info),
-            patch("views_live.render_template_with_theme", new=AsyncMock(return_value="<html>Cached Live</html>")),
+            patch("miku.views.live.cache_get", new=AsyncMock(return_value=cached_payload)),
+            patch("miku.api.live.LiveRoom.get_room_info", mock_room_info),
+            patch("miku.views.live.render_template_with_theme", new=AsyncMock(return_value="<html>Cached Live</html>")),
         ):
             resp = await self.client.get("/live/4366430")
             self.assertEqual(resp.status_code, 200)
@@ -504,7 +504,7 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
     async def test_live_room_view_renders_when_redis_pipeline_fails(self):
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        import views_live
+        import miku.views.live as views_live
 
         fake_info_data = {
             "room_info": {
@@ -545,14 +545,14 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         mock_pipe.execute = AsyncMock(side_effect=ConnectionError("Redis pipeline failed"))
 
         with (
-            patch("views_live.cache_get", new=AsyncMock(return_value=None)),
-            patch("api.live.LiveRoom.get_room_info", new=AsyncMock(return_value=fake_info_data)),
-            patch("api.live.LiveRoom.get_room_play_info_v2", new=AsyncMock(return_value=fake_play_data)),
+            patch("miku.views.live.cache_get", new=AsyncMock(return_value=None)),
+            patch("miku.api.live.LiveRoom.get_room_info", new=AsyncMock(return_value=fake_info_data)),
+            patch("miku.api.live.LiveRoom.get_room_play_info_v2", new=AsyncMock(return_value=fake_play_data)),
             patch.object(views_live.appredis, "pipeline", return_value=mock_pipe),
             patch.object(
                 views_live.appredis, "setex", new=AsyncMock(side_effect=ConnectionError("Redis setex failed"))
             ),
-            patch("views_live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Rendered</html>")),
+            patch("miku.views.live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Rendered</html>")),
         ):
             resp = await self.client.get("/live/4366430")
             self.assertEqual(resp.status_code, 200)
@@ -563,7 +563,7 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import AsyncMock, MagicMock, patch
 
-        import views_live
+        import miku.views.live as views_live
 
         fake_info_data = {
             "room_info": {
@@ -607,13 +607,13 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         mock_get_room_info = AsyncMock(side_effect=slow_get_room_info)
 
         with (
-            patch("views_live.cache_get", new=AsyncMock(return_value=None)),
-            patch("api.live.LiveRoom.get_room_info", mock_get_room_info),
-            patch("api.live.LiveRoom.get_room_play_info_v2", new=AsyncMock(return_value=fake_play_data)),
+            patch("miku.views.live.cache_get", new=AsyncMock(return_value=None)),
+            patch("miku.api.live.LiveRoom.get_room_info", mock_get_room_info),
+            patch("miku.api.live.LiveRoom.get_room_play_info_v2", new=AsyncMock(return_value=fake_play_data)),
             patch.object(views_live.appredis, "pipeline", return_value=MagicMock(execute=AsyncMock())),
             patch.object(views_live.appredis, "setex", new=AsyncMock()),
-            patch("views_live.cache_set", new=AsyncMock()),
-            patch("views_live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Coalesced</html>")),
+            patch("miku.views.live.cache_set", new=AsyncMock()),
+            patch("miku.views.live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Coalesced</html>")),
         ):
             # Fire 3 simultaneous requests for the same room
             responses = await asyncio.gather(
@@ -635,7 +635,7 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         import asyncio
         from unittest.mock import AsyncMock, patch
 
-        import views_live
+        import miku.views.live as views_live
 
         async def failing_get_room_info():
             await asyncio.sleep(0.02)
@@ -644,10 +644,10 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         mock_get_room_info = AsyncMock(side_effect=failing_get_room_info)
 
         with (
-            patch("views_live.cache_get", new=AsyncMock(return_value=None)),
-            patch("api.live.LiveRoom.get_room_info", mock_get_room_info),
-            patch("api.live.LiveRoom.get_room_base_info", new=AsyncMock(side_effect=RuntimeError("Fallback failed"))),
-            patch("views_live.render_template_with_theme", new=AsyncMock(return_value="<html>Error</html>")),
+            patch("miku.views.live.cache_get", new=AsyncMock(return_value=None)),
+            patch("miku.api.live.LiveRoom.get_room_info", mock_get_room_info),
+            patch("miku.api.live.LiveRoom.get_room_base_info", new=AsyncMock(side_effect=RuntimeError("Fallback failed"))),
+            patch("miku.views.live.render_template_with_theme", new=AsyncMock(return_value="<html>Error</html>")),
         ):
             responses = await asyncio.gather(
                 self.client.get("/live/4366430"),
@@ -662,7 +662,7 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
     async def test_video_listen_view_reuses_cached_video_data(self):
         from unittest.mock import AsyncMock, patch
 
-        import views_video
+        import miku.views.video as views_video
 
         cached_payload = {
             "vinfo": {"bvid": "BV1xx411c7mD", "title": "Cached Audio Video"},
@@ -672,11 +672,11 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         }
         mock_get_info = AsyncMock()
         with (
-            patch("views_video.cache_get", new=AsyncMock(return_value=cached_payload)),
-            patch("api.video.Video.get_info", mock_get_info),
-            patch("api.comment.get_comments", new=AsyncMock(return_value={"page": {"count": 0}, "replies": []})),
+            patch("miku.views.video.cache_get", new=AsyncMock(return_value=cached_payload)),
+            patch("miku.api.video.Video.get_info", mock_get_info),
+            patch("miku.api.comment.get_comments", new=AsyncMock(return_value={"page": {"count": 0}, "replies": []})),
             patch.object(views_video.appredis, "exists", new=AsyncMock(return_value=1)),
-            patch("views_video.render_template_with_theme", new=AsyncMock(return_value="<html>Listen</html>")),
+            patch("miku.views.video.render_template_with_theme", new=AsyncMock(return_value="<html>Listen</html>")),
         ):
             resp = await self.client.get("/video_listen/BV1xx411c7mD")
             self.assertEqual(resp.status_code, 200)
@@ -686,8 +686,8 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
     async def test_rate_limits_enforced_across_hardened_endpoints(self):
         from unittest.mock import AsyncMock, patch
 
-        import rate_limit
-        from shared import appconf
+        import miku.core.rate_limit as rate_limit
+        from miku.state import appconf
 
         fake_limiter = AsyncMock()
         fake_limiter.is_allowed = AsyncMock(

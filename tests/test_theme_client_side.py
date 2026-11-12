@@ -108,15 +108,15 @@ class ThemesJsTests(unittest.TestCase):
 
 class ThemeServerTests(unittest.IsolatedAsyncioTestCase):
     async def test_no_toggle_theme_route(self):
-        import app as app_module  # noqa: F401  (registers routes)
-        import shared
+        import miku.app as app_module# noqa: F401  (registers routes)
+        import miku.state as shared
 
         rules = [str(r) for r in shared.app.url_map.iter_rules()]
         self.assertNotIn("/toggle_theme", rules)
         self.assertNotIn("toggle_theme_api", shared.app.view_functions)
 
     async def test_render_ignores_dark_theme_cookie(self):
-        import shared
+        import miku.state as shared
 
         contexts = []
         for cookie in (None, "dark-theme=1", "dark-theme=0"):
@@ -135,7 +135,7 @@ class ThemeServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plain[1], plain[2])
 
     async def test_detect_theme_invalid_or_stale_fallback(self):
-        import shared
+        import miku.state as shared
 
         for bad_theme in ("light", "dark", "nonexistent", "../etc"):
             async with shared.app.test_request_context(f"/?theme={bad_theme}"):

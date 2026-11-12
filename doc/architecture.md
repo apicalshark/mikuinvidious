@@ -164,17 +164,31 @@ graph TD
 
 ## 3. Comprehensive Module Inventory (`python/`)
 
+### Industrial Core Package (`python/miku/`)
+- **`miku.core.app`**: Standardized application factory (`create_app()`) configuring Quart, template/static paths, JSON providers, timeout ceilings, and session security.
+- **`miku.core.config`**: Decoupled TOML configuration loader supporting environment overrides (`MIKU_*`), version extraction, and dynamic config paths.
+- **`miku.services.redis`**: Fast-fail Redis connection pool factory enforcing a strict 1.0s socket timeout and 0 automatic retries to prevent event loop exhaustion.
+- **`miku.services.cache`**: Unified cache get/set/stale operations and singleflight-protected caching decorators.
+- **`miku.services.network`**: Global HTTPX async client connection pool lifecycle with connection pooling and proxy support.
+- **`miku.services.ticket`**: Thread-safe, singleflight-coalesced Bilibili ticket lifecycle, isolation (CDN headers only, never cookies), and storage.
+- **`miku.services.credential`**: Sensitive credential decryption at rest using libsodium SecretBox (XSalsa20-Poly1305).
+- **`miku.ui.renderer`**: Theme resolution, theme cookie parsing, and fallback template rendering context.
+- **`miku.ui.sanitizer`**: Modern HTML sanitization with `nh3` (Ammonia) preventing XSS on articles and rich user content.
+- **`miku.api.wbi`**: Dedicated WBI key calculation, mixin derivation, and query signing.
+- **`miku.api.bvid`**: Modern PipePipe BV/AV conversion algorithm.
+
 ### Application Core & Configuration
-- **`app.py`**: Initializes the Quart application, configures security headers, registers error handlers, and attaches all blueprints.
-- **`main.py`**: Local development launcher wrapping the Granian ASGI server.
-- **`shared.py`**: Central system configuration (`appconf`), Redis pool manager (`appredis`), HTTP connection pools (`Network`), proxy configuration, and image concurrency semaphores.
+- **`app.py`**: Initializes the Quart application instance and registers middleware, blueprints, and error handlers.
+- **`main.py`**: Granian ASGI production launcher pinned to 1 worker for in-memory download consistency.
+- **`shared.py`**: Backward-compatible delegation facade exposing singleton application state, configuration, and helpers.
+- **`concurrency.py`**: Cancellation-safe generic `Singleflight[T]` preventing duplicate in-flight requests and thundering herds.
+- **`bvid.py`**: Canonical BVID/AVID converter supporting both integer and string IDs.
 - **`csrf.py`**: Token generation, validation, and session binding for mutating requests.
 - **`rate_limit.py`**: Sliding-window Redis rate limiter with IP validation and CIDR proxy header inspection.
-- **`secrets_encryption.py`**: Encrypts and decrypts sensitive credentials at rest using libsodium XChaCha20-Poly1305.
 - **`i18n.py` & `i18n_strings.py`**: Internationalization engine providing locale resolution and translation catalog bindings.
 
 ### Views & Presentation Layer
-- **`views.py`**: Static re-export facade exposing route handlers across views.
+- **`views.py`**: Non-wildcard re-export facade with PEP 562 dynamic attribute resolution.
 - **`views_home.py`**: Index feed, search endpoints, zone categories, history, licenses, and `/convert` B23 resolution.
 - **`views_video.py`**: Video metadata rendering, multi-part page lists, related content, and inline player components.
 - **`views_space.py`**: User space profiles, video archives, JSON feeds (`/space/<mid>/json`), and article views.
@@ -186,7 +200,7 @@ graph TD
 - **`res.py`**: Serves dynamic auxiliary assets like Danmaku XML and server-side redirects.
 
 ### Media Streaming & DASH Pipeline
-- **`dash_proxy.py`**: Central re-export facade for DASH VOD and downloads.
+- **`dash_proxy.py`**: Explicit, non-polluting re-export facade for DASH VOD and downloads.
 - **`dash_common.py`**: Core data structures, playback mirror health tracking, and range-shy cache.
 - **`dash_fetch.py`**: Fetches playurls, caches normalized tracks in Redis, and manages dual-layer in-memory fallback.
 - **`dash_mpd.py`**: Generates dynamic ISO/IEC 23009-1 DASH manifests (`manifest.mpd`).
@@ -196,15 +210,15 @@ graph TD
 - **`proxy.py`**: Progressive media streaming (`/proxy/video/`) and image proxying (`/proxy/pic/`).
 - **`image_cache.py`**: High-performance disk-based LRU image cache with automatic capacity pruning.
 - **`stream.py`**: Raw TCP socket helpers with persistent `_TLS_CONTEXT` for low-latency streaming.
-- **`live_manager.py`**: Persistent live stream connection buffering and heartbeat injection.
+- **`live_manager.py`**: Persistent live stream connection buffering and heartbeat injection (stripped of dead ML code).
 - **`dns_cache.py`**: Async stale-while-revalidate DNS resolver preventing SSRF attacks and inline latency spikes.
 - **`danmaku.py`**: Fetches, decodes protobuf, and converts Bilibili live/video danmaku.
 - **`b23_resolver.py`**: Resolves `b23.tv` short links server-side to prevent client tracking.
 - **`ip_slots.py`**: Concurrency controller balancing outbound requests across IP pools.
-- **`refresher.py` & `ticket_legacy.py`**: Upstream credential and web ticket refresh maintenance.
+- **`refresher.py`**: Upstream credential and web ticket refresh maintenance.
 
 ### Local API Wrapper (`python/api/`)
-- **`api/client.py`**: Core HTTP client implementing WBI query signing, `bili_ticket` generation, auto-cookies, and Gaia risk mitigation.
+- **`api/client.py`**: Core HTTP client implementing singleflight-guarded cookies, `bili_ticket` generation, auto-cookies, and Gaia risk mitigation.
 - **`api/credential.py`**: Credential state container (`SESSDATA`, `bili_jct`, `buvid3`, `buvid4`, `dedeuserid`).
 - **`api/video.py`**: Video metadata, tags, cid resolution, playurls (DASH + progressive), and subtitles.
 - **`api/user.py`**: Space profiles, author video archives, and articles.
@@ -216,3 +230,4 @@ graph TD
 - **`api/article.py` & `api/opus.py`**: Text articles and dynamic opus posts.
 - **`api/homepage.py` & `api/video_zone.py`**: Trending home feeds and sub-channel feeds.
 - **`api/exceptions.py`**: Structured upstream exception hierarchy.
+

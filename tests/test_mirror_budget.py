@@ -10,9 +10,9 @@ import asyncio
 import unittest
 from unittest.mock import patch
 
-import dash_common
-import dash_stream
-import stream
+import miku.dash.common as dash_common
+import miku.dash.stream as dash_stream
+import miku.media.stream as stream
 
 URLS = [f"https://upos-sz-mirror{i}.bilivideo.com/obj/x.m4s" for i in range(1, 5)]
 

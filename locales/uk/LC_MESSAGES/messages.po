@@ -2,180 +2,180 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-12 01:56+0800\n"
+"POT-Creation-Date: 2026-11-13 02:16+0000\n"
 "Language: uk\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
 "n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
-#: python/i18n_strings.py:30
+#: python/miku/ui/i18n_strings.py:30
 msgid "Article does not exist or parse error"
 msgstr "Стаття не існує або помилка розбору"
 
-#: python/i18n_strings.py:31
+#: python/miku/ui/i18n_strings.py:31
 msgid "Article not found"
 msgstr "Статтю не знайдено"
 
-#: python/i18n_strings.py:32
+#: python/miku/ui/i18n_strings.py:32
 msgid "Audio mode load failed"
 msgstr "Не вдалося завантажити аудіорежим"
 
-#: python/i18n_strings.py:33
+#: python/miku/ui/i18n_strings.py:33
 msgid "Backend server sent an invalid response"
 msgstr "Сервер надіслав недійсну відповідь"
 
-#: python/i18n_strings.py:34
+#: python/miku/ui/i18n_strings.py:34
 msgid "Bad request"
 msgstr "Неправильний запит"
 
-#: python/i18n_strings.py:35
+#: python/miku/ui/i18n_strings.py:35
 msgid "Bangumi load failed"
 msgstr "Не вдалося завантажити банґумі"
 
-#: python/i18n_strings.py:36
+#: python/miku/ui/i18n_strings.py:36
 msgid "Bilibili returned empty result (-404)"
 msgstr "Bilibili повернув порожній результат (-404)"
 
-#: python/i18n_strings.py:37
+#: python/miku/ui/i18n_strings.py:37
 msgid "Failed to fetch the live list. Please try again later."
 msgstr "Не вдалося отримати список трансляцій. Спробуйте пізніше."
 
-#: python/i18n_strings.py:38
+#: python/miku/ui/i18n_strings.py:38
 msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "Не вдалося отримати профіль цього користувача. Спробуйте пізніше."
 
-#: python/i18n_strings.py:39
+#: python/miku/ui/i18n_strings.py:39
 msgid ""
 "Failed to load bangumi info. Please check your network or try again later."
 msgstr "Не вдалося завантажити інформацію про банґумі. Перевірте мережу або спробуйте пізніше."
 
-#: python/i18n_strings.py:40
+#: python/miku/ui/i18n_strings.py:40
 msgid ""
 "Failed to load the live room. Please check your network or try again later."
 msgstr "Не вдалося завантажити кімнату трансляції. Перевірте мережу або спробуйте пізніше."
 
-#: python/i18n_strings.py:41
+#: python/miku/ui/i18n_strings.py:41
 msgid "Failed to resolve the redirect target."
 msgstr "Не вдалося визначити ціль перенаправлення."
 
-#: python/i18n_strings.py:42
+#: python/miku/ui/i18n_strings.py:42
 msgid ""
 "Failed to resolve the short link. Please check your network connection or "
 "proxy settings."
 msgstr "Не вдалося обробити коротке посилання. Перевірте мережеве з’єднання або налаштування проксі."
 
-#: python/i18n_strings.py:43
+#: python/miku/ui/i18n_strings.py:43
 msgid ""
 "Internal server error. Please try again later or contact the administrator."
 msgstr "Внутрішня помилка сервера. Спробуйте пізніше або зверніться до адміністратора."
 
-#: python/i18n_strings.py:44
+#: python/miku/ui/i18n_strings.py:44
 msgid "Invalid request parameters. Please check and try again."
 msgstr "Недійсні параметри запиту. Перевірте та спробуйте знову."
 
-#: python/i18n_strings.py:45
+#: python/miku/ui/i18n_strings.py:45
 msgid "Live list load failed"
 msgstr "Не вдалося завантажити список трансляцій"
 
-#: python/i18n_strings.py:46
+#: python/miku/ui/i18n_strings.py:46
 msgid "Live load failed"
 msgstr "Не вдалося завантажити трансляцію"
 
-#: python/i18n_strings.py:47
+#: python/miku/ui/i18n_strings.py:47
 msgid "Network error"
 msgstr "Помилка мережі"
 
-#: python/i18n_strings.py:48
+#: python/miku/ui/i18n_strings.py:48
 msgid "No search keyword provided."
 msgstr "Не вказано ключове слово для пошуку."
 
-#: python/i18n_strings.py:49
+#: python/miku/ui/i18n_strings.py:49
 msgid "No songs found"
 msgstr "Пісень не знайдено"
 
-#: python/i18n_strings.py:50
+#: python/miku/ui/i18n_strings.py:50
 msgid "Page not found (404)"
 msgstr "Сторінку не знайдено (404)"
 
-#: python/i18n_strings.py:51
+#: python/miku/ui/i18n_strings.py:51
 msgid "Parse error"
 msgstr "Помилка розбору"
 
-#: python/i18n_strings.py:52
+#: python/miku/ui/i18n_strings.py:52
 msgid "Playlist empty"
 msgstr "Список відтворення порожній"
 
-#: python/i18n_strings.py:53
+#: python/miku/ui/i18n_strings.py:53
 msgid "Please check the URL."
 msgstr "Перевірте URL-адресу."
 
-#: python/i18n_strings.py:54
+#: python/miku/ui/i18n_strings.py:54
 msgid "Please check your network connection or proxy settings."
 msgstr "Перевірте мережеве з’єднання або налаштування проксі."
 
-#: python/i18n_strings.py:55
+#: python/miku/ui/i18n_strings.py:55
 msgid "Please check your network or try again later."
 msgstr "Перевірте мережу або спробуйте пізніше."
 
-#: python/i18n_strings.py:56
+#: python/miku/ui/i18n_strings.py:56
 msgid "Please check your request and try again."
 msgstr "Перевірте свій запит і спробуйте знову."
 
-#: python/i18n_strings.py:57
+#: python/miku/ui/i18n_strings.py:57
 msgid "Please enter a search keyword and try again."
 msgstr "Введіть ключове слово та спробуйте знову."
 
-#: python/i18n_strings.py:58
+#: python/miku/ui/i18n_strings.py:58
 msgid "Please try refreshing the page, or check the server network connection."
 msgstr "Спробуйте оновити сторінку або перевірте мережеве з’єднання сервера."
 
-#: python/i18n_strings.py:59
+#: python/miku/ui/i18n_strings.py:59
 msgid "Search failed"
 msgstr "Пошук не вдався"
 
-#: python/i18n_strings.py:60
+#: python/miku/ui/i18n_strings.py:60
 msgid "Server error"
 msgstr "Помилка сервера"
 
-#: python/i18n_strings.py:61
+#: python/miku/ui/i18n_strings.py:61
 msgid "Space load failed"
 msgstr "Не вдалося завантажити простір"
 
-#: python/i18n_strings.py:62
+#: python/miku/ui/i18n_strings.py:62
 msgid ""
 "The article you requested most likely does not exist. Please check your "
 "request."
 msgstr "Запитаної статті, найімовірніше, не існує. Перевірте свій запит."
 
-#: python/i18n_strings.py:63
+#: python/miku/ui/i18n_strings.py:63
 msgid "The requested page does not exist."
 msgstr "Запитаної сторінки не існує."
 
-#: python/i18n_strings.py:64
+#: python/miku/ui/i18n_strings.py:64
 msgid "The requested resource does not exist."
 msgstr "Запитаного ресурсу не існує."
 
-#: python/i18n_strings.py:66
+#: python/miku/ui/i18n_strings.py:66
 msgid ""
 "This content is usually unavailable in your region or has been removed by "
 "Bilibili. Please try again later."
 msgstr "Цей вміст зазвичай недоступний у вашому регіоні або його видалено Bilibili. Спробуйте пізніше."
 
-#: python/i18n_strings.py:69
+#: python/miku/ui/i18n_strings.py:69
 msgid "This content may be region-restricted or removed."
 msgstr "Цей вміст може бути обмежено за регіоном або видалено."
 
-#: python/i18n_strings.py:70
+#: python/miku/ui/i18n_strings.py:70
 msgid ""
 "This video may have been deleted, is under review, or is region-restricted."
 msgstr "Це відео могли видалити, воно на перевірці або обмежене за регіоном."
 
-#: python/i18n_strings.py:71
+#: python/miku/ui/i18n_strings.py:71
 msgid "Video load failed"
 msgstr "Не вдалося завантажити відео"
 
-#: python/i18n_strings.py:72
+#: python/miku/ui/i18n_strings.py:72
 msgid "You have no browsing history yet."
 msgstr "У вас поки немає історії перегляду."
 
@@ -183,8 +183,8 @@ msgstr "У вас поки немає історії перегляду."
 msgid "Resolving video URL..."
 msgstr "Визначення URL-адреси відео..."
 
-#: static/themes/modern/js/player.js:1724
-#: static/themes/modern/js/player.js:1794 templates/macros.html:62
+#: static/themes/modern/js/player.js:1706
+#: static/themes/modern/js/player.js:1776 templates/macros.html:62
 msgid "Resolution"
 msgstr "Якість"
 
@@ -246,7 +246,7 @@ msgid "reads"
 msgstr "прочитань"
 
 #: templates/themes/modern/author.html:111
-#: templates/themes/modern/bangumi_index.html:155
+#: templates/themes/modern/bangumi_index.html:101
 #: templates/themes/modern/search.html:67
 #: templates/themes/modern/search_article.html:84
 #: templates/themes/modern/search_user.html:58
@@ -255,7 +255,7 @@ msgid "Previous page"
 msgstr "Попередня сторінка"
 
 #: templates/themes/modern/author.html:117
-#: templates/themes/modern/bangumi_index.html:162
+#: templates/themes/modern/bangumi_index.html:108
 #: templates/themes/modern/search.html:73
 #: templates/themes/modern/search_article.html:90
 #: templates/themes/modern/search_user.html:64
@@ -271,31 +271,31 @@ msgstr "У цього користувача поки немає статей."
 msgid "Bangumi index"
 msgstr "Каталог банґумі"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Anime"
 msgstr "Аніме"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Chinese Original"
 msgstr "Китайський оригінал"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Movies"
 msgstr "Фільми"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "TV Series"
 msgstr "Серіали"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Variety"
 msgstr "Шоу"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Documentary"
 msgstr "Документальні"
 
-#: templates/themes/modern/bangumi_index.html:94
+#: templates/themes/modern/bangumi_index.html:40
 msgid "Sort"
 msgstr "Сортування"
 
@@ -323,70 +323,70 @@ msgstr "Епізод "
 msgid "Searching Nyaa..."
 msgstr "Пошук на Nyaa..."
 
-#: templates/themes/modern/bangumi_view.html:98
+#: static/themes/modern/js/bangumi.js:25
 msgid "Nyaa Magnet Resources"
 msgstr "Магніт-ресурси Nyaa"
 
-#: templates/themes/modern/bangumi_view.html:192
+#: static/themes/modern/js/bangumi.js:36 static/themes/modern/js/bangumi.js:131
 msgid "Failed to load Nyaa resources"
 msgstr "Не вдалося завантажити ресурси Nyaa"
 
-#: templates/themes/modern/base.html:492 templates/themes/modern/base.html:549
+#: templates/themes/modern/base.html:179 templates/themes/modern/base.html:236
 msgid "Bangumi"
 msgstr "Банґумі"
 
-#: templates/themes/modern/base.html:497 templates/themes/modern/base.html:554
+#: templates/themes/modern/base.html:184 templates/themes/modern/base.html:241
 msgid "Toggle theme"
 msgstr "Перемкнути тему"
 
-#: templates/themes/modern/base.html:502 templates/themes/modern/base.html:560
+#: templates/themes/modern/base.html:189 templates/themes/modern/base.html:247
 msgid "Language"
 msgstr "Мова"
 
-#: templates/themes/modern/base.html:517 templates/themes/modern/base.html:576
+#: templates/themes/modern/base.html:204 templates/themes/modern/base.html:263
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "Налаштування"
 
-#: templates/themes/modern/base.html:540
+#: templates/themes/modern/base.html:227
 #: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "Щось шукаєте?"
 
-#: templates/themes/modern/base.html:609
+#: templates/themes/modern/base.html:296
 msgid "Original source code"
 msgstr "Оригінальний сирцевий код"
 
-#: templates/themes/modern/base.html:611
+#: templates/themes/modern/base.html:298
 msgid "Modified source code"
 msgstr "Змінений сирцевий код"
 
-#: templates/themes/modern/base.html:614
+#: templates/themes/modern/base.html:301
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "Сирцевий код"
 
-#: templates/themes/modern/base.html:620
+#: templates/themes/modern/base.html:307
 msgid "Documentation"
 msgstr "Документація"
 
-#: templates/themes/modern/base.html:625
+#: templates/themes/modern/base.html:312
 msgid "Link converter"
 msgstr "Конвертер посилань"
 
-#: templates/themes/modern/base.html:631
+#: templates/themes/modern/base.html:318
 msgid "Proudly released under AGPLv3"
 msgstr "Гордо випущено під AGPLv3"
 
-#: templates/themes/modern/base.html:638
+#: templates/themes/modern/base.html:325
 msgid "View JavaScript licenses"
 msgstr "Переглянути ліцензії JavaScript"
 
-#: templates/themes/modern/base.html:643
+#: templates/themes/modern/base.html:330
 msgid "Privacy policy"
 msgstr "Політика конфіденційності"
 
-#: templates/themes/modern/base.html:650
+#: templates/themes/modern/base.html:337
 msgid "Donate"
 msgstr "Пожертвувати"
 
@@ -446,15 +446,15 @@ msgstr "Копіювати посилання MikuInvidious"
 msgid "Open"
 msgstr "Відкрити"
 
-#: templates/themes/modern/convert.html:140
+#: static/themes/modern/js/convert.js:44
 msgid "Copied!"
 msgstr "Скопійовано!"
 
-#: templates/themes/modern/convert.html:216
+#: static/themes/modern/js/convert.js:107
 msgid "Failed to resolve URL"
 msgstr "Не вдалося визначити URL-адресу"
 
-#: templates/themes/modern/convert.html:239
+#: static/themes/modern/js/convert.js:129
 msgid "Network error. Please try again."
 msgstr "Помилка мережі. Спробуйте ще раз."
 
@@ -473,7 +473,7 @@ msgstr "Перевірте свій запит. Якщо вважаєте, що 
 msgid "Back to home"
 msgstr "На головну"
 
-#: templates/themes/modern/base.html:489 templates/themes/modern/home.html:5
+#: templates/themes/modern/base.html:176 templates/themes/modern/home.html:5
 #: templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
@@ -531,7 +531,7 @@ msgid "Audio mode"
 msgstr "Аудіорежим"
 
 #: templates/themes/modern/components/m3_components.html:147
-#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:361
+#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:300
 msgid "views"
 msgstr "переглядів"
 
@@ -565,12 +565,9 @@ msgstr "Перетворення на традиційну китайську"
 msgid "Convert content to Traditional Chinese with OpenCC"
 msgstr "Перетворювати вміст на традиційну китайську за допомогою OpenCC"
 
-#: templates/themes/modern/pref.html:102 templates/themes/modern/pref.html:111
-#: templates/themes/modern/pref.html:120 templates/themes/modern/pref.html:129
-#: templates/themes/modern/video.html:408
-#: templates/themes/modern/video.html:559
-#: templates/themes/modern/video_listen.html:288
-#: templates/themes/modern/video_listen.html:386
+#: static/themes/modern/js/comments.js:29 templates/themes/modern/pref.html:102
+#: templates/themes/modern/pref.html:111 templates/themes/modern/pref.html:120
+#: templates/themes/modern/pref.html:129
 msgid "Loading..."
 msgstr "Завантаження..."
 
@@ -749,9 +746,9 @@ msgstr "Поділитися"
 msgid "Download"
 msgstr "Завантажити"
 
+#: static/themes/modern/js/comments.js:97
 #: templates/themes/modern/components/meta_part.html:6
 #: templates/themes/modern/video.html:171
-#: templates/themes/modern/video.html:472
 #: templates/themes/modern/video_listen.html:158
 msgid "Comments"
 msgstr "Коментарі"
@@ -765,21 +762,21 @@ msgstr "Завантаження коментарів..."
 msgid "Live chat"
 msgstr "Живий чат"
 
-#: templates/themes/modern/video.html:230
+#: templates/themes/modern/video.html:231
 msgid "Connecting to chat..."
 msgstr "Підключення до чату..."
 
-#: templates/themes/modern/video.html:303
+#: templates/themes/modern/video.html:242
 #: templates/themes/modern/video_listen.html:221
 msgid "Episodes"
 msgstr "Епізоди"
 
-#: templates/themes/modern/video.html:309
+#: templates/themes/modern/video.html:248
 #: templates/themes/modern/video_listen.html:227
 msgid "Autoplay next"
 msgstr "Автовідтворення наступного"
 
-#: templates/themes/modern/video.html:340
+#: templates/themes/modern/video.html:279
 #: templates/themes/modern/video_listen.html:255
 msgid "Recommended"
 msgstr "Рекомендоване"
@@ -788,32 +785,21 @@ msgstr "Рекомендоване"
 msgid "Play"
 msgstr "Відтворити"
 
-#: templates/themes/modern/video.html:406
-#: templates/themes/modern/video_listen.html:286
+#: static/themes/modern/js/comments.js:27
 msgid "Fold"
 msgstr "Згорнути"
 
-#: templates/themes/modern/video.html:407
-#: templates/themes/modern/video_listen.html:287
+#: static/themes/modern/js/comments.js:28
 msgid "Load more replies"
 msgstr "Показати ще відповіді"
 
+#: static/themes/modern/js/comments.js:31
 #: templates/themes/modern/components/meta_part.html:25
-#: templates/themes/modern/video.html:409
 #: templates/themes/modern/video_listen.html:210
-#: templates/themes/modern/video_listen.html:290
 msgid "Load more comments"
 msgstr "Завантажити більше коментарів"
 
-#: templates/themes/modern/video.html:472
-msgid "Failed to load comments, please try again later"
-msgstr "Не вдалося завантажити коментарі, спробуйте пізніше"
-
-#: templates/themes/modern/video.html:531
-#: templates/themes/modern/video.html:571
-#: templates/themes/modern/video.html:632
-#: templates/themes/modern/video_listen.html:289
-#: templates/themes/modern/video_listen.html:398
+#: static/themes/modern/js/comments.js:30
 msgid "Load failed"
 msgstr "Не вдалося завантажити"
 
@@ -832,6 +818,7 @@ msgstr "Відеорежим"
 msgid "Download audio"
 msgstr "Завантажити аудіо"
 
+#: static/themes/modern/js/comments.js:39
 #: templates/themes/modern/components/comment_items.html:28
 #: templates/themes/modern/video_listen.html:189
 #, python-format
@@ -1001,38 +988,38 @@ msgstr "Потік завершено"
 msgid "Live stream has ended"
 msgstr "Трансляція завершилася"
 
-#: static/themes/modern/js/player.js:1468
+#: static/themes/modern/js/player.js:1450
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "Авто (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1491
-#: static/themes/modern/js/player.js:1495
-#: static/themes/modern/js/player.js:1526
-#: static/themes/modern/js/player.js:1530
+#: static/themes/modern/js/player.js:1473
+#: static/themes/modern/js/player.js:1477
+#: static/themes/modern/js/player.js:1508
+#: static/themes/modern/js/player.js:1512
 msgid "Auto"
 msgstr "Авто"
 
-#: static/themes/modern/js/player.js:1655
+#: static/themes/modern/js/player.js:1637
 msgid "Back"
 msgstr "Назад"
 
-#: static/themes/modern/js/player.js:1725
+#: static/themes/modern/js/player.js:1707
 msgid "Audio"
 msgstr "Аудіо"
 
-#: static/themes/modern/js/player.js:1726
-#: static/themes/modern/js/player.js:1795
+#: static/themes/modern/js/player.js:1708
+#: static/themes/modern/js/player.js:1777
 msgid "Playback speed"
 msgstr "Швидкість відтворення"
 
-#: static/themes/modern/js/themes.js:248 static/themes/modern/js/themes.js:260
-#: static/themes/modern/js/themes.js:276 static/themes/modern/js/themes.js:286
+#: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
+#: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "Увімк"
 
-#: static/themes/modern/js/themes.js:251 static/themes/modern/js/themes.js:263
-#: static/themes/modern/js/themes.js:273 static/themes/modern/js/themes.js:289
+#: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
+#: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
 msgid "Off"
 msgstr "Вимк"
 
@@ -1048,6 +1035,15 @@ msgstr "Скинути колір теми"
 msgid "Custom Color"
 msgstr "Власний колір"
 
+#: static/themes/modern/js/comments.js:40
+#, python-format
+msgid "%(count)s replies"
+msgstr ""
+
+#: static/themes/modern/js/comments.js:98
+msgid "Failed to load comments, please try again later"
+msgstr ""
+
 #~ msgid "No articles yet"
 #~ msgstr "Статей поки немає"
 
@@ -1062,3 +1058,6 @@ msgstr "Власний колір"
 
 #~ msgid "Home"
 #~ msgstr ""
+
+#~ msgid "Failed to load comments, please try again later"
+#~ msgstr "Не вдалося завантажити коментарі, спробуйте пізніше"

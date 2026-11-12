@@ -1,0 +1,503 @@
+# Copyright (C) 2023 MikuInvidious Team
+#
+# MikuInvidious is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 3 of
+# the License, or (at your option) any later version.
+#
+# MikuInvidious is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
+
+"""Bilibili extra apis"""
+
+import asyncio
+import re
+from urllib.parse import urlparse
+
+import orjson
+from bs4 import BeautifulSoup
+
+from miku.api.bvid import av2bv, bv2av  # noqa: F401
+from miku.api.client import Api
+from miku.core.fingerprints import FIXED_CHROME_UA
+from miku.state import Network
+from miku.ui.sanitizer import (
+    ALLOWED_ATTRIBUTES,  # noqa: F401
+    ALLOWED_STYLES,  # noqa: F401
+    ALLOWED_TAGS,  # noqa: F401
+    sanitize_html,
+)
+
+
+def _to_int(value, default=0):
+    """Coerce a value to int without raising (Bilibili sometimes sends numeric
+    fields as strings, e.g. ``pub_ts`` on opus pages)."""
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except TypeError, ValueError:
+        return default
+
+
+def _proxied_pic_url(raw_url):
+    """Rewrite an upstream image URL to the local ``/proxy/pic/`` path.
+
+    Returns None when the value is not a valid absolute http(s) URL, so
+    callers skip the node instead of raising IndexError on unexpected
+    upstream shapes (old code assumed ``scheme://host`` via split).
+    """
+    if not raw_url or not isinstance(raw_url, str):
+        return None
+    normalized = "https:" + raw_url if raw_url.startswith("//") else raw_url
+    try:
+        parts = urlparse(normalized)
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    proxied = parts.hostname + (parts.path or "/")
+    if parts.query:
+        proxied += "?" + parts.query
+    return "/proxy/pic/" + proxied
+
+
+def get_article_info(article_text, cid):
+    """Extract article info from INITIAL_STATE in HTML."""
+    pattern = re.compile(r"window\.__INITIAL_STATE__\s*=\s*({.*?});", re.DOTALL)
+    match = pattern.search(article_text)
+
+    arinfo = {
+        "title": "",
+        "author": {"mid": 0, "face": "", "name": ""},
+        "publish_time": 0,
+        "stats": {"view": 0, "like": 0, "coin": 0, "favorite": 0, "share": 0},
+    }
+
+    if match:
+        state = orjson.loads(match.group(1))
+        detail = state.get("detail", {})
+
+        # Try to find modules
+        modules = detail.get("modules", [])
+        if not modules and "item" in detail:
+            modules = detail["item"].get("modules", [])
+
+        for module in modules:
+            m_type = module.get("module_type")
+
+            # Title
+            if m_type == "MODULE_TYPE_TITLE" or module.get("module_title"):
+                title_obj = module.get("module_title", {})
+                arinfo["title"] = title_obj.get("text", "")
+
+            # Author
+            elif m_type == "MODULE_TYPE_AUTHOR" or module.get("module_author"):
+                author = module.get("module_author", {})
+                arinfo["author"]["mid"] = author.get("mid")
+                arinfo["author"]["name"] = author.get("name")
+                arinfo["author"]["face"] = author.get("face")
+                arinfo["publish_time"] = author.get("pub_ts", 0)
+
+            # Stats
+            elif m_type == "MODULE_TYPE_STAT" or module.get("module_stat"):
+                stat = module.get("module_stat", {})
+                arinfo["stats"]["like"] = stat.get("like", {}).get("count", 0)
+                arinfo["stats"]["coin"] = stat.get("coin", {}).get("count", 0)
+                arinfo["stats"]["favorite"] = stat.get("favorite", {}).get("count", 0)
+                arinfo["stats"]["share"] = stat.get("forward", {}).get("count", 0)
+                if "view" in stat:
+                    arinfo["stats"]["view"] = stat.get("view", {}).get("count", 0)
+
+        if not arinfo["title"] and "basic" in detail:
+            arinfo["title"] = detail["basic"].get("title", "").replace(" - 哔哩哔哩", "")
+
+        if not arinfo["author"]["mid"] and "basic" in detail:
+            arinfo["author"]["mid"] = detail["basic"].get("uid", 0)
+
+        if not arinfo["stats"]["view"] and "basic" in detail:
+            arinfo["stats"]["view"] = detail["basic"].get("view_count", 0)
+
+        # Coerce numeric fields to int (Bilibili sometimes sends them as strings,
+        # e.g. ``pub_ts`` on the opus format) so template filters like |date
+        # (datetime.fromtimestamp) don't crash.
+        arinfo["publish_time"] = _to_int(arinfo["publish_time"])
+        arinfo["author"]["mid"] = _to_int(arinfo["author"]["mid"])
+        for _k in arinfo["stats"]:
+            arinfo["stats"][_k] = _to_int(arinfo["stats"][_k])
+
+    return arinfo
+
+
+"""Format the result returned by cv link."""
+
+
+def article_to_html(article_text):
+    article_soup = BeautifulSoup(article_text, features="lxml")
+    article_body = article_soup.find("div", id="read-article-holder")
+
+    if not article_body:
+        # Try to parse from INITIAL_STATE if it's a new format article
+        pattern = re.compile(r"window\.__INITIAL_STATE__\s*=\s*({.*?});", re.DOTALL)
+        match = pattern.search(article_text)
+        if match:
+            try:
+                state = orjson.loads(match.group(1))
+                detail = state.get("detail", {})
+                modules = detail.get("modules", [])
+                if not modules and "item" in detail:
+                    modules = detail["item"].get("modules", [])
+
+                content_html = ""
+                for module in modules:
+                    if module.get("module_type") == "MODULE_TYPE_CONTENT" or module.get("module_content"):
+                        paragraphs = module.get("module_content", {}).get("paragraphs", [])
+                        for p in paragraphs:
+                            p_type = p.get("para_type")
+                            if p_type == 1:  # Text
+                                text_nodes = p.get("text", {}).get("nodes", [])
+                                p_content = ""
+                                for node in text_nodes:
+                                    text = ""
+                                    url = None
+                                    is_bold = False
+                                    is_italic = False
+                                    color = None
+
+                                    if node.get("rich"):
+                                        rich = node["rich"]
+                                        text = rich.get("text", "")
+                                        url = rich.get("jump_url")
+                                        if rich.get("emoji"):
+                                            emoji_url = rich["emoji"].get("icon_url")
+                                            proxied_emoji = _proxied_pic_url(emoji_url)
+                                            if proxied_emoji:
+                                                emoji_style = (
+                                                    "width: 1.2em; height: 1.2em; display: inline-block; "
+                                                    "vertical-align: middle;"
+                                                )
+                                                text = f'<img src="{proxied_emoji}" style="{emoji_style}" alt="{text}">'
+                                    elif node.get("word"):
+                                        word = node["word"]
+                                        text = word.get("words", "")
+                                        if word.get("style"):
+                                            is_bold = word["style"].get("bold")
+                                            is_italic = word["style"].get("italic")
+                                            color = word["style"].get("color")
+
+                                    # Fallback for older format if necessary
+                                    if not text and node.get("type") == "TEXT_NODE_TYPE_WORD":
+                                        word = node.get("word", {})
+                                        text = word.get("words", "")
+                                        is_bold = word.get("bold")
+                                        is_italic = word.get("italic")
+                                        color = word.get("color")
+                                    elif not text and node.get("type") == "TEXT_NODE_TYPE_HYPERLINK":
+                                        word = node.get("word", {})
+                                        text = word.get("words", "")
+                                        url = node.get("link", {}).get("url")
+
+                                    if is_bold:
+                                        text = f"<strong>{text}</strong>"
+                                    if is_italic:
+                                        text = f"<em>{text}</em>"
+                                    if color:
+                                        if not color.startswith("#"):
+                                            color = f"#{color}"
+                                        text = f'<span style="color: {color};">{text}</span>'
+
+                                    if url:
+                                        text = f'<a href="{url}">{text}</a>'
+
+                                    p_content += text
+
+                                # Alignment
+                                align_style = ""
+                                align = p.get("align")
+                                if align == 2 or align == 1:  # Center (opus uses 1 for center sometimes?)
+                                    align_style = ' style="text-align: center;"'
+                                elif align == 3:  # Right
+                                    align_style = ' style="text-align: right;"'
+
+                                content_html += f"<p{align_style}>{p_content}</p>"
+                            elif p_type == 2:  # Image
+                                pics = p.get("pic", {}).get("pics", [])
+                                for pic in pics:
+                                    proxied_url = _proxied_pic_url(pic.get("url"))
+                                    if proxied_url:
+                                        img_html = f'<img src="{proxied_url}" class="mx-auto">'
+                                        content_html += f'<figure style="text-align: center;">{img_html}</figure>'
+                            elif p_type == 7:  # Code
+                                code = p.get("code", {})
+                                lang = code.get("lang", "").replace("language-", "")
+                                content = code.get("content", "")
+                                # Use html.escape if available, or just a simple replacement
+                                import html as html_lib
+
+                                content = html_lib.escape(content)
+                                content_html += f'<pre><code class="language-{lang}">{content}</code></pre>'
+
+                if content_html:
+                    # Sanitize the generated HTML
+                    return sanitize_html(f'<div id="main-article">{content_html}</div>')
+            except Exception as e:
+                print(f"Error parsing opus INITIAL_STATE: {e}")
+                pass
+        return "<p>Failed to parse article content.</p>"
+
+    article_body.attrs = {}
+    article_body["id"] = "main-article"
+
+    for child in article_body.find_all(True):  # find_all(True) gets all tags
+        # Handle headers
+        if child.name.startswith("h") and len(child.name) == 2:
+            try:
+                level = int(child.name[1:])
+                child.name = f"h{min(level + 1, 6)}"
+            except ValueError:
+                pass
+
+        # Handle images
+        if child.name == "img":
+            if child.has_attr("data-src"):
+                proxied = _proxied_pic_url(child["data-src"])
+                if proxied:
+                    child["src"] = proxied
+            elif child.has_attr("src") and child["src"].startswith("//"):
+                proxied = _proxied_pic_url(child["src"])
+                if proxied:
+                    child["src"] = proxied
+
+            # Remove all other attributes except src and add mx-auto class
+            src = child.get("src", "")
+            child.attrs = {"src": src, "class": "mx-auto"}
+            continue
+
+        # Handle links
+        if child.name == "a":
+            if child.has_attr("href"):
+                href = child["href"]
+                try:
+                    parsed = urlparse(href)
+                except ValueError:
+                    continue
+                host = (parsed.hostname or "").lower()
+                if host == "bilibili.com" or host.endswith(".bilibili.com"):
+                    # Try to make it relative if it's a bilibili link
+                    href = parsed.path or "/"
+                    if parsed.query:
+                        href += f"?{parsed.query}"
+                    if parsed.fragment:
+                        href += f"#{parsed.fragment}"
+                child["href"] = href
+            # Keep only href
+            href = child.get("href", "#")
+            child.attrs = {"href": href}
+            continue
+
+        # Preserve some styles like alignment and color
+        new_style = []
+        if child.has_attr("style"):
+            style = child["style"]
+            # Preserve text-align
+            match_align = re.search(r"text-align\s*:\s*([^;]+)", style)
+            if match_align:
+                new_style.append(f"text-align: {match_align.group(1).strip()}")
+
+            # Preserve color
+            match_color = re.search(r"color\s*:\s*([^;]+)", style)
+            if match_color:
+                new_style.append(f"color: {match_color.group(1).strip()}")
+
+            # Preserve font-weight
+            match_weight = re.search(r"font-weight\s*:\s*([^;]+)", style)
+            if match_weight:
+                new_style.append(f"font-weight: {match_weight.group(1).strip()}")
+
+        new_attrs = {}
+        if new_style:
+            new_attrs["style"] = "; ".join(new_style) + ";"
+
+        # Keep classes for some elements if they look useful, but mostly clear them
+        # Bilibili uses a lot of specific classes for layout.
+
+        child.attrs = new_attrs
+
+    # Sanitize the final HTML to prevent XSS
+    return sanitize_html(str(article_body))
+
+
+"""Convert the article to any file."""
+
+
+# Allowed output formats for pandoc (prevents command injection)
+ALLOWED_PANDOC_FORMATS = {
+    "markdown",
+    "markdown_github",
+    "markdown_mmd",
+    "markdown_phpextra",
+    "markdown_strict",
+    "commonmark",
+    "gfm",
+    "plain",
+    "html",
+    "html5",
+    "docx",
+    "odt",
+    "epub",
+    "epub3",
+    "latex",
+    "beamer",
+    "pdf",
+    "rtf",
+    "texinfo",
+    "man",
+    "asciidoc",
+    "asciidoctor",
+    "org",
+    "jira",
+    "mediawiki",
+    "dokuwiki",
+    "textile",
+    "opml",
+    "tei",
+    "fb2",
+    "haddock",
+    "ipynb",
+    "json",
+    "typst",
+}
+
+
+async def article_to_any(article_text, dest_fmt):
+    # Validate dest_fmt against allowlist to prevent command injection
+    if dest_fmt not in ALLOWED_PANDOC_FORMATS:
+        raise ValueError(f"Unsupported output format: {dest_fmt}")
+
+    cmd = ["pandoc", "-f", "html", "-t", dest_fmt, "-"]
+    p = None
+    try:
+        p = await asyncio.create_subprocess_exec(
+            *cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await p.communicate(input=article_to_html(article_text).encode("utf-8"))
+        if p.returncode != 0:
+            print(f"[Pandoc] Error converting article: {stderr.decode('utf-8')}")
+        return stdout.decode("utf-8")
+    except Exception as e:
+        print(f"[Pandoc] Exception in article_to_any: {e}")
+        return ""
+    finally:
+        if p and p.returncode is None:
+            try:
+                p.terminate()
+                await p.wait()
+            except Exception:
+                pass
+
+
+async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
+    """Get a specific available source for video.
+
+    .. deprecated::
+       Bilibili removed the ``durl`` (progressive MP4/FLV) node from ``playurl``.
+       Use :func:`~dash_proxy.video_get_dash_for_qn` (or
+       :meth:`api.video.Video.get_dash_playurl`) for DASH instead. Kept only for
+       legacy audio/listen and B23 download paths.
+    """
+    import warnings
+
+    warnings.warn(
+        "video_get_src_for_qn / durl playurl is deprecated: Bilibili no longer "
+        "returns a durl node. Use the DASH stack (dash_proxy.video_get_dash_for_qn).",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    cid = await vi.get_cid(idx)
+    api = Api(
+        "https://api.bilibili.com/x/player/playurl",
+        "GET",
+        verify=(not not vi.credential.sessdata),
+        credential=vi.credential,
+    )
+    api.params = {"avid": vi.get_aid(), "cid": cid, "qn": quality, "platform": "html5", "high_quality": 1}
+
+    # Try standard UGC API first
+    res = {}
+    try:
+        res = await api.request()
+    except Exception as e:
+        # Check if it's a -404 error (ResponseCodeException usually has .code)
+        if hasattr(e, "code") and e.code == -404:
+            print("[Extra] PGC Fallback for SRC (caught exception)")
+            try:
+                client = await Network.get_async_client()
+                cookies = {}
+                if vi.credential and vi.credential.sessdata:
+                    cookies = {
+                        "SESSDATA": vi.credential.sessdata,
+                        "bili_jct": vi.credential.bili_jct,
+                        "buvid3": vi.credential.buvid3,
+                        "buvid4": vi.credential.buvid4,
+                        "DedeUserID": vi.credential.dedeuserid,
+                    }
+
+                pgc_params = api.params.copy()
+
+                # [Fix] Extract ep_id from redirect_url for PGC, unless provided
+                if not ep_id:
+                    try:
+                        info = await vi.get_info()
+                        redirect_url = info.get("redirect_url", "")
+                        if redirect_url:
+                            ep_match = re.search(r"ep(\d+)", redirect_url)
+                            if ep_match:
+                                ep_id = ep_match.group(1)
+                    except Exception:
+                        pass
+
+                if ep_id:
+                    pgc_params["ep_id"] = ep_id
+                pgc_headers = {
+                    "Referer": "https://www.bilibili.com",
+                    "User-Agent": FIXED_CHROME_UA,
+                }
+                if cookies:
+                    pgc_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+                pgc_res_raw = await client.get(
+                    "https://api.bilibili.com/pgc/player/web/playurl",
+                    params=pgc_params,
+                    headers=pgc_headers,
+                    follow_redirects=True,
+                )
+                pgc_res = pgc_res_raw.json()
+                if pgc_res and pgc_res.get("code") == 0:
+                    res_node = pgc_res.get("result")
+                    if isinstance(res_node, dict):
+                        return res_node
+                    return pgc_res
+            except Exception as pgc_e:
+                print(f"[Extra] PGC Fallback SRC failed: {pgc_e}")
+        # Re-raise original exception if fallback not taken or failed
+        # If we successfully handled it, we would have returned.
+        # But wait, providing a way to return raw error in 'res' variable for existing logic is harder with exception.
+        # Existing logic expected 'res' dict. 'video_get_src_for_qn' usually returns dict.
+        # If we re-raise, the caller views.py might handle it.
+        # BUT, looking at original code: 'return res' at the end.
+        pass
+
+    # Fallback to PGC if UGC -404 (in case it didn't raise but returned error dict, though likely it raised)
+    if res.get("code") == -404:
+        # ... logic for non-raising client ...
+        pass  # Already handled in except block ideally, but kept for safety if api client changes behavior
+
+    # Clean standard UGC return
+    if "data" in res:
+        return res["data"]
+    # If no data and no PGC fallback success, simply return res (it's likely the error dict or empty)
+    return res

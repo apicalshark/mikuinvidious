@@ -23,7 +23,7 @@ sudo apt install python3 python3-venv git curl
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
   *或者通过 pip 安装：`pip install uv`*
-- **Redis**: 用于缓存和会话存储。[安装指南](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
+- **Redis**: 用于缓存、Ticket 存储和速率限制。[安装指南](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
 - **Caddy**: 高性能反向代理。[安装指南](https://caddyserver.com/docs/install)
 - **Node.js v18+ & npm**: 构建 CSS 和前端工具所需。[安装指南](https://nodejs.org/en/download/package-manager)
 

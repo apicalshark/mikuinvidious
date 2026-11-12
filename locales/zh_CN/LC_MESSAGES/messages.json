@@ -75,7 +75,6 @@
   "Failed to fetch this user's profile. Please try again later.": "无法获取该用户的信息，请稍后重试。",
   "Failed to load Nyaa resources": "无法加载 Nyaa 资源",
   "Failed to load bangumi info. Please check your network or try again later.": "无法加载番剧信息，请检查网络或稍后重试。",
-  "Failed to load comments, please try again later": "评论加载失败，请稍后再试",
   "Failed to load the live room. Please check your network or try again later.": "无法加载直播间，请检查网络或稍后重试。",
   "Failed to resolve URL": "解析链接失败",
   "Failed to resolve the redirect target.": "无法获取重定向地址。",

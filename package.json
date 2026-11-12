@@ -20,16 +20,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://gitlab.com/apicalshark/mikuinvidious.git"
+    "url": "git+https://github.com/apicalshark/mikuinvidious.git"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "AGPL-3.0-only",
   "type": "commonjs",
   "bugs": {
-    "url": "https://gitlab.com/apicalshark/mikuinvidious/issues"
+    "url": "https://github.com/apicalshark/mikuinvidious/issues"
   },
-  "homepage": "https://gitlab.com/apicalshark/mikuinvidious#readme",
+  "homepage": "https://github.com/apicalshark/mikuinvidious#readme",
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.4",
     "@tailwindcss/typography": "^0.5.20",
