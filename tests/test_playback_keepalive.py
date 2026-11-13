@@ -8,12 +8,14 @@ stale socket by reconnecting, and bound the idle set.
 """
 
 import asyncio
+import gc
 import ssl
 import unittest
 from unittest.mock import AsyncMock, patch
 
 import miku.dash.stream as dash_stream
 import miku.media.stream as stream
+from miku.app import app
 
 
 class _Server:
@@ -177,6 +179,42 @@ class PoolTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(await pool.take("http://h/2.m4s", ""), conns[2])
         await pool.close_all()
 
+    async def test_concurrent_give_never_exceeds_max_idle(self):
+        pool = dash_stream._PlaybackKeepAlivePool(max_idle=2)
+        closed = []
+
+        class _SlowCloseConn:
+            def __init__(self, idx):
+                self.idx = idx
+
+            async def close(self):
+                await asyncio.sleep(0)
+                closed.append(self.idx)
+
+        conns = [_SlowCloseConn(i) for i in range(6)]
+        await asyncio.gather(*(pool.give(f"http://h/{i}.m4s", "", c) for i, c in enumerate(conns)))
+        self.assertLessEqual(len(pool._idle), 2)
+        self.assertEqual(len(closed), 6 - len(pool._idle))
+        await pool.close_all()
+
+    async def test_close_all_blocks_give_and_cancels_reaper(self):
+        pool = dash_stream._PlaybackKeepAlivePool(max_idle=2)
+        c1 = AsyncMock()
+        await pool.give("http://h/1.m4s", "", c1)
+        reaper = pool._reaper
+        self.assertIsNotNone(reaper)
+
+        await pool.close_all()
+        c1.close.assert_awaited_once()
+        self.assertTrue(reaper.done())
+        self.assertIsNone(pool._reaper)
+
+        c2 = AsyncMock()
+        await pool.give("http://h/2.m4s", "", c2)
+        c2.close.assert_awaited_once()
+        self.assertEqual(len(pool._idle), 0)
+        self.assertIsNone(pool._reaper)
+
 
 class FragmentReuseTests(unittest.IsolatedAsyncioTestCase):
     """End-to-end through `_fetch_dash_track`: one TCP connection for two fragments."""
@@ -230,6 +268,55 @@ class FragmentReuseTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(dash_stream._dash_conn_bankable(conn, resp, len(body)))
         finally:
             await server.close()
+
+
+class ProxyDashUnstartedGeneratorTests(unittest.IsolatedAsyncioTestCase):
+    async def test_unstarted_response_gc_closes_conn_and_releases_slot(self):
+        from unittest.mock import MagicMock
+
+        conn = AsyncMock()
+        resp_headers = MagicMock()
+        resp_headers.status_code = 206
+        resp_headers.headers = {"content-length": "100", "content-range": "bytes 0-99/1000"}
+        track = {
+            "id": 80,
+            "codecid": 7,
+            "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v.m4s",
+            "SegmentBase": {"Initialization": "0-100", "indexRange": "101-200"},
+        }
+        dash_data = {"dash": {"video": [track], "audio": []}}
+        dash_stream.dash_concurrency.active_by_ip.clear()
+
+        with (
+            patch.object(dash_stream, "_load_dash_data", AsyncMock(return_value=dash_data)),
+            patch.object(dash_stream, "_is_safe_dash_url_async", AsyncMock(return_value=True)),
+            patch.object(
+                dash_stream,
+                "_fetch_dash_track",
+                AsyncMock(
+                    return_value=(
+                        conn,
+                        resp_headers,
+                        track["baseUrl"],
+                        "100",
+                        "bytes 0-99/1000",
+                    )
+                ),
+            ),
+        ):
+            async with app.test_request_context(
+                "/proxy/dash/BV1xx411c7mD/0/video/80/7",
+                headers={"Range": "bytes=0-99"},
+            ):
+                resp = await dash_stream.proxy_dash("BV1xx411c7mD", 0, "video", 80, 7)
+                self.assertEqual(resp.status_code, 206)
+                self.assertNotEqual(dash_stream.dash_concurrency.active_by_ip, {})
+                del resp
+                gc.collect()
+                await asyncio.sleep(0)
+
+        conn.close.assert_awaited_once()
+        self.assertEqual(dash_stream.dash_concurrency.active_by_ip, {})
 
 
 if __name__ == "__main__":

@@ -308,6 +308,121 @@ class TestProgressiveProxyFlood(unittest.IsolatedAsyncioTestCase):
                     self.assertTrue(conn.closed)
                     self.assertEqual(proxy.direct_stream_slots.active_by_ip, {})
 
+    async def test_unstarted_direct_stream_gc_closes_conn_and_releases_slot(self):
+        import gc
+
+        import miku.media.proxy as proxy
+        from miku.app import app
+
+        conn = _FakeCdnConnection()
+        with (
+            patch.object(
+                proxy.appredis, "get", AsyncMock(return_value=b"https://upos-sz-mirrorcos.bilivideo.com/x.mp4")
+            ),
+            patch.object(proxy, "is_safe_proxy_url", AsyncMock(return_value=True)),
+            patch.object(proxy.TicketManager, "get_ticket", AsyncMock(return_value=None)),
+            patch.object(proxy, "_establish_cdn_connection", AsyncMock(return_value=(conn, _resp_headers()))),
+        ):
+            async with app.test_request_context("/proxy/video/BV1xx411c7xx_0_80.mp4", headers={"X-Real-IP": IP_A}):
+                resp = await proxy.proxy_main("video/BV1xx411c7xx_0_80.mp4")
+                self.assertEqual(resp.status_code, 206)
+                self.assertNotEqual(proxy.direct_stream_slots.active_by_ip, {})
+                del resp
+                gc.collect()
+                await asyncio.sleep(0)
+
+        self.assertTrue(conn.closed)
+        self.assertEqual(proxy.direct_stream_slots.active_by_ip, {})
+
+    async def test_redis_fallback_urls_validated_by_is_safe_proxy_url(self):
+        import miku.media.proxy as proxy
+        from miku.app import app
+
+        primary_conn = _FakeCdnConnection()
+        redis_map = {
+            "mikuinv_BV1xx411c7xx_0_80": b"https://upos-sz-mirrorcos.bilivideo.com/primary.mp4",
+            "mikuinv_BV1xx411c7xx_0_80_bak": b"http://127.0.0.1/evil_bak.mp4",
+            "mikuinv_BV1xx411c7xx_0_64": b"http://169.254.169.254/evil_64.mp4",
+            "mikuinv_BV1xx411c7xx_0_64_bak": b"http://10.0.0.1/evil_64_bak.mp4",
+        }
+        checked_urls = []
+        cdn_urls = []
+
+        async def fake_redis_get(key):
+            return redis_map.get(key)
+
+        async def fake_is_safe(url):
+            checked_urls.append(url)
+            return url.startswith("https://upos-sz-mirrorcos.bilivideo.com/")
+
+        class _RejectingCdnConnection:
+            def __init__(self, url, headers=None, proxy_url=None):
+                cdn_urls.append(url)
+
+        with (
+            patch.object(proxy.appredis, "get", side_effect=fake_redis_get),
+            patch.object(proxy.appredis, "delete", AsyncMock(return_value=1)),
+            patch.object(proxy, "is_safe_proxy_url", side_effect=fake_is_safe),
+            patch.object(proxy.TicketManager, "get_ticket", AsyncMock(return_value=None)),
+            patch.object(
+                proxy, "_establish_cdn_connection", AsyncMock(return_value=(primary_conn, _resp_headers(status=403)))
+            ),
+            patch.object(proxy, "_cdn_handshake", AsyncMock(return_value=(primary_conn, _resp_headers(status=403)))),
+            patch.object(proxy, "CdnConnection", _RejectingCdnConnection),
+        ):
+            async with app.test_request_context("/proxy/video/BV1xx411c7xx_0_80.mp4", headers={"X-Real-IP": IP_A}):
+                resp = await proxy.proxy_main("video/BV1xx411c7xx_0_80.mp4")
+
+        self.assertEqual(resp.status_code, 502)
+        self.assertIn("http://127.0.0.1/evil_bak.mp4", checked_urls)
+        self.assertIn("http://169.254.169.254/evil_64.mp4", checked_urls)
+        self.assertIn("http://10.0.0.1/evil_64_bak.mp4", checked_urls)
+        self.assertEqual(cdn_urls, [])
+
+    async def test_proxy_main_applies_cdn_cred_headers_without_bili_ticket_cookie(self):
+        import miku.media.proxy as proxy
+        from miku.app import app
+
+        captured_headers = {}
+        conn = _FakeCdnConnection()
+
+        async def fake_establish(url, headers, proxy_url):
+            captured_headers.update(headers)
+            return conn, _resp_headers()
+
+        fake_cred = MagicMock()
+        fake_cred.sessdata = "sess_val"
+        fake_cred.bili_jct = "jct_val"
+        fake_cred.buvid3 = None
+        fake_cred.buvid4 = None
+        fake_cred.dedeuserid = None
+        fake_cred.get_cookies.return_value = {
+            "SESSDATA": "sess_val",
+            "bili_jct": "jct_val",
+            "bili_ticket": "secret_ticket_cookie",
+            "bili_ticket_expires": "999999",
+        }
+
+        with (
+            patch.object(
+                proxy.appredis, "get", AsyncMock(return_value=b"https://upos-sz-mirrorcos.bilivideo.com/x.mp4")
+            ),
+            patch.object(proxy, "is_safe_proxy_url", AsyncMock(return_value=True)),
+            patch.object(proxy.TicketManager, "get_ticket", AsyncMock(return_value="header_ticket_123")),
+            patch.object(proxy.shared, "appcred", fake_cred),
+            patch("miku.services.credential.is_cred_active", return_value=True),
+            patch.object(proxy, "_establish_cdn_connection", side_effect=fake_establish),
+        ):
+            async with app.test_request_context("/proxy/video/BV1xx411c7xx_0_80.mp4", headers={"X-Real-IP": IP_A}):
+                resp = await proxy.proxy_main("video/BV1xx411c7xx_0_80.mp4")
+            async with resp.response as body:
+                _ = [c async for c in aiter(body)]
+
+        self.assertEqual(captured_headers.get("x-bili-ticket"), "header_ticket_123")
+        cookie_hdr = captured_headers.get("Cookie", "")
+        self.assertIn("SESSDATA=sess_val", cookie_hdr)
+        self.assertNotIn("bili_ticket", cookie_hdr)
+
 
 class _FakeLiveStream:
     def __init__(self):

@@ -23,6 +23,8 @@ from collections import deque
 
 from quart import Response, jsonify, redirect
 
+from miku import state as shared
+from miku.core.config import downloads_allowed
 from miku.core.csrf import csrf_protect
 from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from miku.dash.common import (
@@ -50,13 +52,15 @@ from miku.dash.fetch import (
     _DurlResolveError,
     _load_dash_data,
     _lookup_track,
+    _make_video,
     _refresh_dash_data,
     _resolve_durl_download,
     has_valid_dash_tracks,
     video_get_dash_for_qn,
 )
 from miku.dash.stream import _dash_candidate_urls
-from miku.state import Network, appconf, appcred, appredis
+from miku.services.credential import is_cred_active
+from miku.state import Network, appconf, appredis
 
 
 async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
@@ -68,10 +72,9 @@ async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
     ``?dl=1`` (attachment), reusing its ticket-refresh + backup-URL +
     lower-quality fallbacks.
     """
-    from miku.api import video as video_mod
-
     try:
-        v = video_mod.Video(bvid=vid, credential=appcred)
+        cred = shared.appcred if is_cred_active(shared.appcred) else None
+        v = _make_video(vid, cred)
     except Exception:
         return Response("Bad Request: invalid video ID", status=400)
     try:
@@ -101,7 +104,7 @@ async def proxy_download(vid, idx, qual):
     redirect at the native progressive ``/proxy/video/`` path — those MP4s
     are already muxed, so no ffmpeg step is needed.
     """
-    if not appconf.get("site_allow_download", True):
+    if not downloads_allowed(appconf):
         return Response("Forbidden: downloads are disabled on this instance", status=403)
     if not _is_valid_vid(vid):
         return Response("Bad Request: invalid video ID", status=400)
@@ -175,7 +178,7 @@ async def proxy_download(vid, idx, qual):
 
     cancel_event = asyncio.Event()
     try:
-        async with _download_limiter:
+        async with _job_slots:
             vn, an = await asyncio.gather(
                 _download_track_file(
                     vurls,
@@ -238,7 +241,7 @@ async def proxy_download(vid, idx, qual):
     finally:
         if not response_owns_cleanup:
             await asyncio.shield(asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True))
-        # NOTE: no manual _download_limiter.release() — the `async with` above
+        # NOTE: no manual _job_slots.release() — the `async with` above
         # already released it; a manual release would corrupt the semaphore.
 
 
@@ -271,9 +274,6 @@ _JOB_STALL_TIMEOUT = 30 * 60
 
 # Job states: queued -> resolving -> downloading -> muxing -> ready
 #                                                 \-> error / cancelled
-
-
-_download_limiter = asyncio.Semaphore(5)
 
 
 class DownloadCapacityError(RuntimeError):
@@ -406,7 +406,7 @@ async def _get_job(job_id: str) -> _DownloadJob | None:
 
 async def create_download_job(vid: str, idx: int, qual: int) -> str:
     """Register a download job and launch its background worker. Returns job_id."""
-    if not appconf.get("site_allow_download", True):
+    if not downloads_allowed(appconf):
         raise RuntimeError("Downloads are disabled on this instance")
     if not _is_valid_vid(vid):
         raise RuntimeError("invalid video ID")
@@ -634,10 +634,9 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
 
 async def _run_durl_job(job: _DownloadJob):
     """Download fallback for durl-only videos: progressive MP4, no mux step."""
-    from miku.api import video as video_mod
-
     try:
-        v = video_mod.Video(bvid=job.vid, credential=appcred)
+        cred = shared.appcred if is_cred_active(shared.appcred) else None
+        v = _make_video(job.vid, cred)
     except Exception:
         raise RuntimeError("invalid video ID") from None
     try:
@@ -817,13 +816,45 @@ async def download_file(job_id):
         finally:
             await asyncio.to_thread(f.close)
 
+    ext = ".flv" if outpath.lower().endswith(".flv") else ".mp4"
     resp = Response(generate())
-    resp.headers["Content-Type"] = "video/mp4"
+    resp.headers["Content-Type"] = "video/x-flv" if ext == ".flv" else "video/mp4"
     resp.headers["Content-Length"] = str(size)
-    safe_name = _safe_download_filename(job.vid, job.idx, job.actual_qn or job.qual)
+    safe_name = _safe_download_filename(job.vid, job.idx, job.actual_qn or job.qual, ext=ext)
     resp.headers["Content-Disposition"] = f'attachment; filename="{safe_name}"'
     resp.headers["X-Accel-Buffering"] = "no"
     return resp
+
+
+async def shutdown_download_jobs() -> None:
+    """Cancel active download jobs, kill ffmpeg subprocesses, and remove all tmpdirs."""
+    async with _jobs_lock:
+        jobs = list(_download_jobs.values())
+        _download_jobs.clear()
+    tasks = []
+    for job in jobs:
+        if job.state not in ("ready", "error", "cancelled"):
+            job.state = "cancelled"
+        job.cancel_event.set()
+        proc = job.ffmpeg_proc
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        if job.task is not None and not job.task.done():
+            job.task.cancel()
+            tasks.append(job.task)
+    if tasks:
+        done, _ = await asyncio.wait(tasks, timeout=5.0)
+        for task in done:
+            if not task.cancelled():
+                try:
+                    task.exception()
+                except Exception:
+                    pass
+    for job in jobs:
+        await asyncio.to_thread(_remove_job_tmpdir, job)
 
 
 @dash_proxy_bp.route("/download/cancel/<job_id>", methods=["POST"])

@@ -1,18 +1,20 @@
 import asyncio
-import ipaddress
 import re
 import uuid
 import weakref
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
-from quart import Blueprint, Response, request
+from quart import Blueprint, Response, has_request_context, request
 
+from miku import state as shared
 from miku.api.live import ScreenResolution
+from miku.core.dns_cache import is_safe_public_url
 from miku.core.ip_slots import PerIpSlotLimiter
 from miku.core.rate_limit import RATE_LIMITS, get_client_ip, rate_limit
 from miku.media.image_cache import image_cache
 from miku.media.live_manager import live_manager
 from miku.media.stream import CdnConnection, CdnProtocolError, CdnTimeoutError
+from miku.services.credential import apply_cdn_cred_headers, get_web_api_cookies
 from miku.state import (
     UPSTREAM_RESPONSE_BLACKLIST,
     Network,
@@ -27,6 +29,40 @@ proxy_bp = Blueprint("proxy", __name__)
 
 MAX_IMAGE_SIZE = 15 * 1024 * 1024  # 15 MB maximum proxy image size
 PROXY_READ_TIMEOUT = 30.0
+_discard_close_tasks: set[asyncio.Task] = set()
+
+
+async def _quiet_close_conn(conn) -> None:
+    try:
+        await conn.close()
+    except Exception:
+        pass
+
+
+def _schedule_discarded_conn_close(loop: asyncio.AbstractEventLoop, conn) -> None:
+    if conn is None:
+        return
+    if loop.is_closed():
+        writer = getattr(conn, "writer", None)
+        if writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
+        return
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is loop:
+        task = loop.create_task(_quiet_close_conn(conn))
+        _discard_close_tasks.add(task)
+        task.add_done_callback(_discard_close_tasks.discard)
+    else:
+        try:
+            loop.call_soon_threadsafe(_schedule_discarded_conn_close, loop, conn)
+        except RuntimeError:
+            pass
 
 
 async def _cdn_handshake(target_url: str, headers: dict, proxy_url: str | None, label: str):
@@ -63,56 +99,25 @@ async def _try_backup_url(vid, vidx, vqn, headers: dict, proxy_url: str | None):
         return None, None
     if isinstance(bak_url, bytes):
         bak_url = bak_url.decode()
+    if not await is_safe_proxy_url(bak_url):
+        return None, None
     return await _establish_cdn_connection(bak_url, headers, proxy_url)
+
+
+_ALLOWED_PROXY_DOMAINS = (
+    ".hdslb.com",
+    ".biliimg.com",
+    ".bilivideo.com",
+    ".bilivideo.cn",
+    ".bilibili.com",
+    ".acgvideo.com",
+    ".akamaized.net",
+)
 
 
 async def is_safe_proxy_url(url: str) -> bool:
     """Validate that a URL is safe to proxy (not pointing to internal/private IPs)."""
-    try:
-        parsed = urlparse(url)
-        hostname = parsed.hostname
-        if not hostname:
-            return False
-
-        # Allow only specific Bilibili CDN domains
-        allowed_domains = [
-            ".hdslb.com",
-            ".biliimg.com",
-            ".bilivideo.com",
-            ".bilivideo.cn",
-            ".bilibili.com",
-            ".acgvideo.com",
-            ".akamaized.net",
-        ]
-
-        if not any(hostname == d.lstrip(".") or hostname.endswith(d) for d in allowed_domains):
-            return False
-
-        # Resolve afresh for each approval so stale cache entries cannot hide
-        # a change to private addresses. Check both IPv4 and IPv6.
-        import socket
-
-        try:
-            addr_infos = await asyncio.to_thread(
-                socket.getaddrinfo, hostname, None, socket.AF_UNSPEC, socket.SOCK_STREAM
-            )
-            for _family, _, _, _, sockaddr in addr_infos:
-                ip = sockaddr[0]
-                ip_obj = ipaddress.ip_address(ip)
-                if (
-                    ip_obj.is_private
-                    or ip_obj.is_loopback
-                    or ip_obj.is_link_local
-                    or ip_obj.is_multicast
-                    or ip_obj.is_reserved
-                ):
-                    return False
-        except socket.gaierror:
-            return False
-
-        return True
-    except Exception:
-        return False
+    return await is_safe_public_url(url, _ALLOWED_PROXY_DOMAINS, use_dns_cache=False)
 
 
 async def render_proxy_pic(req_path):
@@ -122,6 +127,11 @@ async def render_proxy_pic(req_path):
         return Response("Forbidden", status=403)
 
     url = f"https://{req_path}"
+    if has_request_context() and request.query_string and "?" not in req_path:
+        qs = request.query_string.decode("latin-1")
+        url = f"{url}?{qs}"
+    if any(ch in url for ch in ("\r", "\n", "\x00")):
+        return Response("Forbidden", status=403)
 
     if not await is_safe_proxy_url(url):
         return Response("Forbidden", status=403)
@@ -188,7 +198,7 @@ async def render_proxy_pic(req_path):
             }
             if content_type in bare_image_types:
                 content_type = bare_image_types[content_type]
-            allowed_image_types = [
+            allowed_image_types = {
                 "image/jpeg",
                 "image/jpg",
                 "image/png",
@@ -196,8 +206,8 @@ async def render_proxy_pic(req_path):
                 "image/webp",
                 "image/bmp",
                 "image/avif",
-            ]
-            if not any(content_type.startswith(t) for t in allowed_image_types):
+            }
+            if content_type not in allowed_image_types:
                 print(f"[Proxy] Invalid Content-Type for image: {content_type}")
                 await resp.aclose()
                 return Response("Forbidden: Invalid content type", status=403)
@@ -387,9 +397,6 @@ async def proxy_main(subpath):
         if not await is_safe_proxy_url(url):
             return Response("Forbidden: Invalid proxy target", status=403)
 
-        creds = appconf["credential"]
-        cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds["use_cred"] else {}
-
         if is_live:
             headers = get_common_headers(appconf["bili"]).copy()
         else:
@@ -404,18 +411,11 @@ async def proxy_main(subpath):
 
             headers = get_cdn_headers(referer=appconf["bili"].get("referer", "https://www.bilibili.com"))
 
-        # Add Bili-Ticket and dynamic session/trace IDs
+        # Add Bili-Ticket, dynamic session/trace IDs, and active credentials
         ticket = await TicketManager.get_ticket()
-        if ticket:
-            headers["x-bili-ticket"] = ticket
-
         headers["session_id"] = TicketManager._generate_session_id()
         headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-
-        if appconf["credential"].get("buvid3"):
-            headers["buvid"] = appconf["credential"]["buvid3"]
-        if appconf["credential"].get("buvid4"):
-            headers["buvid4"] = appconf["credential"]["buvid4"]
+        apply_cdn_cred_headers(headers, shared.appcred, ticket)
 
         # Forward headers from client
         for k, v in request.headers.items():
@@ -428,6 +428,7 @@ async def proxy_main(subpath):
             if live_slot is None:
                 return _too_many_streams()
             client_id = request.args.get("cid") or str(uuid.uuid4())
+            cookie_jar = get_web_api_cookies(shared.appcred)
             try:
                 stream, q = await live_manager.subscribe(url, headers, cookie_jar, client_id)
             except BaseException:
@@ -487,11 +488,6 @@ async def proxy_main(subpath):
             return proxy_resp
 
         # DIRECT PROXY FOR VOD AND HLS LIVE (via raw socket CdnConnection)
-        if cookie_jar:
-            cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_jar.items())
-            existing = headers.get("cookie", "")
-            headers["cookie"] = f"{existing}; {cookie_str}".lstrip("; ") if existing else cookie_str
-
         slot = direct_stream_slots.try_acquire(get_client_ip(request))
         if slot is None:
             return _too_many_streams()
@@ -535,9 +531,12 @@ async def proxy_main(subpath):
                 if resp_headers.status_code in [403, 412, 514] and not is_live:
                     await conn.close()
 
-                    async def try_url(try_url: str, label: str) -> tuple:
+                    async def try_url(target_url: str, label: str) -> tuple:
+                        if not await is_safe_proxy_url(target_url):
+                            print(f"[Proxy] {label} rejected unsafe fallback URL")
+                            return None, None
                         c = CdnConnection(
-                            try_url, headers=headers, proxy_url=proxy_url, read_timeout=PROXY_READ_TIMEOUT
+                            target_url, headers=headers, proxy_url=proxy_url, read_timeout=PROXY_READ_TIMEOUT
                         )
                         try:
                             await c.connect()
@@ -602,7 +601,11 @@ async def proxy_main(subpath):
                             print(f"[Proxy] All quality fallbacks failed for {vid}_{vidx}")
                             return Response("Upstream returned 403 and no fallback available", status=502)
 
+                gen_started = False
+
                 async def generate():
+                    nonlocal gen_started
+                    gen_started = True
                     try:
                         async for chunk in conn.iter_chunks():
                             yield chunk
@@ -632,8 +635,15 @@ async def proxy_main(subpath):
                         slot.release()
 
                 gen = generate()
-                # Never-iterated bodies skip the finally: release on collection.
-                weakref.finalize(gen, slot.release)
+                loop = asyncio.get_running_loop()
+
+                def _on_gen_discard(c=conn, s=slot, lp=loop):
+                    s.release()
+                    if not gen_started:
+                        _schedule_discarded_conn_close(lp, c)
+
+                # Never-iterated bodies skip the finally: release and close on collection.
+                weakref.finalize(gen, _on_gen_discard)
                 handed_off = True
                 proxy_resp = Response(
                     gen,

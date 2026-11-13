@@ -76,7 +76,24 @@ async def _socks5_handshake(writer, reader, target_host, target_port, timeout):
             raise CdnConnectError(f"SOCKS5: unknown address type {atype}")
 
 
+def _validate_http_field(
+    value: str, *, allow_space: bool = False, allow_colon: bool = True, label: str = "field"
+) -> str:
+    if not isinstance(value, str):
+        value = str(value)
+    if "\r" in value or "\n" in value or "\x00" in value:
+        raise CdnProtocolError(f"Invalid control character in {label}")
+    if not allow_space and any(ch.isspace() for ch in value):
+        raise CdnProtocolError(f"Invalid whitespace in {label}")
+    if not allow_colon and ":" in value:
+        raise CdnProtocolError(f"Invalid colon in {label}")
+    return value
+
+
 async def _http_connect_tunnel(writer, reader, target_host, target_port, timeout):
+    if not target_host:
+        raise CdnProtocolError("Empty HTTP CONNECT target host")
+    _validate_http_field(str(target_host), allow_space=False, allow_colon=True, label="tunnel target")
     req = (
         f"CONNECT {target_host}:{target_port} HTTP/1.1\r\n"
         f"Host: {target_host}:{target_port}\r\n"
@@ -162,14 +179,25 @@ class CdnConnection:
     async def send_request(self):
         if not self._connected:
             raise CdnConnectError("Not connected")
+        if not self._host:
+            raise CdnProtocolError("Missing target host")
+        _validate_http_field(self._path, allow_space=False, allow_colon=True, label="request path")
         headers = {k.lower(): v for k, v in self._headers.items()}
         headers.setdefault("host", self._host)
         headers.setdefault("accept", "*/*")
         headers.setdefault("accept-encoding", "identity")
         headers.setdefault("connection", "keep-alive")
 
+        validated_headers: list[tuple[str, str]] = []
+        for k, v in headers.items():
+            k_str = _validate_http_field(str(k), allow_space=False, allow_colon=False, label="header name")
+            if not k_str:
+                raise CdnProtocolError("Empty header name")
+            v_str = _validate_http_field(str(v), allow_space=True, allow_colon=True, label="header value")
+            validated_headers.append((k_str, v_str))
+
         req_line = f"GET {self._path} HTTP/1.1\r\n".encode()
-        header_lines = b"".join(f"{k}: {v}\r\n".encode() for k, v in headers.items())
+        header_lines = b"".join(f"{k}: {v}\r\n".encode() for k, v in validated_headers)
         request = req_line + header_lines + b"\r\n"
 
         self._writer.write(request)

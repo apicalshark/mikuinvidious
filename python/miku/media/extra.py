@@ -16,6 +16,7 @@
 """Bilibili extra apis"""
 
 import asyncio
+import html as html_lib
 import re
 from urllib.parse import urlparse
 
@@ -25,6 +26,7 @@ from bs4 import BeautifulSoup
 from miku.api.bvid import av2bv, bv2av  # noqa: F401
 from miku.api.client import Api
 from miku.core.fingerprints import FIXED_CHROME_UA
+from miku.services.credential import get_web_api_cookies
 from miku.state import Network
 from miku.ui.sanitizer import (
     ALLOWED_ATTRIBUTES,  # noqa: F401
@@ -32,6 +34,10 @@ from miku.ui.sanitizer import (
     ALLOWED_TAGS,  # noqa: F401
     sanitize_html,
 )
+
+_SAFE_COLOR_RE = re.compile(r"^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,24})$")
+_SAFE_LANG_RE = re.compile(r"^[a-zA-Z0-9_+-]+$")
+_PANDOC_TIMEOUT = 30.0
 
 
 def _to_int(value, default=0):
@@ -163,7 +169,7 @@ def article_to_html(article_text):
                                 text_nodes = p.get("text", {}).get("nodes", [])
                                 p_content = ""
                                 for node in text_nodes:
-                                    text = ""
+                                    text_html = ""
                                     url = None
                                     is_bold = False
                                     is_italic = False
@@ -171,7 +177,7 @@ def article_to_html(article_text):
 
                                     if node.get("rich"):
                                         rich = node["rich"]
-                                        text = rich.get("text", "")
+                                        raw_text = str(rich.get("text") or "")
                                         url = rich.get("jump_url")
                                         if rich.get("emoji"):
                                             emoji_url = rich["emoji"].get("icon_url")
@@ -181,40 +187,55 @@ def article_to_html(article_text):
                                                     "width: 1.2em; height: 1.2em; display: inline-block; "
                                                     "vertical-align: middle;"
                                                 )
-                                                text = f'<img src="{proxied_emoji}" style="{emoji_style}" alt="{text}">'
+                                                text_html = (
+                                                    f'<img src="{html_lib.escape(proxied_emoji, quote=True)}" '
+                                                    f'style="{emoji_style}" '
+                                                    f'alt="{html_lib.escape(raw_text, quote=True)}">'
+                                                )
+                                            else:
+                                                text_html = html_lib.escape(raw_text, quote=True)
+                                        else:
+                                            text_html = html_lib.escape(raw_text, quote=True)
                                     elif node.get("word"):
                                         word = node["word"]
-                                        text = word.get("words", "")
+                                        text_html = html_lib.escape(str(word.get("words") or ""), quote=True)
                                         if word.get("style"):
                                             is_bold = word["style"].get("bold")
                                             is_italic = word["style"].get("italic")
                                             color = word["style"].get("color")
 
                                     # Fallback for older format if necessary
-                                    if not text and node.get("type") == "TEXT_NODE_TYPE_WORD":
+                                    if not text_html and node.get("type") == "TEXT_NODE_TYPE_WORD":
                                         word = node.get("word", {})
-                                        text = word.get("words", "")
+                                        text_html = html_lib.escape(str(word.get("words") or ""), quote=True)
                                         is_bold = word.get("bold")
                                         is_italic = word.get("italic")
                                         color = word.get("color")
-                                    elif not text and node.get("type") == "TEXT_NODE_TYPE_HYPERLINK":
+                                    elif not text_html and node.get("type") == "TEXT_NODE_TYPE_HYPERLINK":
                                         word = node.get("word", {})
-                                        text = word.get("words", "")
+                                        text_html = html_lib.escape(str(word.get("words") or ""), quote=True)
                                         url = node.get("link", {}).get("url")
 
                                     if is_bold:
-                                        text = f"<strong>{text}</strong>"
+                                        text_html = f"<strong>{text_html}</strong>"
                                     if is_italic:
-                                        text = f"<em>{text}</em>"
+                                        text_html = f"<em>{text_html}</em>"
                                     if color:
-                                        if not color.startswith("#"):
-                                            color = f"#{color}"
-                                        text = f'<span style="color: {color};">{text}</span>'
+                                        color_str = str(color).strip()
+                                        if not color_str.startswith("#") and re.fullmatch(
+                                            r"[0-9a-fA-F]{6}|[0-9a-fA-F]{8}", color_str
+                                        ):
+                                            color_str = f"#{color_str}"
+                                        if _SAFE_COLOR_RE.fullmatch(color_str):
+                                            text_html = (
+                                                f'<span style="color: {html_lib.escape(color_str, quote=True)};">'
+                                                f"{text_html}</span>"
+                                            )
 
                                     if url:
-                                        text = f'<a href="{url}">{text}</a>'
+                                        text_html = f'<a href="{html_lib.escape(str(url), quote=True)}">{text_html}</a>'
 
-                                    p_content += text
+                                    p_content += text_html
 
                                 # Alignment
                                 align_style = ""
@@ -230,17 +251,19 @@ def article_to_html(article_text):
                                 for pic in pics:
                                     proxied_url = _proxied_pic_url(pic.get("url"))
                                     if proxied_url:
-                                        img_html = f'<img src="{proxied_url}" class="mx-auto">'
+                                        img_html = (
+                                            f'<img src="{html_lib.escape(proxied_url, quote=True)}" class="mx-auto">'
+                                        )
                                         content_html += f'<figure style="text-align: center;">{img_html}</figure>'
                             elif p_type == 7:  # Code
                                 code = p.get("code", {})
-                                lang = code.get("lang", "").replace("language-", "")
-                                content = code.get("content", "")
-                                # Use html.escape if available, or just a simple replacement
-                                import html as html_lib
-
-                                content = html_lib.escape(content)
-                                content_html += f'<pre><code class="language-{lang}">{content}</code></pre>'
+                                raw_lang = str(code.get("lang") or "").replace("language-", "").strip()
+                                lang = raw_lang if _SAFE_LANG_RE.fullmatch(raw_lang) else "text"
+                                content = html_lib.escape(str(code.get("content") or ""), quote=True)
+                                content_html += (
+                                    f'<pre><code class="language-{html_lib.escape(lang, quote=True)}">'
+                                    f"{content}</code></pre>"
+                                )
 
                 if content_html:
                     # Sanitize the generated HTML
@@ -385,7 +408,8 @@ async def article_to_any(article_text, dest_fmt):
         p = await asyncio.create_subprocess_exec(
             *cmd, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        stdout, stderr = await p.communicate(input=article_to_html(article_text).encode("utf-8"))
+        async with asyncio.timeout(_PANDOC_TIMEOUT):
+            stdout, stderr = await p.communicate(input=article_to_html(article_text).encode("utf-8"))
         if p.returncode != 0:
             print(f"[Pandoc] Error converting article: {stderr.decode('utf-8')}")
         return stdout.decode("utf-8")
@@ -396,7 +420,12 @@ async def article_to_any(article_text, dest_fmt):
         if p and p.returncode is None:
             try:
                 p.terminate()
-                await p.wait()
+                try:
+                    async with asyncio.timeout(2.0):
+                        await p.wait()
+                except TimeoutError:
+                    p.kill()
+                    await p.wait()
             except Exception:
                 pass
 
@@ -437,15 +466,7 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
             print("[Extra] PGC Fallback for SRC (caught exception)")
             try:
                 client = await Network.get_async_client()
-                cookies = {}
-                if vi.credential and vi.credential.sessdata:
-                    cookies = {
-                        "SESSDATA": vi.credential.sessdata,
-                        "bili_jct": vi.credential.bili_jct,
-                        "buvid3": vi.credential.buvid3,
-                        "buvid4": vi.credential.buvid4,
-                        "DedeUserID": vi.credential.dedeuserid,
-                    }
+                cookies = get_web_api_cookies(vi.credential)
 
                 pgc_params = api.params.copy()
 
@@ -473,7 +494,7 @@ async def video_get_src_for_qn(vi, idx, quality=16, ep_id=None):
                     "https://api.bilibili.com/pgc/player/web/playurl",
                     params=pgc_params,
                     headers=pgc_headers,
-                    follow_redirects=True,
+                    follow_redirects=False,
                 )
                 pgc_res = pgc_res_raw.json()
                 if pgc_res and pgc_res.get("code") == 0:

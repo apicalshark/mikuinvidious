@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, urlparse
 
 import orjson
 
+from miku import state as shared
 from miku.api import video
 from miku.core.fingerprints import FIXED_CHROME_UA
 from miku.dash.common import (
@@ -26,7 +27,14 @@ from miku.dash.common import (
     DASH_FETCH_TIMEOUT,
     _extract_ep_id,
 )
-from miku.state import Network, appcred, appredis, safe_json_loads
+from miku.services.credential import get_web_api_cookies, is_cred_active
+from miku.state import Network, appredis, safe_json_loads
+
+
+def _make_video(vid: str, cred) -> video.Video:
+    if isinstance(vid, str) and vid[:2].lower() == "av" and vid[2:].isdigit():
+        return video.Video(aid=int(vid[2:]), credential=cred)
+    return video.Video(bvid=vid, credential=cred)
 
 
 def _normalize_track_urls(tracks: list | None) -> list:
@@ -163,8 +171,8 @@ def _dash_fetch_settle(key: tuple, ok: bool, payload):
 
 async def _video_get_dash_for_qn_uncached(vi, idx, ep_id=None, cid=None) -> dict:
     """Single upstream DASH play-info fetch (see :func:`video_get_dash_for_qn`)."""
-
-    v = vi if isinstance(vi, video.Video) else video.Video(bvid=vi, credential=appcred)
+    cred = shared.appcred if is_cred_active(shared.appcred) else None
+    v = vi if isinstance(vi, video.Video) else _make_video(vi, cred)
     if cid is None:
         try:
             cid = await v.get_cid(idx)
@@ -208,15 +216,7 @@ async def _video_get_dash_for_qn_uncached(vi, idx, ep_id=None, cid=None) -> dict
         return {"code": -1, "message": "no playable source (UGC failed, no ep_id/cid for PGC fallback)"}
     try:
         client = await Network.get_async_client()
-        cookies = {}
-        if appcred and appcred.sessdata:
-            cookies = {
-                "SESSDATA": appcred.sessdata,
-                "bili_jct": appcred.bili_jct,
-                "buvid3": appcred.buvid3,
-                "buvid4": appcred.buvid4,
-                "DedeUserID": appcred.dedeuserid,
-            }
+        cookies = get_web_api_cookies(shared.appcred)
         pgc_params = {
             "avid": v.get_aid(),
             "qn": 120,
@@ -239,7 +239,7 @@ async def _video_get_dash_for_qn_uncached(vi, idx, ep_id=None, cid=None) -> dict
             "https://api.bilibili.com/pgc/player/web/playurl",
             params=pgc_params,
             headers=pgc_headers,
-            follow_redirects=True,
+            follow_redirects=False,
         )
         pgc = pgc_raw.json()
         parsed = _parse_pgc_playurl(pgc)
@@ -289,15 +289,7 @@ async def _fetch_single_durl_pgc(v, base_params: dict, ep_id=None) -> dict | Non
 
     try:
         client = await Network.get_async_client()
-        cookies = {}
-        if v.credential and v.credential.sessdata:
-            cookies = {
-                "SESSDATA": v.credential.sessdata,
-                "bili_jct": v.credential.bili_jct,
-                "buvid3": v.credential.buvid3,
-                "buvid4": v.credential.buvid4,
-                "DedeUserID": v.credential.dedeuserid,
-            }
+        cookies = get_web_api_cookies(v.credential)
         pgc_params = dict(base_params)
         if ep_id is None:
             try:
@@ -319,7 +311,7 @@ async def _fetch_single_durl_pgc(v, base_params: dict, ep_id=None) -> dict | Non
             "https://api.bilibili.com/pgc/player/web/playurl",
             params=pgc_params,
             headers=durl_headers,
-            follow_redirects=True,
+            follow_redirects=False,
         )
         pgc = raw.json()
         if isinstance(pgc, dict) and pgc.get("code") == 0:
@@ -654,8 +646,8 @@ async def _dash_redis_get(key: str):
 
 async def _fetch_and_cache_dash_data(vid, idx, key):
     """Fetch dash play info and cache it. Returns the dash dict or None."""
-
-    v = video.Video(bvid=vid, credential=appcred)
+    cred = shared.appcred if is_cred_active(shared.appcred) else None
+    v = _make_video(vid, cred)
     try:
         async with asyncio.timeout(DASH_FETCH_TIMEOUT):
             data = await video_get_dash_for_qn(v, idx)

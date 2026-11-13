@@ -37,6 +37,8 @@ class ImageCache:
 
         self._op_counter = 0
         self._prune_lock = asyncio.Lock()
+        self._prune_tasks: set[asyncio.Task] = set()
+        self._closed = False
         self._ensure_writable()
 
     def _ensure_writable(self) -> None:
@@ -68,7 +70,7 @@ class ImageCache:
         key = self._url_to_key(url)
         path = self._get_path(key)
 
-        if not os.path.exists(path):
+        if not await asyncio.to_thread(os.path.exists, path):
             return None
 
         try:
@@ -78,13 +80,13 @@ class ImageCache:
             parts = raw.split(b"\n\n", 1)
             if len(parts) != 2:
                 # Corrupted file
-                os.remove(path)
+                await asyncio.to_thread(os.remove, path)
                 return None
 
             header, body = parts
             header_lines = header.split(b"\n")
             if len(header_lines) < 2:
-                os.remove(path)
+                await asyncio.to_thread(os.remove, path)
                 return None
 
             content_type = header_lines[0].decode("utf-8", errors="replace")
@@ -93,7 +95,7 @@ class ImageCache:
             # Check expiration
             if time.time() - created_at > self.ttl_seconds:
                 try:
-                    os.remove(path)
+                    await asyncio.to_thread(os.remove, path)
                 except OSError:
                     pass
                 return None
@@ -101,7 +103,7 @@ class ImageCache:
             # Touch atime for LRU tracking
             try:
                 now = time.time()
-                os.utime(path, (now, now))
+                await asyncio.to_thread(os.utime, path, (now, now))
             except OSError:
                 pass
 
@@ -109,8 +111,8 @@ class ImageCache:
         except Exception:
             # On any I/O or decode failure, treat as cache miss and try removing broken file
             try:
-                if os.path.exists(path):
-                    os.remove(path)
+                if await asyncio.to_thread(os.path.exists, path):
+                    await asyncio.to_thread(os.remove, path)
             except OSError:
                 pass
             return None
@@ -128,20 +130,34 @@ class ImageCache:
             async with aiofiles.open(tmp_path, "wb") as f:
                 await f.write(payload)
 
-            os.replace(tmp_path, target_path)
+            await asyncio.to_thread(os.replace, tmp_path, target_path)
 
             self._op_counter += 1
             if self._op_counter >= 100:
                 self._op_counter = 0
-                asyncio.create_task(self.prune_if_needed())
+                if not self._closed:
+                    task = asyncio.create_task(self.prune_if_needed())
+                    self._prune_tasks.add(task)
+                    task.add_done_callback(self._prune_tasks.discard)
         except Exception as e:
             # Cache failure must never crash request handling (fail-open)
             print(f"[ImageCache] Failed to write cache for {url}: {e}")
             try:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
+                if await asyncio.to_thread(os.path.exists, tmp_path):
+                    await asyncio.to_thread(os.remove, tmp_path)
             except OSError:
                 pass
+
+    async def close(self) -> None:
+        """Cancel and drain any pending background prune tasks."""
+        self._closed = True
+        tasks = list(self._prune_tasks)
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._prune_tasks.clear()
 
     async def prune_if_needed(self) -> None:
         """Prune oldest cache files if total disk usage exceeds max_size_bytes."""

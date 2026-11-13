@@ -14,15 +14,16 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import re
-from urllib.parse import urlparse
 
 from quart import Response, jsonify
 
+from miku import state as shared
 from miku.api import video
+from miku.core.dns_cache import is_safe_public_url
 from miku.core.fingerprints import FIXED_CHROME_UA
 from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from miku.media.danmaku import parse_danmaku
-from miku.state import app, appcred, appredis
+from miku.state import app, appredis
 
 # L2: strict route-param validation so subtitle cache keys cannot be
 # polluted with separators/wildcards and only real Bilibili IDs reach
@@ -37,6 +38,7 @@ _ALLOWED_SUBTITLE_SUFFIXES = (
     ".bilivideo.cn",
     ".hdslb.com",
     ".bilibili.com",
+    ".biliapi.net",
     ".acgvideo.com",
     ".akamaized.net",
 )
@@ -46,15 +48,19 @@ def _is_valid_vid(vid: str) -> bool:
     return bool(vid) and bool(_VID_RE.match(vid))
 
 
-def _is_allowed_subtitle_url(url: str) -> bool:
-    try:
-        hostname = urlparse(url).hostname or ""
-    except Exception:
-        return False
-    hostname = hostname.lower()
-    if not hostname:
-        return False
-    return any(hostname == s.lstrip(".") or hostname.endswith(s) for s in _ALLOWED_SUBTITLE_SUFFIXES)
+def make_video(vid: str, cred=None) -> video.Video:
+    if isinstance(vid, str) and vid[:2].lower() == "av" and vid[2:].isdigit():
+        return video.Video(aid=int(vid[2:]), credential=cred)
+    return video.Video(bvid=vid, credential=cred)
+
+
+async def _is_safe_subtitle_url(url: str) -> bool:
+    return await is_safe_public_url(
+        url,
+        _ALLOWED_SUBTITLE_SUFFIXES,
+        allowed_schemes=frozenset({"https"}),
+        use_dns_cache=False,
+    )
 
 
 DANMAKU_CACHE_TTL = 900
@@ -89,7 +95,7 @@ async def danmaku_res(vid, idx=0):
         pass
 
     try:
-        v = video.Video(bvid=vid, credential=appcred)
+        v = make_video(vid, shared.appcred)
         xml = await v.get_danmaku_xml(idx)
         if not xml or not isinstance(xml, str):
             return jsonify([])
@@ -173,7 +179,8 @@ def _subtitle_entries(subs: list) -> list:
 @rate_limit(**RATE_LIMITS["normal"])
 async def subtitle_list_res(vid, idx=0):
     """List available subtitles for a video part (login-gated like PipePipe)."""
-    if vid.isdigit() or not (appcred and appcred.sessdata):
+    cred = shared.appcred
+    if vid.isdigit() or not (cred and cred.sessdata):
         return jsonify([])
     if not _is_valid_vid(vid):
         return jsonify([])
@@ -186,7 +193,7 @@ async def subtitle_list_res(vid, idx=0):
             data = safe_json_loads(cached)
             if isinstance(data, list):
                 return jsonify(data)
-        v = video.Video(bvid=vid, credential=appcred)
+        v = make_video(vid, cred)
         subs = await v.get_subtitle_meta(page_index=int(idx))
         entries = _subtitle_entries(subs)
         import orjson
@@ -202,7 +209,8 @@ async def subtitle_list_res(vid, idx=0):
 @rate_limit(**RATE_LIMITS["normal"])
 async def subtitle_vtt_res(vid, idx, lan):
     """Serve one subtitle track as WebVTT (cached; login-gated)."""
-    if vid.isdigit() or not (appcred and appcred.sessdata):
+    cred = shared.appcred
+    if vid.isdigit() or not (cred and cred.sessdata):
         return Response("Not Found", status=404)
     if not _is_valid_vid(vid) or not _LAN_RE.match(lan or ""):
         return Response("Not Found", status=404)
@@ -212,7 +220,7 @@ async def subtitle_vtt_res(vid, idx, lan):
         cached = await appredis.get(key)
         if cached:
             return Response(cached, status=200, content_type="text/vtt; charset=utf-8")
-        v = video.Video(bvid=vid, credential=appcred)
+        v = make_video(vid, cred)
         subs = await v.get_subtitle_meta(page_index=idx)
         bcc_url = next(
             (s.get("subtitle_url") for s in subs if isinstance(s, dict) and s.get("lan") == lan),
@@ -222,18 +230,21 @@ async def subtitle_vtt_res(vid, idx, lan):
             return Response("Not Found", status=404)
         if bcc_url.startswith("//"):
             bcc_url = "https:" + bcc_url
-        if not bcc_url.lower().startswith("https://") or not _is_allowed_subtitle_url(bcc_url):
+        if not await _is_safe_subtitle_url(bcc_url):
             return Response("Not Found", status=404)
-        from miku.state import Network
 
-        client = await Network.get_async_client()
+        client = await shared.Network.get_async_client()
         resp = await client.get(
             bcc_url,
             headers={
                 "Referer": "https://www.bilibili.com",
                 "User-Agent": FIXED_CHROME_UA,
             },
+            timeout=15.0,
+            follow_redirects=False,
         )
+        if resp.status_code != 200:
+            return Response("Upstream error", status=502)
         import orjson as _orjson
 
         vtt = bcc_to_vtt(_orjson.loads(resp.content))

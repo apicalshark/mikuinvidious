@@ -1,6 +1,8 @@
+import asyncio
 import json
 import struct
 import unittest
+from unittest.mock import AsyncMock, patch
 
 import brotli
 from miku.api.live import LiveDanmaku
@@ -552,7 +554,9 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
             patch.object(
                 views_live.appredis, "setex", new=AsyncMock(side_effect=ConnectionError("Redis setex failed"))
             ),
-            patch("miku.views.live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Rendered</html>")),
+            patch(
+                "miku.views.live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Rendered</html>")
+            ),
         ):
             resp = await self.client.get("/live/4366430")
             self.assertEqual(resp.status_code, 200)
@@ -613,7 +617,9 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
             patch.object(views_live.appredis, "pipeline", return_value=MagicMock(execute=AsyncMock())),
             patch.object(views_live.appredis, "setex", new=AsyncMock()),
             patch("miku.views.live.cache_set", new=AsyncMock()),
-            patch("miku.views.live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Coalesced</html>")),
+            patch(
+                "miku.views.live.render_template_with_theme", new=AsyncMock(return_value="<html>Live Coalesced</html>")
+            ),
         ):
             # Fire 3 simultaneous requests for the same room
             responses = await asyncio.gather(
@@ -646,7 +652,9 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         with (
             patch("miku.views.live.cache_get", new=AsyncMock(return_value=None)),
             patch("miku.api.live.LiveRoom.get_room_info", mock_get_room_info),
-            patch("miku.api.live.LiveRoom.get_room_base_info", new=AsyncMock(side_effect=RuntimeError("Fallback failed"))),
+            patch(
+                "miku.api.live.LiveRoom.get_room_base_info", new=AsyncMock(side_effect=RuntimeError("Fallback failed"))
+            ),
             patch("miku.views.live.render_template_with_theme", new=AsyncMock(return_value="<html>Error</html>")),
         ):
             responses = await asyncio.gather(
@@ -713,6 +721,119 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
                 with self.subTest(path=path):
                     r = await self.client.get(path)
                     self.assertEqual(r.status_code, 429, f"Expected 429 on rate-limited {path}")
+
+
+class TestLiveStreamLoop(unittest.IsolatedAsyncioTestCase):
+    async def test_early_return_runs_finally_cleanup(self):
+        import httpx
+        from miku.media.live_manager import LiveStream
+
+        stream = LiveStream("https://d1--cn-gotcha01.bilivideo.com/live/1001.flv", {}, {})
+        stream.is_running = True
+        q: asyncio.Queue = asyncio.Queue()
+        stream.clients["c1"] = q
+
+        # Mock HTTP 404 responses so _stream_loop hits retry_count >= max_retries and returns early
+        def handler(req: httpx.Request) -> httpx.Response:
+            return httpx.Response(404)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            with (
+                patch("miku.media.live_manager.Network.get_async_client", AsyncMock(return_value=client)),
+                patch("miku.media.live_manager.asyncio.sleep", AsyncMock(return_value=None)),
+            ):
+                await stream._stream_loop()
+        finally:
+            await client.aclose()
+
+        self.assertFalse(stream.is_running)
+        self.assertTrue(stream.header_ready.is_set())
+        self.assertEqual(len(stream.clients), 0)
+        self.assertIsNone(q.get_nowait())
+
+    async def test_redirect_blocks_unsafe_hop_and_caps_hops(self):
+        import miku.media.proxy as media_proxy
+        from miku.media.live_manager import MAX_LIVE_REDIRECTS, LiveStream
+
+        # 1. Unsafe redirect target -> status 403 and stream stops
+        stream1 = LiveStream("https://d1--cn-gotcha01.bilivideo.com/live/1001.flv", {}, {})
+        stream1.is_running = True
+        q1: asyncio.Queue = asyncio.Queue()
+        stream1.clients["c1"] = q1
+
+        seen_follow_redirects = []
+
+        class _FakeStreamResp:
+            def __init__(self, status_code, headers):
+                self.status_code = status_code
+                self.headers = headers
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                return False
+
+        class _FakeClient:
+            def __init__(self, location):
+                self.location = location
+
+            def stream(self, method, url, headers=None, follow_redirects=True):
+                seen_follow_redirects.append(follow_redirects)
+                return _FakeStreamResp(302, {"location": self.location})
+
+        unsafe_checks = []
+
+        async def fake_is_safe(url):
+            unsafe_checks.append(url)
+            return False
+
+        with (
+            patch(
+                "miku.media.live_manager.Network.get_async_client",
+                AsyncMock(return_value=_FakeClient("http://127.0.0.1/internal")),
+            ),
+            patch.object(media_proxy, "is_safe_proxy_url", side_effect=fake_is_safe),
+        ):
+            await stream1._stream_loop()
+
+        self.assertEqual(seen_follow_redirects, [False])
+        self.assertEqual(unsafe_checks, ["http://127.0.0.1/internal"])
+        self.assertEqual(stream1.status_code, 403)
+        self.assertFalse(stream1.is_running)
+        self.assertTrue(stream1.header_ready.is_set())
+        self.assertIsNone(q1.get_nowait())
+
+        # 2. Safe redirect chain exceeding MAX_LIVE_REDIRECTS -> status 502
+        stream2 = LiveStream("https://d1--cn-gotcha01.bilivideo.com/live/1002.flv", {}, {})
+        stream2.is_running = True
+        q2: asyncio.Queue = asyncio.Queue()
+        stream2.clients["c2"] = q2
+        hop_count = 0
+
+        class _LoopRedirectClient:
+            def stream(self, method, url, headers=None, follow_redirects=True):
+                nonlocal hop_count
+                hop_count += 1
+                return _FakeStreamResp(
+                    302, {"location": f"https://d1--cn-gotcha01.bilivideo.com/live/hop{hop_count}.flv"}
+                )
+
+        with (
+            patch(
+                "miku.media.live_manager.Network.get_async_client",
+                AsyncMock(return_value=_LoopRedirectClient()),
+            ),
+            patch.object(media_proxy, "is_safe_proxy_url", AsyncMock(return_value=True)),
+        ):
+            await stream2._stream_loop()
+
+        self.assertEqual(hop_count, MAX_LIVE_REDIRECTS + 1)
+        self.assertEqual(stream2.status_code, 502)
+        self.assertFalse(stream2.is_running)
+        self.assertEqual(len(stream2.clients), 0)
+        self.assertIsNone(q2.get_nowait())
 
 
 if __name__ == "__main__":

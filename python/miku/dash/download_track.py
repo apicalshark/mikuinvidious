@@ -353,6 +353,9 @@ async def _stream_track_body(conn, file_obj, total: int, max_bytes: int, progres
         raise _TrackCut(total, file_obj, exc) from exc
 
 
+_MUX_TIMEOUT = 600.0
+
+
 async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None) -> None:
     """Remux video + audio tracks into a single faststart MP4 with ffmpeg (-c copy).
 
@@ -402,7 +405,16 @@ async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None)
                         t.cancel()
                 job.ffmpeg_proc = None
         else:
-            _, stderr = await proc.communicate()
+            try:
+                async with asyncio.timeout(_MUX_TIMEOUT):
+                    _, stderr = await proc.communicate()
+            except TimeoutError:
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except Exception:
+                    pass
+                raise RuntimeError("ffmpeg mux timed out") from None
     except _JobCancelled, asyncio.CancelledError:
         try:
             if proc.returncode is None:

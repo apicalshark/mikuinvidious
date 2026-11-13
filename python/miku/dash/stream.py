@@ -62,7 +62,7 @@ from miku.dash.fetch import (
     has_valid_dash_tracks,
 )
 from miku.media.stream import CdnConnectError, CdnConnection, CdnProtocolError, CdnTimeoutError
-from miku.state import UPSTREAM_RESPONSE_BLACKLIST, Network, TicketManager, appconf
+from miku.state import UPSTREAM_RESPONSE_BLACKLIST, Network, TicketManager
 
 
 def _dash_candidate_urls(track: dict) -> list:
@@ -139,6 +139,35 @@ async def _quiet_close(conn) -> None:
         pass
 
 
+_discard_close_tasks: set[asyncio.Task] = set()
+
+
+def _schedule_discarded_conn_close(loop: asyncio.AbstractEventLoop, conn) -> None:
+    if conn is None:
+        return
+    if loop.is_closed():
+        writer = getattr(conn, "writer", None)
+        if writer is not None:
+            try:
+                writer.close()
+            except Exception:
+                pass
+        return
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is loop:
+        task = loop.create_task(_quiet_close(conn))
+        _discard_close_tasks.add(task)
+        task.add_done_callback(_discard_close_tasks.discard)
+    else:
+        try:
+            loop.call_soon_threadsafe(_schedule_discarded_conn_close, loop, conn)
+        except RuntimeError:
+            pass
+
+
 class _PlaybackKeepAlivePool:
     """Idle, boundary-exact CDN connections reused by playback fragments."""
 
@@ -147,9 +176,12 @@ class _PlaybackKeepAlivePool:
         self._ttl = ttl
         self._idle: dict[tuple[str, str], tuple[float, CdnConnection]] = {}
         self._reaper: asyncio.Task | None = None
+        self._closed = False
 
     async def take(self, url: str, proxy_url: str):
         """Return a banked connection for *url*, or None when there is none."""
+        if self._closed:
+            return None
         entry = self._idle.pop((proxy_url or "", url), None)
         if entry is None:
             return None
@@ -161,32 +193,48 @@ class _PlaybackKeepAlivePool:
 
     async def give(self, url: str, proxy_url: str, conn) -> None:
         """Bank *conn* for the next fragment of *url*."""
+        if self._closed or self._max_idle <= 0:
+            await _quiet_close(conn)
+            return
         key = (proxy_url or "", url)
+        to_close = []
         stale = self._idle.pop(key, None)
         if stale is not None:
             # One socket per URL: a second banked socket for the same object
             # only burns an FD and an upstream slot.
-            await _quiet_close(stale[1])
+            to_close.append(stale[1])
         while len(self._idle) >= self._max_idle:
             oldest = min(self._idle, key=lambda k: self._idle[k][0])
-            await _quiet_close(self._idle.pop(oldest)[1])
+            to_close.append(self._idle.pop(oldest)[1])
         self._idle[key] = (time.monotonic(), conn)
         if self._reaper is None or self._reaper.done():
             self._reaper = asyncio.get_running_loop().create_task(self._reap())
+        for old_conn in to_close:
+            await _quiet_close(old_conn)
 
     async def _reap(self) -> None:
         """Close sockets that idled past the TTL, then stop when the pool empties."""
-        while self._idle:
+        while self._idle and not self._closed:
             try:
                 await asyncio.sleep(self._ttl)
             except asyncio.CancelledError:
                 # Interpreter/test shutdown: sockets are closed by close_all().
                 return
             cutoff = time.monotonic() - self._ttl
-            for key in [k for k, (at, _) in self._idle.items() if at < cutoff]:
-                await _quiet_close(self._idle.pop(key)[1])
+            expired = [self._idle.pop(k)[1] for k in list(self._idle) if self._idle[k][0] < cutoff]
+            for old_conn in expired:
+                await _quiet_close(old_conn)
 
     async def close_all(self) -> None:
+        self._closed = True
+        reaper = self._reaper
+        self._reaper = None
+        if reaper is not None and not reaper.done():
+            reaper.cancel()
+            try:
+                await reaper
+            except asyncio.CancelledError:
+                pass
         conns = [c for _, c in self._idle.values()]
         self._idle.clear()
         for conn in conns:
@@ -915,9 +963,6 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         if not urls:
             return Response("Forbidden: Invalid proxy target", status=403)
 
-        creds = appconf["credential"]
-        cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds.get("use_cred") else {}
-
         headers = await _build_dash_cdn_headers()
 
         # Forward runtime conditional headers from the browser player
@@ -926,11 +971,6 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                 headers[k.lower()] = v
 
         headers["range"] = f"bytes={parsed_range[0]}-{parsed_range[1]}"
-
-        if cookie_jar:
-            cookie_str = "; ".join(f"{k}={v}" for k, v in cookie_jar.items())
-            existing = headers.get("cookie", "")
-            headers["cookie"] = f"{existing}; {cookie_str}".lstrip("; ") if existing else cookie_str
 
         proxy_url = Network.get_proxy()
         label = f"{vid}:{idx} {media_type}/{qn}/{cid}"
@@ -983,8 +1023,11 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
         except TypeError, ValueError:
             downstream_total = None
 
+        gen_started = False
+
         async def generate():
-            nonlocal conn, host, yielded, used_url
+            nonlocal conn, host, yielded, used_url, gen_started
+            gen_started = True
             same_resumes = 0
             clean = True  # this connection served the whole fragment, start to end
             try:
@@ -1070,7 +1113,14 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                 slot.release()
 
         gen = generate()
-        weakref.finalize(gen, slot.release)
+        loop = asyncio.get_running_loop()
+
+        def _on_gen_discard(c=conn, s=slot, lp=loop):
+            s.release()
+            if not gen_started:
+                _schedule_discarded_conn_close(lp, c)
+
+        weakref.finalize(gen, _on_gen_discard)
         stream_handed_off = True
         proxy_resp = Response(gen, status=resp_headers.status_code)
         proxy_resp.headers["Access-Control-Allow-Origin"] = "*"

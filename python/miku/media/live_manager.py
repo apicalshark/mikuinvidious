@@ -2,8 +2,11 @@ import asyncio
 import struct
 import time
 from collections import deque
+from urllib.parse import urljoin
 
 from miku.state import Network
+
+MAX_LIVE_REDIRECTS = 3
 
 
 class LiveStream:
@@ -24,7 +27,6 @@ class LiveStream:
         self.resp_headers = {}
         self.header_ready = asyncio.Event()
         self.client_joined = asyncio.Event()
-
 
     async def start(self):
         if self.is_running:
@@ -114,135 +116,178 @@ class LiveStream:
         max_retries = 5
         stream_ended_naturally = False
 
-        while self.is_running:
-            try:
-                # Wait for clients if none
-                if not self.clients:
-                    self.header_ready.clear()
-                    self.resp_headers = {}
-                    try:
-                        async with asyncio.timeout(5.0):
-                            await self.client_joined.wait()
-                        self.client_joined.clear()
-                    except TimeoutError:
-                        if not self.clients:
-                            print(f"[LiveManager] No clients for 5s, self-destructing: {self.url[:50]}")
-                            return
+        try:
+            while self.is_running:
+                try:
+                    # Wait for clients if none
+                    if not self.clients:
+                        self.header_ready.clear()
+                        self.resp_headers = {}
+                        try:
+                            async with asyncio.timeout(5.0):
+                                await self.client_joined.wait()
+                            self.client_joined.clear()
+                        except TimeoutError:
+                            if not self.clients:
+                                print(f"[LiveManager] No clients for 5s, self-destructing: {self.url[:50]}")
+                                return
 
-                if not self.is_running:
-                    break
+                    if not self.is_running:
+                        break
 
-                client = await Network.get_async_client()
-                stream_headers = dict(self.headers)
-                if self.cookies:
-                    stream_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items() if v)
-                async with client.stream("GET", self.url, headers=stream_headers, follow_redirects=True) as resp:
-                    self.status_code = resp.status_code
-                    self.resp_headers = dict(resp.headers)
+                    client = await Network.get_async_client()
+                    stream_headers = dict(self.headers)
+                    if self.cookies:
+                        stream_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in self.cookies.items() if v)
 
-                    if self.status_code >= 400:
-                        print(f"[LiveManager] Origin returned {self.status_code}: {self.url[:50]}")
-                        self.header_ready.set()
-                        retry_count += 1
-                        if retry_count >= max_retries:
-                            break
+                    current_url = self.url
+                    redirects = 0
+                    need_retry_sleep = False
+                    while self.is_running:
+                        redirect_next: str | None = None
+                        async with client.stream(
+                            "GET", current_url, headers=stream_headers, follow_redirects=False
+                        ) as resp:
+                            if resp.status_code in (301, 302, 303, 307, 308) and "location" in resp.headers:
+                                if redirects >= MAX_LIVE_REDIRECTS:
+                                    print(f"[LiveManager] Too many redirects: {self.url[:50]}")
+                                    self.status_code = 502
+                                    return
+                                next_url = urljoin(current_url, resp.headers["location"])
+                                import miku.media.proxy as media_proxy
+
+                                if not await media_proxy.is_safe_proxy_url(next_url):
+                                    print(f"[LiveManager] Unsafe redirect blocked: {next_url[:80]}")
+                                    self.status_code = 403
+                                    return
+                                redirects += 1
+                                redirect_next = next_url
+                            else:
+                                self.status_code = resp.status_code
+                                self.resp_headers = dict(resp.headers)
+
+                                if self.status_code >= 400:
+                                    print(f"[LiveManager] Origin returned {self.status_code}: {self.url[:50]}")
+                                    self.header_ready.set()
+                                    retry_count += 1
+                                    if retry_count >= max_retries:
+                                        return
+                                    need_retry_sleep = True
+                                    break
+
+                                print(f"[LiveManager] Stream connected (Attempt {retry_count + 1}): {self.url[:50]}")
+                                retry_count = 0  # Reset on success
+
+                                last_signal_time = time.time()
+                                resp_iter = resp.aiter_bytes(chunk_size=16384)
+
+                                while self.is_running:
+                                    try:
+                                        # Use a short timeout to check for client presence periodically
+                                        async with asyncio.timeout(5.0):
+                                            chunk = await anext(resp_iter)
+                                    except StopAsyncIteration:
+                                        print(f"[LiveManager] Upstream reached EOF: {self.url[:50]}")
+                                        stream_ended_naturally = True
+                                        self.is_running = False
+                                        break  # Break into shutdown section
+                                    except TimeoutError:
+                                        # Silence from upstream. Check grace period.
+                                        if not self.clients and (time.time() - last_signal_time > 5.0):
+                                            print("[LiveManager] No clients for 5s during silence. Killing upstream.")
+                                            return
+                                        continue
+
+                                    if self.clients:
+                                        last_signal_time = time.time()
+
+                                    # Grace period: 30s
+                                    if not self.clients and (time.time() - last_signal_time > 5.0):
+                                        print("[LiveManager] No clients for 5s. Killing upstream.")
+                                        return  # Exit entirely
+
+                                    # Process & Broadcast
+                                    self._parse_flv_tags(chunk)
+                                    self.chunk_buffer.append(chunk)
+
+                                    if not self.header_ready.is_set():
+                                        self.header_ready.set()
+
+                                    disconnected_client_ids = []
+                                    for cid, q in list(self.clients.items()):
+                                        try:
+                                            q.put_nowait(chunk)
+                                        except asyncio.QueueFull:
+                                            while not q.empty():
+                                                q.get_nowait()
+                                            self._send_burst(q, send_flv_header=False)
+                                        except Exception:
+                                            disconnected_client_ids.append(cid)
+
+                                    for cid in disconnected_client_ids:
+                                        self.clients.pop(cid, None)
+
+                                    self.last_active = time.time()
+
+                        if redirect_next is not None:
+                            current_url = redirect_next
+                            continue
+                        break
+
+                    if need_retry_sleep:
                         await asyncio.sleep(5)
                         continue
 
-                    print(f"[LiveManager] Stream connected (Attempt {retry_count + 1}): {self.url[:50]}")
-                    retry_count = 0  # Reset on success
+                except Exception as e:
+                    retry_count += 1
+                    print(f"[LiveManager] Connection error (Retry {retry_count}/{max_retries}): {e}")
+                    if retry_count >= max_retries:
+                        break
+                    await asyncio.sleep(min(retry_count * 2, 10))
+        finally:
+            print(f"[LiveManager] Stream task terminating: {self.url[:50]}")
+            self.is_running = False
+            self.header_ready.set()
 
-                    last_signal_time = time.time()
-                    resp_iter = resp.aiter_bytes(chunk_size=16384)
-
-                    while self.is_running:
-                        try:
-                            # Use a short timeout to check for client presence periodically
-                            async with asyncio.timeout(5.0):
-                                chunk = await anext(resp_iter)
-                        except StopAsyncIteration:
-                            print(f"[LiveManager] Upstream reached EOF: {self.url[:50]}")
-                            stream_ended_naturally = True
-                            self.is_running = False
-                            break  # Break into shutdown section
-                        except TimeoutError:
-                            # Silence from upstream. Check grace period.
-                            if not self.clients and (time.time() - last_signal_time > 5.0):
-                                print("[LiveManager] No clients for 5s during silence. Killing upstream.")
-                                return
-                            continue
-
-                        if self.clients:
-                            last_signal_time = time.time()
-
-                        # Grace period: 30s
-                        if not self.clients and (time.time() - last_signal_time > 5.0):
-                            print("[LiveManager] No clients for 5s. Killing upstream.")
-                            return  # Exit entirely
-
-                        # Process & Broadcast
-                        self._parse_flv_tags(chunk)
-                        self.chunk_buffer.append(chunk)
-
-                        if not self.header_ready.is_set():
-                            self.header_ready.set()
-
-                        disconnected_client_ids = []
-                        for cid, q in list(self.clients.items()):
+            # Send stream ended signal to all clients only if stream ended naturally
+            if stream_ended_naturally and self.clients:
+                stream_ended_tag = self._create_stream_ended_tag()
+                for q in list(self.clients.values()):
+                    try:
+                        q.put_nowait(stream_ended_tag)
+                    except asyncio.QueueFull:
+                        # Clear space and retry to ensure end signal is delivered
+                        while not q.empty():
                             try:
-                                q.put_nowait(chunk)
-                            except asyncio.QueueFull:
-                                while not q.empty():
-                                    q.get_nowait()
-                                self._send_burst(q, send_flv_header=False)
+                                q.get_nowait()
                             except Exception:
-                                disconnected_client_ids.append(cid)
+                                break
+                        try:
+                            q.put_nowait(stream_ended_tag)
+                        except Exception:
+                            pass
+                # Give frontend time to process the signal before closing
+                try:
+                    await asyncio.sleep(0.1)
+                except asyncio.CancelledError:
+                    pass
 
-                        for cid in disconnected_client_ids:
-                            self.clients.pop(cid, None)
-
-                        self.last_active = time.time()
-
-            except Exception as e:
-                retry_count += 1
-                print(f"[LiveManager] Connection error (Retry {retry_count}/{max_retries}): {e}")
-                if retry_count >= max_retries:
-                    break
-                await asyncio.sleep(min(retry_count * 2, 10))
-
-            if not self.is_running:
-                break
-
-        print(f"[LiveManager] Stream task terminating: {self.url[:50]}")
-        self.is_running = False
-        self.header_ready.set()
-
-        # Send stream ended signal to all clients only if stream ended naturally
-        if stream_ended_naturally and self.clients:
-            stream_ended_tag = self._create_stream_ended_tag()
             for q in list(self.clients.values()):
                 try:
-                    q.put_nowait(stream_ended_tag)
+                    q.put_nowait(None)
                 except asyncio.QueueFull:
-                    # Clear space and retry to ensure end signal is delivered
                     while not q.empty():
                         try:
                             q.get_nowait()
                         except Exception:
                             break
                     try:
-                        q.put_nowait(stream_ended_tag)
+                        q.put_nowait(None)
                     except Exception:
                         pass
-            # Give frontend time to process the signal before closing
-            await asyncio.sleep(0.1)
-
-        for q in list(self.clients.values()):
-            try:
-                q.put_nowait(None)
-            except Exception:
-                pass
-        self.clients.clear()
+                except Exception:
+                    pass
+            self.clients.clear()
 
     def _send_burst(self, q, send_flv_header=True):
         """Sends the latest headers and buffer to a client."""

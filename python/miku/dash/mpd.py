@@ -15,6 +15,8 @@
 
 
 import time
+from collections import OrderedDict
+from xml.sax.saxutils import escape
 
 from quart import Response, request
 
@@ -38,6 +40,14 @@ def _sb_initialization_range(sb: dict) -> str:
     return "0-999"
 
 
+def _xml_attr(val) -> str:
+    return escape(str(val), {'"': "&quot;", "'": "&apos;"})
+
+
+def _xml_text(val) -> str:
+    return escape(str(val))
+
+
 def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     """Generate an ``isoff-on-demand`` MPD for dash.js playback."""
     if not dash_data or not isinstance(dash_data, dict):
@@ -48,32 +58,29 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
 
     duration = dash.get("duration", 0) or 0
     min_buffer = dash.get("minBufferTime", 1.5)
-    period_dur = f' mediaPresentationDuration="PT{duration}S"' if duration else ""
+    period_dur = f' mediaPresentationDuration="PT{_xml_attr(duration)}S"' if duration else ""
 
     mpd = [
         '<?xml version="1.0" encoding="UTF-8"?>',
-        f'<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static"{period_dur} minBufferTime="PT{min_buffer}S">',
+        f'<MPD xmlns="urn:mpeg:dash:schema:mpd:2011" profiles="urn:mpeg:dash:profile:isoff-on-demand:2011" type="static"{period_dur} minBufferTime="PT{_xml_attr(min_buffer)}S">',
         '  <Period id="1" start="PT0S">',
     ]
 
-    # --- Video adaptation sets (one per codec) ---
+    total_reps = 0
     as_id = 1
+    safe_vid = _xml_text(vid)
+    safe_idx = _xml_text(idx)
+
+    # --- Video adaptation sets (one per codec) ---
     videos = _normalize_track_urls(dash.get("video", []))
     if videos:
-        from collections import OrderedDict
-
         codec_groups: OrderedDict[int, list] = OrderedDict()
         for video_track in videos:
             codecid = video_track.get("codecid", 0)
             codec_groups.setdefault(codecid, []).append(video_track)
-        as_id = 1
         for _codecid, tracks in codec_groups.items():
             codecs_str = tracks[0].get("codecs") or "avc1.64001F"
-            mpd.append(
-                f'    <AdaptationSet id="{as_id}" contentType="video" mimeType="video/mp4"'
-                f' codecs="{codecs_str}" segmentAlignment="true"'
-                f' subsegmentAlignment="true" startWithSAP="1">'
-            )
+            rep_lines: list[str] = []
             for video_track in tracks:
                 qn = video_track.get("id")
                 cid = video_track.get("codecid", 0)
@@ -81,25 +88,34 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
                 width = video_track.get("width", 0)
                 height = video_track.get("height", 0)
                 frame_rate = video_track.get("frameRate") or video_track.get("frame_rate") or "24"
-                if qn is None or not video_track.get("SegmentBase"):
+                if qn is None or not isinstance(video_track.get("SegmentBase"), dict):
                     continue
                 sb = video_track["SegmentBase"]
                 init_range = _sb_initialization_range(sb)
                 index_range = sb.get("indexRange", "")
-                index_exact = ' indexRangeExact="true"' if index_range else ""
                 if not index_range:
                     continue
                 track_codecs = video_track.get("codecs") or codecs_str
-                mpd.append(
-                    f'      <Representation id="video_{qn}_{cid}" codecs="{track_codecs}" bandwidth="{bandwidth}" width="{width}" height="{height}" frameRate="{frame_rate}">'
+                rep_lines.append(
+                    f'      <Representation id="video_{_xml_attr(qn)}_{_xml_attr(cid)}" codecs="{_xml_attr(track_codecs)}" bandwidth="{_xml_attr(bandwidth)}" width="{_xml_attr(width)}" height="{_xml_attr(height)}" frameRate="{_xml_attr(frame_rate)}">'
                 )
-                mpd.append(f"        <BaseURL>/proxy/dash/{vid}/{idx}/video/{qn}/{cid}</BaseURL>")
-                mpd.append(f'        <SegmentBase indexRange="{index_range}"{index_exact}>')
-                mpd.append(f'          <Initialization range="{init_range}"/>')
-                mpd.append("        </SegmentBase>")
-                mpd.append("      </Representation>")
-            mpd.append("    </AdaptationSet>")
-            as_id += 1
+                rep_lines.append(
+                    f"        <BaseURL>/proxy/dash/{safe_vid}/{safe_idx}/video/{_xml_text(qn)}/{_xml_text(cid)}</BaseURL>"
+                )
+                rep_lines.append(f'        <SegmentBase indexRange="{_xml_attr(index_range)}" indexRangeExact="true">')
+                rep_lines.append(f'          <Initialization range="{_xml_attr(init_range)}"/>')
+                rep_lines.append("        </SegmentBase>")
+                rep_lines.append("      </Representation>")
+            if rep_lines:
+                mpd.append(
+                    f'    <AdaptationSet id="{as_id}" contentType="video" mimeType="video/mp4"'
+                    f' codecs="{_xml_attr(codecs_str)}" segmentAlignment="true"'
+                    f' subsegmentAlignment="true" startWithSAP="1">'
+                )
+                mpd.extend(rep_lines)
+                mpd.append("    </AdaptationSet>")
+                as_id += 1
+                total_reps += len(rep_lines)
 
     # --- Audio adaptation set ---
     audios = _normalize_track_urls(dash.get("audio", []))
@@ -113,29 +129,39 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
             key=lambda a: int(a.get("bandwidth", 0) or 0) if isinstance(a, dict) else 0,
             reverse=True,
         )
-        mpd.append(
-            f'    <AdaptationSet id="{as_id}" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1">'
-        )
+        rep_lines = []
         for audio_track in audios:
             qn = audio_track.get("id")
             cid = audio_track.get("codecid", 0)
             bandwidth = audio_track.get("bandwidth", 0)
             codecs = audio_track.get("codecs") or "mp4a.40.2"
-            if qn is None or not audio_track.get("SegmentBase"):
+            if qn is None or not isinstance(audio_track.get("SegmentBase"), dict):
                 continue
             sb = audio_track["SegmentBase"]
             init_range = _sb_initialization_range(sb)
             index_range = sb.get("indexRange", "")
-            index_exact = ' indexRangeExact="true"' if index_range else ""
             if not index_range:
                 continue
-            mpd.append(f'      <Representation id="audio_{qn}_{cid}" codecs="{codecs}" bandwidth="{bandwidth}">')
-            mpd.append(f"        <BaseURL>/proxy/dash/{vid}/{idx}/audio/{qn}/{cid}</BaseURL>")
-            mpd.append(f'        <SegmentBase indexRange="{index_range}"{index_exact}>')
-            mpd.append(f'          <Initialization range="{init_range}"/>')
-            mpd.append("        </SegmentBase>")
-            mpd.append("      </Representation>")
-        mpd.append("    </AdaptationSet>")
+            rep_lines.append(
+                f'      <Representation id="audio_{_xml_attr(qn)}_{_xml_attr(cid)}" codecs="{_xml_attr(codecs)}" bandwidth="{_xml_attr(bandwidth)}">'
+            )
+            rep_lines.append(
+                f"        <BaseURL>/proxy/dash/{safe_vid}/{safe_idx}/audio/{_xml_text(qn)}/{_xml_text(cid)}</BaseURL>"
+            )
+            rep_lines.append(f'        <SegmentBase indexRange="{_xml_attr(index_range)}" indexRangeExact="true">')
+            rep_lines.append(f'          <Initialization range="{_xml_attr(init_range)}"/>')
+            rep_lines.append("        </SegmentBase>")
+            rep_lines.append("      </Representation>")
+        if rep_lines:
+            mpd.append(
+                f'    <AdaptationSet id="{as_id}" contentType="audio" mimeType="audio/mp4" segmentAlignment="true" subsegmentAlignment="true" startWithSAP="1">'
+            )
+            mpd.extend(rep_lines)
+            mpd.append("    </AdaptationSet>")
+            total_reps += len(rep_lines)
+
+    if total_reps == 0:
+        return None
 
     mpd.append("  </Period>")
     mpd.append("</MPD>")

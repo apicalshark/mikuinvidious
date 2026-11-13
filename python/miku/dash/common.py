@@ -13,15 +13,16 @@
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
-import ipaddress
 import re
-import socket
 import time
 from urllib.parse import urlparse
 
 from quart import Blueprint
 
+from miku import state as shared
+from miku.core.dns_cache import is_allowed_url_host, is_safe_public_url
 from miku.media.stream import CdnConnectError, CdnProtocolError, CdnTimeoutError
+from miku.services.credential import apply_cdn_cred_headers
 from miku.state import TicketManager, appconf
 
 dash_proxy_bp = Blueprint("dash_proxy", __name__)
@@ -170,13 +171,7 @@ def _pick_stable_dash_url(primary: str | None, backups) -> str | None:
 
 
 def _is_safe_dash_url(url: str) -> bool:
-    parsed = urlparse(url)
-    hostname = parsed.hostname
-    if not hostname:
-        return False
-    if not any(hostname == d.lstrip(".") or hostname.endswith(d) for d in _ALLOWED_DASH_DOMAINS):
-        return False
-    return True
+    return is_allowed_url_host(url, _ALLOWED_DASH_DOMAINS) is not None
 
 
 async def _is_safe_dash_url_async(url: str) -> bool:
@@ -188,30 +183,7 @@ async def _is_safe_dash_url_async(url: str) -> bool:
     :func:`_is_safe_dash_url` above stays as a fast pre-filter for
     candidate lists; call this before connecting/fetching.
     """
-    if not _is_safe_dash_url(url):
-        return False
-    try:
-        from miku.core.dns_cache import resolve_host
-
-        hostname = urlparse(url).hostname
-        if not hostname:
-            return False
-        addr_infos = await resolve_host(hostname)
-        for _, _, _, _, sockaddr in addr_infos:
-            ip_obj = ipaddress.ip_address(sockaddr[0])
-            if (
-                ip_obj.is_private
-                or ip_obj.is_loopback
-                or ip_obj.is_link_local
-                or ip_obj.is_multicast
-                or ip_obj.is_reserved
-            ):
-                return False
-    except socket.gaierror:
-        return False
-    except Exception:
-        return False
-    return True
+    return await is_safe_public_url(url, _ALLOWED_DASH_DOMAINS, use_dns_cache=True)
 
 
 # Bilibili video IDs for Content-Disposition filenames (M2). Quart route
@@ -339,18 +311,9 @@ async def _build_dash_cdn_headers() -> dict:
 
     headers = get_cdn_headers(referer=appconf["bili"].get("referer", "https://www.bilibili.com"))
     ticket = await TicketManager.get_ticket()
-    if ticket:
-        headers["x-bili-ticket"] = ticket
     headers["session_id"] = TicketManager._generate_session_id()
     headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
-    creds = appconf["credential"]
-    if creds.get("buvid3"):
-        headers["buvid"] = creds["buvid3"]
-    if creds.get("buvid4"):
-        headers["buvid4"] = creds["buvid4"]
-    cookie_jar = {k: v for k, v in creds.items() if k != "use_cred" and v} if creds.get("use_cred") else {}
-    if cookie_jar:
-        headers["cookie"] = "; ".join(f"{k}={v}" for k, v in cookie_jar.items())
+    apply_cdn_cred_headers(headers, shared.appcred, ticket)
     return headers
 
 
