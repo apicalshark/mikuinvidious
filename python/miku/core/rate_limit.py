@@ -166,7 +166,7 @@ class RateLimiter:
             return True, {"remaining": limit - current_count, "reset": now + window, "limit": limit}
         except Exception as e:
             # Fail-open: if Redis times out or is unreachable, allow request to avoid 500 error
-            print(f"[RateLimit] Redis error for key {key}: {type(e).__name__}: {e}. Failing open.")
+            print(f"[RateLimit] Redis error: {type(e).__name__}. Failing open.")
             return True, {"remaining": limit, "reset": now + window, "limit": limit}
 
     async def get_current_usage(self, key: str, window: int) -> int:
@@ -178,7 +178,7 @@ class RateLimiter:
             await self.redis.zremrangebyscore(redis_key, 0, window_start)
             return await self.redis.zcard(redis_key)
         except Exception as e:
-            print(f"[RateLimit] Redis error in get_current_usage for key {key}: {type(e).__name__}: {e}")
+            print(f"[RateLimit] Redis error in get_current_usage: {type(e).__name__}")
             return 0
 
 
