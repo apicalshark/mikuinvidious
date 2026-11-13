@@ -35,12 +35,18 @@ class TestBvid(unittest.TestCase):
 
     def test_fresh_process_import(self):
         result = subprocess.run(
-            [sys.executable, "-c", (
-                "import miku.api.bvid as b; "
-                "assert b.av2bv(170001) == 'BV17x411w7KC'; "
-                "assert b.bv2av('BV17x411w7KC') == 170001"
-            )],
-            capture_output=True, text=True, timeout=10,
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import miku.api.bvid as b; "
+                    "assert b.av2bv(170001) == 'BV17x411w7KC'; "
+                    "assert b.bv2av('BV17x411w7KC') == 170001"
+                ),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
@@ -58,6 +64,7 @@ class TestBvid(unittest.TestCase):
             "BV123",  # too short
             "BV1xx411c7xxExtra",  # too long
             "BV1xx411c7x?",  # invalid char
+            "BV17x411w7KC\n",  # trailing newline
             12345,  # non-string
         ]
         for inv in invalid_bvids:
@@ -66,7 +73,24 @@ class TestBvid(unittest.TestCase):
                     bv2av(inv)
 
     def test_invalid_aid_raises(self):
-        invalid_aids = [0, -1, -99999, 1 << 51, (1 << 51) + 1, 1 << 100, str(1 << 51), "av" + str(1 << 51), 1.5, None]
+        invalid_aids = [
+            0,
+            -1,
+            -99999,
+            1 << 51,
+            (1 << 51) + 1,
+            1 << 100,
+            str(1 << 51),
+            "av" + str(1 << 51),
+            1.5,
+            None,
+            True,
+            False,
+            "1_000",
+            "+170001",
+            "²",
+            "av",
+        ]
         for inv in invalid_aids:
             with self.subTest(inv=inv):
                 with self.assertRaises(ArgsException):

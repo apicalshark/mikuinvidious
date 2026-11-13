@@ -23,12 +23,17 @@ subset this project uses.
 import asyncio
 import hashlib
 import hmac
+import http.cookiejar
 import random
+import threading
 import time
+from dataclasses import dataclass
+from typing import Any
+from weakref import WeakKeyDictionary
 
 import httpx
 
-from miku.api.wbi import OE
+from miku.api.wbi import _WBI_FALLBACK_TTL, OE, encode_wbi_query
 from miku.api.wbi import enc_wbi as _enc_wbi
 from miku.api.wbi import mixin_from_keys as _mixin_from_keys
 from miku.core.fingerprints import (
@@ -51,6 +56,7 @@ from .exceptions import NetworkException, ResponseCodeException
 
 __all__ = [
     "Api",
+    "close_bili_client",
     "get_bili_client",
     "get_curl_client",
     "request_settings",
@@ -90,10 +96,51 @@ _FALLBACK_WBI_SUB_KEY = "fa5812e23a204d10b332dc24d992432d"
 # plain web browsers send "web".
 _DEVICE_REQ_JSON = '{"platform":"web","device":"pc","mobi_app":"web"}'
 
+# Cookies that must never be sent to Bilibili web APIs (sending bili_ticket
+# triggers the anti-bot v_voucher precheck). CDN paths emit x-bili-ticket
+# as an HTTP header via TicketManager.
+_BLOCKED_WEB_COOKIES = frozenset({"bili_ticket", "bili_ticket_expires"})
+
+
+def _has_usable_cookies(cookies: dict[str, str] | None) -> bool:
+    """True when *cookies* holds at least one non-empty, non-blocked cookie."""
+    if not cookies:
+        return False
+    return any(v for k, v in cookies.items() if v and k not in _BLOCKED_WEB_COOKIES)
+
+
+def _build_cookie_header(
+    *cookie_sources: dict[str, Any] | None,
+    existing: str | None = None,
+) -> str:
+    """Build a Cookie header from *existing* and *cookie_sources*, filtering blocked cookies."""
+    merged: dict[str, str] = {}
+    for source in cookie_sources:
+        if not source:
+            continue
+        for k, v in source.items():
+            if not k or not v or k in _BLOCKED_WEB_COOKIES:
+                continue
+            merged[k] = str(v)
+
+    parts: list[str] = []
+    if existing:
+        for segment in existing.split(";"):
+            segment = segment.strip()
+            if not segment or "=" not in segment:
+                continue
+            name, _, _ = segment.partition("=")
+            if name.strip() in _BLOCKED_WEB_COOKIES:
+                continue
+            parts.append(segment)
+
+    parts.extend(f"{k}={v}" for k, v in merged.items())
+    return "; ".join(parts)
+
+
 # Wbi mixin key cache
 __wbi_mixin_key = ""
 __wbi_mixin_key_expires = 0.0
-__wbi_lock = asyncio.Lock()
 _WBI_KEY_TTL = 43200.0  # 12 hours
 # bili_ticket cache
 __bili_ticket = ""
@@ -127,45 +174,111 @@ class RequestSettings:
 
 request_settings = RequestSettings()
 
-# Process-wide single client. ALL Bilibili web-API traffic goes through the
-# Chrome-impersonating transport (httpx API over curl-impersonate): a single
-# uniform TLS/JA3 fingerprint is itself a trust signal — a real browser never
-# shows two different fingerprints from one device. The old native-httpx
-# client is gone; streaming media still uses raw sockets (proxy.py /
-# dash_proxy.py) and never touches this path (the curl transport buffers
-# request bodies in memory and ignores write timeouts, so it must stay away
-# from multi-hundred-MB streams and hour-long reads).
-__client = None
-__client_configured_proxy = None
-__client_lock = asyncio.Lock()
+
+class _NoOpCookiePolicy(http.cookiejar.CookiePolicy):
+    """Disable client cookie jar storage/emission while keeping resp.cookies intact."""
+
+    netscape = False
+    rfc2965 = False
+    hide_cookie2 = True
+
+    def set_ok(self, cookie, request):
+        return False
+
+    def return_ok(self, cookie, request):
+        return False
+
+    def domain_return_ok(self, domain, request):
+        return False
+
+    def path_return_ok(self, path, request):
+        return False
 
 
-def _build_curl_transport(proxy):
+@dataclass
+class _LoopClientEntry:
+    client: httpx.AsyncClient
+    proxy: str | None
+
+
+# Per-event-loop registries. ALL Bilibili web-API traffic on a loop shares one
+# Chrome-impersonating transport (httpx API over curl-impersonate) bound to
+# that loop; keeping clients loop-scoped prevents closed/foreign loop errors in
+# tests and sync() worker threads while preserving keepalive pooling.
+_registry_lock = threading.Lock()
+_loop_clients: WeakKeyDictionary[asyncio.AbstractEventLoop, _LoopClientEntry] = WeakKeyDictionary()
+_loop_client_locks: WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = WeakKeyDictionary()
+_loop_wbi_locks: WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = WeakKeyDictionary()
+_loop_anon_sf: WeakKeyDictionary[asyncio.AbstractEventLoop, Singleflight] = WeakKeyDictionary()
+
+
+def _prune_closed_loops_locked() -> None:
+    """Drop entries for closed event loops (caller must hold _registry_lock)."""
+    for reg in (_loop_clients, _loop_client_locks, _loop_wbi_locks, _loop_anon_sf):
+        for lp in list(reg.keys()):
+            if lp.is_closed():
+                reg.pop(lp, None)
+
+
+def _get_loop_lock(
+    registry: WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock],
+    loop: asyncio.AbstractEventLoop | None = None,
+) -> asyncio.Lock:
+    target = asyncio.get_running_loop() if loop is None else loop
+    with _registry_lock:
+        _prune_closed_loops_locked()
+        lock = registry.get(target)
+        if lock is None:
+            lock = asyncio.Lock()
+            registry[target] = lock
+        return lock
+
+
+def _get_anon_sf(loop: asyncio.AbstractEventLoop | None = None) -> Singleflight:
+    target = asyncio.get_running_loop() if loop is None else loop
+    with _registry_lock:
+        _prune_closed_loops_locked()
+        sf = _loop_anon_sf.get(target)
+        if sf is None:
+            sf = Singleflight()
+            _loop_anon_sf[target] = sf
+        return sf
+
+
+def _build_curl_transport(proxy, loop: asyncio.AbstractEventLoop | None = None):
     from httpx_curl_cffi import AsyncCurlTransport
 
     return AsyncCurlTransport(
         impersonate=CURL_IMPERSONATE,
         default_headers=False,
         proxy=proxy,
+        loop=loop,
     )
 
 
 async def get_bili_client() -> httpx.AsyncClient:
-    """Return the shared async client (recreated when proxy changes)."""
-    global __client, __client_configured_proxy
+    """Return the per-event-loop async client (recreated when proxy changes)."""
+    loop = asyncio.get_running_loop()
     proxy = request_settings.get_proxy() or None
-    if __client is None or __client.is_closed or __client_configured_proxy != proxy:
-        async with __client_lock:
+    with _registry_lock:
+        _prune_closed_loops_locked()
+        entry = _loop_clients.get(loop)
+    if entry is None or entry.client.is_closed or entry.proxy != proxy:
+        lock = _get_loop_lock(_loop_client_locks, loop)
+        async with lock:
             proxy = request_settings.get_proxy() or None
-            if __client is None or __client.is_closed or __client_configured_proxy != proxy:
-                if __client is not None and not __client.is_closed:
-                    await __client.aclose()
-                __client = httpx.AsyncClient(
-                    transport=_build_curl_transport(proxy),
+            with _registry_lock:
+                _prune_closed_loops_locked()
+                entry = _loop_clients.get(loop)
+            if entry is None or entry.client.is_closed or entry.proxy != proxy:
+                old_client = entry.client if entry is not None and not entry.client.is_closed else None
+                client = httpx.AsyncClient(
+                    transport=_build_curl_transport(proxy, loop=loop),
                     trust_env=False,
                     timeout=httpx.Timeout(None, connect=15.0, pool=30.0, read=30.0),
                     follow_redirects=False,
                 )
+                client.cookies.jar.set_policy(_NoOpCookiePolicy())
                 # httpx seeds 4 client-level defaults (accept/accept-encoding/
                 # connection/user-agent) via the headers *setter* and merges
                 # them ahead of per-request headers — including
@@ -173,9 +286,29 @@ async def get_bili_client() -> httpx.AsyncClient:
                 # HTTP/2 traffic and breaks our ordered Chrome set. Bypass
                 # the setter so requests carry exactly what callers pass
                 # (plus the transport-level pseudo-headers curl manages).
-                __client._headers = httpx.Headers()
-                __client_configured_proxy = proxy
-    return __client
+                client._headers = httpx.Headers()
+                with _registry_lock:
+                    _loop_clients[loop] = _LoopClientEntry(client=client, proxy=proxy)
+                if old_client is not None:
+                    await old_client.aclose()
+                return client
+    return entry.client
+
+
+async def close_bili_client(loop: asyncio.AbstractEventLoop | None = None) -> None:
+    """Close and unregister the client for the current running event loop."""
+    running_loop = asyncio.get_running_loop()
+    target_loop = running_loop if loop is None else loop
+    entry: _LoopClientEntry | None = None
+    with _registry_lock:
+        _prune_closed_loops_locked()
+        if target_loop is running_loop and not target_loop.is_closed():
+            entry = _loop_clients.pop(target_loop, None)
+            _loop_client_locks.pop(target_loop, None)
+            _loop_wbi_locks.pop(target_loop, None)
+            _loop_anon_sf.pop(target_loop, None)
+    if entry is not None and not entry.client.is_closed:
+        await entry.client.aclose()
 
 
 async def get_curl_client() -> httpx.AsyncClient:
@@ -193,20 +326,21 @@ async def _get_mixin_key(credential: Credential = None) -> str:
     client = await get_bili_client()
     headers = dict(HEADERS)
     cookies = credential.get_cookies()
-    if not cookies:
+    if not _has_usable_cookies(cookies):
         try:
             anon = await _get_anonymous_cookies()
             cookies = dict(anon)
         except Exception:
             pass
-    if cookies:
-        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
-        if cookie_str:
-            headers["Cookie"] = cookie_str
+    cookie_str = _build_cookie_header(cookies)
+    if cookie_str:
+        headers["Cookie"] = cookie_str
     resp = await client.get(
         _NAV_URL,
         headers=headers,
     )
+    if resp.status_code != 200:
+        raise NetworkException(resp.status_code, resp.text)
     data = resp.json().get("data") or {}
     wbi_img = data.get("wbi_img") or {}
 
@@ -221,22 +355,26 @@ async def _get_mixin_key(credential: Credential = None) -> str:
             le.append(ae[i])
     return "".join(le)[:32]
 
+
 async def get_wbi_mixin_key(credential: Credential = None) -> str:
     global __wbi_mixin_key, __wbi_mixin_key_expires
     now = time.time()
     if __wbi_mixin_key == "" or now >= __wbi_mixin_key_expires:
-        async with __wbi_lock:
+        wbi_lock = _get_loop_lock(_loop_wbi_locks)
+        async with wbi_lock:
             now = time.time()
             if __wbi_mixin_key == "" or now >= __wbi_mixin_key_expires:
+                fallback = False
                 try:
                     key = await _get_mixin_key(credential)
                 except Exception as exc:
                     key = ""
                     print(f"[WBI] nav failed ({exc}); using static player fallback keys")
-                if not key:
+                if len(key) != 32:
                     key = _mixin_from_keys(_FALLBACK_WBI_IMG_KEY, _FALLBACK_WBI_SUB_KEY)
+                    fallback = True
                 __wbi_mixin_key = key
-                __wbi_mixin_key_expires = now + _WBI_KEY_TTL
+                __wbi_mixin_key_expires = time.time() + (_WBI_FALLBACK_TTL if fallback else _WBI_KEY_TTL)
     return __wbi_mixin_key
 
 
@@ -266,16 +404,16 @@ async def _get_bili_ticket(credential: Credential = None) -> str:
         "csrf": "",
     }
     headers = dict(HEADERS)
-    cookies = credential.get_cookies()
-    if cookies:
-        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
-        if cookie_str:
-            headers["Cookie"] = cookie_str
+    cookie_str = _build_cookie_header(credential.get_cookies())
+    if cookie_str:
+        headers["Cookie"] = cookie_str
     resp = await client.post(
         _TICKET_URL,
         params=params,
         headers=headers,
     )
+    if resp.status_code != 200:
+        raise NetworkException(resp.status_code, resp.text)
     return resp.json()["data"]["ticket"]
 
 
@@ -308,12 +446,11 @@ async def _get_buvid():
 
 
 # ---------------------------------------------------------------------------
-# Full anonymous cookie set (buvid3, buvid4, bili_ticket, b_nut, b_lsid, _uuid, buvid_fp)
+# Anonymous cookie set (buvid3, buvid4, b_nut, b_lsid, _uuid, buvid_fp)
 # ---------------------------------------------------------------------------
 
 _anonymous_cookies: dict[str, str] = {}
 _anonymous_cookies_expires: float = 0
-_anonymous_cookies_sf = Singleflight()
 
 
 def _generate_uuid() -> str:
@@ -395,11 +532,11 @@ async def _fetch_anonymous_cookies(now: float) -> tuple[dict[str, str], float]:
 
 
 async def _get_anonymous_cookies() -> dict[str, str]:
-    """Get or generate the full anonymous cookie set required by Bilibili.
+    """Get or generate the anonymous cookie set required by Bilibili web APIs.
 
-    Returns a dict with keys: buvid3, buvid4, b_nut, b_lsid, _uuid,
-    buvid_fp, bili_ticket, bili_ticket_expires.
-    Caches until bili_ticket expires.
+    Returns a dict with keys: buvid3, buvid4, b_nut, b_lsid, _uuid, buvid_fp.
+    Never includes ``bili_ticket`` (which triggers web anti-bot prechecks).
+    Caches until the GenWebTicket-derived expiry timestamp.
     """
     global _anonymous_cookies, _anonymous_cookies_expires
 
@@ -417,7 +554,7 @@ async def _get_anonymous_cookies() -> dict[str, str]:
         _anonymous_cookies_expires = expires
         return cookies
 
-    return await _anonymous_cookies_sf.execute("anon_cookies", _fetch)
+    return await _get_anon_sf().execute("anon_cookies", _fetch)
 
 
 # ---------------------------------------------------------------------------
@@ -453,6 +590,8 @@ class Api:
         headers=None,
         credential=None,
         curl=False,
+        send_cookies: bool = True,
+        timeout: float | httpx.Timeout | None = None,
         **kwargs,
     ):
         self.url = url
@@ -473,6 +612,8 @@ class Api:
         # (see get_curl_client). Callers then own their full ordered header
         # set, so the player-parity header injection below is skipped.
         self.curl = curl
+        self.send_cookies = send_cookies
+        self.timeout = timeout
 
     def update_data(self, **kwargs) -> Api:
         self.data = kwargs
@@ -506,38 +647,49 @@ class Api:
             self.credential.raise_for_no_bili_jct()
 
         params, data = self._prepare_params()
+        parsed_url = httpx.URL(self.url) if self.wbi else None
 
         # Wbi signing (with -403 retry)
         wbi_retries = 3
         for attempt in range(wbi_retries):
-            request_params = dict(params)
             if self.wbi:
-                try:
-                    mixin = await get_wbi_mixin_key(self.credential)
-                    request_params = _enc_wbi(request_params, mixin)
-                except Exception:
-                    # Non-fatal: some /nav issues are tolerable
-                    pass
+                assert parsed_url is not None
+                request_params = dict(parsed_url.params)
+                request_params.update(params)
+                mixin = await get_wbi_mixin_key(self.credential)
+                request_params = _enc_wbi(request_params, mixin)
+                request_url: str | httpx.URL = parsed_url.copy_with(
+                    query=encode_wbi_query(request_params).encode("ascii")
+                )
+                wire_params = None
+            else:
+                request_url = self.url
+                wire_params = dict(params)
 
             request_data = dict(data)
             if not self.no_csrf and self.verify and self.method in ("POST", "DELETE", "PATCH"):
                 request_data["csrf"] = self.credential.bili_jct
                 request_data["csrf_token"] = self.credential.bili_jct
 
-            cookies = dict(await _get_anonymous_cookies())
-            # Override with credential cookies (only non-empty values)
-            cred_cookies = self.credential.get_cookies()
-            for k, v in cred_cookies.items():
-                if v:
-                    cookies[k] = v
-            cookies["opus-goback"] = "1"
-
             headers = dict(HEADERS) if not self.headers else dict(self.headers)
-            if cookies:
-                cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
-                if cookie_str:
-                    existing = headers.get("Cookie") or headers.get("cookie")
-                    headers["Cookie"] = f"{existing}; {cookie_str}" if existing else cookie_str
+            existing_cookie = headers.pop("Cookie", None)
+            lower_cookie = headers.pop("cookie", None)
+            if existing_cookie is None:
+                existing_cookie = lower_cookie
+
+            if self.send_cookies:
+                anon_cookies = await _get_anonymous_cookies()
+                cookie_str = _build_cookie_header(
+                    anon_cookies,
+                    self.credential.get_cookies(),
+                    {"opus-goback": "1"},
+                    existing=existing_cookie,
+                )
+            else:
+                cookie_str = _build_cookie_header(existing=existing_cookie)
+
+            if cookie_str:
+                headers["Cookie"] = cookie_str
 
             if not self.curl and (self.wbi or "/x/player/" in self.url):
                 # Player parity: web clients attach device metadata to unified
@@ -545,21 +697,21 @@ class Api:
                 headers.setdefault("x-bili-device-req-json", _DEVICE_REQ_JSON)
             json_content = None
             if self.json_body and request_data:
-                headers["Content-Type"] = "application/json"
-                import json as _json
-
-                json_content = _json.dumps(request_data)
+                json_content = request_data
                 request_data = None
 
             client = await get_curl_client() if self.curl else await get_bili_client()
-            resp = await client.request(
-                method=self.method,
-                url=self.url,
-                params=request_params,
-                data=request_data,
-                json=json_content,
-                headers=headers,
-            )
+            request_kwargs: dict[str, Any] = {
+                "method": self.method,
+                "url": request_url,
+                "params": wire_params,
+                "data": request_data,
+                "json": json_content,
+                "headers": headers,
+            }
+            if self.timeout is not None:
+                request_kwargs["timeout"] = self.timeout
+            resp = await client.request(**request_kwargs)
 
             if not byte:
                 try:

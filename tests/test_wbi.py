@@ -1,8 +1,10 @@
 import hashlib
 import unittest
 import urllib.parse
+from unittest.mock import patch
 
 from miku.api.client import _enc_wbi, _mixin_from_keys
+from miku.api.wbi import _WBI_FALLBACK_TTL, _WBI_FILTER_TABLE, enc_wbi, encode_wbi_query, mixin_from_keys
 
 
 class TestWbiSigner(unittest.TestCase):
@@ -48,14 +50,37 @@ class TestWbiSigner(unittest.TestCase):
         self.assertEqual(signed["web_location"], 1315873)
 
     def test_miku_api_wbi_direct(self):
-        from miku.api.wbi import enc_wbi, mixin_from_keys
-
         mixin = mixin_from_keys(self.img_key, self.sub_key)
         self.assertEqual(mixin, self.mixin_key)
         params = {"bvid": "BV1xx411c7xx"}
         signed = enc_wbi(params, mixin)
         self.assertIn("w_rid", signed)
         self.assertIn("wts", signed)
+
+    def test_enc_wbi_filters_special_chars_and_preserves_ints(self):
+        with patch("miku.api.wbi.time.time", return_value=1700000000):
+            signed = enc_wbi({"keyword": "miku !'()* live 2026", "cid": 42}, self.mixin_key)
+
+        self.assertEqual(signed["keyword"], "miku  live 2026")
+        self.assertIsInstance(signed["wts"], int)
+        self.assertIsInstance(signed["web_location"], int)
+        self.assertEqual(signed["cid"], 42)
+        self.assertEqual("a!'()*b".translate(_WBI_FILTER_TABLE), "ab")
+
+        expected_query = "cid=42&keyword=miku%20%20live%202026&web_location=1315873&wts=1700000000"
+        expected_rid = hashlib.md5((expected_query + self.mixin_key).encode("utf-8")).hexdigest()
+        self.assertEqual(signed["w_rid"], expected_rid)
+
+        wire_query = encode_wbi_query(signed)
+        self.assertIn("keyword=miku%20%20live%202026", wire_query)
+        self.assertNotIn("+", wire_query)
+
+    def test_enc_wbi_empty_mixin_key_raises(self):
+        with self.assertRaises(ValueError):
+            enc_wbi({"bvid": "BV1xx411c7xx"}, "")
+
+    def test_fallback_ttl_constant(self):
+        self.assertEqual(_WBI_FALLBACK_TTL, 300.0)
 
     def test_oe_permutation_table_valid(self):
         from miku.api.client import OE as client_oe

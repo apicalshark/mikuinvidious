@@ -27,11 +27,11 @@ import re
 
 from miku.api.bvid import _av2bv_py, _bv2av_py, av2bv, bv2av
 
-from .client import HEADERS, Api, _get_anonymous_cookies, get_bili_client
+from .client import HEADERS, Api, _build_cookie_header, _get_anonymous_cookies, get_bili_client
 from .credential import Credential
 from .exceptions import ArgsException, ResponseCodeException
 
-__all__ = ["Video", "_av2bv_py", "_bv2av_py", "av2bv", "bv2av"]
+__all__ = ["Video", "make_video", "_av2bv_py", "_bv2av_py", "av2bv", "bv2av"]
 
 
 # WebGL fingerprint data for dm_img parameters (anti-bot requirement)
@@ -114,18 +114,23 @@ class Video:
         self._info = None
 
     def set_bvid(self, bvid: str) -> None:
-        if not re.search(r"^BV[a-zA-Z0-9]{10}$", bvid):
+        if not isinstance(bvid, str) or not re.fullmatch(r"BV[a-zA-Z0-9]{10}", bvid):
             raise ArgsException(
                 "Invalid bvid: must be a 12-character case-sensitive string starting with BV, containing only letters and digits."
             )
         self._bvid = bvid
         self._aid = bv2av(bvid)
 
-    def set_aid(self, aid: int) -> None:
-        try:
-            aid = int(aid)
-        except TypeError, ValueError:
-            pass
+    def set_aid(self, aid: int | str) -> None:
+        if isinstance(aid, bool):
+            raise ArgsException("Invalid aid: bool is not allowed.")
+        if isinstance(aid, str):
+            raw = aid[2:] if aid.startswith(("av", "AV")) else aid
+            if not raw or not raw.isascii() or not raw.isdigit():
+                raise ArgsException("Invalid aid: must be a positive integer.")
+            aid = int(raw)
+        elif not isinstance(aid, int):
+            raise ArgsException("Invalid aid: must be a positive integer.")
         if aid <= 0:
             raise ArgsException("aid must be greater than 0.")
         self._aid = aid
@@ -186,8 +191,8 @@ class Video:
         return await Api(**api, credential=self.credential).update_params(**params).result
 
     async def _get_cid_by_index(self, page_index: int) -> int:
-        if page_index < 0:
-            raise ArgsException("Page index must be greater than or equal to 0.")
+        if isinstance(page_index, bool) or not isinstance(page_index, int) or page_index < 0:
+            raise ArgsException("Page index must be a non-negative integer.")
         info = await self._get_info_cached()
         pages = info.get("pages") or []
         if not pages:
@@ -209,16 +214,19 @@ class Video:
         ``dm_img_*`` fingerprint), which the player's own prefetch path
         uses (verified live Sep 29 2026).
         """
+        hit_gaia = False
         try:
             data = await Api(**api, credential=self.credential).update_params(**params).result
         except ResponseCodeException as exc:
             if exc.code != -352:
                 raise
+            hit_gaia = True
             data = None
             print(f"[Video] {label} hit Gaia risk (-352) for {self._bvid}; retrying avoidance lane")
-        if not is_gaia_risk_response(data):
+        if not hit_gaia and not is_gaia_risk_response(data):
             return data
-        print(f"[Video] {label} returned v_voucher for {self._bvid}; retrying avoidance lane")
+        if not hit_gaia:
+            print(f"[Video] {label} returned v_voucher for {self._bvid}; retrying avoidance lane")
         retry = dict(params)
         retry.update(
             {
@@ -345,15 +353,12 @@ class Video:
                 raise ArgsException("Provide at least one of page_index and cid.")
             cid = await self._get_cid_by_index(page_index)
         client = await get_bili_client()
-        cookies = dict(await _get_anonymous_cookies())
-        for k, v in self.credential.get_cookies().items():
-            if v:
-                cookies[k] = v
-        cookies["opus-goback"] = "1"
+        anon_cookies = await _get_anonymous_cookies()
+        cookie_str = _build_cookie_header(anon_cookies, self.credential.get_cookies(), {"opus-goback": "1"})
         headers = dict(HEADERS)
         headers["Referer"] = f"https://www.bilibili.com/video/{self._bvid}"
-        if cookies:
-            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+        if cookie_str:
+            headers["Cookie"] = cookie_str
 
         resp = await client.get(
             f"https://api.bilibili.com/x/v1/dm/list.so?oid={cid}",
@@ -374,3 +379,13 @@ class Video:
         if resp.status_code != 200 or stripped.startswith("<!doctype") or stripped.startswith("<html"):
             return ""
         return text
+
+
+def make_video(vid: str, credential: Credential | None = None) -> Video:
+    """Create a Video from a BV ID ('BV...') or AV ID ('av...'/'AV...' or numeric)."""
+    if isinstance(vid, str):
+        if vid.startswith("BV"):
+            return Video(bvid=vid, credential=credential)
+        if vid.startswith(("av", "AV")) or (vid.isascii() and vid.isdigit()):
+            return Video(aid=vid, credential=credential)
+    raise ArgsException("Invalid video id: expected BV... or av<id>.")

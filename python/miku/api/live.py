@@ -26,16 +26,13 @@ import logging
 import struct
 from enum import Enum
 
+import aiohttp
 import brotli
-from aiohttp import WSMsgType
 
 from .client import (
     HEADERS,
     Api,
-    _enc_wbi,
-    _get_mixin_key,
     build_chrome_headers,
-    get_curl_client,
 )
 from .credential import Credential
 from .exceptions import ResponseCodeException
@@ -87,59 +84,6 @@ class LiveCodec(Enum):
 _LIVE_ORIGIN = "https://live.bilibili.com"
 
 
-async def _fetch(url: str, params: dict, referer: str = None) -> dict:
-    """Fetch JSON via the shared impersonating client (Chrome fingerprint).
-
-    Returns the response's ``data`` or ``result`` payload (matching what
-    ``Api.result`` returns). Cookies are deliberately not forwarded so the
-    browser impersonation isn't tripped by generated pseudo-cookies.
-    ``default_headers=False`` keeps our header order browser-exact.
-    """
-    headers = build_chrome_headers(origin=_LIVE_ORIGIN, referer=referer or _LIVE_ORIGIN + "/")
-    client = await get_curl_client()
-    # Keep the shared jar empty: response cookies must never leak into these
-    # cookie-less calls (risk-control fingerprinting). Clearing the jar does
-    # not touch the connection pool, so keepalive reuse is preserved.
-    client.cookies.clear()
-    resp = await client.get(url, params=params, headers=headers, timeout=10.0)
-    if resp.status_code != 200:
-        raise ResponseCodeException(resp.status_code, f"HTTP {resp.status_code}")
-    try:
-        data = resp.json()
-    except Exception:
-        raise ResponseCodeException(-1, "JSON parsing failed") from None
-    if not isinstance(data, dict):
-        raise ResponseCodeException(-1, "API response is not a JSON object")
-    if data.get("code") != 0:
-        msg = data.get("msg") or data.get("message") or "API returned no error message"
-        raise ResponseCodeException(data.get("code", -1), msg, data)
-    if data.get("data") is not None:
-        return data["data"]
-    if data.get("result") is not None:
-        return data["result"]
-    return data
-
-
-async def _wbi_get(url: str, params: dict, wbi: bool = True, referer: str = None) -> dict:
-    """GET with optional wbi signing + -403 mixin-key retry (curl_cffi)."""
-    clean = {k: v for k, v in params.items() if v is not None}
-    for attempt in range(3):
-        request_params = dict(clean)
-        try:
-            if wbi:
-                mixin = await _get_mixin_key()
-                request_params = _enc_wbi(request_params, mixin)
-            return await _fetch(url, request_params, referer=referer)
-        except ResponseCodeException as exc:
-            if exc.code == -403 and wbi and attempt < 2:
-                from .client import recalculate_wbi
-
-                recalculate_wbi()
-                continue
-            raise
-    raise ResponseCodeException(-403, "WBI retry limit exceeded")
-
-
 class LiveRoom:
     def __init__(self, room_display_id, credential=None):
         self.room_display_id = room_display_id
@@ -187,12 +131,17 @@ class LiveRoom:
         # as wbiSign({room_id, web_location: "444.8"}); anything else gets -352.
         # Referer is the room page itself, matching the browser call.
         params = {"room_id": self.room_display_id, "web_location": "444.8"}
-        return await _wbi_get(
-            "https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom",
-            params,
-            wbi=True,
-            referer=f"{_LIVE_ORIGIN}/{self.room_display_id}",
-        )
+        api = {
+            "url": "https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom",
+            "method": "GET",
+            "verify": False,
+            "wbi": True,
+            "headers": self._live_headers(),
+            "curl": True,
+            "send_cookies": False,
+            "timeout": 10.0,
+        }
+        return await Api(**api, credential=self.credential).update_params(**params).result
 
     async def get_room_base_info(self) -> dict:
         """Fallback room metadata via getRoomBaseInfo (PipePipe 1e330b87).
@@ -202,12 +151,17 @@ class LiveRoom:
         Returns the per-room dict (raises ResponseCodeException on error).
         """
         params = {"room_ids": self.room_display_id, "req_biz": "web_room_componet"}
-        data = await _wbi_get(
-            "https://api.live.bilibili.com/xlive/web-room/v1/index/getRoomBaseInfo",
-            params,
-            wbi=False,
-            referer=f"{_LIVE_ORIGIN}/{self.room_display_id}",
-        )
+        api = {
+            "url": "https://api.live.bilibili.com/xlive/web-room/v1/index/getRoomBaseInfo",
+            "method": "GET",
+            "verify": False,
+            "wbi": False,
+            "headers": self._live_headers(),
+            "curl": True,
+            "send_cookies": False,
+            "timeout": 10.0,
+        }
+        data = await Api(**api, credential=self.credential).update_params(**params).result
         rooms = data.get("by_room_ids") if isinstance(data, dict) else None
         room = None
         if isinstance(rooms, dict):
@@ -327,29 +281,68 @@ class LiveDanmaku:
 
         return decorator
 
+    def _on_task_done(self, task: asyncio.Task) -> None:
+        self._tasks.discard(task)
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            self.logger.error("live danmaku handler task failed", exc_info=exc)
+
     def dispatch(self, name: str, *args, **kwargs):
         name = name.upper()
         for handler in self._handlers.get(name, []):
-            result = handler(*args, **kwargs)
+            try:
+                result = handler(*args, **kwargs)
+            except Exception:
+                self.logger.exception("live danmaku handler failed")
+                continue
             if asyncio.iscoroutine(result):
                 task = asyncio.create_task(result)
                 self._tasks.add(task)
-                task.add_done_callback(self._tasks.discard)
+                task.add_done_callback(self._on_task_done)
+
+    @staticmethod
+    def _coerce_uid(value) -> int:
+        if isinstance(value, bool) or value is None or value == "":
+            return 0
+        try:
+            uid = int(value)
+            return uid if uid >= 0 else 0
+        except TypeError, ValueError:
+            return 0
+
+    async def _close_active_ws(self) -> None:
+        heartbeat_task = self._heartbeat_task
+        self._heartbeat_task = None
+        if heartbeat_task is not None:
+            heartbeat_task.cancel()
+            await asyncio.gather(heartbeat_task, return_exceptions=True)
+
+        ws = self._ws
+        self._ws = None
+        if ws is not None:
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        self._status = 0
 
     async def connect(self) -> None:
-        import aiohttp
-
         room = LiveRoom(self.room_display_id, credential=self.credential)
         self._real_id = await room.get_room_id()
         conf = await room.get_danmu_info()
         token = conf["token"]
         hosts = [h for h in conf["host_list"] if h.get("wss_port")]
+        if not hosts:
+            self.err_reason = "No live danmaku hosts available"
+            return
 
         head = _base_headers()
         buvid = self.credential.buvid3 if self.credential.has_buvid3() else ""
         verify = json.dumps(
             {
-                "uid": getattr(self.credential, "dedeuserid", 0) or 0,
+                "uid": self._coerce_uid(getattr(self.credential, "dedeuserid", 0)),
                 "roomid": self._real_id,
                 "protover": 3,
                 "platform": "web",
@@ -360,31 +353,42 @@ class LiveDanmaku:
             separators=(",", ":"),
         ).encode()
 
+        max_retries = max(0, int(self.max_retry)) if not isinstance(self.max_retry, bool) else 0
+        total_rounds = max_retries + 1
+        timeout = aiohttp.ClientTimeout(sock_connect=10.0, sock_read=15.0)
+        ws_timeout = aiohttp.ClientWSTimeout(ws_receive=70.0, ws_close=10.0)
+
         ok = False
         try:
-            for host in hosts:
-                uri = f"wss://{host['host']}:{host['wss_port']}/sub"
-                try:
-                    self._connector = aiohttp.TCPConnector(limit=10)
-                    self._session = aiohttp.ClientSession(
-                        connector=self._connector,
-                        headers=head,
-                    )
-                    self._ws = await self._session.ws_connect(uri)
-                    await self._ws.send_bytes(
-                        self._pack(verify, self.PROTOCOL_VERSION_HEARTBEAT, self.DATAPACK_TYPE_VERIFY)
-                    )
-                    self._status = 2
-                    self._heartbeat_task = asyncio.create_task(self._heartbeat())
-                    await self._recv_loop()
-                    ok = True
+            self._connector = aiohttp.TCPConnector(limit=10)
+            self._session = aiohttp.ClientSession(
+                connector=self._connector,
+                headers=head,
+                timeout=timeout,
+            )
+            for attempt in range(total_rounds):
+                for host in hosts:
+                    uri = f"wss://{host['host']}:{host['wss_port']}/sub"
+                    try:
+                        self._ws = await self._session.ws_connect(uri, timeout=ws_timeout)
+                        await self._ws.send_bytes(
+                            self._pack(verify, self.PROTOCOL_VERSION_HEARTBEAT, self.DATAPACK_TYPE_VERIFY)
+                        )
+                        self._status = 2
+                        self._heartbeat_task = asyncio.create_task(self._heartbeat())
+                        await self._recv_loop()
+                        ok = True
+                        break
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        self.err_reason = str(e)
+                        self.logger.warning(f"live danmaku connect failed: {uri}: {e}")
+                        await self._close_active_ws()
+                if ok:
                     break
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    self.err_reason = str(e)
-                    self.logger.warning(f"live danmaku connect failed: {uri}: {e}")
-                    await self._cleanup()
+                if attempt < total_rounds - 1 and self.retry_after > 0:
+                    await asyncio.sleep(self.retry_after)
         finally:
             # recv_loop exits when the connection closes; setup failures and
             # cancellation must stop the heartbeat and release all resources.
@@ -397,23 +401,33 @@ class LiveDanmaku:
         while True:
             msg = await self._ws.receive()
             if msg.type in (
-                WSMsgType.CLOSE,
-                WSMsgType.CLOSING,
-                WSMsgType.CLOSED,
-                WSMsgType.ERROR,
+                aiohttp.WSMsgType.CLOSE,
+                aiohttp.WSMsgType.CLOSING,
+                aiohttp.WSMsgType.CLOSED,
+                aiohttp.WSMsgType.ERROR,
             ):
                 break
-            if msg.type == WSMsgType.BINARY:
+            if msg.type == aiohttp.WSMsgType.BINARY:
                 data = msg.data
                 if isinstance(data, (bytes, bytearray)):
                     await self._handle_data(bytes(data))
 
     async def _heartbeat(self) -> None:
-        HEARTBEAT = self._pack(b"[object Object]", self.PROTOCOL_VERSION_HEARTBEAT, self.DATAPACK_TYPE_HEARTBEAT)
+        heartbeat = self._pack(b"[object Object]", self.PROTOCOL_VERSION_HEARTBEAT, self.DATAPACK_TYPE_HEARTBEAT)
         while True:
             try:
-                await self._ws.send_bytes(HEARTBEAT)
+                if self._ws is None:
+                    break
+                await asyncio.wait_for(self._ws.send_bytes(heartbeat), timeout=10.0)
+            except asyncio.CancelledError:
+                raise
             except Exception:
+                ws = self._ws
+                if ws is not None and not getattr(ws, "closed", False):
+                    try:
+                        await ws.close()
+                    except Exception:
+                        pass
                 break
             await asyncio.sleep(30)
 
@@ -484,8 +498,6 @@ class LiveDanmaku:
                 if len(chunk) < 4:
                     break
                 recv["data"] = {"view": struct.unpack(">I", chunk[:4])[0]}
-            elif datapack_type == self.DATAPACK_TYPE_VERIFY_SUCCESS_RESPONSE:
-                recv["data"] = json.loads(chunk.decode("utf-8", errors="ignore"))
             else:
                 try:
                     recv["data"] = json.loads(chunk.decode("utf-8", errors="ignore"))

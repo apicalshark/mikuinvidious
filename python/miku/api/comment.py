@@ -24,10 +24,8 @@ import sys
 from enum import Enum
 
 from .client import (
-    _enc_wbi,
-    _get_mixin_key,
+    Api,
     build_chrome_headers,
-    get_curl_client,
 )
 from .exceptions import ArgsException, ResponseCodeException
 from .video import bv2av
@@ -77,55 +75,39 @@ class OrderType(Enum):
 _MAIN_ORIGIN = "https://www.bilibili.com"
 
 
-async def _fetch(url: str, params: dict, cookies: dict) -> dict:
-    """Fetch JSON via an async curl_cffi session (Chrome impersonation).
-
-    NOTE: we deliberately do NOT send our generated anonymous cookies -- passing
-    our fake buvid/b_nut/b_lsid set trips Bilibili's risk control and truncates
-    the comment list to ~3 items, whereas the raw browser impersonation (no
-    cookies, letting curl_cffi's own session/bawt handling apply) returns full
-    20-item pages with working pagination. Verified Sep 2026: BilibiliApis sends
-    device cookies here and gets 3 replies; we get 20. ``default_headers=False``
-    keeps the header order browser-exact.
-    """
-    headers = build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
-    if cookies:
-        cookie_str = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
-        if cookie_str:
-            headers["Cookie"] = cookie_str
-    client = await get_curl_client()
-    # See live.py: keep the shared jar empty — any cookie presence here
-    # risks the ~3-item truncation documented above.
-    client.cookies.clear()
-    resp = await client.get(url, params=params, headers=headers, timeout=10.0)
-    if resp.status_code != 200:
-        raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
-    try:
-        data = resp.json()
-    except Exception:
-        raise ResponseCodeException(-1, "JSON parsing failed") from None
-    if not isinstance(data, dict):
-        raise ResponseCodeException(-1, "API response is not a JSON object")
-    if data.get("code") != 0:
-        msg = data.get("msg") or data.get("message") or "API returned no error message"
-        raise ResponseCodeException(data.get("code", -1), msg, data)
-    return data.get("data") or {}
-
-
-async def _ensure_numeric_oid(oid):
+async def _ensure_numeric_oid(oid) -> int:
     """Resolve a real numeric oid (aid).
 
     Uses PipePipe's bv2av (the current algorithm bilibili uses), which correctly
     decodes both legacy and new-format bvids into the true aid.
     """
-    if isinstance(oid, str) and oid.startswith("BV"):
-        return bv2av(oid)
-    return int(oid)
+    if isinstance(oid, bool):
+        raise ArgsException("Invalid oid: bool is not allowed")
+    if isinstance(oid, str):
+        if oid.startswith("BV"):
+            return bv2av(oid)
+        raw = oid[2:] if oid.startswith(("av", "AV")) else oid
+        if not raw or not raw.isascii() or not raw.isdigit():
+            raise ArgsException("Invalid oid: must be a valid BV id or positive integer")
+        oid_int = int(raw)
+        if oid_int <= 0:
+            raise ArgsException("oid must be greater than 0")
+        return oid_int
+    if isinstance(oid, int):
+        if oid <= 0:
+            raise ArgsException("oid must be greater than 0")
+        return oid
+    raise ArgsException("Invalid oid: must be a valid BV id or positive integer")
+
+
+def _validate_page_index(page_index) -> int:
+    if isinstance(page_index, bool) or not isinstance(page_index, int) or page_index <= 0:
+        raise ArgsException("page_index must be greater than or equal to 1")
+    return page_index
 
 
 async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credential=None, next_offset="") -> dict:
-    if page_index <= 0:
-        raise ArgsException("page_index must be greater than or equal to 1")
+    page_index = _validate_page_index(page_index)
     type_value = type_.value if isinstance(type_, Enum) else type_
     order_value = order.value if isinstance(order, Enum) else order
     oid_numeric = await _ensure_numeric_oid(oid)
@@ -142,16 +124,29 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
     # Main comment endpoint is wbi-signed. Prefer the wbi variant (matching
     # PipePipe); fall back to the plain variant only if it fails — except for
     # terminal codes like a closed comment section, which no retry can clear.
+    # Cookies are deliberately omitted (send_cookies=False) so generated
+    # device cookies don't trigger ~3-item risk-control truncation.
+    headers = build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
     data = None
     last_exc = None
     for use_wbi in (True, False):
         url = "https://api.bilibili.com/x/v2/reply/wbi/main" if use_wbi else "https://api.bilibili.com/x/v2/reply/main"
         try:
-            request_params = dict(params)
-            if use_wbi:
-                mixin = await _get_mixin_key()
-                request_params = _enc_wbi(request_params, mixin)
-            data = await _fetch(url, request_params, None)
+            data = await (
+                Api(
+                    url=url,
+                    method="GET",
+                    verify=False,
+                    wbi=use_wbi,
+                    curl=True,
+                    send_cookies=False,
+                    timeout=10.0,
+                    headers=headers,
+                    credential=credential,
+                )
+                .update_params(**params)
+                .result
+            )
             break
         except Exception as exc:
             _debug(f"get_comments oid={oid_numeric} wbi={use_wbi} failed: {type(exc).__name__}: {exc}")
@@ -160,6 +155,8 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
             last_exc = exc
     if data is None:
         raise last_exc or ResponseCodeException(-1, "Comment API request failed")
+
+    data = data if isinstance(data, dict) else {}
 
     cursor = data.get("cursor") or {}
 
@@ -198,6 +195,7 @@ async def get_sub_comments(oid, root_rpid, type_=1, page_index=1, credential=Non
 
     Uses /x/v2/reply/reply which returns paginated sub-comments.
     """
+    page_index = _validate_page_index(page_index)
     oid_numeric = await _ensure_numeric_oid(oid)
     params = {
         "oid": oid_numeric,
@@ -207,8 +205,23 @@ async def get_sub_comments(oid, root_rpid, type_=1, page_index=1, credential=Non
         "ps": 20,
         "web_location": 333.788,
     }
-    data = await _fetch("https://api.bilibili.com/x/v2/reply/reply", params, None)
-    data = data or {}
+    headers = build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
+    data = await (
+        Api(
+            url="https://api.bilibili.com/x/v2/reply/reply",
+            method="GET",
+            verify=False,
+            wbi=False,
+            curl=True,
+            send_cookies=False,
+            timeout=10.0,
+            headers=headers,
+            credential=credential,
+        )
+        .update_params(**params)
+        .result
+    )
+    data = data if isinstance(data, dict) else {}
     page_info = data.get("page") or {}
     return {
         "page": {

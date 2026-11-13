@@ -90,23 +90,45 @@ OE = [
 ]
 
 
+# Characters stripped from parameter values during WBI signing (Bilibili spec).
+_WBI_FILTER_TABLE = str.maketrans("", "", "!'()*")
+
+# Short TTL (seconds) when falling back to static keys after /nav failure.
+_WBI_FALLBACK_TTL = 300.0
+
+
 def mixin_from_keys(img_key: str, sub_key: str) -> str:
     """Derive the 32-character WBI mixin key from raw img and sub keys."""
     ae = img_key + sub_key
     return "".join(ae[i] for i in OE if i < len(ae))[:32]
 
 
+def encode_wbi_query(params: dict[str, Any]) -> str:
+    """Serialize query parameters using sorted %20 percent-encoding matching enc_wbi."""
+    return "&".join(
+        f"{urllib.parse.quote(str(k), safe='')}={urllib.parse.quote(str(v), safe='')}"
+        for k, v in sorted(params.items())
+    )
+
+
 def enc_wbi(params: dict[str, Any], mixin_key: str) -> dict[str, Any]:
     """Calculate and append wts and w_rid signatures to query parameters."""
+    if not mixin_key:
+        raise ValueError("Empty WBI mixin key")
+
     params.pop("w_rid", None)
     params["wts"] = int(time.time())
     if params.get("web_location") is None:
         params["web_location"] = 1315873
 
+    for k, v in list(params.items()):
+        if isinstance(v, str):
+            params[k] = v.translate(_WBI_FILTER_TABLE)
+
     # Match PipePipe / bilibili-API-collect: sort keys, then percent-encode each
     # pair with %20 (NOT '+' which breaks WBI signatures on space characters).
     query = "&".join(
-        f"{urllib.parse.quote(str(k), safe='')}={urllib.parse.quote(str(v), safe='')}"
+        f"{urllib.parse.quote(str(k), safe='')}={urllib.parse.quote(str(v).translate(_WBI_FILTER_TABLE), safe='')}"
         for k, v in sorted(params.items())
     )
     params["w_rid"] = hashlib.md5((query + mixin_key).encode("utf-8")).hexdigest()

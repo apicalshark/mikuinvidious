@@ -60,13 +60,29 @@ class ArticleOrder(Enum):
     VIEW = "view"
 
 
+def _normalize_page_arg(value, default: int, name: str) -> int:
+    if isinstance(value, bool):
+        raise ArgsException(f"{name} must be an integer, not bool")
+    if isinstance(value, float):
+        raise ArgsException(f"{name} must be an integer, not float")
+    try:
+        parsed = int(value)
+    except TypeError, ValueError:
+        return default
+    return max(parsed, 1)
+
+
 class User:
     def __init__(self, uid=None, name=None, credential=None):
         if uid is not None:
-            try:
+            if isinstance(uid, bool):
+                raise ArgsException("Invalid uid: bool is not allowed")
+            if isinstance(uid, str):
+                if not uid or not uid.isascii() or not uid.isdigit():
+                    raise ArgsException("Invalid uid: must be a positive integer")
                 uid = int(uid)
-            except TypeError, ValueError:
-                pass
+            elif not isinstance(uid, int):
+                raise ArgsException("Invalid uid: must be a positive integer")
             if uid <= 0:
                 raise ArgsException("uid must be greater than 0")
             self.uid = uid
@@ -76,12 +92,28 @@ class User:
         else:
             raise ArgsException("One of uid and name must be provided")
         self.credential = credential if credential is not None else Credential()
-        # Set when any fetch below hits risk control (see is_risk_error).
-        # Views read it to tell "throttled, content missing" apart from a
-        # genuinely empty channel. Per-request instances only — never cached.
-        self._degraded = False
+        # Per-surface risk-control flags so concurrent asyncio.gather() calls
+        # (get_user_info + get_videos) never clobber each other's degraded state.
+        # Views read _degraded to tell "throttled, content missing" apart from
+        # a genuinely empty channel. Per-request instances only — never cached.
+        self._info_degraded = False
+        self._videos_degraded = False
+        self._articles_degraded = False
         # Preserve swallowed video-fetch failures for the neutral empty state.
         self._videos_load_failed = False
+
+    @property
+    def _degraded(self) -> bool:
+        return self._info_degraded or self._videos_degraded or self._articles_degraded
+
+    @_degraded.setter
+    def _degraded(self, value: bool) -> None:
+        if value:
+            self._info_degraded = True
+        else:
+            self._info_degraded = False
+            self._videos_degraded = False
+            self._articles_degraded = False
 
     async def get_user_info(self) -> dict:
         # Space endpoints are the most risk-controlled read surface (dm_img
@@ -110,7 +142,7 @@ class User:
             # Empty / risk-controlled result (e.g. v_voucher gate) -> fall through
         except Exception as e:
             if is_risk_error(e):
-                self._degraded = True
+                self._info_degraded = True
         # /x/space/wbi/acc/info is often risk-controlled / IP-blocked (412/-352)
         # from datacenter IPs. PipePipe uses the non-wbi /x/web-interface/card
         # endpoint instead, which serves the same profile fields and is not
@@ -137,25 +169,18 @@ class User:
             except Exception as e:
                 last = e
                 if is_risk_error(e):
-                    self._degraded = True
+                    self._info_degraded = True
         if last is not None:
             raise last
         return {}
 
     async def get_videos(self, tid=0, pn=1, ps=30, keyword="", order=VideoOrder.PUBDATE) -> dict:
         self._videos_load_failed = False
+        self._videos_degraded = False
         if isinstance(order, VideoOrder):
             order = order.value
-        try:
-            pn = int(pn)
-        except TypeError, ValueError:
-            pn = 1
-        try:
-            ps = int(ps)
-        except TypeError, ValueError:
-            ps = 30
-        pn = max(pn, 1)
-        ps = max(ps, 1)
+        pn = _normalize_page_arg(pn, 1, "pn")
+        ps = _normalize_page_arg(ps, 30, "ps")
         # Bundle-exact (fresh-space video tab): e1({pn, ps, tid, special_type,
         # order, mid, index: 0, keyword}) + {order_avoided: "true" (STRING —
         # bool True encodes as 1 and mismatches), platform: "web",
@@ -189,7 +214,7 @@ class User:
             # Empty / risk-controlled result (e.g. v_voucher gate) -> fall through
         except Exception as e:
             if is_risk_error(e):
-                self._degraded = True
+                self._videos_degraded = True
             else:
                 self._videos_load_failed = True
         # The /x/space/wbi/arc/search endpoint is frequently risk-controlled /
@@ -205,6 +230,8 @@ class User:
         ``data.archives[]`` response into the ``data.list.vlist`` shape the rest
         of the app expects (space.html / space_json_feed).
         """
+        pn = _normalize_page_arg(pn, 1, "pn")
+        ps = _normalize_page_arg(ps, 20, "ps")
         api = {
             "url": "https://api.bilibili.com/x/series/recArchivesByKeywords",
             "method": "GET",
@@ -230,7 +257,7 @@ class User:
                 break
             except Exception as e:
                 if is_risk_error(e):
-                    self._degraded = True
+                    self._videos_degraded = True
                 else:
                     self._videos_load_failed = True
         data = data if isinstance(data, dict) else {}
@@ -266,7 +293,7 @@ class User:
             total = len(vlist)
         if vlist:
             self._videos_load_failed = False
-            self._degraded = False
+            self._videos_degraded = False
         return {
             "list": {"vlist": vlist},
             "page": {"count": total, "pn": pn, "ps": ps},
@@ -275,6 +302,8 @@ class User:
     async def get_articles(self, pn=1, order=ArticleOrder.PUBDATE, ps=30) -> dict:
         if isinstance(order, ArticleOrder):
             order = order.value
+        pn = _normalize_page_arg(pn, 1, "pn")
+        ps = _normalize_page_arg(ps, 30, "ps")
         params = {"mid": self.uid, "ps": ps, "pn": pn, "sort": order}
         params.update(_get_dm_img_params(fingerprint=True))
         api = {
@@ -288,5 +317,5 @@ class User:
             return await Api(**api, credential=self.credential, wbi=True).update_params(**params).result
         except Exception as e:
             if is_risk_error(e):
-                self._degraded = True
+                self._articles_degraded = True
             raise

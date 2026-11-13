@@ -16,8 +16,9 @@
 Bilibili credential / authentication.
 
 Minimal drop-in for ``bilibili_api.Credential`` covering only what this
-project uses. Cookie management (buvid3/4 auto-generation, bili_ticket)
-lives in the requesting module rather than here.
+project uses. Cookie management (buvid3/4 auto-generation, bili_ticket
+headers) lives outside Credential; ``bili_ticket`` is never stored on or
+emitted by ``Credential``.
 """
 
 import asyncio
@@ -25,11 +26,11 @@ import re
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
-from .exceptions import ArgsException
+from .exceptions import ArgsException, CookiesRefreshException
 
 __all__ = ["Credential", "sync", "ArgsException"]
 
-_EXTRA_COOKIE_NAMES = frozenset({"_uuid", "b_lsid", "b_nut", "bili_ticket", "bili_ticket_expires", "buvid_fp"})
+_EXTRA_COOKIE_NAMES = frozenset({"_uuid", "b_lsid", "b_nut", "buvid_fp"})
 
 
 class Credential:
@@ -156,21 +157,34 @@ class Credential:
         Returns True when Bilibili reports the session should be refreshed.
         Requires the ``pycryptodome`` extra for the refresh flow.
         """
-        from .client import HEADERS, get_bili_client
+        from .client import HEADERS, _build_cookie_header, get_bili_client
+        from .exceptions import NetworkException, ResponseCodeException
 
+        self.raise_for_no_sessdata()
         client = await get_bili_client()
         headers = dict(HEADERS)
-        cookies = self.get_cookies()
-        if cookies:
-            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+        cookie_str = _build_cookie_header(self.get_cookies())
+        if cookie_str:
+            headers["Cookie"] = cookie_str
         resp = await client.get(
             "https://passport.bilibili.com/x/passport-login/web/cookie/info",
             headers=headers,
         )
-        data = resp.json()
+        if resp.status_code != 200:
+            raise NetworkException(resp.status_code, resp.text)
+        try:
+            data = resp.json()
+        except Exception as exc:
+            raise CookiesRefreshException("Invalid JSON from cookie/info") from exc
+        if not isinstance(data, dict):
+            raise CookiesRefreshException("Unexpected response from cookie/info")
         if data.get("code") != 0:
-            raise ArgsException("Failed to check whether cookies are expired")
-        return data["data"]["refresh"]
+            msg = data.get("msg") or data.get("message") or "Failed to check whether cookies are expired"
+            raise ResponseCodeException(data.get("code", -1), msg, data)
+        payload = data.get("data")
+        if not isinstance(payload, dict) or "refresh" not in payload:
+            raise CookiesRefreshException("Missing refresh status in cookie/info response")
+        return bool(payload["refresh"])
 
     async def refresh(self) -> None:
         """
@@ -181,21 +195,21 @@ class Credential:
             from Crypto.Cipher import PKCS1_OAEP
             from Crypto.Hash import SHA256
             from Crypto.PublicKey import RSA
-        except ImportError as e:
-            raise RuntimeError("Cookie refresh requires pycryptodome: uv add pycryptodome") from e
+        except ImportError as exc:
+            raise CookiesRefreshException("Cookie refresh requires pycryptodome: uv sync --extra refresh") from exc
 
         import binascii
         import time
         import uuid
 
-        from .client import HEADERS, get_bili_client
+        from .client import HEADERS, _build_cookie_header, get_bili_client
 
+        self.raise_for_no_sessdata()
         self.raise_for_no_bili_jct()
         self.raise_for_no_ac_time_value()
 
         client = await get_bili_client()
-        cookies = self.get_cookies()
-        cookies["buvid3"] = str(uuid.uuid1())
+        temp_buvid3 = str(uuid.uuid1())
 
         # 1. Refresh CSRF
         rsa = RSA.importKey(
@@ -210,18 +224,19 @@ class Credential:
         cipher = PKCS1_OAEP.new(rsa, SHA256)
         correspond_path = binascii.b2a_hex(cipher.encrypt(f"refresh_{ts}".encode())).decode()
         headers = dict(HEADERS)
-        if cookies:
-            headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+        cookie_str = _build_cookie_header(self.get_cookies(), {"buvid3": temp_buvid3})
+        if cookie_str:
+            headers["Cookie"] = cookie_str
         resp = await client.get(
             f"https://www.bilibili.com/correspond/1/{correspond_path}",
             headers=headers,
         )
         if resp.status_code != 200:
-            raise RuntimeError("Failed to get CSRF for cookie refresh")
-        try:
-            refresh_csrf = re.findall('<div id="1-name">(.+?)</div>', resp.text)[0]
-        except IndexError as e:
-            raise RuntimeError("correspondPath expired or invalid") from e
+            raise CookiesRefreshException(f"Failed to get CSRF for cookie refresh: HTTP {resp.status_code}")
+        matches = re.findall(r'<div id="1-name">(.+?)</div>', resp.text)
+        if not matches:
+            raise CookiesRefreshException("correspondPath expired or invalid")
+        refresh_csrf = matches[0]
 
         # 2. Refresh cookies
         data = {
@@ -230,42 +245,67 @@ class Credential:
             "refresh_token": self.ac_time_value,
             "source": "main_web",
         }
-        cookies = self.get_cookies()
-        cookies["buvid3"] = str(uuid.uuid1())
         post_headers = dict(HEADERS)
-        if cookies:
-            post_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items() if v)
+        if cookie_str:
+            post_headers["Cookie"] = cookie_str
         resp = await client.post(
             "https://passport.bilibili.com/x/passport-login/web/cookie/refresh",
             data=data,
             headers=post_headers,
         )
         if resp.status_code != 200:
-            raise RuntimeError("Failed to refresh cookies")
-        body = resp.json()
-        if body.get("code") != 0:
-            raise RuntimeError("Failed to refresh cookies")
+            raise CookiesRefreshException(f"Failed to refresh cookies: HTTP {resp.status_code}")
+        try:
+            body = resp.json()
+        except Exception as exc:
+            raise CookiesRefreshException("Failed to parse cookie refresh response JSON") from exc
+        if not isinstance(body, dict) or body.get("code") != 0:
+            msg = body.get("message") or body.get("msg") if isinstance(body, dict) else "unknown error"
+            raise CookiesRefreshException(f"Failed to refresh cookies: {msg}")
+
+        refresh_token = (body.get("data") or {}).get("refresh_token") if isinstance(body.get("data"), dict) else None
+        sessdata = resp.cookies.get("SESSDATA")
+        bili_jct = resp.cookies.get("bili_jct")
+        dedeuserid = resp.cookies.get("DedeUserID")
+        if not (sessdata and bili_jct and dedeuserid and refresh_token):
+            raise CookiesRefreshException("Cookie refresh response missing required cookies or refresh_token")
+
         new_credential = Credential(
-            sessdata=resp.cookies["SESSDATA"],
-            bili_jct=resp.cookies["bili_jct"],
-            dedeuserid=resp.cookies["DedeUserID"],
-            ac_time_value=body["data"]["refresh_token"],
+            sessdata=sessdata,
+            bili_jct=bili_jct,
+            buvid3=self.buvid3,
+            buvid4=self.buvid4,
+            dedeuserid=dedeuserid,
+            ac_time_value=refresh_token,
         )
 
-        # 3. Confirm refresh
+        # 3. Confirm refresh (must succeed before mutating self in place)
         conf_data = {
             "csrf": new_credential.bili_jct,
             "refresh_token": self.ac_time_value,
         }
         confirm_headers = dict(HEADERS)
-        new_cookies = new_credential.get_cookies()
-        if new_cookies:
-            confirm_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in new_cookies.items() if v)
-        await client.post(
+        confirm_cookie_str = _build_cookie_header(new_credential.get_cookies())
+        if confirm_cookie_str:
+            confirm_headers["Cookie"] = confirm_cookie_str
+        confirm_resp = await client.post(
             "https://passport.bilibili.com/x/passport-login/web/confirm/refresh",
             data=conf_data,
             headers=confirm_headers,
         )
+        if confirm_resp.status_code != 200:
+            raise CookiesRefreshException(f"Failed to confirm cookie refresh: HTTP {confirm_resp.status_code}")
+        try:
+            confirm_body = confirm_resp.json()
+        except Exception as exc:
+            raise CookiesRefreshException("Failed to parse confirm refresh response JSON") from exc
+        if not isinstance(confirm_body, dict) or confirm_body.get("code") != 0:
+            msg = (
+                confirm_body.get("message") or confirm_body.get("msg")
+                if isinstance(confirm_body, dict)
+                else "unknown error"
+            )
+            raise CookiesRefreshException(f"Failed to confirm cookie refresh: {msg}")
 
         self.sessdata = new_credential.sessdata
         self.bili_jct = new_credential.bili_jct

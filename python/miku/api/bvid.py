@@ -60,15 +60,19 @@ def av2bv(x: int | str) -> str:
 
     Raises ArgsException unless the parsed aid is an integer with 0 < aid < 2**51.
     """
+    if isinstance(x, bool):
+        from miku.api.exceptions import ArgsException
+
+        raise ArgsException("Invalid aid: bool is not allowed.")
+
     if isinstance(x, str):
-        if x.startswith("av") or x.startswith("AV"):
+        if x.startswith(("av", "AV")):
             x = x[2:]
-        try:
-            x = int(x)
-        except ValueError:
+        if not x or not x.isascii() or not x.isdigit():
             from miku.api.exceptions import ArgsException
 
-            raise ArgsException("Invalid aid: must be an integer or numeric string.") from None
+            raise ArgsException("Invalid aid: must be an integer or numeric string.")
+        x = int(x)
 
     if not isinstance(x, int) or not 0 < x < _MAX_AID:
         from miku.api.exceptions import ArgsException

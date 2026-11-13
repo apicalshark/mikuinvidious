@@ -28,13 +28,12 @@ from enum import Enum
 from urllib.parse import quote, urlsplit
 
 from .client import (
-    _enc_wbi,
-    _get_mixin_key,
+    Api,
+    _has_usable_cookies,
     build_chrome_headers,
-    get_curl_client,
 )
 from .credential import Credential
-from .exceptions import ArgsException, ResponseCodeException
+from .exceptions import ArgsException
 
 __all__ = [
     "SearchObjectType",
@@ -218,65 +217,26 @@ def _headers_for(url: str, params: dict) -> dict:
     return build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
 
 
-async def _fetch(url: str, params: dict) -> dict:
-    """Fetch JSON via an async curl_cffi session (Chrome impersonation).
+async def _api_get(url: str, params: dict, wbi: bool = False) -> dict:
+    """GET JSON via Api(..., curl=True, send_cookies=False, timeout=10.0).
 
-    Returns the response's ``data`` or ``result`` payload (matching what
-    upstream ``Api.result`` returns). Cookies are deliberately not forwarded
-    so the browser impersonation isn't tripped by our generated pseudo-cookies.
-    Uses the shared impersonating client (keepalive reuse).
-    """
-    client = await get_curl_client()
-    # See live.py: keep the shared jar empty for these cookie-less calls.
-    client.cookies.clear()
-    resp = await client.get(
-        url,
-        params=params,
-        headers=_headers_for(url, params),
-        timeout=10.0,
-    )
-    if resp.status_code != 200:
-        raise ResponseCodeException(resp.status_code, f"HTTP {resp.status_code}")
-    try:
-        data = resp.json()
-    except Exception:
-        raise ResponseCodeException(-1, "JSON parsing failed") from None
-    if not isinstance(data, dict):
-        raise ResponseCodeException(-1, "API response is not a JSON object")
-    if data.get("code") != 0:
-        msg = data.get("msg") or data.get("message") or "API returned no error message"
-        raise ResponseCodeException(data.get("code", -1), msg, data)
-    if data.get("data") is not None:
-        return data["data"]
-    if data.get("result") is not None:
-        return data["result"]
-    return data
-
-
-async def _wbi_get(url: str, params: dict, wbi: bool = True) -> dict:
-    """GET with optional wbi signing + -403 mixin-key retry (curl_cffi).
-
-    Mirrors the upstream ``Api(..., wbi=True).result`` retry behaviour so the
-    raw result dict is returned just like ``bilibili_api.search``.  ``None``
-    valued params are dropped (matching upstream ``_prepare_params``) so they
-    are neither signed nor sent.
+    ``None``-valued params are dropped so they are neither signed nor sent.
     """
     clean = {k: v for k, v in params.items() if v is not None}
-    for attempt in range(3):
-        request_params = dict(clean)
-        try:
-            if wbi:
-                mixin = await _get_mixin_key()
-                request_params = _enc_wbi(request_params, mixin)
-            return await _fetch(url, request_params)
-        except ResponseCodeException as exc:
-            if exc.code == -403 and wbi and attempt < 2:
-                from .client import recalculate_wbi
-
-                recalculate_wbi()
-                continue
-            raise
-    raise ResponseCodeException(-403, "WBI retry limit exceeded")
+    return await (
+        Api(
+            url=url,
+            method="GET",
+            verify=False,
+            wbi=wbi,
+            curl=True,
+            send_cookies=False,
+            timeout=10.0,
+            headers=_headers_for(url, clean),
+        )
+        .update_params(**clean)
+        .result
+    )
 
 
 def _to_timestamps(time_start: str, time_end: str):
@@ -305,7 +265,7 @@ async def search(keyword: str, page: int = 1) -> dict:
         dict: raw result returned by the API
     """
     params = {"keyword": keyword, "page": page}
-    return await _wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/all/v2", params, wbi=True)
+    return await _api_get("https://api.bilibili.com/x/web-interface/wbi/search/all/v2", params, wbi=True)
 
 
 async def search_by_type(  # noqa: C901 - faithful port of upstream param logic
@@ -388,7 +348,7 @@ async def search_by_type(  # noqa: C901 - faithful port of upstream param logic
         time_stamp = _to_timestamps(time_start, time_end)
         params["pubtime_begin_s"] = time_stamp[0]
         params["pubtime_end_s"] = time_stamp[1]
-    return await _wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/type", params, wbi=True)
+    return await _api_get("https://api.bilibili.com/x/web-interface/wbi/search/type", params, wbi=True)
 
 
 async def get_default_search_keyword() -> dict:
@@ -398,7 +358,7 @@ async def get_default_search_keyword() -> dict:
     Returns:
         dict: raw result returned by the API
     """
-    return await _wbi_get("https://api.bilibili.com/x/web-interface/wbi/search/default", {}, wbi=True)
+    return await _api_get("https://api.bilibili.com/x/web-interface/wbi/search/default", {}, wbi=True)
 
 
 async def get_hot_search_keywords() -> dict:
@@ -408,7 +368,7 @@ async def get_hot_search_keywords() -> dict:
     Returns:
         dict: raw result returned by the API
     """
-    return await _fetch("https://s.search.bilibili.com/main/hotword", {})
+    return await _api_get("https://s.search.bilibili.com/main/hotword", {})
 
 
 async def get_suggest_keywords(keyword: str) -> list[str]:
@@ -422,7 +382,7 @@ async def get_suggest_keywords(keyword: str) -> list[str]:
         List[str]: suggested keyword list
     """
     keywords = []
-    res = await _fetch("https://s.search.bilibili.com/main/suggest", {"term": keyword})
+    res = await _api_get("https://s.search.bilibili.com/main/suggest", {"term": keyword})
     for key in res["tag"]:
         keywords.append(key["value"])
     return keywords
@@ -438,7 +398,7 @@ async def search_games(keyword: str) -> dict:
     Returns:
         dict: raw result returned by the API
     """
-    return await _fetch("https://line1-h5-pc-api.biligame.com/game/wiki/search", {"keyword": keyword})
+    return await _api_get("https://line1-h5-pc-api.biligame.com/game/wiki/search", {"keyword": keyword})
 
 
 async def search_manga(keyword: str, page_num: int = 1, page_size: int = 9, credential: Credential = None):
@@ -458,26 +418,27 @@ async def search_manga(keyword: str, page_num: int = 1, page_size: int = 9, cred
         dict: raw result returned by the API
     """
     data = {"key_word": keyword, "page_num": page_num, "page_size": page_size}
-    client = await get_curl_client()
     headers = build_chrome_headers(
         origin="https://manga.bilibili.com",
         referer="https://manga.bilibili.com/",
     )
-    if credential is not None:
-        c_dict = credential.get_cookies()
-        if c_dict:
-            cookie_str = "; ".join(f"{k}={v}" for k, v in c_dict.items() if v)
-            if cookie_str:
-                headers["Cookie"] = cookie_str
-    resp = await client.post(
-        "https://manga.bilibili.com/twirp/comic.v1.Comic/Search?device=pc&platform=web",
-        data=data,
-        headers=headers,
-        timeout=10.0,
+    has_cred = bool(credential and _has_usable_cookies(credential.get_cookies()))
+    return await (
+        Api(
+            url="https://manga.bilibili.com/twirp/comic.v1.Comic/Search?device=pc&platform=web",
+            method="POST",
+            verify=False,
+            no_csrf=True,
+            ignore_code=True,
+            curl=True,
+            send_cookies=has_cred,
+            timeout=10.0,
+            headers=headers,
+            credential=credential,
+        )
+        .update_data(**data)
+        .request(raw=True)
     )
-    if resp.status_code != 200:
-        raise ResponseCodeException(-1, f"HTTP {resp.status_code}")
-    return resp.json()
 
 
 async def search_cheese(
@@ -507,4 +468,4 @@ async def search_cheese(
         "page_size": page_size,
         "sort_type": order.value,
     }
-    return await _fetch("https://api.bilibili.com/pugv/app/web/seasonSeek?classification_id=-1", params)
+    return await _api_get("https://api.bilibili.com/pugv/app/web/seasonSeek?classification_id=-1", params)
