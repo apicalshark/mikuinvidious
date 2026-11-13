@@ -1,6 +1,6 @@
 # Bilibili Upstream API Reference & Signatures
 
-This document catalogs the Bilibili API endpoints, parameters, and cryptographic signing schemes implemented across the local client module (`python/api/`).
+This document catalogs the Bilibili API endpoints, parameters, and cryptographic signing schemes implemented across the local client module (`python/miku/api/`).
 
 ---
 
@@ -42,7 +42,7 @@ This document catalogs the Bilibili API endpoints, parameters, and cryptographic
 - `GET https://www.bilibili.com/audio/music-service-c/web/url` — Audio track stream URL.
 - `GET https://www.bilibili.com/audio/music-service-c/web/menu/info` — Playlist metadata.
 - `GET https://www.bilibili.com/audio/music-service-c/web/song/of-menu` — Songs in playlist.
-- `GET https://api.bilibili.com/x/article/viewinfo` — Supplementary article metadata (stats: likes, coins, favorites; fallback title). The article body itself is parsed directly from public web HTML by `views_space.py`.
+- `GET https://api.bilibili.com/x/article/viewinfo` — Supplementary article metadata (stats: likes, coins, favorites; fallback title). The article body itself is parsed directly from public web HTML by `miku/views/space.py`.
 - `GET https://api.bilibili.com/x/polymer/web-dynamic/v1/opus/detail` — Opus post content.
 - `GET https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd` — Homepage recommendations (WBI signed).
 - `GET https://api.bilibili.com/x/web-interface/dynamic/region` — Sub-zone dynamic feed.
@@ -51,7 +51,7 @@ This document catalogs the Bilibili API endpoints, parameters, and cryptographic
 
 ## 2. Signing Schemes & Security Tokens
 
-### WBI Query Signing (`api/client.py`)
+### WBI Query Signing (`api/wbi.py`)
 WBI is Bilibili's primary API signature mechanism:
 1. **Key Extraction:** Retrieve `/x/web-interface/nav`. Extract `wbi_img.img_url` and `wbi_img.sub_url`.
 2. **Mixin Key Derivation:** Concatenate filename basenames and apply the Bilibili OE permutation table to produce a 32-character `mixin_key`.

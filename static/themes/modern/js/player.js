@@ -1217,24 +1217,6 @@ async function initMikuPlayer() {
 
       console.warn("[Player] Native video error:", err.code, err.message);
 
-      // Decode errors: reloading the whole MP4 often makes things worse (H264/FFmpeg/OOM).
-      // Let Firefox retry via its own Range requests; only rewind once.
-      // if (err.code === 3) {
-      //   if (!video._decodeSeekTried && video.currentTime >= 0) {
-      //     // First attempt: seek back 2s and hope Firefox resyncs
-      //     video._decodeSeekTried = true;
-      //     video.currentTime = Math.max(0, video.currentTime - 2);
-      //     video.play().catch(() => { });
-      //   } else if (video._decodeSeekTried && !video._decodeRecoveryTried) {
-      //     // Seek didn't help — force a full source reload with cache-bust
-      //     video._decodeRecoveryTried = true;
-      //     console.warn("[Player] Seek recovery failed for decode error, trying full reload...");
-      //     triggerNativeRecovery(video);
-      //   }
-      //   // If both attempts failed, give up silently to avoid a reload loop
-      //   return;
-      // }
-
       if (err.code === 2 || err.code === 3 || err.code === 4) {
         triggerNativeRecovery(video);
       }
@@ -1385,11 +1367,18 @@ function initDanmaku(video, container, controller) {
   if (window.is_live) {
     startDanmaku([]);
   } else {
-    fetch("/res/danmaku/" + window.current_vid + ":" + window.idx).then((r) =>
-      r.json().then((ds) => {
-        startDanmaku(ds);
+    fetch("/res/danmaku/" + window.current_vid + ":" + window.idx)
+      .then((r) => {
+        if (!r.ok) throw new Error("Danmaku HTTP " + r.status);
+        return r.json();
       })
-    );
+      .then((ds) => {
+        startDanmaku(Array.isArray(ds) ? ds : []);
+      })
+      .catch((err) => {
+        console.warn("Failed to load danmaku:", err);
+        startDanmaku([]);
+      });
   }
 }
 

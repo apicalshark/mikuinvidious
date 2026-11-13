@@ -2,179 +2,179 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-12 01:56+0800\n"
+"POT-Creation-Date: 2026-11-13 03:13+0000\n"
 "Language: zh_CN\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: python/i18n_strings.py:30
+#: python/miku/ui/i18n_strings.py:30
 msgid "Article does not exist or parse error"
 msgstr "文章不存在或解析错误"
 
-#: python/i18n_strings.py:31
+#: python/miku/ui/i18n_strings.py:31
 msgid "Article not found"
 msgstr "没有找到文章"
 
-#: python/i18n_strings.py:32
+#: python/miku/ui/i18n_strings.py:32
 msgid "Audio mode load failed"
 msgstr "音频模式加载失败"
 
-#: python/i18n_strings.py:33
+#: python/miku/ui/i18n_strings.py:33
 msgid "Backend server sent an invalid response"
 msgstr "后端服务器发送了无效的回复"
 
-#: python/i18n_strings.py:34
+#: python/miku/ui/i18n_strings.py:34
 msgid "Bad request"
 msgstr "请求错误"
 
-#: python/i18n_strings.py:35
+#: python/miku/ui/i18n_strings.py:35
 msgid "Bangumi load failed"
 msgstr "番剧加载失败"
 
-#: python/i18n_strings.py:36
+#: python/miku/ui/i18n_strings.py:36
 msgid "Bilibili returned empty result (-404)"
 msgstr "B站返回空结果 (-404)"
 
-#: python/i18n_strings.py:37
+#: python/miku/ui/i18n_strings.py:37
 msgid "Failed to fetch the live list. Please try again later."
 msgstr "无法获取直播列表，请稍后重试。"
 
-#: python/i18n_strings.py:38
+#: python/miku/ui/i18n_strings.py:38
 msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "无法获取该用户的信息，请稍后重试。"
 
-#: python/i18n_strings.py:39
+#: python/miku/ui/i18n_strings.py:39
 msgid ""
 "Failed to load bangumi info. Please check your network or try again later."
 msgstr "无法加载番剧信息，请检查网络或稍后重试。"
 
-#: python/i18n_strings.py:40
+#: python/miku/ui/i18n_strings.py:40
 msgid ""
 "Failed to load the live room. Please check your network or try again later."
 msgstr "无法加载直播间，请检查网络或稍后重试。"
 
-#: python/i18n_strings.py:41
+#: python/miku/ui/i18n_strings.py:41
 msgid "Failed to resolve the redirect target."
 msgstr "无法获取重定向地址。"
 
-#: python/i18n_strings.py:42
+#: python/miku/ui/i18n_strings.py:42
 msgid ""
 "Failed to resolve the short link. Please check your network connection or "
 "proxy settings."
 msgstr "无法解析短链接，请检查网络连接或代理设置。"
 
-#: python/i18n_strings.py:43
+#: python/miku/ui/i18n_strings.py:43
 msgid ""
 "Internal server error. Please try again later or contact the administrator."
 msgstr "服务器内部错误，请稍后重试或联系管理员。"
 
-#: python/i18n_strings.py:44
+#: python/miku/ui/i18n_strings.py:44
 msgid "Invalid request parameters. Please check and try again."
 msgstr "请求参数无效，请检查后重试。"
 
-#: python/i18n_strings.py:45
+#: python/miku/ui/i18n_strings.py:45
 msgid "Live list load failed"
 msgstr "直播列表加载失败"
 
-#: python/i18n_strings.py:46
+#: python/miku/ui/i18n_strings.py:46
 msgid "Live load failed"
 msgstr "直播加载失败"
 
-#: python/i18n_strings.py:47
+#: python/miku/ui/i18n_strings.py:47
 msgid "Network error"
 msgstr "网络错误"
 
-#: python/i18n_strings.py:48
+#: python/miku/ui/i18n_strings.py:48
 msgid "No search keyword provided."
 msgstr "没有发送搜索关键字。"
 
-#: python/i18n_strings.py:49
+#: python/miku/ui/i18n_strings.py:49
 msgid "No songs found"
 msgstr "没有找到歌曲"
 
-#: python/i18n_strings.py:50
+#: python/miku/ui/i18n_strings.py:50
 msgid "Page not found (404)"
 msgstr "未找到页面 (404)"
 
-#: python/i18n_strings.py:51
+#: python/miku/ui/i18n_strings.py:51
 msgid "Parse error"
 msgstr "解析错误"
 
-#: python/i18n_strings.py:52
+#: python/miku/ui/i18n_strings.py:52
 msgid "Playlist empty"
 msgstr "歌单为空"
 
-#: python/i18n_strings.py:53
+#: python/miku/ui/i18n_strings.py:53
 msgid "Please check the URL."
 msgstr "请检查 URL 是否正确。"
 
-#: python/i18n_strings.py:54
+#: python/miku/ui/i18n_strings.py:54
 msgid "Please check your network connection or proxy settings."
 msgstr "请检查网络连接或代理设置。"
 
-#: python/i18n_strings.py:55
+#: python/miku/ui/i18n_strings.py:55
 msgid "Please check your network or try again later."
 msgstr "请检查网络或稍后重试。"
 
-#: python/i18n_strings.py:56
+#: python/miku/ui/i18n_strings.py:56
 msgid "Please check your request and try again."
 msgstr "请检查您的请求并重试。"
 
-#: python/i18n_strings.py:57
+#: python/miku/ui/i18n_strings.py:57
 msgid "Please enter a search keyword and try again."
 msgstr "请设置搜索关键字后重试。"
 
-#: python/i18n_strings.py:58
+#: python/miku/ui/i18n_strings.py:58
 msgid "Please try refreshing the page, or check the server network connection."
 msgstr "请尝试刷新页面，或检查服务器网络连接。"
 
-#: python/i18n_strings.py:59
+#: python/miku/ui/i18n_strings.py:59
 msgid "Search failed"
 msgstr "无法搜索"
 
-#: python/i18n_strings.py:60
+#: python/miku/ui/i18n_strings.py:60
 msgid "Server error"
 msgstr "服务器错误"
 
-#: python/i18n_strings.py:61
+#: python/miku/ui/i18n_strings.py:61
 msgid "Space load failed"
 msgstr "空间加载失败"
 
-#: python/i18n_strings.py:62
+#: python/miku/ui/i18n_strings.py:62
 msgid ""
 "The article you requested most likely does not exist. Please check your "
 "request."
 msgstr "这很可能说明您访问的文章不存在，请检查您的请求。"
 
-#: python/i18n_strings.py:63
+#: python/miku/ui/i18n_strings.py:63
 msgid "The requested page does not exist."
 msgstr "您请求的页面不存在。"
 
-#: python/i18n_strings.py:64
+#: python/miku/ui/i18n_strings.py:64
 msgid "The requested resource does not exist."
 msgstr "您请求的资源不存在。"
 
-#: python/i18n_strings.py:66
+#: python/miku/ui/i18n_strings.py:66
 msgid ""
 "This content is usually unavailable in your region or has been removed by "
 "Bilibili. Please try again later."
 msgstr "这通常是因为该内容在您所在的地区不可用，或已被 B 站下架。如持续发生请稍后再试。"
 
-#: python/i18n_strings.py:69
+#: python/miku/ui/i18n_strings.py:69
 msgid "This content may be region-restricted or removed."
 msgstr "该内容可能受到地区限制或已被下架。"
 
-#: python/i18n_strings.py:70
+#: python/miku/ui/i18n_strings.py:70
 msgid ""
 "This video may have been deleted, is under review, or is region-restricted."
 msgstr "该影片可能已被删除、审核中，或是受到地区限制。"
 
-#: python/i18n_strings.py:71
+#: python/miku/ui/i18n_strings.py:71
 msgid "Video load failed"
 msgstr "视频加载出错"
 
-#: python/i18n_strings.py:72
+#: python/miku/ui/i18n_strings.py:72
 msgid "You have no browsing history yet."
 msgstr "您还没有浏览历史。"
 
@@ -182,8 +182,8 @@ msgstr "您还没有浏览历史。"
 msgid "Resolving video URL..."
 msgstr "正在解析视频地址..."
 
-#: static/themes/modern/js/player.js:1724
-#: static/themes/modern/js/player.js:1794 templates/macros.html:62
+#: static/themes/modern/js/player.js:1706
+#: static/themes/modern/js/player.js:1776 templates/macros.html:62
 msgid "Resolution"
 msgstr "解析度"
 
@@ -245,7 +245,7 @@ msgid "reads"
 msgstr "次阅读"
 
 #: templates/themes/modern/author.html:111
-#: templates/themes/modern/bangumi_index.html:155
+#: templates/themes/modern/bangumi_index.html:101
 #: templates/themes/modern/search.html:67
 #: templates/themes/modern/search_article.html:84
 #: templates/themes/modern/search_user.html:58
@@ -254,7 +254,7 @@ msgid "Previous page"
 msgstr "上一页"
 
 #: templates/themes/modern/author.html:117
-#: templates/themes/modern/bangumi_index.html:162
+#: templates/themes/modern/bangumi_index.html:108
 #: templates/themes/modern/search.html:73
 #: templates/themes/modern/search_article.html:90
 #: templates/themes/modern/search_user.html:64
@@ -270,31 +270,31 @@ msgstr "这个用户还没有专栏。"
 msgid "Bangumi index"
 msgstr "番剧索引"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Anime"
 msgstr "番剧"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Chinese Original"
 msgstr "国创"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Movies"
 msgstr "电影"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "TV Series"
 msgstr "电视剧"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Variety"
 msgstr "综艺"
 
-#: templates/themes/modern/bangumi_index.html:63
+#: templates/themes/modern/bangumi_index.html:9
 msgid "Documentary"
 msgstr "纪录片"
 
-#: templates/themes/modern/bangumi_index.html:94
+#: templates/themes/modern/bangumi_index.html:40
 msgid "Sort"
 msgstr "排序"
 
@@ -322,70 +322,70 @@ msgstr "第"
 msgid "Searching Nyaa..."
 msgstr "正在从 Nyaa 搜索资源..."
 
-#: templates/themes/modern/bangumi_view.html:98
+#: static/themes/modern/js/bangumi.js:25
 msgid "Nyaa Magnet Resources"
 msgstr "Nyaa Magnet 资源"
 
-#: templates/themes/modern/bangumi_view.html:192
+#: static/themes/modern/js/bangumi.js:36 static/themes/modern/js/bangumi.js:131
 msgid "Failed to load Nyaa resources"
 msgstr "无法加载 Nyaa 资源"
 
-#: templates/themes/modern/base.html:492 templates/themes/modern/base.html:549
+#: templates/themes/modern/base.html:179 templates/themes/modern/base.html:236
 msgid "Bangumi"
 msgstr "番剧"
 
-#: templates/themes/modern/base.html:497 templates/themes/modern/base.html:554
+#: templates/themes/modern/base.html:184 templates/themes/modern/base.html:241
 msgid "Toggle theme"
 msgstr "切换主题"
 
-#: templates/themes/modern/base.html:502 templates/themes/modern/base.html:560
+#: templates/themes/modern/base.html:189 templates/themes/modern/base.html:247
 msgid "Language"
 msgstr "语言"
 
-#: templates/themes/modern/base.html:517 templates/themes/modern/base.html:576
+#: templates/themes/modern/base.html:204 templates/themes/modern/base.html:263
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "偏好设置"
 
-#: templates/themes/modern/base.html:540
+#: templates/themes/modern/base.html:227
 #: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "想要搜索点什么？"
 
-#: templates/themes/modern/base.html:609
+#: templates/themes/modern/base.html:296
 msgid "Original source code"
 msgstr "原始项目源代码"
 
-#: templates/themes/modern/base.html:611
+#: templates/themes/modern/base.html:298
 msgid "Modified source code"
 msgstr "修改后的源代码"
 
-#: templates/themes/modern/base.html:614
+#: templates/themes/modern/base.html:301
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "源代码"
 
-#: templates/themes/modern/base.html:620
+#: templates/themes/modern/base.html:307
 msgid "Documentation"
 msgstr "文档"
 
-#: templates/themes/modern/base.html:625
+#: templates/themes/modern/base.html:312
 msgid "Link converter"
 msgstr "链接转换器"
 
-#: templates/themes/modern/base.html:631
+#: templates/themes/modern/base.html:318
 msgid "Proudly released under AGPLv3"
 msgstr "自豪地以 AGPLv3 发布"
 
-#: templates/themes/modern/base.html:638
+#: templates/themes/modern/base.html:325
 msgid "View JavaScript licenses"
 msgstr "查看 JavaScript 许可证"
 
-#: templates/themes/modern/base.html:643
+#: templates/themes/modern/base.html:330
 msgid "Privacy policy"
 msgstr "隐私条款"
 
-#: templates/themes/modern/base.html:650
+#: templates/themes/modern/base.html:337
 msgid "Donate"
 msgstr "赞助我们"
 
@@ -445,15 +445,15 @@ msgstr "复制 MikuInvidious 链接"
 msgid "Open"
 msgstr "打开"
 
-#: templates/themes/modern/convert.html:140
+#: static/themes/modern/js/convert.js:44
 msgid "Copied!"
 msgstr "已复制！"
 
-#: templates/themes/modern/convert.html:216
+#: static/themes/modern/js/convert.js:107
 msgid "Failed to resolve URL"
 msgstr "解析链接失败"
 
-#: templates/themes/modern/convert.html:239
+#: static/themes/modern/js/convert.js:129
 msgid "Network error. Please try again."
 msgstr "网络错误，请重试。"
 
@@ -472,7 +472,7 @@ msgstr "请检查您的请求。如果您认为这是网站问题，请联系管
 msgid "Back to home"
 msgstr "返回首页"
 
-#: templates/themes/modern/base.html:489 templates/themes/modern/home.html:5
+#: templates/themes/modern/base.html:176 templates/themes/modern/home.html:5
 #: templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
@@ -530,7 +530,7 @@ msgid "Audio mode"
 msgstr "音频模式"
 
 #: templates/themes/modern/components/m3_components.html:147
-#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:361
+#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:300
 msgid "views"
 msgstr "次播放"
 
@@ -564,12 +564,9 @@ msgstr "繁体中文转换"
 msgid "Convert content to Traditional Chinese with OpenCC"
 msgstr "使用 OpenCC 将内容转换为繁体中文"
 
-#: templates/themes/modern/pref.html:102 templates/themes/modern/pref.html:111
-#: templates/themes/modern/pref.html:120 templates/themes/modern/pref.html:129
-#: templates/themes/modern/video.html:408
-#: templates/themes/modern/video.html:559
-#: templates/themes/modern/video_listen.html:288
-#: templates/themes/modern/video_listen.html:386
+#: static/themes/modern/js/comments.js:29 templates/themes/modern/pref.html:102
+#: templates/themes/modern/pref.html:111 templates/themes/modern/pref.html:120
+#: templates/themes/modern/pref.html:129
 msgid "Loading..."
 msgstr "加载中..."
 
@@ -748,9 +745,9 @@ msgstr "分享"
 msgid "Download"
 msgstr "下载"
 
+#: static/themes/modern/js/comments.js:97
 #: templates/themes/modern/components/meta_part.html:6
 #: templates/themes/modern/video.html:171
-#: templates/themes/modern/video.html:472
 #: templates/themes/modern/video_listen.html:158
 msgid "Comments"
 msgstr "评论"
@@ -764,21 +761,21 @@ msgstr "正在加载评论..."
 msgid "Live chat"
 msgstr "实时聊天"
 
-#: templates/themes/modern/video.html:230
+#: templates/themes/modern/video.html:231
 msgid "Connecting to chat..."
 msgstr "正在连接到聊天室..."
 
-#: templates/themes/modern/video.html:303
+#: templates/themes/modern/video.html:242
 #: templates/themes/modern/video_listen.html:221
 msgid "Episodes"
 msgstr "选集"
 
-#: templates/themes/modern/video.html:309
+#: templates/themes/modern/video.html:248
 #: templates/themes/modern/video_listen.html:227
 msgid "Autoplay next"
 msgstr "自动连播"
 
-#: templates/themes/modern/video.html:340
+#: templates/themes/modern/video.html:279
 #: templates/themes/modern/video_listen.html:255
 msgid "Recommended"
 msgstr "推荐视频"
@@ -787,32 +784,21 @@ msgstr "推荐视频"
 msgid "Play"
 msgstr "播放"
 
-#: templates/themes/modern/video.html:406
-#: templates/themes/modern/video_listen.html:286
+#: static/themes/modern/js/comments.js:27
 msgid "Fold"
 msgstr "收起"
 
-#: templates/themes/modern/video.html:407
-#: templates/themes/modern/video_listen.html:287
+#: static/themes/modern/js/comments.js:28
 msgid "Load more replies"
 msgstr "加载更多回复"
 
+#: static/themes/modern/js/comments.js:31
 #: templates/themes/modern/components/meta_part.html:25
-#: templates/themes/modern/video.html:409
 #: templates/themes/modern/video_listen.html:210
-#: templates/themes/modern/video_listen.html:290
 msgid "Load more comments"
 msgstr "加载更多评论"
 
-#: templates/themes/modern/video.html:472
-msgid "Failed to load comments, please try again later"
-msgstr "评论加载失败，请稍后再试"
-
-#: templates/themes/modern/video.html:531
-#: templates/themes/modern/video.html:571
-#: templates/themes/modern/video.html:632
-#: templates/themes/modern/video_listen.html:289
-#: templates/themes/modern/video_listen.html:398
+#: static/themes/modern/js/comments.js:30
 msgid "Load failed"
 msgstr "加载失败"
 
@@ -831,6 +817,7 @@ msgstr "视频模式"
 msgid "Download audio"
 msgstr "下载音频"
 
+#: static/themes/modern/js/comments.js:39
 #: templates/themes/modern/components/comment_items.html:28
 #: templates/themes/modern/video_listen.html:189
 #, python-format
@@ -998,38 +985,38 @@ msgstr "直播流已结束"
 msgid "Live stream has ended"
 msgstr "直播已结束"
 
-#: static/themes/modern/js/player.js:1468
+#: static/themes/modern/js/player.js:1450
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自动 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1491
-#: static/themes/modern/js/player.js:1495
-#: static/themes/modern/js/player.js:1526
-#: static/themes/modern/js/player.js:1530
+#: static/themes/modern/js/player.js:1473
+#: static/themes/modern/js/player.js:1477
+#: static/themes/modern/js/player.js:1508
+#: static/themes/modern/js/player.js:1512
 msgid "Auto"
 msgstr "自动"
 
-#: static/themes/modern/js/player.js:1655
+#: static/themes/modern/js/player.js:1637
 msgid "Back"
 msgstr "返回"
 
-#: static/themes/modern/js/player.js:1725
+#: static/themes/modern/js/player.js:1707
 msgid "Audio"
 msgstr "音频"
 
-#: static/themes/modern/js/player.js:1726
-#: static/themes/modern/js/player.js:1795
+#: static/themes/modern/js/player.js:1708
+#: static/themes/modern/js/player.js:1777
 msgid "Playback speed"
 msgstr "播放速度"
 
-#: static/themes/modern/js/themes.js:248 static/themes/modern/js/themes.js:260
-#: static/themes/modern/js/themes.js:276 static/themes/modern/js/themes.js:286
+#: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
+#: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "已开启"
 
-#: static/themes/modern/js/themes.js:251 static/themes/modern/js/themes.js:263
-#: static/themes/modern/js/themes.js:273 static/themes/modern/js/themes.js:289
+#: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
+#: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
 msgid "Off"
 msgstr "已关闭"
 
@@ -1044,6 +1031,15 @@ msgstr "重置主题颜色"
 #: templates/themes/modern/pref.html:83 templates/themes/modern/pref.html:87
 msgid "Custom Color"
 msgstr "自定义颜色"
+
+#: static/themes/modern/js/comments.js:40
+#, python-format
+msgid "%(count)s replies"
+msgstr ""
+
+#: static/themes/modern/js/comments.js:98
+msgid "Failed to load comments, please try again later"
+msgstr "评论加载失败，请稍后再试"
 
 #~ msgid "Personalization settings"
 #~ msgstr "个性化设置"

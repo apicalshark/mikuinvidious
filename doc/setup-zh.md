@@ -23,7 +23,7 @@ sudo apt install python3 python3-venv git curl
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
   *或者通过 pip 安装：`pip install uv`*
-- **Redis**: 用于缓存和会话存储。[安装指南](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
+- **Redis**: 用于缓存、Ticket 存储和速率限制。[安装指南](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
 - **Caddy**: 高性能反向代理。[安装指南](https://caddyserver.com/docs/install)
 - **Node.js v18+ & npm**: 构建 CSS 和前端工具所需。[安装指南](https://nodejs.org/en/download/package-manager)
 
@@ -72,7 +72,7 @@ sudo apt install python3 python3-venv git curl
 
 ## 3. Docker 部署（推荐用于生产环境）
 
-这是运行 MikuInvidious 最简单、最稳定的方式。它包含了所有必要的预配置依赖项（Redis、Caddy、Cloudflare WARP）。
+这是运行 MikuInvidious 最简单、最稳定的方式。它包含了预配置的核心依赖项（Redis、Caddy）；如需绕过数据中心 IP 风控，可通过 `tools/warp/` 单独配置可选的 Cloudflare WARP 代理。
 
 ### 前置条件
 
@@ -173,8 +173,8 @@ Caddy 默认自动处理 SSL/TLS 证书。
    cp config.toml.sample config.toml
    ```
    编辑 `config.toml`：
-   - 在 `[server]` 中设置 `secret_key`。
-   - 确保 `[redis]` 中的 `url = "redis://localhost:6379"`。
+   - 在 `[server]` 中设置 `secret_key`（或设置环境变量 `QUART_SECRET_KEY`），以便会话在重启后保持有效。
+   - 确保 `[redis]` 中的 `redis_url = "redis://localhost:6379"`。
    - 如果您使用 SOCKS5/HTTP 代理，请配置 `[proxy]` 中的 `proxy_url`。
 
 ### 步骤 3：运行

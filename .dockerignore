@@ -11,7 +11,10 @@ __pycache__
 dist
 build
 
-# Sensitive config files (secrets, local overrides)
+# Sensitive config files and runtime data (secrets, caches, local overrides)
+data/
+config.toml
+config.toml.local
 Caddyfile
 Caddyfile*
 caddy.*
@@ -44,11 +47,10 @@ htmlcov/
 .tox
 
 # Project-specific (not needed at runtime)
-.understand-anything
+AGENTS.md
 GEMINI.md
 README.md
 LICENSE
-COPYING
 doc/
 tools/
 tests/

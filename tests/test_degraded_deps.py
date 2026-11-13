@@ -20,9 +20,9 @@ import time
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import dash_fetch
-import dns_cache
-import shared
+import miku.core.dns_cache as dns_cache
+import miku.dash.fetch as dash_fetch
+import miku.state as shared
 
 
 def _payload(expiry_offset: int = 7200, host: str = "upos-sz-mirrorcosov") -> dict:
@@ -168,11 +168,225 @@ class TicketCooldownTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         shared.TicketManager._ticket = None
         shared.TicketManager._expiry = 0
+        shared.TicketManager._lock = asyncio.Lock()
+        shared.TicketManager._redis_lock = asyncio.Lock()
         shared.TicketManager._inflight = None
+        shared.TicketManager._generation = 0
+        shared.TicketManager._inflight_gen = 0
         shared.TicketManager._fail_until = 0.0
 
     async def asyncTearDown(self):
         shared.TicketManager._fail_until = 0.0
+
+    async def test_concurrent_callers_share_redis_lookup(self):
+        manager = shared.TicketManager
+        for cached in (False, True):
+            with self.subTest(cached=cached):
+                manager._lock = asyncio.Lock()
+                manager._ticket = None
+                started = asyncio.Event()
+                release = asyncio.Event()
+                expiry = int(time.time()) + 3600
+
+                async def mget(
+                    *_args,
+                    started=started,
+                    release=release,
+                    expiry=expiry,
+                    cached=cached,
+                ):
+                    started.set()
+                    await release.wait()
+                    return ("ticket", str(expiry)) if cached else (None, None)
+
+                pipe = MagicMock()
+                pipe.execute = AsyncMock()
+                with (
+                    patch.object(shared.appredis, "mget", AsyncMock(side_effect=mget)) as lookup,
+                    patch.object(manager, "_fetch_new_ticket", AsyncMock(return_value=("ticket", expiry))) as fetch,
+                    patch.object(shared.appredis, "pipeline", return_value=pipe),
+                ):
+                    owner = asyncio.create_task(manager.get_ticket())
+                    await asyncio.wait_for(started.wait(), 1)
+                    joiners = [asyncio.create_task(manager.get_ticket()) for _ in range(10)]
+                    await asyncio.sleep(0)
+                    self.assertIsNotNone(manager._inflight)
+                    self.assertFalse(manager._lock.locked())
+                    release.set()
+                    results = await asyncio.wait_for(asyncio.gather(owner, *joiners), 1)
+                    self.assertEqual(results, ["ticket"] * 11)
+                    lookup.assert_awaited_once()
+                    self.assertEqual(fetch.await_count, 0 if cached else 1)
+
+    async def test_redis_publication_does_not_hold_state_lock(self):
+        manager = shared.TicketManager
+        manager._lock = asyncio.Lock()
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def execute():
+            started.set()
+            await release.wait()
+
+        pipe = MagicMock()
+        pipe.execute = AsyncMock(side_effect=execute)
+        with (
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(manager, "_fetch_new_ticket", AsyncMock(return_value=("ticket", int(time.time()) + 3600))),
+            patch.object(shared.appredis, "pipeline", return_value=pipe),
+        ):
+            owner = asyncio.create_task(manager.get_ticket())
+            await asyncio.wait_for(started.wait(), 1)
+            try:
+                self.assertFalse(manager._lock.locked())
+                self.assertEqual(await asyncio.wait_for(manager.get_ticket(), 1), "ticket")
+            finally:
+                release.set()
+                await asyncio.wait_for(owner, 1)
+
+    async def test_forced_refresh_does_not_publish_stale_fetch(self):
+        manager = shared.TicketManager
+        manager._lock = asyncio.Lock()
+        manager._generation = 0
+        manager._inflight_gen = 0
+        started = [asyncio.Event(), asyncio.Event()]
+        release = [asyncio.Event(), asyncio.Event()]
+        calls = 0
+
+        async def fetch(*_args):
+            nonlocal calls
+            index = calls
+            calls += 1
+            started[index].set()
+            await release[index].wait()
+            return ("old", "new")[index], int(time.time()) + 3600
+
+        pipe = MagicMock()
+        pipe.execute = AsyncMock()
+        with (
+            patch.object(shared, "get_bili_ticket", fetch),
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(shared.appredis, "delete", AsyncMock()),
+            patch.object(shared.appredis, "pipeline", return_value=pipe),
+        ):
+            old = asyncio.create_task(manager.get_ticket())
+            await asyncio.wait_for(started[0].wait(), 1)
+            new = asyncio.create_task(manager.get_ticket(force_refresh=True))
+            await asyncio.wait_for(started[1].wait(), 1)
+            joiner = asyncio.create_task(manager.get_ticket())
+            await asyncio.sleep(0)
+            release[0].set()
+            self.assertEqual(await asyncio.wait_for(old, 1), "old")
+            self.assertIsNone(manager._ticket)
+            pipe.execute.assert_not_awaited()
+            release[1].set()
+            self.assertEqual(await asyncio.wait_for(new, 1), "new")
+            self.assertEqual(await asyncio.wait_for(joiner, 1), "new")
+        self.assertEqual(manager._ticket, "new")
+        self.assertEqual(pipe.setex.call_args_list[0].args[2], "new")
+        pipe.execute.assert_awaited_once()
+
+    async def test_forced_refresh_fences_inflight_redis_publication(self):
+        manager = shared.TicketManager
+        store: dict[str, str] = {}
+        old_publish_started = asyncio.Event()
+        old_publish_release = asyncio.Event()
+        calls = 0
+
+        async def fetch(*_args):
+            nonlocal calls
+            ticket = ("old", "new")[calls]
+            calls += 1
+            return ticket, int(time.time()) + 3600
+
+        async def delete(*keys):
+            for k in keys:
+                store.pop(k, None)
+
+        def make_pipeline(**_kw):
+            ops: list[tuple[str, str]] = []
+            pipe = MagicMock()
+
+            def setex(key, _ttl, val):
+                ops.append((key, val))
+
+            async def execute():
+                if ops and ops[0][1] == "old":
+                    old_publish_started.set()
+                    await old_publish_release.wait()
+                for key, val in ops:
+                    store[key] = val
+
+            pipe.setex = MagicMock(side_effect=setex)
+            pipe.execute = AsyncMock(side_effect=execute)
+            return pipe
+
+        with (
+            patch.object(shared, "get_bili_ticket", fetch),
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(shared.appredis, "delete", AsyncMock(side_effect=delete)),
+            patch.object(shared.appredis, "pipeline", side_effect=make_pipeline),
+        ):
+            old = asyncio.create_task(manager.get_ticket())
+            await asyncio.wait_for(old_publish_started.wait(), 1)
+            new = asyncio.create_task(manager.get_ticket(force_refresh=True))
+            await asyncio.sleep(0)
+            self.assertFalse(manager._lock.locked())
+            self.assertIsNone(manager._ticket)
+            old_publish_release.set()
+            self.assertEqual(await asyncio.wait_for(old, 1), "old")
+            self.assertEqual(await asyncio.wait_for(new, 1), "new")
+
+        self.assertEqual(manager._ticket, "new")
+        self.assertEqual(store["miku_bili_ticket"], "new")
+
+    async def test_forced_refresh_fences_queued_redis_publication(self):
+        manager = shared.TicketManager
+        store: dict[str, str] = {}
+        calls = 0
+
+        async def fetch(*_args):
+            nonlocal calls
+            ticket = ("old", "new")[calls]
+            calls += 1
+            return ticket, int(time.time()) + 3600
+
+        async def delete(*keys):
+            for k in keys:
+                store.pop(k, None)
+
+        def make_pipeline(**_kw):
+            ops: list[tuple[str, str]] = []
+            pipe = MagicMock()
+            pipe.setex = MagicMock(side_effect=lambda k, _ttl, v: ops.append((k, v)))
+
+            async def execute():
+                for k, v in ops:
+                    store[k] = v
+
+            pipe.execute = AsyncMock(side_effect=execute)
+            return pipe
+
+        with (
+            patch.object(shared, "get_bili_ticket", fetch),
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(shared.appredis, "delete", AsyncMock(side_effect=delete)),
+            patch.object(shared.appredis, "pipeline", side_effect=make_pipeline),
+        ):
+            await manager._redis_lock.acquire()
+            try:
+                old = asyncio.create_task(manager.get_ticket())
+                await asyncio.sleep(0)
+                new = asyncio.create_task(manager.get_ticket(force_refresh=True))
+                await asyncio.sleep(0)
+            finally:
+                manager._redis_lock.release()
+
+            self.assertEqual(await asyncio.wait_for(old, 1), "old")
+            self.assertEqual(await asyncio.wait_for(new, 1), "new")
+
+        self.assertEqual(manager._ticket, "new")
+        self.assertEqual(store["miku_bili_ticket"], "new")
 
     async def test_failed_refresh_is_not_retried_inside_the_window(self):
         attempts = 0
@@ -224,6 +438,59 @@ class TicketCooldownTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(ticket, "ticket-value")
         self.assertEqual(shared.TicketManager._fail_until, 0.0)
+
+    async def test_owner_cancellation_does_not_poison_cooldown_or_wedged_inflight(self):
+        manager = shared.TicketManager
+        started = asyncio.Event()
+        release = asyncio.Event()
+        attempts = 0
+
+        async def fetch(*_args):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                started.set()
+                await release.wait()
+            return "recovered-ticket", int(time.time()) + 3600
+
+        pipe = MagicMock()
+        pipe.execute = AsyncMock()
+        with (
+            patch.object(shared, "get_bili_ticket", fetch),
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(shared.appredis, "pipeline", return_value=pipe),
+        ):
+            owner = asyncio.create_task(manager.get_ticket())
+            await asyncio.wait_for(started.wait(), 1)
+            joiner = asyncio.create_task(manager.get_ticket())
+            await asyncio.sleep(0)
+
+            owner.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await owner
+
+            self.assertIsNone(await asyncio.wait_for(joiner, 1))
+            self.assertIsNone(manager._inflight)
+            self.assertEqual(manager._fail_until, 0.0)
+
+            ticket = await asyncio.wait_for(manager.get_ticket(), 1)
+            self.assertEqual(ticket, "recovered-ticket")
+            self.assertEqual(attempts, 2)
+
+    async def test_corrupt_cached_expiry_falls_through_to_upstream_fetch(self):
+        manager = shared.TicketManager
+        pipe = MagicMock()
+        pipe.execute = AsyncMock()
+        expiry = int(time.time()) + 3600
+        with (
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=("stale", "bad"))),
+            patch.object(manager, "_fetch_new_ticket", AsyncMock(return_value=("fresh-ticket", expiry))) as fetch,
+            patch.object(shared.appredis, "pipeline", return_value=pipe),
+        ):
+            ticket = await manager.get_ticket()
+
+        self.assertEqual(ticket, "fresh-ticket")
+        fetch.assert_awaited_once()
 
 
 class DnsStaleWhileRevalidateTests(unittest.IsolatedAsyncioTestCase):
@@ -293,6 +560,163 @@ class DnsStaleWhileRevalidateTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await dns_cache.resolve_host(self.HOST), first)
             await self._settle_refresh()
         self.assertEqual(self.lookups, 2)
+
+    async def test_owner_cancellation_settles_joiner_and_clears_inflight(self):
+        import threading
+
+        thread_started = threading.Event()
+        thread_release = threading.Event()
+
+        def slow_lookup(*_a, **_k):
+            thread_started.set()
+            thread_release.wait(timeout=2.0)
+            return self.info
+
+        with patch.object(dns_cache.socket, "getaddrinfo", slow_lookup):
+            owner = asyncio.create_task(dns_cache.resolve_host(self.HOST))
+            while not thread_started.is_set():
+                await asyncio.sleep(0.005)
+            joiner = asyncio.create_task(dns_cache.resolve_host(self.HOST))
+            await asyncio.sleep(0)
+
+            owner.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await owner
+            with self.assertRaises(RuntimeError):
+                await asyncio.wait_for(joiner, 1)
+            self.assertNotIn(self.HOST, dns_cache._inflight)
+            thread_release.set()
+
+    async def test_clear_cache_settles_pending_inflight_waiters(self):
+        import threading
+
+        thread_started = threading.Event()
+        thread_release = threading.Event()
+
+        def slow_lookup(*_a, **_k):
+            thread_started.set()
+            thread_release.wait(timeout=2.0)
+            return self.info
+
+        with patch.object(dns_cache.socket, "getaddrinfo", slow_lookup):
+            owner = asyncio.create_task(dns_cache.resolve_host(self.HOST))
+            while not thread_started.is_set():
+                await asyncio.sleep(0.005)
+            joiner = asyncio.create_task(dns_cache.resolve_host(self.HOST))
+            await asyncio.sleep(0)
+
+            dns_cache.clear_cache()
+            with self.assertRaises(RuntimeError):
+                await asyncio.wait_for(joiner, 1)
+            self.assertEqual(dns_cache._inflight, {})
+            thread_release.set()
+            await owner
+
+
+class TestSSRFHelpers(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        dns_cache.clear_cache()
+
+    async def asyncTearDown(self):
+        dns_cache.clear_cache()
+
+    def test_is_public_ip_rejects_private_special_multicast_and_mapped(self):
+        blocked = [
+            "127.0.0.1",
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254",
+            "100.64.0.1",
+            "0.0.0.0",
+            "224.0.0.1",
+            "::1",
+            "::",
+            "fe80::1",
+            "fc00::1",
+            "ff02::1",
+            "::ffff:127.0.0.1",
+            "::ffff:169.254.169.254",
+            "::ffff:10.0.0.1",
+            "::ffff:224.0.0.1",
+            "not-an-ip",
+        ]
+        for addr in blocked:
+            self.assertFalse(dns_cache.is_public_ip(addr), f"expected {addr} to be blocked")
+
+        for addr in ("1.1.1.1", "8.8.8.8", "2606:4700:4700::1111"):
+            self.assertTrue(dns_cache.is_public_ip(addr), f"expected {addr} to be public")
+
+    def test_is_allowed_url_host(self):
+        domains = (".hdslb.com", "bilivideo.com")
+        self.assertEqual(dns_cache.is_allowed_url_host("https://i0.hdslb.com./pic.jpg", domains), "i0.hdslb.com")
+        self.assertEqual(dns_cache.is_allowed_url_host("http://bilivideo.com/a.m4s", domains), "bilivideo.com")
+
+        for bad in (
+            "ftp://i0.hdslb.com/x",
+            "file:///etc/passwd",
+            "https://user@i0.hdslb.com/x",
+            "https://user:pass@i0.hdslb.com/x",
+            "https://i0.hdslb.com/a\r\nb",
+            "https://evil.com/x",
+            "https://hdslb.com.evil.com/x",
+            "",
+        ):
+            self.assertIsNone(dns_cache.is_allowed_url_host(bad, domains), f"expected {bad!r} to fail")
+
+    async def test_is_safe_public_url_cached_and_uncached(self):
+        domains = (".bilivideo.com",)
+        public_info = [(2, 1, 6, "", ("1.1.1.1", 0))]
+        private_info = [(2, 1, 6, "", ("::ffff:127.0.0.1", 0))]
+
+        with patch.object(dns_cache.socket, "getaddrinfo", return_value=public_info) as mock_gai:
+            self.assertTrue(
+                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=True)
+            )
+            self.assertTrue(
+                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=True)
+            )
+            self.assertEqual(mock_gai.call_count, 1)
+
+            self.assertTrue(
+                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=False)
+            )
+            self.assertEqual(mock_gai.call_count, 2)
+
+        with patch.object(dns_cache.socket, "getaddrinfo", return_value=private_info):
+            self.assertFalse(
+                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=False)
+            )
+
+
+class TestDNSClearOwnership(unittest.IsolatedAsyncioTestCase):
+    async def test_cleared_lookup_cannot_overwrite_replacement(self):
+        dns_cache.clear_cache()
+        started = asyncio.Event()
+        release = asyncio.Event()
+        calls = 0
+
+        async def lookup(*args):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                started.set()
+                await release.wait()
+                return ["old"]
+            return ["new"]
+
+        try:
+            with patch.object(dns_cache.asyncio, "to_thread", side_effect=lookup):
+                old = asyncio.create_task(dns_cache.resolve_host("test.example"))
+                await started.wait()
+                dns_cache.clear_cache()
+                self.assertEqual(await dns_cache.resolve_host("test.example"), ["new"])
+                stamp = dns_cache._cache["test.example"][0]
+                release.set()
+                self.assertEqual(await old, ["old"])
+                self.assertEqual(dns_cache._cache["test.example"], (stamp, ["new"]))
+        finally:
+            dns_cache.clear_cache()
 
 
 if __name__ == "__main__":

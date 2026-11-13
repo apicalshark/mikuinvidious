@@ -40,72 +40,24 @@ if (mobile_search_btn && search_container) {
   });
 }
 
-var toggle_opencc = document.getElementById("toggle_opencc");
-if (toggle_opencc) {
-  toggle_opencc.addEventListener("click", function () {
-    const oldVal = helpers.storage.get("opencc") || getCookie("opencc");
+function bindCookieToggle(elementId, key) {
+  var el = document.getElementById(elementId);
+  if (!el) return;
+  el.addEventListener("click", function () {
+    const oldVal = helpers.storage.get(key) || getCookie(key);
     const newVal = oldVal === "1" ? "0" : "1";
-    helpers.storage.set("opencc", newVal);
+    helpers.storage.set(key, newVal);
     const secureFlag = location.protocol === "https:" ? "; Secure" : "";
     document.cookie =
-      "opencc=" + newVal + "; path=/; max-age=" + 3600 * 24 * 30 + "; SameSite=Lax" + secureFlag;
+      key + "=" + newVal + "; path=/; max-age=" + 3600 * 24 * 30 + "; SameSite=Lax" + secureFlag;
     location.reload();
   });
 }
 
-var toggle_search_opencc = document.getElementById("toggle_search_opencc");
-if (toggle_search_opencc) {
-  toggle_search_opencc.addEventListener("click", function () {
-    const oldVal = helpers.storage.get("search_opencc") || getCookie("search_opencc");
-    const newVal = oldVal === "1" ? "0" : "1";
-    helpers.storage.set("search_opencc", newVal);
-    const secureFlag = location.protocol === "https:" ? "; Secure" : "";
-    document.cookie =
-      "search_opencc=" +
-      newVal +
-      "; path=/; max-age=" +
-      3600 * 24 * 30 +
-      "; SameSite=Lax" +
-      secureFlag;
-    location.reload();
-  });
-}
-
-var toggle_best_audio = document.getElementById("toggle_best_audio");
-if (toggle_best_audio) {
-  toggle_best_audio.addEventListener("click", function () {
-    const oldVal = helpers.storage.get("best_audio") || getCookie("best_audio");
-    const newVal = oldVal === "1" ? "0" : "1";
-    helpers.storage.set("best_audio", newVal);
-    const secureFlag = location.protocol === "https:" ? "; Secure" : "";
-    document.cookie =
-      "best_audio=" +
-      newVal +
-      "; path=/; max-age=" +
-      3600 * 24 * 30 +
-      "; SameSite=Lax" +
-      secureFlag;
-    location.reload();
-  });
-}
-
-var toggle_lock_video = document.getElementById("toggle_lock_video");
-if (toggle_lock_video) {
-  toggle_lock_video.addEventListener("click", function () {
-    const oldVal = helpers.storage.get("lock_video") || getCookie("lock_video");
-    const newVal = oldVal === "1" ? "0" : "1";
-    helpers.storage.set("lock_video", newVal);
-    const secureFlag = location.protocol === "https:" ? "; Secure" : "";
-    document.cookie =
-      "lock_video=" +
-      newVal +
-      "; path=/; max-age=" +
-      3600 * 24 * 30 +
-      "; SameSite=Lax" +
-      secureFlag;
-    location.reload();
-  });
-}
+bindCookieToggle("toggle_opencc", "opencc");
+bindCookieToggle("toggle_search_opencc", "search_opencc");
+bindCookieToggle("toggle_best_audio", "best_audio");
+bindCookieToggle("toggle_lock_video", "lock_video");
 
 /** @param {THEME_DARK|THEME_LIGHT} theme */
 function setTheme(theme) {

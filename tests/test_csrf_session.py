@@ -1,7 +1,7 @@
 import unittest
 
-from app import app
-from csrf import get_csrf_token, validate_csrf_token
+from miku.app import app
+from miku.core.csrf import get_csrf_token, validate_csrf_token
 from quart.sessions import SecureCookieSessionInterface
 
 

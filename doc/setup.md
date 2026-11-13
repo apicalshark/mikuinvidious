@@ -23,7 +23,7 @@ sudo apt install python3 python3-venv git curl
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
   *Or via pip: `pip install uv`*
-- **Redis**: Required for caching and session storage. [Install Guide](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
+- **Redis**: Required for caching, ticket storage, and rate limiting. [Install Guide](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
 - **Caddy**: High-performance reverse proxy. [Install Guide](https://caddyserver.com/docs/install)
 - **Node.js v18+ & npm**: Required for building CSS and frontend tools. [Install Guide](https://nodejs.org/en/download/package-manager)
 
@@ -72,7 +72,7 @@ If you intend to contribute to MikuInvidious or modify the source code, follow t
 
 ## 3. Docker Deployment (Recommended for Production)
 
-This is the easiest and most stable way to run MikuInvidious. It includes all necessary dependencies (Redis, Caddy, Cloudflare WARP) pre-configured.
+This is the easiest and most stable way to run MikuInvidious. It includes the core services (Redis, Caddy) pre-configured; an optional Cloudflare WARP SOCKS5 proxy can be set up separately via `tools/warp/`.
 
 ### Prerequisites
 
@@ -174,8 +174,8 @@ This approach provides direct control over the environment but requires manual c
    ```
    Edit `config.toml`:
    - Set `site_url` in `[site]` to `http://localhost:8888` for direct HTTP access, or `http://localhost:8000` through the Caddy configuration above. Use your public HTTPS URL when deploying with TLS; the scheme controls the default Secure session cookie setting.
-   - Set `secret_key` in `[server]`.
-   - Ensure `url = "redis://localhost:6379"` in `[redis]`.
+   - Set `secret_key` in `[server]` (or `QUART_SECRET_KEY` env var) so sessions survive restarts.
+   - Ensure `redis_url = "redis://localhost:6379"` in `[redis]`.
    - Configure `proxy_url` in `[proxy]` if you are using a SOCKS5/HTTP proxy.
 
 ### Step 3: Run

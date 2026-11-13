@@ -2,12 +2,12 @@ import asyncio
 import unittest
 
 import httpx
-import proxy
-from api.live import LiveDanmaku
-from app import app
-from csrf import CSRF_TOKEN_KEY
-from dash_download_job import create_download_job
-from shared import Network, appconf, detect_theme
+import miku.media.proxy as proxy
+from miku.api.live import LiveDanmaku
+from miku.app import app
+from miku.core.csrf import CSRF_TOKEN_KEY
+from miku.dash.download_job import create_download_job
+from miku.state import Network, appconf, detect_theme
 
 
 class TestThemeSecurity(unittest.IsolatedAsyncioTestCase):
@@ -27,15 +27,22 @@ class TestThemeSecurity(unittest.IsolatedAsyncioTestCase):
 
     async def test_general_exception_view_fallback(self):
         """Verify that general_exception_view recovers cleanly without recursive crash."""
+        from miku.app import general_exception_view
+
         client = app.test_client()
         resp = await client.get("/?theme=..")
-        # Should not crash the server (returns 200 homepage with modern theme or 500 error page)
-        self.assertIn(resp.status_code, (200, 500))
+        # Returns 200 online or mapped upstream error (403/500/502/503) offline
+        self.assertIn(resp.status_code, (200, 403, 500, 502, 503))
+
+        async with app.test_request_context("/?theme=.."):
+            _body, status = await general_exception_view(RuntimeError("simulated crash"))
+        self.assertEqual(status, 500)
 
 
 class TestProxyRedirectSecurity(unittest.IsolatedAsyncioTestCase):
     async def test_redirect_to_loopback_blocked(self):
         """Verify that image proxy redirects to loopback addresses are blocked with 403."""
+
         def mock_handler(request: httpx.Request):
             if request.url.host == "i0.hdslb.com":
                 return httpx.Response(302, headers={"Location": "http://127.0.0.1:8080/internal.png"})
@@ -55,9 +62,12 @@ class TestProxyRedirectSecurity(unittest.IsolatedAsyncioTestCase):
 
     async def test_redirect_exceeding_max_hops_blocked(self):
         """Verify that redirect loops exceeding 3 hops are rejected with 403."""
+
         def mock_loop(request: httpx.Request):
             # Infinite redirect loop
-            return httpx.Response(302, headers={"Location": f"{request.url.scheme}://{request.url.host}{request.url.path}1"})
+            return httpx.Response(
+                302, headers={"Location": f"{request.url.scheme}://{request.url.host}{request.url.path}1"}
+            )
 
         transport = httpx.MockTransport(mock_loop)
         mock_client = httpx.AsyncClient(transport=transport)
@@ -114,9 +124,9 @@ class TestDownloadAccessControl(unittest.IsolatedAsyncioTestCase):
         async with client.session_transaction() as sess:
             sess[CSRF_TOKEN_KEY] = tok
 
-        orig_conf = appconf.get("site_allow_download", True)
+        orig_site_conf = appconf["site"].get("site_allow_download", True)
         try:
-            appconf["site_allow_download"] = False
+            appconf["site"]["site_allow_download"] = False
 
             # 1. POST /download
             resp = await client.post(
@@ -135,7 +145,7 @@ class TestDownloadAccessControl(unittest.IsolatedAsyncioTestCase):
                 await create_download_job("BV1xx411c7mD", 1, 80)
             self.assertIn("Downloads are disabled", str(ctx.exception))
         finally:
-            appconf["site_allow_download"] = orig_conf
+            appconf["site"]["site_allow_download"] = orig_site_conf
 
 
 class TestSetLangRedirectSanitization(unittest.IsolatedAsyncioTestCase):

@@ -31,7 +31,7 @@ class TestSessionCookieConfig(unittest.TestCase):
                     [
                         sys.executable,
                         "-c",
-                        "from shared import app, appconf; "
+                        "from miku.state import app, appconf; "
                         "print(appconf['site']['site_url']); print(app.config['SESSION_COOKIE_SECURE'])",
                     ],
                     cwd=directory,

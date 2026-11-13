@@ -187,14 +187,14 @@ var _580c77 = function(scrollLeft, scrollTop) {
 Based on the reverse-engineering findings above, the following hardening measures have been implemented in the application:
 
 1. **`dm_img_*` Fingerprints Aligned with Official SDK**:
-   * In `python/api/video.py:_get_dm_img_params`, `dm_img_str` and `dm_cover_img_str` are trimmed by 2 characters (`[:-2]`), adhering to the official `_28b679` specification.
+   * In `python/miku/api/video.py:_get_dm_img_params`, `dm_img_str` and `dm_cover_img_str` are trimmed by 2 characters (`[:-2]`), adhering to the official `_28b679` specification.
    * Replaced the static `of = [0, 0, 0]` with the official projection distribution:
      ```python
      rnd_of = random.randint(100, 450)
      of = [rnd_of, 2 * rnd_of, rnd_of]
      ```
 2. **URL Query Parameters & WBI Signature Inclusion**:
-   * In `python/api/user.py:get_user_info` and `get_videos`, `x-bili-device-req-json` is explicitly included in `params` so that it participates in parameter sorting and WBI hashing (`w_rid`), matching `fresh-space` bundle behavior.
+   * In `python/miku/api/user.py:get_user_info` and `get_videos`, `x-bili-device-req-json` is explicitly included in `params` so that it participates in parameter sorting and WBI hashing (`w_rid`), matching `fresh-space` bundle behavior.
 3. **Multi-Tiered Degraded Resilience**:
    * Because datacenter IPs may face IP-level HTTP 412 gatekeeping regardless of fingerprint fidelity without residential proxies/WARP, the layered fallback mechanisms are preserved:
      * When `acc/info` is risk-controlled, seamlessly falls back to non-WBI `/x/web-interface/card`.

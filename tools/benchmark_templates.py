@@ -5,8 +5,8 @@ import asyncio
 import statistics
 import time
 
-from app import app
-from shared import render_template_with_theme
+from miku.app import app
+from miku.state import render_template_with_theme
 
 
 async def benchmark_template(name: str, template_fp: str, context: dict, iterations: int = 500):

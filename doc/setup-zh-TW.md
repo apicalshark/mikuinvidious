@@ -23,7 +23,7 @@ sudo apt install python3 python3-venv git curl
   curl -LsSf https://astral.sh/uv/install.sh | sh
   ```
   *或者透過 pip 安裝：`pip install uv`*
-- **Redis**: 用於快取和工作階段存儲。[安裝指南](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
+- **Redis**: 用於快取、Ticket 存儲和速率限制。[安裝指南](https://redis.io/docs/latest/operate/oss_and_stack/install/archive/install-redis/install-redis-on-linux/)
 - **Caddy**: 高性能反向代理。[安裝指南](https://caddyserver.com/docs/install)
 - **Node.js v18+ & npm**: 建置 CSS 和前端工具所需。[安裝指南](https://nodejs.org/en/download/package-manager)
 
@@ -173,8 +173,8 @@ Caddy 預設自動處理 SSL/TLS 憑證。
    cp config.toml.sample config.toml
    ```
    編輯 `config.toml`：
-   - 在 `[server]` 中設置 `secret_key`。
-   - 確保 `[redis]` 中的 `url = "redis://localhost:6379"`。
+   - 在 `[server]` 中設置 `secret_key`（或設置環境變數 `QUART_SECRET_KEY`），以便工作階段在重啟後保持有效。
+   - 確保 `[redis]` 中的 `redis_url = "redis://localhost:6379"`。
    - 如果您使用 SOCKS5/HTTP 代理，請配置 `[proxy]` 中的 `proxy_url`。
 
 ### 步驟 3：執行

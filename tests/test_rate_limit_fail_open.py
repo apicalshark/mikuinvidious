@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock
 
-from rate_limit import RateLimiter
+from miku.core.rate_limit import RateLimiter
 
 
 class TestRateLimitFailOpen(unittest.IsolatedAsyncioTestCase):

@@ -7,8 +7,8 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 import httpx
-from image_cache import ImageCache
-from proxy import render_proxy_pic
+from miku.media.image_cache import ImageCache
+from miku.media.proxy import render_proxy_pic
 
 
 class TestImageCache(unittest.IsolatedAsyncioTestCase):
@@ -126,6 +126,87 @@ class TestImageCache(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(cached)
         self.assertEqual(cached[0], content)
 
+    async def test_prune_tasks_tracked_and_cancelled_on_close(self):
+        gate = asyncio.Event()
+        started = asyncio.Event()
+        cancelled = False
+
+        async def slow_prune():
+            nonlocal cancelled
+            started.set()
+            try:
+                await gate.wait()
+            except asyncio.CancelledError:
+                cancelled = True
+                raise
+
+        self.cache._op_counter = 99
+        with patch.object(self.cache, "prune_if_needed", side_effect=slow_prune):
+            await self.cache.set("https://i0.hdslb.com/bfs/prune_track.jpg", b"abc", "image/jpeg")
+            await started.wait()
+            self.assertEqual(len(self.cache._prune_tasks), 1)
+            await self.cache.close()
+
+        self.assertTrue(cancelled)
+        self.assertEqual(len(self.cache._prune_tasks), 0)
+
+        # Further ops after close() must not spawn new prune tasks
+        self.cache._op_counter = 99
+        with patch.object(self.cache, "prune_if_needed", side_effect=slow_prune) as mock_prune:
+            await self.cache.set("https://i0.hdslb.com/bfs/after_close.jpg", b"def", "image/jpeg")
+            mock_prune.assert_not_called()
+        self.assertEqual(len(self.cache._prune_tasks), 0)
+
+    async def test_fs_metadata_calls_run_off_event_loop_thread(self):
+        import threading
+
+        loop_tid = threading.get_ident()
+        observed: list[tuple[str, int]] = []
+
+        orig_exists = os.path.exists
+        orig_replace = os.replace
+        orig_utime = os.utime
+        orig_remove = os.remove
+
+        def track_exists(path):
+            observed.append(("exists", threading.get_ident()))
+            return orig_exists(path)
+
+        def track_replace(src, dst):
+            observed.append(("replace", threading.get_ident()))
+            return orig_replace(src, dst)
+
+        def track_utime(path, times=None):
+            observed.append(("utime", threading.get_ident()))
+            return orig_utime(path, times)
+
+        def track_remove(path):
+            observed.append(("remove", threading.get_ident()))
+            return orig_remove(path)
+
+        url = "https://i0.hdslb.com/bfs/offload_test.jpg"
+        with (
+            patch("miku.media.image_cache.os.path.exists", side_effect=track_exists),
+            patch("miku.media.image_cache.os.replace", side_effect=track_replace),
+            patch("miku.media.image_cache.os.utime", side_effect=track_utime),
+            patch("miku.media.image_cache.os.remove", side_effect=track_remove),
+        ):
+            await self.cache.set(url, b"payload", "image/jpeg")
+            hit = await self.cache.get(url)
+            self.assertEqual(hit, (b"payload", "image/jpeg"))
+
+            # Force expiry to trigger os.remove off the loop thread
+            expired_path = self.cache._get_path(self.cache._url_to_key(url))
+            with open(expired_path, "wb") as f:
+                f.write(b"image/jpeg\n1\n\npayload")
+            miss = await self.cache.get(url)
+            self.assertIsNone(miss)
+
+        calls_by_op = {op for op, _ in observed}
+        self.assertTrue({"exists", "replace", "utime", "remove"}.issubset(calls_by_op))
+        for op, tid in observed:
+            self.assertNotEqual(tid, loop_tid, f"os.{op} ran on event loop thread")
+
 
 class TestProxyPicDiskCacheIntegration(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -150,9 +231,9 @@ class TestProxyPicDiskCacheIntegration(unittest.IsolatedAsyncioTestCase):
         mock_client.send = mock_send
 
         with (
-            patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("proxy.image_cache", custom_cache),
-            patch("shared.Network.get_image_client", new=AsyncMock(return_value=mock_client)),
+            patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+            patch("miku.media.proxy.image_cache", custom_cache),
+            patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=mock_client)),
         ):
             url_path = "/proxy/pic/i0.hdslb.com/bfs/archive/hit_test.jpg"
 

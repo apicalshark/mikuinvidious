@@ -1,0 +1,372 @@
+# Copyright (C) 2023 MikuInvidious Team
+#
+# MikuInvidious is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 3 of
+# the License, or (at your option) any later version.
+#
+# MikuInvidious is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
+"""
+Bilibili credential / authentication.
+
+Minimal drop-in for ``bilibili_api.Credential`` covering only what this
+project uses. Cookie management (buvid3/4 auto-generation, bili_ticket
+headers) lives outside Credential; ``bili_ticket`` is never stored on or
+emitted by ``Credential``.
+"""
+
+import asyncio
+import re
+import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
+
+from .exceptions import ArgsException, CookiesRefreshException
+
+__all__ = ["Credential", "sync", "ArgsException"]
+
+_EXTRA_COOKIE_NAMES = frozenset({"_uuid", "b_lsid", "b_nut", "buvid_fp"})
+
+
+class RefreshConfirmationUnknown(CookiesRefreshException):
+    """Refresh issued credentials, but confirmation could not be determined."""
+
+    def __init__(self, credential):
+        super().__init__("Cookie refresh confirmation outcome unknown; new credentials retained")
+        self.credential = credential
+
+
+class Credential:
+    """
+    Auth credential holding Bilibili cookie values.
+
+    Fields correspond to browser cookies:
+      - sessdata:       SESSDATA
+      - bili_jct:       bili_jct
+      - buvid3:         buvid3
+      - buvid4:         buvid4
+      - dedeuserid:     DedeUserID
+      - ac_time_value:  ac_time_value
+    """
+
+    def __init__(
+        self,
+        sessdata=None,
+        bili_jct=None,
+        buvid3=None,
+        buvid4=None,
+        dedeuserid=None,
+        ac_time_value=None,
+        proxy=None,
+        **kwargs,
+    ):
+        self.sessdata = (
+            None if sessdata is None else (sessdata if sessdata.find("%") != -1 else urllib.parse.quote(sessdata))
+        )
+        self.bili_jct = bili_jct
+        self.buvid3 = buvid3
+        self.buvid4 = buvid4
+        self.dedeuserid = dedeuserid
+        self.ac_time_value = ac_time_value
+        self.proxy = proxy
+
+        for key, value in kwargs.items():
+            # Same allowlist as from_cookies: never let arbitrary keys
+            # become object attributes.
+            if key in _EXTRA_COOKIE_NAMES:
+                setattr(self, key, value)
+
+    def get_cookies(self) -> dict:
+        """Return a request cookie dictionary (excluding the proxy field)."""
+        cookies = {
+            "SESSDATA": self.sessdata if self.sessdata else "",
+            "buvid3": self.buvid3 if self.buvid3 else "",
+            "buvid4": self.buvid4 if self.buvid4 else "",
+            "bili_jct": self.bili_jct if self.bili_jct else "",
+            "ac_time_value": self.ac_time_value if self.ac_time_value else "",
+        }
+        if self.dedeuserid:
+            cookies["DedeUserID"] = self.dedeuserid
+        for key in _EXTRA_COOKIE_NAMES:
+            value = getattr(self, key, None)
+            if value is not None:
+                cookies[key] = value
+        return cookies
+
+    def has_sessdata(self) -> bool:
+        return self.sessdata is not None and self.sessdata != ""
+
+    def has_bili_jct(self) -> bool:
+        return self.bili_jct is not None and self.bili_jct != ""
+
+    def has_buvid3(self) -> bool:
+        return self.buvid3 is not None and self.buvid3 != ""
+
+    def has_buvid4(self) -> bool:
+        return self.buvid4 is not None and self.buvid4 != ""
+
+    def has_dedeuserid(self) -> bool:
+        return self.dedeuserid is not None and self.dedeuserid != ""
+
+    def has_ac_time_value(self) -> bool:
+        return self.ac_time_value is not None and self.ac_time_value != ""
+
+    def raise_for_no_sessdata(self):
+        if not self.has_sessdata():
+            raise ArgsException("Missing sessdata parameter")
+
+    def raise_for_no_bili_jct(self):
+        if not self.has_bili_jct():
+            raise ArgsException("Missing bili_jct parameter")
+
+    def raise_for_no_buvid3(self):
+        if not self.has_buvid3():
+            raise ArgsException("Missing buvid3 parameter")
+
+    def raise_for_no_buvid4(self):
+        if not self.has_buvid4():
+            raise ArgsException("Missing buvid4 parameter")
+
+    def raise_for_no_dedeuserid(self):
+        if not self.has_dedeuserid():
+            raise ArgsException("Missing DedeUserID parameter")
+
+    def raise_for_no_ac_time_value(self):
+        if not self.has_ac_time_value():
+            raise ArgsException("Missing ac_time_value parameter")
+
+    @staticmethod
+    def from_cookies(cookies: dict = None) -> Credential:
+        cookies = cookies or {}
+        c = Credential()
+        c.sessdata = cookies.get("SESSDATA")
+        c.bili_jct = cookies.get("bili_jct")
+        c.buvid3 = cookies.get("buvid3")
+        c.buvid4 = cookies.get("buvid4")
+        c.dedeuserid = cookies.get("DedeUserID")
+        c.ac_time_value = cookies.get("ac_time_value")
+        for key, value in cookies.items():
+            # Allowlist only: arbitrary cookie keys must not become object
+            # attributes (would allow overwriting methods/flags like proxy).
+            if key in _EXTRA_COOKIE_NAMES:
+                setattr(c, key, value)
+        return c
+
+    # --- Cookie refresh (used only by the CLI refresher) ---
+    async def check_refresh(self) -> bool:
+        """
+        Check whether the cookies need refreshing.
+
+        Returns True when Bilibili reports the session should be refreshed.
+        Requires the ``pycryptodome`` extra for the refresh flow.
+        """
+        from .client import HEADERS, _build_cookie_header, get_bili_client
+        from .exceptions import NetworkException, ResponseCodeException
+
+        self.raise_for_no_sessdata()
+        client = await get_bili_client()
+        headers = dict(HEADERS)
+        cookie_str = _build_cookie_header(self.get_cookies())
+        if cookie_str:
+            headers["Cookie"] = cookie_str
+        resp = await client.get(
+            "https://passport.bilibili.com/x/passport-login/web/cookie/info",
+            headers=headers,
+        )
+        if resp.status_code != 200:
+            raise NetworkException(resp.status_code, resp.text)
+        try:
+            data = resp.json()
+        except Exception as exc:
+            raise CookiesRefreshException("Invalid JSON from cookie/info") from exc
+        if not isinstance(data, dict):
+            raise CookiesRefreshException("Unexpected response from cookie/info")
+        if data.get("code") != 0:
+            msg = data.get("msg") or data.get("message") or "Failed to check whether cookies are expired"
+            raise ResponseCodeException(data.get("code", -1), msg, data)
+        payload = data.get("data")
+        if not isinstance(payload, dict) or "refresh" not in payload:
+            raise CookiesRefreshException("Missing refresh status in cookie/info response")
+        return bool(payload["refresh"])
+
+    async def refresh(self) -> None:
+        """
+        Refresh the cookies in place (updates sessdata, bili_jct,
+        dedeuserid and ac_time_value).
+        """
+        try:
+            from Crypto.Cipher import PKCS1_OAEP
+            from Crypto.Hash import SHA256
+            from Crypto.PublicKey import RSA
+        except ImportError as exc:
+            raise CookiesRefreshException("Cookie refresh requires pycryptodome: uv sync --extra refresh") from exc
+
+        import binascii
+        import time
+        import uuid
+
+        from .client import HEADERS, _build_cookie_header, get_bili_client
+
+        self.raise_for_no_sessdata()
+        self.raise_for_no_bili_jct()
+        self.raise_for_no_ac_time_value()
+
+        client = await get_bili_client()
+        temp_buvid3 = str(uuid.uuid1())
+
+        # 1. Refresh CSRF
+        rsa = RSA.importKey(
+            "-----BEGIN PUBLIC KEY-----\n"
+            "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLgd2OAkcGVtoE3ThUREbio0Eg\n"
+            "Uc/prcajMKXvkCKFCWhJYJcLkcM2DKKcSeFpD/j6Boy538YXnR6VhcuUJOhH2x71\n"
+            "nzPjfdTcqMz7djHum0qSZA0AyCBDABUqCrfNgCiJ00Ra7GmRj+YCK1NJEuewlb40\n"
+            "JNrRuoEUXpabUzGB8QIDAQAB\n"
+            "-----END PUBLIC KEY-----"
+        )
+        ts = round(time.time() * 1000)
+        cipher = PKCS1_OAEP.new(rsa, SHA256)
+        correspond_path = binascii.b2a_hex(cipher.encrypt(f"refresh_{ts}".encode())).decode()
+        headers = dict(HEADERS)
+        cookie_str = _build_cookie_header(self.get_cookies(), {"buvid3": temp_buvid3})
+        if cookie_str:
+            headers["Cookie"] = cookie_str
+        resp = await client.get(
+            f"https://www.bilibili.com/correspond/1/{correspond_path}",
+            headers=headers,
+        )
+        if resp.status_code != 200:
+            raise CookiesRefreshException(f"Failed to get CSRF for cookie refresh: HTTP {resp.status_code}")
+        matches = re.findall(r'<div id="1-name">(.+?)</div>', resp.text)
+        if not matches:
+            raise CookiesRefreshException("correspondPath expired or invalid")
+        refresh_csrf = matches[0]
+
+        # 2. Refresh cookies
+        data = {
+            "csrf": self.bili_jct,
+            "refresh_csrf": refresh_csrf,
+            "refresh_token": self.ac_time_value,
+            "source": "main_web",
+        }
+        post_headers = dict(HEADERS)
+        if cookie_str:
+            post_headers["Cookie"] = cookie_str
+        resp = await client.post(
+            "https://passport.bilibili.com/x/passport-login/web/cookie/refresh",
+            data=data,
+            headers=post_headers,
+        )
+        if resp.status_code != 200:
+            raise CookiesRefreshException(f"Failed to refresh cookies: HTTP {resp.status_code}")
+        try:
+            body = resp.json()
+        except Exception as exc:
+            raise CookiesRefreshException("Failed to parse cookie refresh response JSON") from exc
+        if not isinstance(body, dict) or body.get("code") != 0:
+            msg = body.get("message") or body.get("msg") if isinstance(body, dict) else "unknown error"
+            raise CookiesRefreshException(f"Failed to refresh cookies: {msg}")
+
+        refresh_token = (body.get("data") or {}).get("refresh_token") if isinstance(body.get("data"), dict) else None
+        sessdata = resp.cookies.get("SESSDATA")
+        bili_jct = resp.cookies.get("bili_jct")
+        dedeuserid = resp.cookies.get("DedeUserID")
+        if not (sessdata and bili_jct and dedeuserid and refresh_token):
+            raise CookiesRefreshException("Cookie refresh response missing required cookies or refresh_token")
+
+        new_credential = Credential(
+            sessdata=sessdata,
+            bili_jct=bili_jct,
+            buvid3=self.buvid3,
+            buvid4=self.buvid4,
+            dedeuserid=dedeuserid,
+            ac_time_value=refresh_token,
+        )
+
+        # 3. Only confirmed success mutates self; unknown outcomes retain the candidate on the exception.
+        conf_data = {
+            "csrf": new_credential.bili_jct,
+            "refresh_token": self.ac_time_value,
+        }
+        confirm_headers = dict(HEADERS)
+        confirm_cookie_str = _build_cookie_header(new_credential.get_cookies())
+        if confirm_cookie_str:
+            confirm_headers["Cookie"] = confirm_cookie_str
+        try:
+            confirm_resp = await client.post(
+                "https://passport.bilibili.com/x/passport-login/web/confirm/refresh",
+                data=conf_data,
+                headers=confirm_headers,
+            )
+            if confirm_resp.status_code != 200:
+                raise RefreshConfirmationUnknown(new_credential)
+            confirm_body = confirm_resp.json()
+            if not isinstance(confirm_body, dict) or type(confirm_body.get("code")) is not int:
+                raise RefreshConfirmationUnknown(new_credential)
+        except RefreshConfirmationUnknown:
+            raise
+        except Exception as exc:
+            raise RefreshConfirmationUnknown(new_credential) from exc
+        if confirm_body["code"] != 0:
+            msg = confirm_body.get("message") or confirm_body.get("msg") or "unknown error"
+            raise CookiesRefreshException(f"Failed to confirm cookie refresh: {msg}")
+
+        self.sessdata = new_credential.sessdata
+        self.bili_jct = new_credential.bili_jct
+        self.dedeuserid = new_credential.dedeuserid
+        self.ac_time_value = new_credential.ac_time_value
+
+    def __str__(self):
+        # Never interpolate cookie values: this object routinely ends up in
+        # tracebacks and debug logs. Presence flags only.
+        present = [
+            name
+            for name, value in (
+                ("SESSDATA", self.sessdata),
+                ("bili_jct", self.bili_jct),
+                ("buvid3", self.buvid3),
+                ("buvid4", self.buvid4),
+                ("DedeUserID", self.dedeuserid),
+                ("ac_time_value", self.ac_time_value),
+            )
+            if value
+        ]
+        return f"<Credential cookies: {', '.join(present) or 'none'}>"
+
+
+def _ensure_event_loop():
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        return loop
+
+
+def sync(coroutine):
+    """
+    Run an async coroutine to completion synchronously.
+
+    If called inside a running event loop, runs it in a worker thread
+    (mirrors bilibili_api's ``sync`` semantics).
+    """
+
+    async def runner():
+        from .client import close_bili_client
+
+        try:
+            return await coroutine
+        finally:
+            await close_bili_client()
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(runner())
+    else:
+        with ThreadPoolExecutor() as executor:
+            return executor.submit(asyncio.run, runner()).result()

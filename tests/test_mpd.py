@@ -1,6 +1,6 @@
 import unittest
 
-from dash_mpd import generate_vod_mpd
+from miku.dash.mpd import generate_vod_mpd
 
 
 class TestMpd(unittest.TestCase):
@@ -113,18 +113,108 @@ class TestMpd(unittest.TestCase):
         self.assertLess(pos_30280, pos_30232)
         self.assertLess(pos_30232, pos_30216)
 
+    def test_xml_escaping_attributes_and_text(self):
+        import xml.etree.ElementTree as ET
+
+        dash_data = {
+            "dash": {
+                "duration": 10,
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 7,
+                        "codecs": "avc1\" onclick=\"alert('x&y<z>')",
+                        "bandwidth": 1000,
+                        "width": 1920,
+                        "height": 1080,
+                        "frameRate": "24",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v.m4s",
+                        "SegmentBase": {"Initialization": "0-100", "indexRange": "101-200"},
+                    }
+                ],
+                "audio": [],
+            }
+        }
+        mpd = generate_vod_mpd('BV1<x&y>"', 0, dash_data)
+        self.assertIsNotNone(mpd)
+        self.assertIn("&quot;", mpd)
+        self.assertIn("&apos;", mpd)
+        self.assertIn("&amp;", mpd)
+        self.assertIn("&lt;", mpd)
+        root = ET.fromstring(mpd)
+        base_url = root.find(".//{urn:mpeg:dash:schema:mpd:2011}BaseURL")
+        self.assertIsNotNone(base_url)
+        self.assertIn('BV1<x&y>"', base_url.text)
+
+    def test_omits_empty_adaptation_sets_with_sequential_ids(self):
+        import xml.etree.ElementTree as ET
+
+        dash_data = {
+            "dash": {
+                "duration": 10,
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 7,
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/no_sb.m4s",
+                        # missing SegmentBase -> entire codec 7 AdaptationSet is empty
+                    },
+                    {
+                        "id": 64,
+                        "codecid": 12,
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/valid.m4s",
+                        "SegmentBase": {"Initialization": "0-100", "indexRange": "101-200"},
+                    },
+                ],
+                "audio": [
+                    {
+                        "id": 30280,
+                        "codecid": 0,
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/a.m4s",
+                        "SegmentBase": {"Initialization": "0-50", "indexRange": "51-100"},
+                    }
+                ],
+            }
+        }
+        mpd = generate_vod_mpd("BV1xx411c7xx", 0, dash_data)
+        self.assertIsNotNone(mpd)
+        root = ET.fromstring(mpd)
+        sets = root.findall(".//{urn:mpeg:dash:schema:mpd:2011}AdaptationSet")
+        self.assertEqual(len(sets), 2)
+        self.assertEqual([s.attrib["id"] for s in sets], ["1", "2"])
+        self.assertEqual([s.attrib["contentType"] for s in sets], ["video", "audio"])
+
+    def test_returns_none_when_zero_representations_exist(self):
+        dash_data = {
+            "dash": {
+                "duration": 10,
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 7,
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v.m4s",
+                        "SegmentBase": {},
+                    },
+                ],
+                "audio": [
+                    {"id": 30280, "codecid": 0, "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/a.m4s"},
+                ],
+            }
+        }
+        self.assertIsNone(generate_vod_mpd("BV1xx411c7xx", 0, dash_data))
+
 
 class TestDashHardening(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        import dash_mpd
-        import dash_stream
+        import miku.dash.mpd as dash_mpd
+        import miku.dash.stream as dash_stream
 
         dash_stream.dash_concurrency.reset()
         dash_mpd._manifest_fresh_at.clear()
 
     def tearDown(self):
-        import dash_mpd
-        import dash_stream
+        import miku.dash.mpd as dash_mpd
+        import miku.dash.stream as dash_stream
 
         dash_stream.dash_concurrency.reset()
         dash_mpd._manifest_fresh_at.clear()
@@ -132,8 +222,8 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
     async def test_proxy_dash_rejects_missing_or_unbounded_range(self):
         from unittest.mock import AsyncMock, patch
 
-        import dash_stream
-        from app import app
+        import miku.dash.stream as dash_stream
+        from miku.app import app
 
         load_mock = AsyncMock()
         with patch.object(dash_stream, "_load_dash_data", load_mock):
@@ -173,8 +263,8 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
     async def test_proxy_dash_rejects_invalid_vid_or_params(self):
         from unittest.mock import AsyncMock, patch
 
-        import dash_stream
-        from app import app
+        import miku.dash.stream as dash_stream
+        from miku.app import app
 
         load_mock = AsyncMock()
         with patch.object(dash_stream, "_load_dash_data", load_mock):
@@ -199,8 +289,8 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
         from types import SimpleNamespace
         from unittest.mock import AsyncMock, patch
 
-        import dash_stream
-        from app import app
+        import miku.dash.stream as dash_stream
+        from miku.app import app
 
         dash_data = {
             "dash": {
@@ -301,8 +391,8 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
     async def test_manifest_validates_vid_and_throttles_fresh_bust(self):
         from unittest.mock import AsyncMock, patch
 
-        import dash_mpd
-        from app import app
+        import miku.dash.mpd as dash_mpd
+        from miku.app import app
 
         sample_dash = {
             "dash": {

@@ -90,37 +90,6 @@
     }
   }
 
-  const ALL_TOKEN_PROPS = [
-    "--theme-primary",
-    "--md-sys-color-primary",
-    "--md-sys-color-on-primary",
-    "--md-sys-color-primary-container",
-    "--md-sys-color-on-primary-container",
-    "--md-sys-color-secondary",
-    "--md-sys-color-on-secondary",
-    "--md-sys-color-secondary-container",
-    "--md-sys-color-on-secondary-container",
-    "--md-sys-color-tertiary",
-    "--md-sys-color-tertiary-container",
-    "--md-sys-color-on-tertiary-container",
-    "--md-sys-color-background",
-    "--md-sys-color-on-background",
-    "--md-sys-color-surface",
-    "--md-sys-color-on-surface",
-    "--md-sys-color-surface-variant",
-    "--md-sys-color-on-surface-variant",
-    "--md-sys-color-surface-container-lowest",
-    "--md-sys-color-surface-container-low",
-    "--md-sys-color-surface-container",
-    "--md-sys-color-surface-container-high",
-    "--md-sys-color-surface-container-highest",
-    "--md-sys-color-outline",
-    "--md-sys-color-outline-variant",
-    "--player-primary",
-    "--player-on-primary",
-    "--media-primary-color",
-  ];
-
   function computeTokens(hex, isDark) {
     // Apply the same opaque-seed policy to tokens that use the seed directly.
     if (/^#[0-9a-f]{8}$/i.test(hex)) hex = hex.slice(0, 7);

@@ -3,8 +3,8 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 import httpx
-from proxy import render_proxy_pic
-from shared import image_limiter
+from miku.media.proxy import render_proxy_pic
+from miku.state import image_limiter
 
 
 class PooledAsyncByteStream(httpx.AsyncByteStream):
@@ -116,8 +116,8 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
         client = httpx.AsyncClient(transport=transport)
 
         with (
-            patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
+            patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+            patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             # Fire 6 concurrent requests through render_proxy_pic against a pool of only 2 connections
             tasks = [render_proxy_pic(f"/proxy/pic/i{i}.hdslb.com/bfs/test_{i}.jpg") for i in range(6)]
@@ -148,8 +148,8 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
         client = httpx.AsyncClient(transport=transport)
 
         with (
-            patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
+            patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+            patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/pic.jpg")
             self.assertEqual(resp.status_code, 200)
@@ -171,8 +171,8 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
         client = httpx.AsyncClient(transport=transport)
 
         with (
-            patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
+            patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+            patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/face/avatar.webp")
             self.assertEqual(resp.status_code, 200)
@@ -193,8 +193,8 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
         client = httpx.AsyncClient(transport=transport)
 
         with (
-            patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
+            patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+            patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/not_an_image.jpg")
             self.assertEqual(resp.status_code, 403)
@@ -212,7 +212,7 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
     async def test_render_proxy_pic_unsafe_url_forbidden(self):
         """Validates unsafe URLs rejected by is_safe_proxy_url return 403."""
-        with patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=False)):
+        with patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=False)):
             resp = await render_proxy_pic("/proxy/pic/evil.com/malicious.jpg")
             self.assertEqual(resp.status_code, 403)
 
@@ -229,8 +229,8 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
         client = httpx.AsyncClient(transport=transport)
 
         with (
-            patch("proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
-            patch("shared.Network.get_image_client", new=AsyncMock(return_value=client)),
+            patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+            patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
         ):
             resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/huge.jpg")
             self.assertEqual(resp.status_code, 413)
@@ -239,7 +239,7 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
     async def test_network_get_image_client_isolation(self):
         """Validates that Network.get_image_client returns an isolated client with HTTP/2 enabled."""
-        from shared import Network, close_global_client
+        from miku.state import Network, close_global_client
 
         try:
             image_client = await Network.get_image_client()
@@ -255,6 +255,84 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
             self.assertIs(await Network.get_async_client(), async_client)
         finally:
             await close_global_client()
+
+    async def test_render_proxy_pic_exact_mime_rejects_svg_and_suffix_variants(self):
+        """Exact Content-Type check rejects image/png+xml and image/svg+xml with 403."""
+        for bad_mime in ("image/png+xml", "image/svg+xml; charset=utf-8"):
+            with self.subTest(bad_mime=bad_mime):
+                transport = httpx.MockTransport(
+                    lambda req, mime=bad_mime: httpx.Response(
+                        200,
+                        headers={"Content-Type": mime},
+                        content=b"<svg/>",
+                    )
+                )
+                client = httpx.AsyncClient(transport=transport)
+                try:
+                    with (
+                        patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+                        patch("miku.media.proxy.image_cache.get", new=AsyncMock(return_value=None)),
+                        patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
+                    ):
+                        resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/vector_test.svg")
+                    self.assertEqual(resp.status_code, 403)
+                finally:
+                    await client.aclose()
+
+    async def test_render_proxy_pic_forwards_query_string_and_keys_cache_per_query(self):
+        """Query string is forwarded to upstream CDN and included in the disk cache key."""
+        import tempfile
+
+        from miku.app import app
+        from miku.media.image_cache import ImageCache
+
+        requested_urls = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            requested_urls.append(str(req.url))
+            return httpx.Response(
+                200,
+                headers={"Content-Type": "image/jpeg"},
+                content=f"img:{req.url.query.decode()}".encode(),
+            )
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache = ImageCache(cache_dir=tmpdir)
+            try:
+                with (
+                    patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+                    patch("miku.media.proxy.image_cache", cache),
+                    patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
+                ):
+                    async with app.test_request_context("/proxy/pic/i0.hdslb.com/bfs/pic.jpg?foo=1&bar=2"):
+                        r1 = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/pic.jpg")
+                    self.assertEqual(r1.status_code, 200)
+                    self.assertEqual(await r1.get_data(), b"img:foo=1&bar=2")
+
+                    # Distinct query string must miss cache and hit upstream separately
+                    async with app.test_request_context("/proxy/pic/i0.hdslb.com/bfs/pic.jpg?foo=2"):
+                        r2 = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/pic.jpg")
+                    self.assertEqual(r2.status_code, 200)
+                    self.assertEqual(await r2.get_data(), b"img:foo=2")
+
+                    # Same query string hits disk cache
+                    async with app.test_request_context("/proxy/pic/i0.hdslb.com/bfs/pic.jpg?foo=1&bar=2"):
+                        r3 = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/pic.jpg")
+                    self.assertEqual(r3.status_code, 200)
+                    self.assertEqual(r3.headers.get("X-Cache"), "HIT")
+                    self.assertEqual(await r3.get_data(), b"img:foo=1&bar=2")
+            finally:
+                await cache.close()
+                await client.aclose()
+
+        self.assertEqual(
+            requested_urls,
+            [
+                "https://i0.hdslb.com/bfs/pic.jpg?foo=1&bar=2",
+                "https://i0.hdslb.com/bfs/pic.jpg?foo=2",
+            ],
+        )
 
 
 if __name__ == "__main__":
