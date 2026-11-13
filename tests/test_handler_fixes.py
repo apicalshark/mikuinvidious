@@ -27,10 +27,16 @@ class TestThemeSecurity(unittest.IsolatedAsyncioTestCase):
 
     async def test_general_exception_view_fallback(self):
         """Verify that general_exception_view recovers cleanly without recursive crash."""
+        from miku.app import general_exception_view
+
         client = app.test_client()
         resp = await client.get("/?theme=..")
-        # Should not crash the server (returns 200 homepage with modern theme or 500 error page)
-        self.assertIn(resp.status_code, (200, 500))
+        # Returns 200 online or mapped upstream error (403/500/502/503) offline
+        self.assertIn(resp.status_code, (200, 403, 500, 502, 503))
+
+        async with app.test_request_context("/?theme=.."):
+            _body, status = await general_exception_view(RuntimeError("simulated crash"))
+        self.assertEqual(status, 500)
 
 
 class TestProxyRedirectSecurity(unittest.IsolatedAsyncioTestCase):
@@ -119,11 +125,8 @@ class TestDownloadAccessControl(unittest.IsolatedAsyncioTestCase):
             sess[CSRF_TOKEN_KEY] = tok
 
         orig_site_conf = appconf["site"].get("site_allow_download", True)
-        orig_top_conf = appconf.get("site_allow_download")
         try:
             appconf["site"]["site_allow_download"] = False
-            # app.py /download is updated to downloads_allowed(appconf) in Wave 2
-            appconf["site_allow_download"] = False
 
             # 1. POST /download
             resp = await client.post(
@@ -143,10 +146,6 @@ class TestDownloadAccessControl(unittest.IsolatedAsyncioTestCase):
             self.assertIn("Downloads are disabled", str(ctx.exception))
         finally:
             appconf["site"]["site_allow_download"] = orig_site_conf
-            if orig_top_conf is None:
-                appconf.pop("site_allow_download", None)
-            else:
-                appconf["site_allow_download"] = orig_top_conf
 
 
 class TestSetLangRedirectSanitization(unittest.IsolatedAsyncioTestCase):

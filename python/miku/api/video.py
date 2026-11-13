@@ -386,6 +386,7 @@ def make_video(vid: str, credential: Credential | None = None) -> Video:
     if isinstance(vid, str):
         if vid.startswith("BV"):
             return Video(bvid=vid, credential=credential)
-        if vid.startswith(("av", "AV")) or (vid.isascii() and vid.isdigit()):
-            return Video(aid=vid, credential=credential)
+        raw = vid[2:] if vid.startswith(("av", "AV")) else vid
+        if raw and raw.isascii() and raw.isdigit():
+            return Video(aid=int(raw), credential=credential)
     raise ArgsException("Invalid video id: expected BV... or av<id>.")

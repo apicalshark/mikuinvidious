@@ -48,10 +48,7 @@ def _is_valid_vid(vid: str) -> bool:
     return bool(vid) and bool(_VID_RE.match(vid))
 
 
-def make_video(vid: str, cred=None) -> video.Video:
-    if isinstance(vid, str) and vid[:2].lower() == "av" and vid[2:].isdigit():
-        return video.Video(aid=int(vid[2:]), credential=cred)
-    return video.Video(bvid=vid, credential=cred)
+make_video = video.make_video
 
 
 async def _is_safe_subtitle_url(url: str) -> bool:

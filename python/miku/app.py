@@ -14,11 +14,13 @@
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
 
 import asyncio
+import inspect
 import os
 import re
 import secrets
 import sys
 from datetime import datetime
+from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 from quart import Response, g, jsonify, redirect, request, send_from_directory
@@ -27,6 +29,7 @@ import miku.media.res as res  # noqa: F401
 import miku.ui.filters as filters  # noqa: F401
 import miku.views as views  # noqa: F401
 from miku.api import exceptions
+from miku.core.config import downloads_allowed
 from miku.core.csrf import csrf_protect, inject_csrf_token
 from miku.core.rate_limit import RATE_LIMITS, add_rate_limit_headers, rate_limit
 from miku.dash import dash_proxy_bp
@@ -66,10 +69,31 @@ async def start_background_tasks():
 
 @app.after_serving
 async def shutdown_cleanup():
-    await close_global_client()
+    import miku.state as shared
+    from miku.api.client import close_bili_client
+    from miku.core import dns_cache
+    from miku.dash.download_job import shutdown_download_jobs
     from miku.dash.stream import playback_pool
+    from miku.media.image_cache import image_cache
 
-    await playback_pool.close_all()
+    steps: list[tuple[str, Any]] = [
+        ("close_global_client", close_global_client),
+        ("close_bili_client", close_bili_client),
+        ("playback_pool.close_all", playback_pool.close_all),
+        ("shutdown_download_jobs", shutdown_download_jobs),
+        ("image_cache.close", image_cache.close),
+        ("dns_cache.clear_cache", dns_cache.clear_cache),
+    ]
+    if shared.appredis is not None:
+        steps.append(("appredis.aclose", shared.appredis.aclose))
+
+    for name, fn in steps:
+        try:
+            res_val = fn()
+            if inspect.isawaitable(res_val):
+                await res_val
+        except Exception as exc:
+            print(f"[Shutdown] {name} failed: {exc}")
 
 
 @app.before_request
@@ -249,7 +273,7 @@ async def b32tv_redirect(b32tvid):
 @csrf_protect()
 @rate_limit(**RATE_LIMITS["strict"])
 async def dl_redirect():
-    if not appconf.get("site_allow_download", True):
+    if not downloads_allowed(appconf):
         return Response("Forbidden: downloads are disabled on this instance", status=403)
     form = await request.form
     bvid = form.get("id")
@@ -343,29 +367,113 @@ async def args_exception_view(e):
     ), 400
 
 
+_RESPONSE_CODE_HTTP_STATUS: dict[int, int] = {
+    -400: 400,
+    -401: 401,
+    -403: 403,
+    -101: 403,
+    -111: 403,
+    87005: 403,
+    87007: 403,
+    87008: 403,
+    -404: 404,
+    62002: 404,
+    62004: 404,
+    62012: 404,
+    -509: 429,
+    -799: 429,
+    -429: 429,
+    429: 429,
+    -352: 503,
+    -412: 503,
+    412: 503,
+    -503: 503,
+    503: 503,
+    -500: 502,
+    500: 502,
+    -502: 502,
+    502: 502,
+    -504: 502,
+    504: 502,
+}
+
+_NETWORK_CODE_HTTP_STATUS: dict[int, int] = {
+    400: 400,
+    401: 401,
+    403: 403,
+    404: 404,
+    412: 503,
+    429: 429,
+    503: 503,
+}
+
+
+def _map_response_code_to_http_status(code: Any) -> int:
+    if isinstance(code, bool) or not isinstance(code, int):
+        return 502
+    return _RESPONSE_CODE_HTTP_STATUS.get(code, 502)
+
+
+def _map_network_code_to_http_status(code: Any) -> int:
+    if isinstance(code, bool) or not isinstance(code, int):
+        return 502
+    return _NETWORK_CODE_HTTP_STATUS.get(code, 502)
+
+
+async def _render_upstream_error(
+    http_status: int,
+    raw_msg: str,
+    *,
+    safe_status: str,
+    safe_desc: str,
+    unsafe_desc: str,
+    suggest: str | None = None,
+):
+    show_unsafe = bool((appconf.get("site") or {}).get("site_show_unsafe_error_response", False))
+    status_text = raw_msg if show_unsafe and raw_msg else safe_status
+    desc = unsafe_desc if show_unsafe else safe_desc
+    return await render_template_with_theme(
+        "error.html",
+        status=status_text,
+        desc=desc,
+        suggest=suggest,
+    ), http_status
+
+
 @app.errorhandler(exceptions.ResponseCodeException)
 async def resp_exception_view(e):
+    code = getattr(e, "code", None)
+    http_status = _map_response_code_to_http_status(code)
     suggest = None
-    if e.code == -404:
+    if code in (-404, 62002, 62004, 62012):
         suggest = (
             "The video/article you requested most likely does not exist. "
             "Please check your request. If you believe this is a site issue, "
             "please contact the administrator."
         )
 
-    # Sanitize error message - never expose raw backend response
-    if appconf["site"]["site_show_unsafe_error_response"]:
-        # Only show sanitized message even in debug mode
-        desc = f"Backend error: {e.msg}"
-    else:
-        desc = "Backend server sent an invalid response."
-
-    return await render_template_with_theme(
-        "error.html",
-        status=e.msg,
-        desc=desc,
+    raw_msg = str(getattr(e, "msg", "") or "")
+    return await _render_upstream_error(
+        http_status,
+        raw_msg,
+        safe_status=f"Upstream error ({http_status})",
+        safe_desc="Backend server sent an invalid response.",
+        unsafe_desc=f"Backend error: {raw_msg}",
         suggest=suggest,
-    ), -e.code
+    )
+
+
+@app.errorhandler(exceptions.NetworkException)
+async def network_exception_view(e):
+    http_status = _map_network_code_to_http_status(getattr(e, "code", None))
+    raw_msg = str(getattr(e, "msg", "") or "")
+    return await _render_upstream_error(
+        http_status,
+        raw_msg,
+        safe_status=f"Upstream network error ({http_status})",
+        safe_desc="Upstream server rejected or failed the request.",
+        unsafe_desc=f"Upstream network error: {raw_msg}" if raw_msg else "Upstream network request failed.",
+    )
 
 
 @app.errorhandler(Exception)
