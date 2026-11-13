@@ -238,17 +238,22 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
         await client.aclose()
 
     async def test_network_get_image_client_isolation(self):
-        """Validates that Network.get_image_client returns an isolated client with HTTP/2 enabled."""
+        """Validates that Network.get_image_client returns an isolated HTTP/2 client with the safe H2 connection."""
+        import httpcore._async.http2 as h2_mod
         from miku.state import Network, close_global_client
 
+        await close_global_client()
         try:
-            image_client = await Network.get_image_client()
-            async_client = await Network.get_async_client()
+            with patch("miku.services.network.httpx.AsyncClient", wraps=httpx.AsyncClient) as mock_client_cls:
+                image_client = await Network.get_image_client()
+                async_client = await Network.get_async_client()
 
             self.assertIsInstance(image_client, httpx.AsyncClient)
             self.assertIsInstance(async_client, httpx.AsyncClient)
             # Must be separate clients with distinct connection pools
             self.assertIsNot(image_client, async_client)
+            self.assertEqual(mock_client_cls.call_args_list[0].kwargs.get("http2"), True)
+            self.assertTrue(getattr(h2_mod.AsyncHTTP2Connection, "_miku_safe_http2", False))
 
             # Same client on subsequent calls
             self.assertIs(await Network.get_image_client(), image_client)
@@ -333,6 +338,188 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
                 "https://i0.hdslb.com/bfs/pic.jpg?foo=2",
             ],
         )
+
+    async def test_render_proxy_pic_suppresses_aclose_error_on_upstream_failure(self):
+        """A secondary error in resp.aclose() during exception cleanup returns 502 instead of crashing ASGI."""
+
+        class FailingStream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                raise ValueError("semaphore released too many times")
+                yield b""
+
+            async def aclose(self):
+                raise ValueError("semaphore released too many times")
+
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(
+                200,
+                headers={"Content-Type": "image/jpeg"},
+                stream=FailingStream(),
+            )
+        )
+        client = httpx.AsyncClient(transport=transport)
+
+        with (
+            patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+            patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
+            patch("miku.media.proxy.image_cache.get", new=AsyncMock(return_value=None)),
+        ):
+            resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/broken.jpg")
+            self.assertEqual(resp.status_code, 502)
+
+        await client.aclose()
+
+    async def test_http2_cancellation_during_init_does_not_corrupt_semaphore(self):
+        """Cancelling an HTTP/2 request during connection init must not desync max_streams."""
+        import h2.config
+        import h2.connection
+        import httpcore
+        import httpcore._async.http2 as h2_mod
+        from miku.services.network import _ensure_safe_httpcore_http2
+
+        _ensure_safe_httpcore_http2()
+
+        class MockH2Stream(httpcore.AsyncNetworkStream):
+            def __init__(self):
+                self.srv = h2.connection.H2Connection(config=h2.config.H2Configuration(client_side=False))
+                self.srv.initiate_connection()
+                self.out_q: asyncio.Queue[bytes] = asyncio.Queue()
+                self.out_q.put_nowait(self.srv.data_to_send())
+
+            async def read(self, max_bytes, timeout=None):
+                return await self.out_q.get()
+
+            async def write(self, buffer, timeout=None):
+                for ev in self.srv.receive_data(buffer):
+                    if isinstance(ev, h2.events.RequestReceived):
+                        self.srv.send_headers(ev.stream_id, [(b":status", b"200"), (b"content-type", b"image/jpeg")])
+                        self.srv.send_data(ev.stream_id, b"ok", end_stream=True)
+                data = self.srv.data_to_send()
+                if data:
+                    self.out_q.put_nowait(data)
+
+            async def aclose(self):
+                pass
+
+            async def start_tls(self, *a, **kw):
+                return self
+
+            def get_extra_info(self, info):
+                return None
+
+        conn = h2_mod.AsyncHTTP2Connection(
+            httpcore.Origin(b"https", b"i0.hdslb.com", 443),
+            MockH2Stream(),
+        )
+        req = httpcore.Request(b"GET", b"https://i0.hdslb.com/test.jpg", headers=[(b"host", b"i0.hdslb.com")])
+
+        task = asyncio.create_task(conn.handle_async_request(req))
+        for _ in range(5):
+            await asyncio.sleep(0)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
+        # Either init completed safely (connection usable) or aborted cleanly (closed)
+        if conn.is_available():
+            resp = await conn.handle_async_request(req)
+            try:
+                body = b"".join([chunk async for chunk in resp.stream])
+            finally:
+                await resp.aclose()
+            self.assertEqual(resp.status, 200)
+            self.assertEqual(body, b"ok")
+        else:
+            self.assertTrue(conn.is_closed())
+
+    async def test_http2_concurrent_streams_cancellations_and_settings_shrink(self):
+        """150 concurrent H2 streams, >100 cancelled mid-stream, and remote settings shrink all succeed without ValueError/deadlock."""
+        import h2.config
+        import h2.connection
+        import h2.settings
+        import httpcore
+        import httpcore._async.http2 as h2_mod
+        from miku.services.network import _ensure_safe_httpcore_http2
+
+        _ensure_safe_httpcore_http2()
+
+        class MockH2Stream(httpcore.AsyncNetworkStream):
+            def __init__(self, hold_body: bool = False):
+                self.hold_body = hold_body
+                self.srv = h2.connection.H2Connection(config=h2.config.H2Configuration(client_side=False))
+                self.srv.initiate_connection()
+                self.out_q: asyncio.Queue[bytes] = asyncio.Queue()
+                self.out_q.put_nowait(self.srv.data_to_send())
+
+            async def read(self, max_bytes, timeout=None):
+                return await self.out_q.get()
+
+            async def write(self, buffer, timeout=None):
+                for ev in self.srv.receive_data(buffer):
+                    if isinstance(ev, h2.events.RequestReceived):
+                        self.srv.send_headers(ev.stream_id, [(b":status", b"200"), (b"content-type", b"image/jpeg")])
+                        if not self.hold_body:
+                            self.srv.send_data(ev.stream_id, b"ok", end_stream=True)
+                data = self.srv.data_to_send()
+                if data:
+                    self.out_q.put_nowait(data)
+
+            async def aclose(self):
+                pass
+
+            async def start_tls(self, *a, **kw):
+                return self
+
+            def get_extra_info(self, info):
+                return None
+
+        req = httpcore.Request(b"GET", b"https://i0.hdslb.com/test.jpg", headers=[(b"host", b"i0.hdslb.com")])
+
+        # 1. Cancel 120 streams mid-body (> default max_concurrent_streams=100) then run another request
+        hold_stream = MockH2Stream(hold_body=True)
+        conn_cancel = h2_mod.AsyncHTTP2Connection(httpcore.Origin(b"https", b"i0.hdslb.com", 443), hold_stream)
+
+        async def cancel_mid_body():
+            resp = await conn_cancel.handle_async_request(req)
+            try:
+                async for _ in resp.stream:
+                    pass
+            finally:
+                await resp.aclose()
+
+        for _ in range(120):
+            t = asyncio.create_task(cancel_mid_body())
+            await asyncio.sleep(0.001)
+            t.cancel()
+            with self.assertRaises((asyncio.CancelledError, httpcore.RemoteProtocolError)):
+                await t
+
+        hold_stream.hold_body = False
+        resp = await conn_cancel.handle_async_request(req)
+        try:
+            body = b"".join([chunk async for chunk in resp.stream])
+        finally:
+            await resp.aclose()
+        self.assertEqual(body, b"ok")
+        self.assertEqual(conn_cancel._h2_state.open_outbound_streams, 0)
+
+        # 2. Shrink MAX_CONCURRENT_STREAMS from 100 -> 4 while 150 concurrent requests run
+        stream = MockH2Stream(hold_body=False)
+        conn = h2_mod.AsyncHTTP2Connection(httpcore.Origin(b"https", b"i0.hdslb.com", 443), stream)
+
+        async def fetch():
+            r = await conn.handle_async_request(req)
+            try:
+                return r.status, b"".join([chunk async for chunk in r.stream])
+            finally:
+                await r.aclose()
+
+        stream.srv.update_settings({h2.settings.SettingCodes.MAX_CONCURRENT_STREAMS: 4})
+        stream.out_q.put_nowait(stream.srv.data_to_send())
+
+        results = await asyncio.wait_for(asyncio.gather(*(fetch() for _ in range(150))), timeout=5.0)
+        self.assertEqual(len(results), 150)
+        self.assertTrue(all(status == 200 and body == b"ok" for status, body in results))
 
 
 if __name__ == "__main__":

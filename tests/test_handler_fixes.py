@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import miku.media.proxy as proxy
@@ -52,12 +53,11 @@ class TestProxyRedirectSecurity(unittest.IsolatedAsyncioTestCase):
 
         transport = httpx.MockTransport(mock_handler)
         mock_client = httpx.AsyncClient(transport=transport)
-        Network.get_image_client = lambda: asyncio.sleep(0, result=mock_client)
-
-        resp = await proxy.render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/face/test.jpg")
-        self.assertEqual(resp.status_code, 403)
-        body = await resp.get_data()
-        self.assertIn(b"Forbidden", body)
+        with patch.object(Network, "get_image_client", AsyncMock(return_value=mock_client)):
+            resp = await proxy.render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/face/test.jpg")
+            self.assertEqual(resp.status_code, 403)
+            body = await resp.get_data()
+            self.assertIn(b"Forbidden", body)
         await mock_client.aclose()
 
     async def test_redirect_exceeding_max_hops_blocked(self):
@@ -71,18 +71,15 @@ class TestProxyRedirectSecurity(unittest.IsolatedAsyncioTestCase):
 
         transport = httpx.MockTransport(mock_loop)
         mock_client = httpx.AsyncClient(transport=transport)
-        Network.get_image_client = lambda: asyncio.sleep(0, result=mock_client)
-
-        orig_safe = proxy.is_safe_proxy_url
-        proxy.is_safe_proxy_url = lambda url: asyncio.sleep(0, result=True)
-        try:
+        with (
+            patch.object(Network, "get_image_client", AsyncMock(return_value=mock_client)),
+            patch.object(proxy, "is_safe_proxy_url", AsyncMock(return_value=True)),
+        ):
             resp = await proxy.render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/face/loop.jpg")
             self.assertEqual(resp.status_code, 403)
             body = await resp.get_data()
             self.assertIn(b"Too many redirects", body)
-        finally:
-            proxy.is_safe_proxy_url = orig_safe
-            await mock_client.aclose()
+        await mock_client.aclose()
 
 
 class TestLiveDanmakuTaskLifecycle(unittest.IsolatedAsyncioTestCase):

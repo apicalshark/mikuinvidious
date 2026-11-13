@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import re
 import uuid
 import weakref
@@ -250,7 +251,8 @@ async def render_proxy_pic(req_path):
             return proxy_resp
         except Exception as e:
             if resp:
-                await resp.aclose()
+                with contextlib.suppress(Exception):
+                    await resp.aclose()
             err = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
             print(f"[Proxy] Error in render_proxy_pic for {url}: {err}")
             return Response("Upstream error", status=502)
