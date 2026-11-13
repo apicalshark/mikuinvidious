@@ -174,6 +174,48 @@ class TicketCooldownTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         shared.TicketManager._fail_until = 0.0
 
+    async def test_forced_refresh_does_not_publish_stale_fetch(self):
+        manager = shared.TicketManager
+        manager._lock = asyncio.Lock()
+        manager._generation = 0
+        manager._inflight_gen = 0
+        started = [asyncio.Event(), asyncio.Event()]
+        release = [asyncio.Event(), asyncio.Event()]
+        calls = 0
+
+        async def fetch(*_args):
+            nonlocal calls
+            index = calls
+            calls += 1
+            started[index].set()
+            await release[index].wait()
+            return ("old", "new")[index], int(time.time()) + 3600
+
+        pipe = MagicMock()
+        pipe.execute = AsyncMock()
+        with (
+            patch.object(shared, "get_bili_ticket", fetch),
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(shared.appredis, "delete", AsyncMock()),
+            patch.object(shared.appredis, "pipeline", return_value=pipe),
+        ):
+            old = asyncio.create_task(manager.get_ticket())
+            await asyncio.wait_for(started[0].wait(), 1)
+            new = asyncio.create_task(manager.get_ticket(force_refresh=True))
+            await asyncio.wait_for(started[1].wait(), 1)
+            joiner = asyncio.create_task(manager.get_ticket())
+            await asyncio.sleep(0)
+            release[0].set()
+            self.assertEqual(await asyncio.wait_for(old, 1), "old")
+            self.assertIsNone(manager._ticket)
+            pipe.execute.assert_not_awaited()
+            release[1].set()
+            self.assertEqual(await asyncio.wait_for(new, 1), "new")
+            self.assertEqual(await asyncio.wait_for(joiner, 1), "new")
+        self.assertEqual(manager._ticket, "new")
+        self.assertEqual(pipe.setex.call_args_list[0].args[2], "new")
+        pipe.execute.assert_awaited_once()
+
     async def test_failed_refresh_is_not_retried_inside_the_window(self):
         attempts = 0
 

@@ -76,6 +76,7 @@
   "Failed to fetch this user's profile. Please try again later.": "Profil dieses Benutzers konnte nicht abgerufen werden. Bitte versuche es später erneut.",
   "Failed to load Nyaa resources": "Nyaa-Ressourcen konnten nicht geladen werden",
   "Failed to load bangumi info. Please check your network or try again later.": "Bangumi-Info konnte nicht geladen werden. Bitte prüfe dein Netzwerk oder versuche es später erneut.",
+  "Failed to load comments, please try again later": "Kommentare konnten nicht geladen werden, bitte versuche es später erneut",
   "Failed to load the live room. Please check your network or try again later.": "Liveraum konnte nicht geladen werden. Bitte prüfe dein Netzwerk oder versuche es später erneut.",
   "Failed to resolve URL": "URL konnte nicht aufgelöst werden",
   "Failed to resolve the redirect target.": "Weiterleitungsziel konnte nicht aufgelöst werden.",

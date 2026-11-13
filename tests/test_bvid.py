@@ -1,3 +1,5 @@
+import subprocess
+import sys
 import unittest
 
 from miku.api.exceptions import ArgsException
@@ -30,6 +32,17 @@ class TestBvid(unittest.TestCase):
         for aid in (1, (1 << 51) - 1):
             with self.subTest(aid=aid):
                 self.assertEqual(bv2av(av2bv(aid)), aid)
+
+    def test_fresh_process_import(self):
+        result = subprocess.run(
+            [sys.executable, "-c", (
+                "import miku.api.bvid as b; "
+                "assert b.av2bv(170001) == 'BV17x411w7KC'; "
+                "assert b.bv2av('BV17x411w7KC') == 170001"
+            )],
+            capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_canonical_bvid_module_import(self):
         import miku.api.bvid as bvid

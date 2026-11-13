@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-13 02:16+0000\n"
+"POT-Creation-Date: 2026-11-13 03:13+0000\n"
 "Language: zh_CN\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -1039,7 +1039,7 @@ msgstr ""
 
 #: static/themes/modern/js/comments.js:98
 msgid "Failed to load comments, please try again later"
-msgstr ""
+msgstr "评论加载失败，请稍后再试"
 
 #~ msgid "Personalization settings"
 #~ msgstr "个性化设置"
@@ -1073,6 +1073,3 @@ msgstr ""
 
 #~ msgid "Home"
 #~ msgstr ""
-
-#~ msgid "Failed to load comments, please try again later"
-#~ msgstr "评论加载失败，请稍后再试"
