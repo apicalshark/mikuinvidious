@@ -65,7 +65,13 @@ class Singleflight[T]:
                 is_owner = False
 
         if not is_owner:
-            return await asyncio.shield(fut)
+            try:
+                return await asyncio.shield(fut)
+            except BaseException:
+                cur = self._inflight.get(key)
+                if cur is not None and cur[0] is fut and cur[1] > 0:
+                    cur[1] -= 1
+                raise
 
         try:
             result = await fn()
@@ -77,12 +83,12 @@ class Singleflight[T]:
                 payload=RuntimeError(f"Singleflight operation for key {key!r} cancelled"),
             )
             raise
-        except Exception as exc:
+        except BaseException as exc:
             self._settle(key, fut, ok=False, payload=exc)
             raise
-
-        self._settle(key, fut, ok=True, payload=result)
-        return result
+        else:
+            self._settle(key, fut, ok=True, payload=result)
+            return result
 
     def _settle(self, key: Any, fut: asyncio.Future, ok: bool, payload: Any) -> None:
         """Settle joiners and clean up state iff fut is still the live entry.

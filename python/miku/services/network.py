@@ -85,7 +85,7 @@ class Network:
     @classmethod
     def get_sync_client(cls) -> httpx.Client:
         """Return the shared synchronous HTTPX client."""
-        if cls._sync_client is None:
+        if cls._sync_client is None or cls._sync_client.is_closed:
             cls._sync_client = httpx.Client(
                 proxy=cls.get_proxy(),
                 trust_env=False,
@@ -99,12 +99,35 @@ class Network:
 
 async def close_global_client() -> None:
     """Cleanup global HTTP resources on application shutdown."""
-    if Network._async_client and not Network._async_client.is_closed:
-        await Network._async_client.aclose()
-        print("[Shutdown] Global async client closed.")
-    if Network._image_client and not Network._image_client.is_closed:
-        await Network._image_client.aclose()
-        print("[Shutdown] Global image async client closed.")
+    if Network._async_client is not None:
+        client = Network._async_client
+        Network._async_client = None
+        try:
+            if not client.is_closed:
+                await client.aclose()
+                print("[Shutdown] Global async client closed.")
+        except Exception as e:
+            print(f"[Shutdown] Error closing global async client: {e}")
+
+    if Network._image_client is not None:
+        client = Network._image_client
+        Network._image_client = None
+        try:
+            if not client.is_closed:
+                await client.aclose()
+                print("[Shutdown] Global image async client closed.")
+        except Exception as e:
+            print(f"[Shutdown] Error closing global image async client: {e}")
+
+    if Network._sync_client is not None:
+        client = Network._sync_client
+        Network._sync_client = None
+        try:
+            if not client.is_closed:
+                client.close()
+                print("[Shutdown] Global sync client closed.")
+        except Exception as e:
+            print(f"[Shutdown] Error closing global sync client: {e}")
 
 
 def configure_bilibili_api_proxy(proxy_url: str | None) -> None:

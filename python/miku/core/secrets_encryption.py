@@ -27,7 +27,7 @@ except ImportError:
 
 
 class SecretEncryption:
-    """Encrypt/decrypt sensitive credentials using libsodium (XChaCha20-Poly1305)."""
+    """Encrypt/decrypt sensitive credentials using libsodium (XSalsa20-Poly1305)."""
 
     def __init__(self, master_key: bytes | None = None):
         if not NACL_AVAILABLE:

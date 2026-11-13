@@ -15,57 +15,89 @@
 
 import ipaddress
 import time
-from functools import wraps
+from functools import lru_cache, wraps
 
 from quart import Response, request
 
 from miku.state import appconf, appredis
 
 
-def _trusted_networks():
-    nets = []
-    for raw in (appconf["rate_limit"].get("trusted_proxies") or "").split(","):
-        raw = raw.strip()
-        if not raw:
+@lru_cache(maxsize=8)
+def _parse_trusted_networks(raw: str) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+    nets: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for token in raw.split(","):
+        item = token.strip()
+        if not item:
             continue
         try:
-            nets.append(ipaddress.ip_network(raw, strict=False))
+            nets.append(ipaddress.ip_network(item, strict=False))
         except ValueError:
             print("[RateLimit] Ignoring invalid TRUSTED_PROXIES entry")
-    return nets
+    return tuple(nets)
+
+
+def _trusted_networks() -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+    raw = (appconf.get("rate_limit") or {}).get("trusted_proxies") or ""
+    return _parse_trusted_networks(raw)
+
+
+def _normalize_ip(raw: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address | None:
+    if not raw or not isinstance(raw, str):
+        return None
+    try:
+        addr = ipaddress.ip_address(raw.strip())
+    except ValueError:
+        return None
+    if isinstance(addr, ipaddress.IPv6Address) and addr.ipv4_mapped is not None:
+        return addr.ipv4_mapped
+    return addr
 
 
 def _peer_is_trusted_proxy(peer: str) -> bool:
-    try:
-        addr = ipaddress.ip_address(peer)
-    except ValueError:
+    addr = _normalize_ip(peer)
+    if addr is None:
         return False
-    if addr.is_loopback or addr.is_private:
-        return True
-    try:
-        return any(addr in net for net in _trusted_networks())
-    except TypeError:
-        # IPv4 peer vs IPv6 network (or vice versa) never matches.
-        return False
+    return any(addr in net for net in _trusted_networks() if addr.version == net.version)
 
 
 def get_client_ip(req=None) -> str:
     req = req or request
     peer = req.remote_addr or ""
     if _peer_is_trusted_proxy(peer):
-        candidates = [req.headers.get("X-Real-IP", ""), *req.headers.get("X-Forwarded-For", "").split(",")]
-        for raw in candidates:
-            candidate = raw.strip()
-            if not candidate:
+        nets = _trusted_networks()
+        raw_xff_headers = (
+            req.headers.getlist("X-Forwarded-For")
+            if hasattr(req.headers, "getlist")
+            else [req.headers.get("X-Forwarded-For", "")]
+        )
+        xff_tokens: list[str] = []
+        for header_val in raw_xff_headers:
+            if header_val:
+                xff_tokens.extend(header_val.split(","))
+
+        last_trusted: str | None = None
+        for token in reversed(xff_tokens):
+            stripped = token.strip()
+            if not stripped:
                 continue
-            try:
-                return str(ipaddress.ip_address(candidate))
-            except ValueError:
+            addr = _normalize_ip(stripped)
+            if addr is None:
+                # Stop at malformed entries so spoofed leftmost values are never trusted.
+                break
+            if any(addr in net for net in nets if addr.version == net.version):
+                last_trusted = str(addr)
                 continue
-    try:
-        return str(ipaddress.ip_address(peer))
-    except ValueError:
-        return "127.0.0.1"
+            return str(addr)
+
+        if last_trusted is not None:
+            return last_trusted
+
+        x_real_ip = _normalize_ip(req.headers.get("X-Real-IP", ""))
+        if x_real_ip is not None:
+            return str(x_real_ip)
+
+    addr = _normalize_ip(peer)
+    return str(addr) if addr is not None else "127.0.0.1"
 
 
 def ip_family_key(family: str):

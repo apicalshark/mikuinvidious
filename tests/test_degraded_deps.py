@@ -20,8 +20,8 @@ import time
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import miku.dash.fetch as dash_fetch
 import miku.core.dns_cache as dns_cache
+import miku.dash.fetch as dash_fetch
 import miku.state as shared
 
 
@@ -188,7 +188,13 @@ class TicketCooldownTests(unittest.IsolatedAsyncioTestCase):
                 release = asyncio.Event()
                 expiry = int(time.time()) + 3600
 
-                async def mget(*_args):
+                async def mget(
+                    *_args,
+                    started=started,
+                    release=release,
+                    expiry=expiry,
+                    cached=cached,
+                ):
                     started.set()
                     await release.wait()
                     return ("ticket", str(expiry)) if cached else (None, None)
@@ -433,6 +439,59 @@ class TicketCooldownTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ticket, "ticket-value")
         self.assertEqual(shared.TicketManager._fail_until, 0.0)
 
+    async def test_owner_cancellation_does_not_poison_cooldown_or_wedged_inflight(self):
+        manager = shared.TicketManager
+        started = asyncio.Event()
+        release = asyncio.Event()
+        attempts = 0
+
+        async def fetch(*_args):
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                started.set()
+                await release.wait()
+            return "recovered-ticket", int(time.time()) + 3600
+
+        pipe = MagicMock()
+        pipe.execute = AsyncMock()
+        with (
+            patch.object(shared, "get_bili_ticket", fetch),
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(shared.appredis, "pipeline", return_value=pipe),
+        ):
+            owner = asyncio.create_task(manager.get_ticket())
+            await asyncio.wait_for(started.wait(), 1)
+            joiner = asyncio.create_task(manager.get_ticket())
+            await asyncio.sleep(0)
+
+            owner.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await owner
+
+            self.assertIsNone(await asyncio.wait_for(joiner, 1))
+            self.assertIsNone(manager._inflight)
+            self.assertEqual(manager._fail_until, 0.0)
+
+            ticket = await asyncio.wait_for(manager.get_ticket(), 1)
+            self.assertEqual(ticket, "recovered-ticket")
+            self.assertEqual(attempts, 2)
+
+    async def test_corrupt_cached_expiry_falls_through_to_upstream_fetch(self):
+        manager = shared.TicketManager
+        pipe = MagicMock()
+        pipe.execute = AsyncMock()
+        expiry = int(time.time()) + 3600
+        with (
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=("stale", "bad"))),
+            patch.object(manager, "_fetch_new_ticket", AsyncMock(return_value=("fresh-ticket", expiry))) as fetch,
+            patch.object(shared.appredis, "pipeline", return_value=pipe),
+        ):
+            ticket = await manager.get_ticket()
+
+        self.assertEqual(ticket, "fresh-ticket")
+        fetch.assert_awaited_once()
+
 
 class DnsStaleWhileRevalidateTests(unittest.IsolatedAsyncioTestCase):
     HOST = "upos-sz-mirrorcosov.bilivideo.com"
@@ -501,6 +560,57 @@ class DnsStaleWhileRevalidateTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await dns_cache.resolve_host(self.HOST), first)
             await self._settle_refresh()
         self.assertEqual(self.lookups, 2)
+
+    async def test_owner_cancellation_settles_joiner_and_clears_inflight(self):
+        import threading
+
+        thread_started = threading.Event()
+        thread_release = threading.Event()
+
+        def slow_lookup(*_a, **_k):
+            thread_started.set()
+            thread_release.wait(timeout=2.0)
+            return self.info
+
+        with patch.object(dns_cache.socket, "getaddrinfo", slow_lookup):
+            owner = asyncio.create_task(dns_cache.resolve_host(self.HOST))
+            while not thread_started.is_set():
+                await asyncio.sleep(0.005)
+            joiner = asyncio.create_task(dns_cache.resolve_host(self.HOST))
+            await asyncio.sleep(0)
+
+            owner.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await owner
+            with self.assertRaises(RuntimeError):
+                await asyncio.wait_for(joiner, 1)
+            self.assertNotIn(self.HOST, dns_cache._inflight)
+            thread_release.set()
+
+    async def test_clear_cache_settles_pending_inflight_waiters(self):
+        import threading
+
+        thread_started = threading.Event()
+        thread_release = threading.Event()
+
+        def slow_lookup(*_a, **_k):
+            thread_started.set()
+            thread_release.wait(timeout=2.0)
+            return self.info
+
+        with patch.object(dns_cache.socket, "getaddrinfo", slow_lookup):
+            owner = asyncio.create_task(dns_cache.resolve_host(self.HOST))
+            while not thread_started.is_set():
+                await asyncio.sleep(0.005)
+            joiner = asyncio.create_task(dns_cache.resolve_host(self.HOST))
+            await asyncio.sleep(0)
+
+            dns_cache.clear_cache()
+            with self.assertRaises(RuntimeError):
+                await asyncio.wait_for(joiner, 1)
+            self.assertEqual(dns_cache._inflight, {})
+            thread_release.set()
+            await owner
 
 
 if __name__ == "__main__":

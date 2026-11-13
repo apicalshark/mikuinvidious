@@ -25,7 +25,6 @@ from quart import Quart
 from quart.sessions import SecureCookieSessionInterface
 
 from miku.core.config import load_config
-from miku.services.network import close_global_client
 
 
 def create_app(config: dict[str, Any] | None = None) -> Quart:
@@ -54,7 +53,13 @@ def create_app(config: dict[str, Any] | None = None) -> Quart:
         app.config["RESPONSE_TIMEOUT"] = 10800
     if "BODY_TIMEOUT" not in quart_conf:
         app.config["BODY_TIMEOUT"] = 10800
-    app.secret_key = appconf.get("server", {}).get("secret_key") or os.urandom(32).hex()
+    configured_secret = appconf.get("server", {}).get("secret_key")
+    if not configured_secret and not app.debug:
+        print(
+            "[Security] Warning: server.secret_key / QUART_SECRET_KEY is unset; "
+            "generating an ephemeral key (CSRF sessions will reset on restart)."
+        )
+    app.secret_key = configured_secret or os.urandom(32).hex()
 
     app.session_interface = SecureCookieSessionInterface()
     if "SESSION_COOKIE_SAMESITE" not in appconf.get("quart", {}):
@@ -62,8 +67,5 @@ def create_app(config: dict[str, Any] | None = None) -> Quart:
     if "SESSION_COOKIE_SECURE" not in appconf.get("quart", {}):
         site_url = str(appconf.get("site", {}).get("site_url", "")).lower()
         app.config["SESSION_COOKIE_SECURE"] = site_url.startswith("https://")
-
-    # Register shutdown hook
-    app.after_serving(close_global_client)
 
     return app

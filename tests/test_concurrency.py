@@ -164,6 +164,71 @@ class TestSingleflight(unittest.IsolatedAsyncioTestCase):
         owner_res = await owner_task
         self.assertEqual(owner_res, "owner_finished")
 
+    async def test_waiter_cancellation_before_owner_failure_leaves_no_unretrieved_exception(self):
+        started = asyncio.Event()
+        release = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        loop_errors: list[dict] = []
+        old_handler = loop.get_exception_handler()
+        loop.set_exception_handler(lambda _loop, ctx: loop_errors.append(ctx))
+
+        class BoomError(Exception):
+            pass
+
+        async def work():
+            started.set()
+            await release.wait()
+            raise BoomError("boom")
+
+        try:
+            owner_task = asyncio.create_task(self.sf.execute("k_waiter_fail", work))
+            await started.wait()
+            waiter_task = asyncio.create_task(self.sf.execute("k_waiter_fail", work))
+            await asyncio.sleep(0)
+
+            entry = self.sf._inflight["k_waiter_fail"]
+            self.assertEqual(entry[1], 1)
+
+            waiter_task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await waiter_task
+
+            self.assertEqual(entry[1], 0)
+            release.set()
+            with self.assertRaises(BoomError):
+                await owner_task
+
+            del entry
+            await asyncio.sleep(0)
+            import gc
+
+            gc.collect()
+            self.assertEqual(loop_errors, [])
+        finally:
+            loop.set_exception_handler(old_handler)
+
+    async def test_owner_base_exception_settles_waiters_and_clears_inflight(self):
+        class CustomBaseError(BaseException):
+            pass
+
+        started = asyncio.Event()
+
+        async def work():
+            started.set()
+            await asyncio.sleep(0.01)
+            raise CustomBaseError("fatal")
+
+        owner_task = asyncio.create_task(self.sf.execute("k_base_exc", work))
+        await started.wait()
+        waiter_task = asyncio.create_task(self.sf.execute("k_base_exc", work))
+        await asyncio.sleep(0)
+
+        with self.assertRaises(CustomBaseError):
+            await owner_task
+        with self.assertRaises(CustomBaseError):
+            await waiter_task
+        self.assertFalse(self.sf.is_in_flight("k_base_exc"))
+
 
 if __name__ == "__main__":
     unittest.main()

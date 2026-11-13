@@ -57,7 +57,7 @@ def _int_env(name: str, default: int) -> int:
     """Parse an int env var, falling back to default on missing/invalid values."""
     try:
         return int(os.environ.get(name, default))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
 
 
@@ -138,7 +138,7 @@ def get_default_config() -> dict[str, Any]:
         },
         "rate_limit": {
             "enabled": os.environ.get("RATE_LIMIT_ENABLED", "false").lower() == "true",
-            "trusted_proxies": os.environ.get("TRUSTED_PROXIES", ""),
+            "trusted_proxies": os.environ.get("TRUSTED_PROXIES", "127.0.0.1/8,::1/128"),
         },
         "cache": {
             "space_minutes": _int_env("SPACE_CACHE_MINUTES", 5),
@@ -294,5 +294,17 @@ def cache_minutes(conf: dict[str, Any], key: str, default: int = 5) -> int:
     """Read a [cache] TTL (in minutes); invalid values fall back to default."""
     try:
         return int(conf.get("cache", {}).get(key, default))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return default
+
+
+def downloads_allowed(conf: dict[str, Any] | None = None) -> bool:
+    """Return whether downloads are enabled in [site].site_allow_download."""
+    if conf is None:
+        import miku.state as shared
+
+        conf = shared.appconf
+    val = (conf.get("site") or {}).get("site_allow_download", True)
+    if isinstance(val, str):
+        return val.strip().lower() == "true"
+    return bool(val)

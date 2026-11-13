@@ -38,6 +38,9 @@ from miku.core.config import (
 from miku.core.config import (
     cache_minutes as _cache_minutes,
 )
+from miku.core.config import (
+    downloads_allowed as _downloads_allowed,
+)
 from miku.core.fingerprints import get_app_headers
 from miku.services.cache import (
     SimpleCache,
@@ -82,6 +85,11 @@ _versioned_key = versioned_key
 def cache_minutes(key: str, default: int = 5) -> int:
     """Read a [cache] TTL (in minutes); invalid values fall back to default."""
     return _cache_minutes(appconf, key, default)
+
+
+def downloads_allowed(conf: dict | None = None) -> bool:
+    """Return whether downloads are enabled in [site].site_allow_download."""
+    return _downloads_allowed(appconf if conf is None else conf)
 
 
 def get_common_headers(bili_conf):
@@ -167,6 +175,7 @@ __all__ = [
     "deep_update",
     "detect_locale",
     "detect_theme",
+    "downloads_allowed",
     "get_bili_ticket",
     "get_common_headers",
     "get_global_httpx_client",

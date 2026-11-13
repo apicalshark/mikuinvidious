@@ -30,14 +30,17 @@ fresh resolution. Neither path pins the connection to the checked address.
 """
 
 import asyncio
+import ipaddress
 import socket
 import time
+from urllib.parse import urlparse
 
 DNS_CACHE_TTL = 120.0
 # How far past the TTL a stale answer may be served while it revalidates.
 # Only allowlisted Bilibili CDN domains reach this cache, so staleness is a
 # freshness question, not an SSRF one — but the window stays bounded.
 DNS_STALE_GRACE = 300.0
+ALLOWED_HTTP_SCHEMES = frozenset({"http", "https"})
 
 _cache: dict[str, tuple[float, list]] = {}
 # hostname -> [future, waiter_count]; the future is settled only when someone
@@ -48,16 +51,66 @@ _refreshing: dict[str, asyncio.Task] = {}
 _lock = asyncio.Lock()
 
 
-def _settle(hostname: str, ok: bool, payload):
-    """Settle joiners of *hostname*; synchronous so it also runs under cancellation.
+def is_public_ip(ip: str | ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Return True iff *ip* is a globally routable unicast address."""
+    if isinstance(ip, str):
+        try:
+            ip_obj = ipaddress.ip_address(ip)
+        except ValueError:
+            return False
+    elif isinstance(ip, (ipaddress.IPv4Address, ipaddress.IPv6Address)):
+        ip_obj = ip
+    else:
+        return False
+    if isinstance(ip_obj, ipaddress.IPv6Address) and ip_obj.ipv4_mapped is not None:
+        ip_obj = ip_obj.ipv4_mapped
+    return bool(ip_obj.is_global and not ip_obj.is_multicast)
 
-    The pop needs no lock: asyncio is single-threaded, so dict mutation is
-    atomic — the lock only serializes the check-and-register sequence above.
+
+def is_allowed_url_host(
+    url: str,
+    allowed_domains: tuple[str, ...] | list[str] | frozenset[str],
+    *,
+    allowed_schemes: frozenset[str] = ALLOWED_HTTP_SCHEMES,
+) -> str | None:
+    """Validate URL scheme, credentials, control chars, and domain allowlist.
+
+    Returns the normalized lowercase hostname (trailing dot stripped) if allowed,
+    or ``None`` if invalid/disallowed.
     """
-    entry = _inflight.pop(hostname, None)
-    if entry is not None:
-        fut, waiters = entry
-        if waiters and not fut.done():
+    if not url or not isinstance(url, str):
+        return None
+    if any(c.isspace() or ord(c) < 0x20 or ord(c) == 0x7F for c in url):
+        return None
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in allowed_schemes:
+        return None
+    if parsed.username is not None or parsed.password is not None:
+        return None
+    host = (parsed.hostname or "").rstrip(".").lower()
+    if not host:
+        return None
+    for domain in allowed_domains:
+        norm_domain = domain.lstrip(".").rstrip(".").lower()
+        if not norm_domain:
+            continue
+        if host == norm_domain or host.endswith(f".{norm_domain}"):
+            return host
+    return None
+
+
+def _settle(hostname: str, fut: asyncio.Future, ok: bool, payload) -> None:
+    """Settle joiners of *hostname* iff *fut* is still the live entry.
+
+    Synchronous so it also runs safely under cancellation.
+    """
+    entry = _inflight.get(hostname)
+    if entry is not None and entry[0] is fut:
+        del _inflight[hostname]
+        if entry[1] and not fut.done():
             if ok:
                 fut.set_result(payload)
             else:
@@ -129,7 +182,7 @@ async def _lookup(hostname: str):
         # the remaining joiners (Task.cancel propagates to the awaited fut).
         try:
             return await asyncio.shield(fut)
-        except asyncio.CancelledError:
+        except BaseException:
             # No longer waiting: stop counting so a later failure doesn't
             # set an exception nobody observes. Best-effort — the entry may
             # already be settled and popped.
@@ -144,21 +197,54 @@ async def _lookup(hostname: str):
         # A disconnected client cancels the owner: settle joiners with a
         # retryable error (their guards treat it as a failed lookup) instead
         # of leaving them blocked on a dead future forever.
-        _settle(hostname, False, RuntimeError("dns lookup cancelled"))
+        _settle(hostname, fut, False, RuntimeError("dns lookup cancelled"))
         raise
-    except Exception as e:
-        _settle(hostname, False, e)
+    except BaseException as e:
+        _settle(hostname, fut, False, e)
         raise
-
-    async with _lock:
+    else:
         _cache[hostname] = (time.monotonic(), infos)
-    _settle(hostname, True, infos)
-    return infos
+        _settle(hostname, fut, True, infos)
+        return infos
 
 
-def clear_cache():
-    """Drop all cached entries (tests)."""
+async def is_safe_public_url(
+    url: str,
+    allowed_domains: tuple[str, ...] | list[str] | frozenset[str],
+    *,
+    allowed_schemes: frozenset[str] = ALLOWED_HTTP_SCHEMES,
+    use_dns_cache: bool = True,
+) -> bool:
+    """Return True iff *url* matches *allowed_domains* and resolves only to public IPs."""
+    host = is_allowed_url_host(url, allowed_domains, allowed_schemes=allowed_schemes)
+    if host is None:
+        return False
+    try:
+        if use_dns_cache:
+            addr_infos = await resolve_host(host)
+        else:
+            addr_infos = await asyncio.to_thread(socket.getaddrinfo, host, None, socket.AF_UNSPEC, socket.SOCK_STREAM)
+    except Exception:
+        return False
+    if not addr_infos:
+        return False
+    for info in addr_infos:
+        sockaddr = info[4] if len(info) > 4 else None
+        if not sockaddr:
+            return False
+        if not is_public_ip(sockaddr[0]):
+            return False
+    return True
+
+
+def clear_cache() -> None:
+    """Drop all cached entries and settle pending in-flight lookups (tests/shutdown)."""
     _cache.clear()
     for task in list(_refreshing.values()):
         task.cancel()
     _refreshing.clear()
+    entries = list(_inflight.items())
+    _inflight.clear()
+    for hostname, (fut, waiters) in entries:
+        if waiters and not fut.done():
+            fut.set_exception(RuntimeError(f"dns cache cleared for {hostname!r}"))
