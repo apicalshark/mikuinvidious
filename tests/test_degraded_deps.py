@@ -174,6 +174,66 @@ class TicketCooldownTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         shared.TicketManager._fail_until = 0.0
 
+    async def test_concurrent_callers_share_redis_lookup(self):
+        manager = shared.TicketManager
+        for cached in (False, True):
+            with self.subTest(cached=cached):
+                manager._lock = asyncio.Lock()
+                manager._ticket = None
+                started = asyncio.Event()
+                release = asyncio.Event()
+                expiry = int(time.time()) + 3600
+
+                async def mget(*_args):
+                    started.set()
+                    await release.wait()
+                    return ("ticket", str(expiry)) if cached else (None, None)
+
+                pipe = MagicMock()
+                pipe.execute = AsyncMock()
+                with (
+                    patch.object(shared.appredis, "mget", AsyncMock(side_effect=mget)) as lookup,
+                    patch.object(manager, "_fetch_new_ticket", AsyncMock(return_value=("ticket", expiry))) as fetch,
+                    patch.object(shared.appredis, "pipeline", return_value=pipe),
+                ):
+                    owner = asyncio.create_task(manager.get_ticket())
+                    await asyncio.wait_for(started.wait(), 1)
+                    joiners = [asyncio.create_task(manager.get_ticket()) for _ in range(10)]
+                    await asyncio.sleep(0)
+                    self.assertIsNotNone(manager._inflight)
+                    self.assertFalse(manager._lock.locked())
+                    release.set()
+                    results = await asyncio.wait_for(asyncio.gather(owner, *joiners), 1)
+                    self.assertEqual(results, ["ticket"] * 11)
+                    lookup.assert_awaited_once()
+                    self.assertEqual(fetch.await_count, 0 if cached else 1)
+
+    async def test_redis_publication_does_not_hold_state_lock(self):
+        manager = shared.TicketManager
+        manager._lock = asyncio.Lock()
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def execute():
+            started.set()
+            await release.wait()
+
+        pipe = MagicMock()
+        pipe.execute = AsyncMock(side_effect=execute)
+        with (
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(manager, "_fetch_new_ticket", AsyncMock(return_value=("ticket", int(time.time()) + 3600))),
+            patch.object(shared.appredis, "pipeline", return_value=pipe),
+        ):
+            owner = asyncio.create_task(manager.get_ticket())
+            await asyncio.wait_for(started.wait(), 1)
+            try:
+                self.assertFalse(manager._lock.locked())
+                self.assertEqual(await asyncio.wait_for(manager.get_ticket(), 1), "ticket")
+            finally:
+                release.set()
+                await asyncio.wait_for(owner, 1)
+
     async def test_forced_refresh_does_not_publish_stale_fetch(self):
         manager = shared.TicketManager
         manager._lock = asyncio.Lock()

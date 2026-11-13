@@ -1,3 +1,7 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:be41861ff6654c7d055a85ad3ad2b34c8d8d7f972ae7d1561d6ece986c179e3b -->
+
 # MikuInvidious Architecture & System Design
 
 MikuInvidious is an asynchronous, privacy-first web frontend and media proxy for Bilibili, implemented in Python 3.15+ using Quart, Granian, Caddy, Redis, and optional Cloudflare WARP.
@@ -188,7 +192,7 @@ graph TD
 - **`i18n.py` & `i18n_strings.py`**: Internationalization engine providing locale resolution and translation catalog bindings.
 
 ### Views & Presentation Layer
-- **`views.py`**: Non-wildcard re-export facade with PEP 562 dynamic attribute resolution.
+- **`miku.views`**: Non-wildcard re-export facade with PEP 562 dynamic attribute resolution.
 - **`views_home.py`**: Index feed, search endpoints, zone categories, history, licenses, and `/convert` B23 resolution.
 - **`views_video.py`**: Video metadata rendering, multi-part page lists, related content, and inline player components.
 - **`views_space.py`**: User space profiles, video archives, JSON feeds (`/space/<mid>/json`), and article views.
@@ -200,7 +204,7 @@ graph TD
 - **`res.py`**: Serves dynamic auxiliary assets like Danmaku XML and server-side redirects.
 
 ### Media Streaming & DASH Pipeline
-- **`dash_proxy.py`**: Explicit, non-polluting re-export facade for DASH VOD and downloads.
+- **`miku.dash`**: Explicit, non-polluting re-export facade for DASH VOD and downloads.
 - **`dash_common.py`**: Core data structures, playback mirror health tracking, and range-shy cache.
 - **`dash_fetch.py`**: Fetches playurls, caches normalized tracks in Redis, and manages dual-layer in-memory fallback.
 - **`dash_mpd.py`**: Generates dynamic ISO/IEC 23009-1 DASH manifests (`manifest.mpd`).
@@ -218,7 +222,7 @@ graph TD
 - **`refresher.py`**: Upstream credential and web ticket refresh maintenance.
 
 ### Local API Wrapper (`python/api/`)
-- **`api/client.py`**: Core HTTP client implementing singleflight-guarded cookies, `bili_ticket` generation, auto-cookies, and Gaia risk mitigation.
+- **`miku.api.client`**: Core HTTP client implementing singleflight-guarded cookies, `bili_ticket` generation, auto-cookies, and Gaia risk mitigation.
 - **`api/credential.py`**: Credential state container (`SESSDATA`, `bili_jct`, `buvid3`, `buvid4`, `dedeuserid`).
 - **`api/video.py`**: Video metadata, tags, cid resolution, playurls (DASH + progressive), and subtitles.
 - **`api/user.py`**: Space profiles, author video archives, and articles.
@@ -231,3 +235,6 @@ graph TD
 - **`api/homepage.py` & `api/video_zone.py`**: Trending home feeds and sub-channel feeds.
 - **`api/exceptions.py`**: Structured upstream exception hierarchy.
 
+
+
+<!-- /coderabbit-ai-generated:v1 -->
