@@ -27,6 +27,7 @@ import miku.dash.stream as dash_stream
 import miku.media.image_cache as image_cache_mod
 import miku.state as shared
 from miku.api import exceptions
+from miku.services.network import Network, close_global_client
 
 
 class TestUpstreamExceptionHandlers(unittest.IsolatedAsyncioTestCase):
@@ -175,6 +176,42 @@ class TestShutdownCleanup(unittest.IsolatedAsyncioTestCase):
         stop_jobs.assert_awaited_once()
         close_img.assert_awaited_once()
         clear_dns.assert_called_once()
+
+
+class TestNetworkClientCleanup(unittest.IsolatedAsyncioTestCase):
+    async def test_close_global_client_closes_all_three_and_resets_none(self):
+        async_client = MagicMock()
+        async_client.is_closed = False
+        async_client.aclose = AsyncMock(side_effect=RuntimeError("async close failed"))
+
+        image_client = MagicMock()
+        image_client.is_closed = False
+        image_client.aclose = AsyncMock()
+
+        sync_client = MagicMock()
+        sync_client.is_closed = False
+        sync_client.close = MagicMock()
+
+        Network._async_client = async_client
+        Network._image_client = image_client
+        Network._sync_client = sync_client
+        try:
+            await close_global_client()
+            async_client.aclose.assert_awaited_once()
+            image_client.aclose.assert_awaited_once()
+            sync_client.close.assert_called_once()
+            self.assertIsNone(Network._async_client)
+            self.assertIsNone(Network._image_client)
+            self.assertIsNone(Network._sync_client)
+
+            # Second invocation is a safe no-op
+            await close_global_client()
+            image_client.aclose.assert_awaited_once()
+            sync_client.close.assert_called_once()
+        finally:
+            Network._async_client = None
+            Network._image_client = None
+            Network._sync_client = None
 
 
 if __name__ == "__main__":

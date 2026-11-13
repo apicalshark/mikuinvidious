@@ -30,7 +30,10 @@ def _parse_trusted_networks(raw: str) -> tuple[ipaddress.IPv4Network | ipaddress
         if not item:
             continue
         try:
-            nets.append(ipaddress.ip_network(item, strict=False))
+            net = ipaddress.ip_network(item, strict=False)
+            if isinstance(net, ipaddress.IPv6Network) and net.network_address.ipv4_mapped is not None:
+                net = ipaddress.IPv4Network((net.network_address.ipv4_mapped, net.prefixlen - 96))
+            nets.append(net)
         except ValueError:
             print("[RateLimit] Ignoring invalid TRUSTED_PROXIES entry")
     return tuple(nets)

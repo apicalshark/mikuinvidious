@@ -22,6 +22,7 @@ from typing import Any
 import rtoml
 
 from miku.api import Credential, sync
+from miku.api.credential import RefreshConfirmationUnknown
 from miku.core.secrets_encryption import NACL_AVAILABLE, decrypt_secret, encrypt_secret
 
 _CRED_FIELDS = ("sessdata", "bili_jct", "buvid3", "buvid4", "dedeuserid", "ac_time_value")
@@ -75,7 +76,12 @@ def load_credential(config_path: str | Path = "config.toml") -> Credential:
 def renew_cookies(cred: Credential, config_path: str | Path = "config.toml") -> bool:
     try:
         if sync(cred.check_refresh()):
-            sync(cred.refresh())
+            try:
+                sync(cred.refresh())
+            except RefreshConfirmationUnknown as e:
+                write_cookies(e.credential, config_path=config_path)
+                print("Cookie refresh confirmation unknown; new credentials saved.")
+                return False
             write_cookies(cred, config_path=config_path)
             print("Cookies refreshed.")
             return True

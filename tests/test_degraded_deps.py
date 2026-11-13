@@ -613,5 +613,111 @@ class DnsStaleWhileRevalidateTests(unittest.IsolatedAsyncioTestCase):
             await owner
 
 
+class TestSSRFHelpers(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        dns_cache.clear_cache()
+
+    async def asyncTearDown(self):
+        dns_cache.clear_cache()
+
+    def test_is_public_ip_rejects_private_special_multicast_and_mapped(self):
+        blocked = [
+            "127.0.0.1",
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254",
+            "100.64.0.1",
+            "0.0.0.0",
+            "224.0.0.1",
+            "::1",
+            "::",
+            "fe80::1",
+            "fc00::1",
+            "ff02::1",
+            "::ffff:127.0.0.1",
+            "::ffff:169.254.169.254",
+            "::ffff:10.0.0.1",
+            "::ffff:224.0.0.1",
+            "not-an-ip",
+        ]
+        for addr in blocked:
+            self.assertFalse(dns_cache.is_public_ip(addr), f"expected {addr} to be blocked")
+
+        for addr in ("1.1.1.1", "8.8.8.8", "2606:4700:4700::1111"):
+            self.assertTrue(dns_cache.is_public_ip(addr), f"expected {addr} to be public")
+
+    def test_is_allowed_url_host(self):
+        domains = (".hdslb.com", "bilivideo.com")
+        self.assertEqual(dns_cache.is_allowed_url_host("https://i0.hdslb.com./pic.jpg", domains), "i0.hdslb.com")
+        self.assertEqual(dns_cache.is_allowed_url_host("http://bilivideo.com/a.m4s", domains), "bilivideo.com")
+
+        for bad in (
+            "ftp://i0.hdslb.com/x",
+            "file:///etc/passwd",
+            "https://user@i0.hdslb.com/x",
+            "https://user:pass@i0.hdslb.com/x",
+            "https://i0.hdslb.com/a\r\nb",
+            "https://evil.com/x",
+            "https://hdslb.com.evil.com/x",
+            "",
+        ):
+            self.assertIsNone(dns_cache.is_allowed_url_host(bad, domains), f"expected {bad!r} to fail")
+
+    async def test_is_safe_public_url_cached_and_uncached(self):
+        domains = (".bilivideo.com",)
+        public_info = [(2, 1, 6, "", ("1.1.1.1", 0))]
+        private_info = [(2, 1, 6, "", ("::ffff:127.0.0.1", 0))]
+
+        with patch.object(dns_cache.socket, "getaddrinfo", return_value=public_info) as mock_gai:
+            self.assertTrue(
+                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=True)
+            )
+            self.assertTrue(
+                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=True)
+            )
+            self.assertEqual(mock_gai.call_count, 1)
+
+            self.assertTrue(
+                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=False)
+            )
+            self.assertEqual(mock_gai.call_count, 2)
+
+        with patch.object(dns_cache.socket, "getaddrinfo", return_value=private_info):
+            self.assertFalse(
+                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=False)
+            )
+
+
+class TestDNSClearOwnership(unittest.IsolatedAsyncioTestCase):
+    async def test_cleared_lookup_cannot_overwrite_replacement(self):
+        dns_cache.clear_cache()
+        started = asyncio.Event()
+        release = asyncio.Event()
+        calls = 0
+
+        async def lookup(*args):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                started.set()
+                await release.wait()
+                return ["old"]
+            return ["new"]
+
+        try:
+            with patch.object(dns_cache.asyncio, "to_thread", side_effect=lookup):
+                old = asyncio.create_task(dns_cache.resolve_host("test.example"))
+                await started.wait()
+                dns_cache.clear_cache()
+                self.assertEqual(await dns_cache.resolve_host("test.example"), ["new"])
+                stamp = dns_cache._cache["test.example"][0]
+                release.set()
+                self.assertEqual(await old, ["old"])
+                self.assertEqual(dns_cache._cache["test.example"], (stamp, ["new"]))
+        finally:
+            dns_cache.clear_cache()
+
+
 if __name__ == "__main__":
     unittest.main()

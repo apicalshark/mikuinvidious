@@ -29,6 +29,8 @@ def decrypt_if_encrypted(value: str | None) -> str:
     """Decrypt value if it appears to be encrypted with NaCl SecretBox."""
     if not value:
         return "" if value is None else value
+    if value.startswith("nacl:"):
+        return decrypt_secret(value[5:])
     try:
         if NACL_AVAILABLE:
             data = base64.b64decode(value)

@@ -33,6 +33,14 @@ __all__ = ["Credential", "sync", "ArgsException"]
 _EXTRA_COOKIE_NAMES = frozenset({"_uuid", "b_lsid", "b_nut", "buvid_fp"})
 
 
+class RefreshConfirmationUnknown(CookiesRefreshException):
+    """Refresh issued credentials, but confirmation could not be determined."""
+
+    def __init__(self, credential):
+        super().__init__("Cookie refresh confirmation outcome unknown; new credentials retained")
+        self.credential = credential
+
+
 class Credential:
     """
     Auth credential holding Bilibili cookie values.
@@ -279,7 +287,7 @@ class Credential:
             ac_time_value=refresh_token,
         )
 
-        # 3. Confirm refresh (must succeed before mutating self in place)
+        # 3. Only confirmed success mutates self; unknown outcomes retain the candidate on the exception.
         conf_data = {
             "csrf": new_credential.bili_jct,
             "refresh_token": self.ac_time_value,
@@ -288,23 +296,23 @@ class Credential:
         confirm_cookie_str = _build_cookie_header(new_credential.get_cookies())
         if confirm_cookie_str:
             confirm_headers["Cookie"] = confirm_cookie_str
-        confirm_resp = await client.post(
-            "https://passport.bilibili.com/x/passport-login/web/confirm/refresh",
-            data=conf_data,
-            headers=confirm_headers,
-        )
-        if confirm_resp.status_code != 200:
-            raise CookiesRefreshException(f"Failed to confirm cookie refresh: HTTP {confirm_resp.status_code}")
         try:
-            confirm_body = confirm_resp.json()
-        except Exception as exc:
-            raise CookiesRefreshException("Failed to parse confirm refresh response JSON") from exc
-        if not isinstance(confirm_body, dict) or confirm_body.get("code") != 0:
-            msg = (
-                confirm_body.get("message") or confirm_body.get("msg")
-                if isinstance(confirm_body, dict)
-                else "unknown error"
+            confirm_resp = await client.post(
+                "https://passport.bilibili.com/x/passport-login/web/confirm/refresh",
+                data=conf_data,
+                headers=confirm_headers,
             )
+            if confirm_resp.status_code != 200:
+                raise RefreshConfirmationUnknown(new_credential)
+            confirm_body = confirm_resp.json()
+            if not isinstance(confirm_body, dict) or type(confirm_body.get("code")) is not int:
+                raise RefreshConfirmationUnknown(new_credential)
+        except RefreshConfirmationUnknown:
+            raise
+        except Exception as exc:
+            raise RefreshConfirmationUnknown(new_credential) from exc
+        if confirm_body["code"] != 0:
+            msg = confirm_body.get("message") or confirm_body.get("msg") or "unknown error"
             raise CookiesRefreshException(f"Failed to confirm cookie refresh: {msg}")
 
         self.sessdata = new_credential.sessdata
@@ -346,10 +354,19 @@ def sync(coroutine):
     If called inside a running event loop, runs it in a worker thread
     (mirrors bilibili_api's ``sync`` semantics).
     """
+
+    async def runner():
+        from .client import close_bili_client
+
+        try:
+            return await coroutine
+        finally:
+            await close_bili_client()
+
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(coroutine)
+        return asyncio.run(runner())
     else:
         with ThreadPoolExecutor() as executor:
-            return executor.submit(asyncio.run, coroutine).result()
+            return executor.submit(asyncio.run, runner()).result()

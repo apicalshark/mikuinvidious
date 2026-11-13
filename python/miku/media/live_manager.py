@@ -2,7 +2,7 @@ import asyncio
 import struct
 import time
 from collections import deque
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 from miku.state import Network
 
@@ -160,6 +160,20 @@ class LiveStream:
                                     print(f"[LiveManager] Unsafe redirect blocked: {next_url[:80]}")
                                     self.status_code = 403
                                     return
+                                current = urlsplit(current_url)
+                                target = urlsplit(next_url)
+                                current_origin = (
+                                    current.scheme,
+                                    current.hostname,
+                                    current.port or (443 if current.scheme == "https" else 80),
+                                )
+                                target_origin = (
+                                    target.scheme,
+                                    target.hostname,
+                                    target.port or (443 if target.scheme == "https" else 80),
+                                )
+                                if current_origin != target_origin:
+                                    stream_headers = {k: v for k, v in stream_headers.items() if k.lower() != "cookie"}
                                 redirects += 1
                                 redirect_next = next_url
                             else:

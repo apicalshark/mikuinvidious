@@ -203,7 +203,9 @@ async def _lookup(hostname: str):
         _settle(hostname, fut, False, e)
         raise
     else:
-        _cache[hostname] = (time.monotonic(), infos)
+        entry = _inflight.get(hostname)
+        if entry is not None and entry[0] is fut:
+            _cache[hostname] = (time.monotonic(), infos)
         _settle(hostname, fut, True, infos)
         return infos
 

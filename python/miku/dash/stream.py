@@ -175,6 +175,7 @@ class _PlaybackKeepAlivePool:
         self._max_idle = max_idle
         self._ttl = ttl
         self._idle: dict[tuple[str, str], tuple[float, CdnConnection]] = {}
+        self._expiring: list[CdnConnection] = []
         self._reaper: asyncio.Task | None = None
         self._closed = False
 
@@ -222,8 +223,10 @@ class _PlaybackKeepAlivePool:
                 return
             cutoff = time.monotonic() - self._ttl
             expired = [self._idle.pop(k)[1] for k in list(self._idle) if self._idle[k][0] < cutoff]
+            self._expiring.extend(expired)
             for old_conn in expired:
                 await _quiet_close(old_conn)
+                self._expiring.remove(old_conn)
 
     async def close_all(self) -> None:
         self._closed = True
@@ -235,7 +238,8 @@ class _PlaybackKeepAlivePool:
                 await reaper
             except asyncio.CancelledError:
                 pass
-        conns = [c for _, c in self._idle.values()]
+        conns = [c for _, c in self._idle.values()] + self._expiring
+        self._expiring = []
         self._idle.clear()
         for conn in conns:
             await _quiet_close(conn)

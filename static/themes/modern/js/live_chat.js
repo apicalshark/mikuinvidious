@@ -110,5 +110,11 @@
 
   window.addEventListener("beforeunload", cleanup);
   window.addEventListener("pagehide", cleanup);
+  window.addEventListener("pageshow", function (event) {
+    if (event.persisted) {
+      isUnloading = false;
+      connectChat();
+    }
+  });
   connectChat();
 })();

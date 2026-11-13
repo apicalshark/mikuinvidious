@@ -752,6 +752,44 @@ class TestLiveStreamLoop(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(stream.clients), 0)
         self.assertIsNone(q.get_nowait())
 
+    async def test_redirect_cookies_follow_origin_boundaries(self):
+        from miku.media.live_manager import LiveStream
+
+        for target in ("https://other.bilivideo.com/x", "http://a.bilivideo.com/x", "https://a.bilivideo.com:444/x"):
+            with self.subTest(target=target):
+                stream = LiveStream("https://a.bilivideo.com/start", {"cookie": "extra=1"}, {"SESSDATA": "test"})
+                stream.is_running = True
+                stream.clients["test"] = asyncio.Queue()
+                seen = []
+                locations = iter(("https://a.bilivideo.com:443/same", target, "https://a.bilivideo.com/back", "/end"))
+
+                class Response:
+                    status_code = 302
+
+                    def __init__(self, location):
+                        self.headers = {"location": location}
+
+                    async def __aenter__(self):
+                        return self
+
+                    async def __aexit__(self, *args):
+                        pass
+
+                class Client:
+                    def stream(self, method, url, headers, seen=seen, locations=locations, **kwargs):
+                        seen.append(dict(headers))
+                        return Response(next(locations))
+
+                with (
+                    patch("miku.media.live_manager.Network.get_async_client", AsyncMock(return_value=Client())),
+                    patch("miku.media.proxy.is_safe_proxy_url", AsyncMock(return_value=True)),
+                ):
+                    await stream._stream_loop()
+                self.assertIn("Cookie", seen[0])
+                self.assertIn("Cookie", seen[1])
+                for headers in seen[2:]:
+                    self.assertFalse(any(k.lower() == "cookie" for k in headers))
+
     async def test_redirect_blocks_unsafe_hop_and_caps_hops(self):
         import miku.media.proxy as media_proxy
         from miku.media.live_manager import MAX_LIVE_REDIRECTS, LiveStream

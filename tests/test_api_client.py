@@ -14,6 +14,7 @@ from miku.api.credential import Credential
 from miku.api.exceptions import CookiesRefreshException, NetworkException, ResponseCodeException
 from miku.api.video import Video
 from miku.api.wbi import _WBI_FALLBACK_TTL
+from miku.services.credential import apply_cdn_cred_headers, get_web_api_cookies, is_cred_active
 
 
 class TestPerLoopClientRegistry(unittest.IsolatedAsyncioTestCase):
@@ -347,7 +348,7 @@ class TestCredentialRefresh(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(cred.dedeuserid, "42")
         self.assertEqual(cred.ac_time_value, "orig_ac")
 
-    async def test_step3_failure_leaves_credential_unchanged(self):
+    async def test_step3_failure_leaves_credential_unchanged(self, outcome="rejected"):
         cred = Credential(
             sessdata="orig_sess",
             bili_jct="orig_jct",
@@ -378,6 +379,14 @@ class TestCredentialRefresh(unittest.IsolatedAsyncioTestCase):
                     json={"code": 0, "data": {"refresh_token": "new_ac"}},
                 )
             if url.endswith("/confirm/refresh"):
+                if outcome == "transport":
+                    raise httpx.ReadError("connection lost")
+                if outcome == "http":
+                    return httpx.Response(502)
+                if outcome == "json":
+                    return httpx.Response(200, text="invalid")
+                if outcome == "missing":
+                    return httpx.Response(200, json={})
                 return httpx.Response(200, json={"code": -101, "message": "confirm failed"})
             raise AssertionError(f"Unexpected URL: {url}")
 
@@ -395,8 +404,11 @@ class TestCredentialRefresh(unittest.IsolatedAsyncioTestCase):
                 ),
                 patch.object(bili_client, "get_bili_client", AsyncMock(return_value=mock_client)),
             ):
-                with self.assertRaises(CookiesRefreshException):
+                with self.assertRaises(CookiesRefreshException) as caught:
                     await cred.refresh()
+                if outcome != "rejected":
+                    self.assertEqual(caught.exception.credential.sessdata, "new_sess")
+                    self.assertEqual(caught.exception.credential.ac_time_value, "new_ac")
 
             # Must remain completely unchanged after Step 3 failure.
             self.assertEqual(cred.sessdata, "orig_sess")
@@ -405,6 +417,11 @@ class TestCredentialRefresh(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(cred.ac_time_value, "orig_ac")
         finally:
             await mock_client.aclose()
+
+    async def test_unknown_confirmation_retains_candidate(self):
+        for outcome in ("transport", "http", "json", "missing"):
+            with self.subTest(outcome=outcome):
+                await self.test_step3_failure_leaves_credential_unchanged(outcome)
 
     async def test_check_refresh_status_and_code_checks(self):
         cred = Credential(sessdata="s1")
@@ -420,6 +437,77 @@ class TestCredentialRefresh(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(ctx.exception.code, -101)
         finally:
             await mock_client.aclose()
+
+
+class TestCredentialHelpers(unittest.TestCase):
+    def test_credential_helpers_ticket_isolation_and_use_cred_guard(self):
+        cred = Credential(
+            sessdata="sess%20val",
+            bili_jct="jct_val",
+            buvid3="b3_val",
+            buvid4="b4_val",
+            dedeuserid="12345",
+            ac_time_value="ac_val",
+            bili_ticket="leak_ticket",
+            bili_ticket_expires="9999999999",
+        )
+        disabled_conf = {"credential": {"use_cred": False}}
+        enabled_conf = {"credential": {"use_cred": True}}
+
+        self.assertFalse(is_cred_active(None, conf=enabled_conf))
+        self.assertFalse(is_cred_active(cred, conf=disabled_conf))
+        self.assertTrue(is_cred_active(cred, conf=enabled_conf))
+
+        self.assertEqual(get_web_api_cookies(cred, conf=disabled_conf), {})
+        web_cookies = get_web_api_cookies(cred, conf=enabled_conf)
+        self.assertNotIn("bili_ticket", web_cookies)
+        self.assertNotIn("bili_ticket_expires", web_cookies)
+        self.assertEqual(web_cookies["SESSDATA"], "sess%20val")
+        self.assertEqual(web_cookies["DedeUserID"], "12345")
+
+        headers = {"User-Agent": "Chrome", "cookie": "stale=1"}
+        apply_cdn_cred_headers(headers, cred, ticket="jwt_ticket", conf=enabled_conf)
+        self.assertEqual(headers["x-bili-ticket"], "jwt_ticket")
+        self.assertEqual(headers["buvid"], "b3_val")
+        self.assertEqual(headers["buvid4"], "b4_val")
+        self.assertNotIn("cookie", headers)
+        self.assertNotIn("bili_ticket=", headers["Cookie"])
+        self.assertIn("SESSDATA=sess%20val", headers["Cookie"])
+        self.assertIn("DedeUserID=12345", headers["Cookie"])
+
+        inactive_headers = {"User-Agent": "Chrome"}
+        apply_cdn_cred_headers(inactive_headers, cred, ticket="jwt_ticket", conf=disabled_conf)
+        self.assertEqual(inactive_headers["x-bili-ticket"], "jwt_ticket")
+        self.assertNotIn("Cookie", inactive_headers)
+        self.assertNotIn("buvid", inactive_headers)
+
+
+class TestSyncCleanup(unittest.IsolatedAsyncioTestCase):
+    async def test_owned_loop_closes_on_success_and_failure_in_both_contexts(self):
+        def run():
+            for fails in (False, True):
+                seen = []
+
+                async def operation(seen=seen, fails=fails):
+                    seen.append(asyncio.get_running_loop())
+                    if fails:
+                        raise ValueError("test")
+                    return 42
+
+                async def close(seen=seen):
+                    self.assertIs(asyncio.get_running_loop(), seen[0])
+
+                with patch.object(bili_client, "close_bili_client", AsyncMock(side_effect=close)) as cleanup:
+                    if fails:
+                        with self.assertRaises(ValueError):
+                            bili_api.sync(operation())
+                    else:
+                        self.assertEqual(bili_api.sync(operation()), 42)
+                    cleanup.assert_awaited_once()
+                self.assertTrue(seen[0].is_closed())
+
+        await asyncio.to_thread(run)
+        run()
 
 
 if __name__ == "__main__":

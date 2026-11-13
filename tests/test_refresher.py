@@ -97,12 +97,34 @@ class TestRefresher(unittest.TestCase):
             refreshed = Credential(sessdata="refreshed_sess", bili_jct="refreshed_jct")
             refresher.write_cookies(refreshed, config_path=self.cfg_path)
 
-            saved = rtoml.load(self.cfg_path)["credential"]
+            from miku.services.credential import get_web_api_cookies, init_credentials
+
+            saved_conf = rtoml.load(self.cfg_path)
+            auth = init_credentials(saved_conf)
+            self.assertEqual(get_web_api_cookies(auth, conf=saved_conf)["SESSDATA"], "refreshed_sess")
+            self.assertEqual(auth.bili_jct, "refreshed_jct")
+            saved = saved_conf["credential"]
             self.assertTrue(saved["sessdata"].startswith("nacl:"))
             self.assertEqual(secrets_encryption.decrypt_secret(saved["sessdata"][5:]), "refreshed_sess")
             self.assertFalse(saved["bili_jct"].startswith("nacl:"))
             self.assertEqual(secrets_encryption.decrypt_secret(saved["bili_jct"]), "refreshed_jct")
             self.assertEqual(saved["buvid3"], "plain_b3")
+
+
+class TestUnknownConfirmationPersistence(unittest.TestCase):
+    def test_renew_saves_candidate_and_reports_unconfirmed(self):
+        from unittest.mock import AsyncMock
+
+        from miku.api.credential import RefreshConfirmationUnknown
+
+        candidate = Credential(sessdata="new_sess", ac_time_value="new_token")
+        cred = Credential(sessdata="old_sess")
+        cred.check_refresh = AsyncMock(return_value=True)
+        cred.refresh = AsyncMock(side_effect=RefreshConfirmationUnknown(candidate))
+        with patch.object(refresher, "write_cookies") as save:
+            self.assertFalse(refresher.renew_cookies(cred, config_path="test.toml"))
+        save.assert_called_once_with(candidate, config_path="test.toml")
+        self.assertEqual(cred.sessdata, "old_sess")
 
 
 if __name__ == "__main__":

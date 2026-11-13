@@ -319,5 +319,31 @@ class ProxyDashUnstartedGeneratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(dash_stream.dash_concurrency.active_by_ip, {})
 
 
+class TestExpiredCleanup(unittest.IsolatedAsyncioTestCase):
+    async def test_shutdown_during_expired_batch_closes_remaining(self):
+        pool = dash_stream._PlaybackKeepAlivePool(ttl=0.001)
+        started = asyncio.Event()
+        calls = 0
+
+        async def close_first():
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                started.set()
+                await asyncio.Event().wait()
+
+        first = type("Conn", (), {})()
+        first.close = AsyncMock(side_effect=close_first)
+        second = type("Conn", (), {})()
+        second.close = AsyncMock()
+        pool._idle = {("", "first"): (-1, first), ("", "second"): (-1, second)}
+        pool._reaper = asyncio.create_task(pool._reap())
+        await asyncio.wait_for(started.wait(), 1)
+        await pool.close_all()
+        self.assertEqual(first.close.await_count, 2)
+        second.close.assert_awaited_once()
+        self.assertEqual(pool._expiring, [])
+
+
 if __name__ == "__main__":
     unittest.main()

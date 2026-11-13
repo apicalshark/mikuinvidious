@@ -8,7 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import miku.dash.download_job as download_job
 import miku.dash.download_track as download_track
 import miku.dash.fetch as dash_fetch
+import miku.state as shared
 from miku.app import app
+from miku.core.config import downloads_allowed, get_default_config
 
 
 class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
@@ -94,6 +96,7 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(download_job, "downloads_allowed", return_value=True),
             patch.object(download_job, "_load_dash_data", AsyncMock(return_value=dash_data)),
+            patch.object(download_job, "_build_dash_cdn_headers", AsyncMock(return_value={"User-Agent": "test"})),
             patch.object(download_job, "_is_safe_dash_url_async", AsyncMock(return_value=True)),
             patch.object(download_job, "_peek_content_length", AsyncMock(return_value=100)),
             patch.object(download_job, "_download_track_file", side_effect=gated_download_track),
@@ -190,6 +193,7 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(download_track, "_MUX_TIMEOUT", 0.02),
+            patch.object(download_track.shutil, "which", return_value="/test/ffmpeg"),
             patch.object(download_track.asyncio, "create_subprocess_exec", AsyncMock(return_value=fake_proc)),
         ):
             with self.assertRaises(RuntimeError) as ctx:
@@ -261,6 +265,24 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
         cookie_hdr = seen_calls[0]["headers"].get("Cookie", "")
         self.assertIn("SESSDATA=s123", cookie_hdr)
         self.assertNotIn("bili_ticket", cookie_hdr)
+
+
+class TestDownloadsAllowed(unittest.TestCase):
+    def test_downloads_allowed_variants(self):
+        self.assertTrue(downloads_allowed({"site": {"site_allow_download": True}}))
+        self.assertFalse(downloads_allowed({"site": {"site_allow_download": False}}))
+        self.assertTrue(downloads_allowed({"site": {"site_allow_download": "true"}}))
+        self.assertTrue(downloads_allowed({"site": {"site_allow_download": " True "}}))
+        self.assertFalse(downloads_allowed({"site": {"site_allow_download": "false"}}))
+        self.assertFalse(downloads_allowed({"site": {"site_allow_download": "0"}}))
+        self.assertTrue(downloads_allowed({}))
+
+        with patch.dict(os.environ, {"SITE_ALLOW_DOWNLOAD": "false"}):
+            conf = get_default_config()
+            self.assertFalse(downloads_allowed(conf))
+
+        with patch.dict(shared.appconf["site"], {"site_allow_download": False}):
+            self.assertFalse(shared.downloads_allowed())
 
 
 if __name__ == "__main__":

@@ -12,22 +12,17 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with MikuInvidious. If not, see <http://www.gnu.org/licenses/>.
-"""Tests for trusted proxy CIDR parsing, XFF traversal, SSRF helpers, config, credentials, and HTTP client lifecycle."""
+"""Tests for trusted proxy CIDR parsing and client-IP traversal."""
 
 from __future__ import annotations
 
 import os
 import unittest
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
-import miku.core.dns_cache as dns_cache
 import miku.core.rate_limit as rate_limit
-import miku.state as shared
-from miku.api.credential import Credential
-from miku.core.config import downloads_allowed, get_default_config
-from miku.services.credential import apply_cdn_cred_headers, get_web_api_cookies, is_cred_active
-from miku.services.network import Network, close_global_client
+from miku.core.config import get_default_config
 from werkzeug.datastructures import Headers
 
 
@@ -97,173 +92,14 @@ class TestRateLimitClientIP(unittest.TestCase):
             self.assertEqual(rate_limit.get_client_ip(bad_real_ip), "127.0.0.1")
 
 
-class TestSSRFHelpers(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
-        dns_cache.clear_cache()
-
-    async def asyncTearDown(self):
-        dns_cache.clear_cache()
-
-    def test_is_public_ip_rejects_private_special_multicast_and_mapped(self):
-        blocked = [
-            "127.0.0.1",
-            "10.0.0.1",
-            "172.16.0.1",
-            "192.168.1.1",
-            "169.254.169.254",
-            "100.64.0.1",
-            "0.0.0.0",
-            "224.0.0.1",
-            "::1",
-            "::",
-            "fe80::1",
-            "fc00::1",
-            "ff02::1",
-            "::ffff:127.0.0.1",
-            "::ffff:169.254.169.254",
-            "::ffff:10.0.0.1",
-            "::ffff:224.0.0.1",
-            "not-an-ip",
-        ]
-        for addr in blocked:
-            self.assertFalse(dns_cache.is_public_ip(addr), f"expected {addr} to be blocked")
-
-        for addr in ("1.1.1.1", "8.8.8.8", "2606:4700:4700::1111"):
-            self.assertTrue(dns_cache.is_public_ip(addr), f"expected {addr} to be public")
-
-    def test_is_allowed_url_host(self):
-        domains = (".hdslb.com", "bilivideo.com")
-        self.assertEqual(dns_cache.is_allowed_url_host("https://i0.hdslb.com./pic.jpg", domains), "i0.hdslb.com")
-        self.assertEqual(dns_cache.is_allowed_url_host("http://bilivideo.com/a.m4s", domains), "bilivideo.com")
-
-        for bad in (
-            "ftp://i0.hdslb.com/x",
-            "file:///etc/passwd",
-            "https://user@i0.hdslb.com/x",
-            "https://user:pass@i0.hdslb.com/x",
-            "https://i0.hdslb.com/a\r\nb",
-            "https://evil.com/x",
-            "https://hdslb.com.evil.com/x",
-            "",
-        ):
-            self.assertIsNone(dns_cache.is_allowed_url_host(bad, domains), f"expected {bad!r} to fail")
-
-    async def test_is_safe_public_url_cached_and_uncached(self):
-        domains = (".bilivideo.com",)
-        public_info = [(2, 1, 6, "", ("1.1.1.1", 0))]
-        private_info = [(2, 1, 6, "", ("::ffff:127.0.0.1", 0))]
-
-        with patch.object(dns_cache.socket, "getaddrinfo", return_value=public_info) as mock_gai:
-            self.assertTrue(
-                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=True)
-            )
-            self.assertTrue(
-                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=True)
-            )
-            self.assertEqual(mock_gai.call_count, 1)
-
-            self.assertTrue(
-                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=False)
-            )
-            self.assertEqual(mock_gai.call_count, 2)
-
-        with patch.object(dns_cache.socket, "getaddrinfo", return_value=private_info):
-            self.assertFalse(
-                await dns_cache.is_safe_public_url("https://upos-sz.bilivideo.com/x.m4s", domains, use_dns_cache=False)
-            )
-
-
-class TestDownloadsAllowedAndNetworkAndCredHelpers(unittest.IsolatedAsyncioTestCase):
-    def test_downloads_allowed_variants(self):
-        self.assertTrue(downloads_allowed({"site": {"site_allow_download": True}}))
-        self.assertFalse(downloads_allowed({"site": {"site_allow_download": False}}))
-        self.assertTrue(downloads_allowed({"site": {"site_allow_download": "true"}}))
-        self.assertTrue(downloads_allowed({"site": {"site_allow_download": " True "}}))
-        self.assertFalse(downloads_allowed({"site": {"site_allow_download": "false"}}))
-        self.assertFalse(downloads_allowed({"site": {"site_allow_download": "0"}}))
-        self.assertTrue(downloads_allowed({}))
-
-        with patch.dict(os.environ, {"SITE_ALLOW_DOWNLOAD": "false"}):
-            conf = get_default_config()
-            self.assertFalse(downloads_allowed(conf))
-
-        with patch.dict(shared.appconf["site"], {"site_allow_download": False}):
-            self.assertFalse(shared.downloads_allowed())
-
-    async def test_close_global_client_closes_all_three_and_resets_none(self):
-        async_client = MagicMock()
-        async_client.is_closed = False
-        async_client.aclose = AsyncMock(side_effect=RuntimeError("async close failed"))
-
-        image_client = MagicMock()
-        image_client.is_closed = False
-        image_client.aclose = AsyncMock()
-
-        sync_client = MagicMock()
-        sync_client.is_closed = False
-        sync_client.close = MagicMock()
-
-        Network._async_client = async_client
-        Network._image_client = image_client
-        Network._sync_client = sync_client
-        try:
-            await close_global_client()
-            async_client.aclose.assert_awaited_once()
-            image_client.aclose.assert_awaited_once()
-            sync_client.close.assert_called_once()
-            self.assertIsNone(Network._async_client)
-            self.assertIsNone(Network._image_client)
-            self.assertIsNone(Network._sync_client)
-
-            # Second invocation is a safe no-op
-            await close_global_client()
-            image_client.aclose.assert_awaited_once()
-            sync_client.close.assert_called_once()
-        finally:
-            Network._async_client = None
-            Network._image_client = None
-            Network._sync_client = None
-
-    def test_credential_helpers_ticket_isolation_and_use_cred_guard(self):
-        cred = Credential(
-            sessdata="sess%20val",
-            bili_jct="jct_val",
-            buvid3="b3_val",
-            buvid4="b4_val",
-            dedeuserid="12345",
-            ac_time_value="ac_val",
-            bili_ticket="leak_ticket",
-            bili_ticket_expires="9999999999",
+class TestMappedTrustedNetworks(unittest.TestCase):
+    def test_mapped_prefixes_preserve_range(self):
+        nets = rate_limit._parse_trusted_networks(
+            "::ffff:10.0.0.5/128,::ffff:192.168.1.5/120,::ffff:0:0/96,::/80,::1/128,127.0.0.0/8"
         )
-        disabled_conf = {"credential": {"use_cred": False}}
-        enabled_conf = {"credential": {"use_cred": True}}
-
-        self.assertFalse(is_cred_active(None, conf=enabled_conf))
-        self.assertFalse(is_cred_active(cred, conf=disabled_conf))
-        self.assertTrue(is_cred_active(cred, conf=enabled_conf))
-
-        self.assertEqual(get_web_api_cookies(cred, conf=disabled_conf), {})
-        web_cookies = get_web_api_cookies(cred, conf=enabled_conf)
-        self.assertNotIn("bili_ticket", web_cookies)
-        self.assertNotIn("bili_ticket_expires", web_cookies)
-        self.assertEqual(web_cookies["SESSDATA"], "sess%20val")
-        self.assertEqual(web_cookies["DedeUserID"], "12345")
-
-        headers = {"User-Agent": "Chrome", "cookie": "stale=1"}
-        apply_cdn_cred_headers(headers, cred, ticket="jwt_ticket", conf=enabled_conf)
-        self.assertEqual(headers["x-bili-ticket"], "jwt_ticket")
-        self.assertEqual(headers["buvid"], "b3_val")
-        self.assertEqual(headers["buvid4"], "b4_val")
-        self.assertNotIn("cookie", headers)
-        self.assertNotIn("bili_ticket=", headers["Cookie"])
-        self.assertIn("SESSDATA=sess%20val", headers["Cookie"])
-        self.assertIn("DedeUserID=12345", headers["Cookie"])
-
-        inactive_headers = {"User-Agent": "Chrome"}
-        apply_cdn_cred_headers(inactive_headers, cred, ticket="jwt_ticket", conf=disabled_conf)
-        self.assertEqual(inactive_headers["x-bili-ticket"], "jwt_ticket")
-        self.assertNotIn("Cookie", inactive_headers)
-        self.assertNotIn("buvid", inactive_headers)
+        self.assertEqual(
+            tuple(map(str, nets)), ("10.0.0.5/32", "192.168.1.0/24", "0.0.0.0/0", "::/80", "::1/128", "127.0.0.0/8")
+        )
 
 
 if __name__ == "__main__":
