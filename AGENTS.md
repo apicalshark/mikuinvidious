@@ -90,6 +90,10 @@ npm run build:i18n
 
 - **License:** GNU AGPL-3.0.
 - **Theming:** Jinja2 templates in `templates/themes/`. Active theme is `modern` (Tailwind CSS, mobile-first, light/dark).
+- **No Shims or Flat-File Sprawl:** Place new Python modules in the appropriate `python/miku/*` package; never leave flat files in `python/` or backward-compatibility re-export shims—update callers and tests directly.
+- **Clean Frontend Assets:** Keep JS/CSS out of Jinja2 templates (use `static/themes/modern/js/` and `tailwind-input.css`); remove dead CSS/JS rather than leaving unused rules.
+- **Focused Tests & Code:** Organize tests by module/feature in `tests/` (never grab-bag files like `test_review_fixes.py`); avoid speculative single-use wrappers, dead fallbacks, and swallowed exceptions.
+- **Concise Comments & Synced Docs:** Write comments/docstrings only for non-obvious invariants; update `AGENTS.md` and `doc/*.md` whenever module paths or architecture change.
 - **Docker (`compose.yml`):**
   - `app`: Granian running Quart (`:8080`).
   - `caddy`: Reverse proxy & static server (`:8000`).
