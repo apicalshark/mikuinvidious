@@ -26,6 +26,11 @@ class TestBvid(unittest.TestCase):
         self.assertEqual(av2bv("av170001"), "BV17x411w7KC")
         self.assertEqual(bv2av(av2bv(170001)), 170001)
 
+    def test_av2bv_reversible_boundaries(self):
+        for aid in (1, (1 << 51) - 1):
+            with self.subTest(aid=aid):
+                self.assertEqual(bv2av(av2bv(aid)), aid)
+
     def test_canonical_bvid_module_import(self):
         import miku.api.bvid as bvid
 
@@ -48,7 +53,7 @@ class TestBvid(unittest.TestCase):
                     bv2av(inv)
 
     def test_invalid_aid_raises(self):
-        invalid_aids = [0, -1, -99999]
+        invalid_aids = [0, -1, -99999, 1 << 51, (1 << 51) + 1, 1 << 100, str(1 << 51), "av" + str(1 << 51), 1.5, None]
         for inv in invalid_aids:
             with self.subTest(inv=inv):
                 with self.assertRaises(ArgsException):

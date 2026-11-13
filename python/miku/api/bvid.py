@@ -58,7 +58,7 @@ def bv2av(x: str) -> int:
 def av2bv(x: int | str) -> str:
     """Convert a numeric AV ID (or string like '170001' or 'av170001') to a 12-character BV string.
 
-    Raises ArgsException if aid is <= 0 or not a valid numeric identifier.
+    Raises ArgsException unless the parsed aid is an integer with 0 < aid < 2**51.
     """
     if isinstance(x, str):
         if x.startswith("av") or x.startswith("AV"):
@@ -70,10 +70,10 @@ def av2bv(x: int | str) -> str:
 
             raise ArgsException("Invalid aid: must be an integer or numeric string.") from None
 
-    if not isinstance(x, int) or x <= 0:
+    if not isinstance(x, int) or not 0 < x < _MAX_AID:
         from miku.api.exceptions import ArgsException
 
-        raise ArgsException("aid must be greater than 0.")
+        raise ArgsException(f"aid must be greater than 0 and less than {_MAX_AID}.")
 
     tmp = (_MAX_AID | x) ^ _XOR_CODE
     r = list("BV1000000000")

@@ -207,7 +207,7 @@ _SEARCH_ORIGIN = "https://search.bilibili.com"
 def _headers_for(url: str, params: dict) -> dict:
     host = (urlsplit(url).hostname or "").lower()
     keyword = params.get("keyword") or params.get("term")
-    if host == "miku.api.bilibili.com" and keyword:
+    if host == "api.bilibili.com" and keyword:
         return build_chrome_headers(
             origin=_SEARCH_ORIGIN,
             referer=f"{_SEARCH_ORIGIN}/all?keyword={quote(str(keyword))}",

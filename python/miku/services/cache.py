@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import re
 import time
 from typing import Any
 
@@ -42,7 +43,7 @@ def safe_json_loads(data: str | bytes, default: Any = None) -> Any:
 
 def versioned_key(key: str, version: int = CACHE_SCHEMA_VERSION) -> str:
     """Namespace a cache key with the payload-schema version."""
-    if key.startswith("miku_v"):
+    if re.match(r"miku_v[0-9]+:", key):
         return key
     return f"miku_v{version}:{key}"
 

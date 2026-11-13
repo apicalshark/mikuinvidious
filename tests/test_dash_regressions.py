@@ -245,7 +245,7 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
     async def test_resumed_conn_skip_longer_than_idle_timeout_does_not_false_stall(self):
         class FakeRawConn:
             async def iter_chunks(self):
-                for _ in range(5):
+                for _ in range(30):
                     await asyncio.sleep(0.02)
                     yield b"x" * 10240
                 await asyncio.sleep(0.02)
@@ -254,9 +254,9 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
             async def close(self):
                 pass
 
-        resumed = dash_stream._ResumedDashConn(FakeRawConn(), skip=5 * 10240 + 6, limit=5)
+        resumed = dash_stream._ResumedDashConn(FakeRawConn(), skip=30 * 10240 + 6, limit=5)
         with (
-            patch.object(dash_stream, "DASH_BODY_IDLE_TIMEOUT", 0.05),
+            patch.object(dash_stream, "DASH_BODY_IDLE_TIMEOUT", 0.5),
             patch.object(dash_stream, "DASH_BODY_GRACE", 0.04),
             patch.object(dash_stream, "DASH_BODY_FLOOR_KBPS", 100),
         ):

@@ -19,6 +19,18 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+class CacheKeyNamespace(unittest.TestCase):
+    def test_only_complete_version_prefixes_are_preserved(self):
+        from miku.services.cache import versioned_key
+
+        for key in ("miku_video_42", "miku_v1", "miku_v:42", "miku_v1oops:42"):
+            with self.subTest(key=key):
+                self.assertEqual(versioned_key(key, version=2), f"miku_v2:{key}")
+        for key in ("miku_v1:video_42", "miku_v12:video_42"):
+            with self.subTest(key=key):
+                self.assertEqual(versioned_key(key, version=2), key)
+
+
 class BoundedScan(unittest.IsolatedAsyncioTestCase):
     async def test_limits_empty_scan_rounds_and_finds_urls(self):
         import miku.media.proxy as proxy
