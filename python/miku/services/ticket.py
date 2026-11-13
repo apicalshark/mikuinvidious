@@ -34,6 +34,7 @@ class TicketManager:
     _ticket: str | None = None
     _expiry: int = 0
     _lock = asyncio.Lock()
+    _redis_lock = asyncio.Lock()
     _inflight: asyncio.Future | None = None
     _generation: int = 0
     _inflight_gen: int = 0
@@ -104,11 +105,6 @@ class TicketManager:
                 cls._generation += 1
                 cls._ticket = None
                 cls._expiry = 0
-                try:
-                    await redis_client.delete("miku_bili_ticket")
-                    await redis_client.delete("miku_bili_ticket_expiry")
-                except Exception:
-                    pass
 
             current_gen = cls._generation
             inflight_gen = cls._inflight_gen
@@ -129,7 +125,14 @@ class TicketManager:
         expiry_ts: int = 0
         cached = False
         try:
-            if not force_refresh:
+            if force_refresh:
+                if redis_client:
+                    async with cls._redis_lock:
+                        try:
+                            await redis_client.delete("miku_bili_ticket", "miku_bili_ticket_expiry")
+                        except Exception:
+                            pass
+            else:
                 try:
                     cached_ticket, cached_expiry = await redis_client.mget(
                         "miku_bili_ticket", "miku_bili_ticket_expiry"
@@ -156,16 +159,18 @@ class TicketManager:
                             cls._fail_until = 0.0
                         else:
                             cls._fail_until = time.time() + cls.TICKET_FAIL_COOLDOWN
-                if ticket and fetch_gen == cls._generation and not cached:
-                    try:
-                        real_ttl = int(expiry_ts) - int(time.time())
-                        if real_ttl > 0 and redis_client:
-                            pipe = redis_client.pipeline(transaction=False)
-                            pipe.setex("miku_bili_ticket", real_ttl, ticket)
-                            pipe.setex("miku_bili_ticket_expiry", real_ttl, str(expiry_ts))
-                            await pipe.execute()
-                    except Exception as e:
-                        print(f"[Ticket] Error caching ticket in Redis: {e}")
+                if ticket and not cached and redis_client and fetch_gen == cls._generation:
+                    async with cls._redis_lock:
+                        if fetch_gen == cls._generation:
+                            try:
+                                real_ttl = int(expiry_ts) - int(time.time())
+                                if real_ttl > 0:
+                                    pipe = redis_client.pipeline(transaction=False)
+                                    pipe.setex("miku_bili_ticket", real_ttl, ticket)
+                                    pipe.setex("miku_bili_ticket_expiry", real_ttl, str(expiry_ts))
+                                    await pipe.execute()
+                            except Exception as e:
+                                print(f"[Ticket] Error caching ticket in Redis: {e}")
             finally:
                 if not fut.done():
                     fut.set_result(ticket)

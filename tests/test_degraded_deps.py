@@ -168,7 +168,11 @@ class TicketCooldownTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         shared.TicketManager._ticket = None
         shared.TicketManager._expiry = 0
+        shared.TicketManager._lock = asyncio.Lock()
+        shared.TicketManager._redis_lock = asyncio.Lock()
         shared.TicketManager._inflight = None
+        shared.TicketManager._generation = 0
+        shared.TicketManager._inflight_gen = 0
         shared.TicketManager._fail_until = 0.0
 
     async def asyncTearDown(self):
@@ -275,6 +279,108 @@ class TicketCooldownTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(manager._ticket, "new")
         self.assertEqual(pipe.setex.call_args_list[0].args[2], "new")
         pipe.execute.assert_awaited_once()
+
+    async def test_forced_refresh_fences_inflight_redis_publication(self):
+        manager = shared.TicketManager
+        store: dict[str, str] = {}
+        old_publish_started = asyncio.Event()
+        old_publish_release = asyncio.Event()
+        calls = 0
+
+        async def fetch(*_args):
+            nonlocal calls
+            ticket = ("old", "new")[calls]
+            calls += 1
+            return ticket, int(time.time()) + 3600
+
+        async def delete(*keys):
+            for k in keys:
+                store.pop(k, None)
+
+        def make_pipeline(**_kw):
+            ops: list[tuple[str, str]] = []
+            pipe = MagicMock()
+
+            def setex(key, _ttl, val):
+                ops.append((key, val))
+
+            async def execute():
+                if ops and ops[0][1] == "old":
+                    old_publish_started.set()
+                    await old_publish_release.wait()
+                for key, val in ops:
+                    store[key] = val
+
+            pipe.setex = MagicMock(side_effect=setex)
+            pipe.execute = AsyncMock(side_effect=execute)
+            return pipe
+
+        with (
+            patch.object(shared, "get_bili_ticket", fetch),
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(shared.appredis, "delete", AsyncMock(side_effect=delete)),
+            patch.object(shared.appredis, "pipeline", side_effect=make_pipeline),
+        ):
+            old = asyncio.create_task(manager.get_ticket())
+            await asyncio.wait_for(old_publish_started.wait(), 1)
+            new = asyncio.create_task(manager.get_ticket(force_refresh=True))
+            await asyncio.sleep(0)
+            self.assertFalse(manager._lock.locked())
+            self.assertIsNone(manager._ticket)
+            old_publish_release.set()
+            self.assertEqual(await asyncio.wait_for(old, 1), "old")
+            self.assertEqual(await asyncio.wait_for(new, 1), "new")
+
+        self.assertEqual(manager._ticket, "new")
+        self.assertEqual(store["miku_bili_ticket"], "new")
+
+    async def test_forced_refresh_fences_queued_redis_publication(self):
+        manager = shared.TicketManager
+        store: dict[str, str] = {}
+        calls = 0
+
+        async def fetch(*_args):
+            nonlocal calls
+            ticket = ("old", "new")[calls]
+            calls += 1
+            return ticket, int(time.time()) + 3600
+
+        async def delete(*keys):
+            for k in keys:
+                store.pop(k, None)
+
+        def make_pipeline(**_kw):
+            ops: list[tuple[str, str]] = []
+            pipe = MagicMock()
+            pipe.setex = MagicMock(side_effect=lambda k, _ttl, v: ops.append((k, v)))
+
+            async def execute():
+                for k, v in ops:
+                    store[k] = v
+
+            pipe.execute = AsyncMock(side_effect=execute)
+            return pipe
+
+        with (
+            patch.object(shared, "get_bili_ticket", fetch),
+            patch.object(shared.appredis, "mget", AsyncMock(return_value=(None, None))),
+            patch.object(shared.appredis, "delete", AsyncMock(side_effect=delete)),
+            patch.object(shared.appredis, "pipeline", side_effect=make_pipeline),
+        ):
+            await manager._redis_lock.acquire()
+            try:
+                old = asyncio.create_task(manager.get_ticket())
+                await asyncio.sleep(0)
+                new = asyncio.create_task(manager.get_ticket(force_refresh=True))
+                await asyncio.sleep(0)
+            finally:
+                manager._redis_lock.release()
+
+            self.assertEqual(await asyncio.wait_for(old, 1), "old")
+            self.assertEqual(await asyncio.wait_for(new, 1), "new")
+
+        self.assertEqual(manager._ticket, "new")
+        self.assertEqual(store["miku_bili_ticket"], "new")
 
     async def test_failed_refresh_is_not_retried_inside_the_window(self):
         attempts = 0
