@@ -20,6 +20,8 @@ from quart import Response, g, jsonify, redirect, request, url_for
 
 import miku.media.transformers as transformers
 from miku.api import ResponseCodeException, homepage, search, video, video_zone
+from miku.api.exceptions import NetworkException, is_risk_error
+from miku.core.csrf import csrf_protect
 from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from miku.media.b23_resolver import extract_b23_or_bili_url, resolve_b23_target
 from miku.state import (
@@ -168,8 +170,8 @@ async def search_view():
         sinfo = await search.search_by_type(
             q, page=i, search_type=search_type, order_type=order_map.get(request.args.get("sort"))
         )
-    except ResponseCodeException as exc:
-        if exc.code != 412:
+    except (NetworkException, ResponseCodeException) as exc:
+        if not is_risk_error(exc) and getattr(exc, "code", None) != 412:
             raise
         sinfo = None
     # Bilibili's search endpoint is subject to risk control (HTTP 412 / v_voucher)
@@ -220,7 +222,10 @@ async def history_view():
             "home.html", videos=[], title="Browsing history", message="You have no browsing history yet."
         )
 
-    bvids = await appredis.lrange(f"miku_hist_{hist_id}", 0, -1)
+    try:
+        bvids = await appredis.lrange(f"miku_hist_{hist_id}", 0, -1)
+    except Exception:
+        bvids = []
     if not bvids:
         return await render_template_with_theme(
             "home.html", videos=[], title="Browsing history", message="You have no browsing history yet."
@@ -246,6 +251,7 @@ async def history_view():
 
 @app.route("/convert", methods=["GET", "POST"])
 @rate_limit(**RATE_LIMITS["normal"])
+@csrf_protect()
 async def convert_view():
     url = request.args.get("url") or request.args.get("q") or ""
     result = None
@@ -271,6 +277,7 @@ async def convert_view():
 
 @app.route("/api/convert", methods=["POST"])
 @rate_limit(**RATE_LIMITS["normal"])
+@csrf_protect()
 async def api_convert():
     try:
         data = await request.get_json()

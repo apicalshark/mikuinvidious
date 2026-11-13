@@ -11,7 +11,10 @@ __pycache__
 dist
 build
 
-# Sensitive config files (secrets, local overrides)
+# Sensitive config files and runtime data (secrets, caches, local overrides)
+data/
+config.toml
+config.toml.local
 Caddyfile
 Caddyfile*
 caddy.*

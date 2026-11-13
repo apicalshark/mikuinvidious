@@ -24,7 +24,10 @@ from typing import Any
 
 from quart import current_app, render_template, request
 
+from miku.core.config import downloads_allowed
+
 _THEME_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+_HEX_ACCENT_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
 PRESET_ACCENT_MAP = {
     "sakura": "#a85383",
@@ -95,9 +98,10 @@ async def render_template_with_theme(fp: str, **kwargs: Any) -> str:
         if isinstance(val, str):
             kwargs[key] = gettext_msg(locale, val)
 
-    repo_url = shared.appconf.get("site", {}).get(
-        "site_modified_source_code_url"
-    ) or "https://0xacab.org/johnxina/mikuinvidious"
+    repo_url = (
+        shared.appconf.get("site", {}).get("site_modified_source_code_url")
+        or "https://0xacab.org/johnxina/mikuinvidious"
+    )
     commit_url = shared._compute_commit_url(repo_url, shared.GIT_COMMIT)
 
     cookie_accent = None
@@ -107,14 +111,23 @@ async def render_template_with_theme(fp: str, **kwargs: Any) -> str:
             unquoted = urllib.parse.unquote(raw_cookie).strip()
             if unquoted in PRESET_ACCENT_MAP:
                 cookie_accent = PRESET_ACCENT_MAP[unquoted]
-            elif unquoted.startswith("#") and len(unquoted) in (4, 7, 9):
-                cookie_accent = unquoted
+            elif _HEX_ACCENT_RE.match(unquoted):
+                cookie_accent = unquoted.lower()
     except Exception:
         pass
 
-    site_default_accent = shared.appconf.get("display", {}).get("default_accent", "#a85383")
+    raw_default_accent = shared.appconf.get("display", {}).get("default_accent", "#a85383")
+    if isinstance(raw_default_accent, str) and _HEX_ACCENT_RE.match(raw_default_accent.strip()):
+        site_default_accent = raw_default_accent.strip().lower()
+    else:
+        site_default_accent = "#a85383"
     render_fn = getattr(shared, "render_template", render_template)
 
+    site_ctx = {
+        **shared.appconf.get("site", {}),
+        "site_allow_download": downloads_allowed(shared.appconf),
+        **kwargs,
+    }
     return await render_fn(
         f"themes/{t}/{fp}",
         proxy_status=shared.appconf.get("proxy", {}),
@@ -129,6 +142,5 @@ async def render_template_with_theme(fp: str, **kwargs: Any) -> str:
         gettext=lambda s: gettext_msg(locale, s),
         ngettext=lambda s, p, n: ngettext_msg(locale, s, p, n),
         i18n_catalog=get_json_catalog(locale),
-        **shared.appconf.get("site", {}),
-        **kwargs,
+        **site_ctx,
     )

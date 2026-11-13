@@ -3,14 +3,50 @@
   if (!chatContainer || !chatContainer.dataset.vid) return;
 
   var vid = chatContainer.dataset.vid;
-  var eventSource;
+  var BASE_DELAY_MS = 2000;
+  var MAX_DELAY_MS = 60000;
+  var eventSource = null;
+  var reconnectTimer = null;
+  var reconnectAttempt = 0;
+  var isUnloading = false;
+
+  function clearReconnectTimer() {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  }
+
+  function cleanup() {
+    isUnloading = true;
+    clearReconnectTimer();
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+  }
 
   function connectChat() {
-    if (eventSource) eventSource.close();
+    if (isUnloading) return;
+    clearReconnectTimer();
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
     eventSource = new EventSource("/live/chat/" + encodeURIComponent(vid));
 
+    eventSource.onopen = function () {
+      reconnectAttempt = 0;
+    };
+
     eventSource.onmessage = function (event) {
-      var data = JSON.parse(event.data);
+      var data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (_e) {
+        return;
+      }
+      if (!data || typeof data !== "object") return;
 
       var loadingMsg = chatContainer.querySelector(".text-center");
       if (loadingMsg) chatContainer.innerHTML = "";
@@ -58,10 +94,21 @@
     };
 
     eventSource.onerror = function () {
-      eventSource.close();
-      setTimeout(connectChat, 5000);
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      if (isUnloading) return;
+      clearReconnectTimer();
+      var delay =
+        Math.min(MAX_DELAY_MS, BASE_DELAY_MS * Math.pow(2, reconnectAttempt)) +
+        Math.floor(Math.random() * 500);
+      reconnectAttempt++;
+      reconnectTimer = setTimeout(connectChat, delay);
     };
   }
 
+  window.addEventListener("beforeunload", cleanup);
+  window.addEventListener("pagehide", cleanup);
   connectChat();
 })();

@@ -72,7 +72,7 @@ The DASH engine is divided into six modular components located in `python/miku/d
 - **Mid-Body Failover:** Stream dropouts or idle pauses past `DASH_BODY_IDLE_TIMEOUT` (5s) automatically resume the remaining byte range on the next available healthy mirror.
 
 ### E. Background Download Pipeline (`miku/dash/download_*.py`)
-- **Queue & Concurrency:** Managed by `miku/dash/download_job.py` (capped at 3 concurrent downloads). Each job is assigned an unguessable UUID.
+- **Queue & Concurrency:** Managed by `miku/dash/download_job.py` (`_JOB_SLOTS = 3` concurrent download/mux slots, `_MAX_ACTIVE_JOBS = 12` queued/active ceiling). Per-IP media concurrency is enforced via `PerIpSlotLimiter` (`DASH_MAX_CONCURRENT_PER_IP = 8` for DASH track proxying in `miku/dash/stream.py`; `LIVE_CHAT_MAX_PER_IP = 4` for live chat SSE in `miku/views/live.py`). Each download job is assigned an unguessable UUID.
 - **Segment Downloading:** Downloads video and audio tracks concurrently as 32MB `Range` segments with 1MB disk write batches.
 - **Adaptive Pacing & Slowdown Watchdog:** Consecutive slow transfers trigger an adaptive backoff ladder (2s to 10s). A 1-second rolling watchdog detects edge throttling, dropping stalled connections and pausing before reconnecting.
 - **Muxing & Delivery:** Completed tracks are remuxed with stream copy (`ffmpeg -c copy -movflags +faststart`) up to 1080p anonymous ceiling. Cancelled jobs cleanly abort CDN transfers and prune temporary files.

@@ -108,7 +108,7 @@ class ThemesJsTests(unittest.TestCase):
 
 class ThemeServerTests(unittest.IsolatedAsyncioTestCase):
     async def test_no_toggle_theme_route(self):
-        import miku.app as app_module# noqa: F401  (registers routes)
+        import miku.app as app_module  # noqa: F401  (registers routes)
         import miku.state as shared
 
         rules = [str(r) for r in shared.app.url_map.iter_rules()]

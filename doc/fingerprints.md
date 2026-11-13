@@ -21,7 +21,7 @@ Randomizing User-Agents or using mismatched browser versions triggers immediate 
 
 | Profile | User-Agent / Identity | Target Endpoints / Layers | Transport Layer | Key Headers & Attributes |
 | :--- | :--- | :--- | :--- | :--- |
-| **App Profile** (`get_app_headers`) | `BiliDroid/8.83.0` (Android) | Image proxying (`/proxy/image/`), Live FLV stream forward | `httpx` AsyncClient / Raw socket | `app-key: android64`, `env: prod`, metadata IP/legal region. Configurable via `config.toml`. |
+| **App Profile** (`get_app_headers`) | `BiliDroid/8.83.0` (Android) | Image proxying (`/proxy/pic/`), Live FLV stream forward | `httpx` AsyncClient / Raw socket | `app-key: android64`, `env: prod`, metadata IP/legal region. Configurable via `config.toml`. |
 | **Browser Impersonation** (`get_browser_headers`) | `Chrome/152.0.0.0` (Windows) | High-risk APIs: Live `getInfoByRoom`, Search, Comments, User Space | `curl_cffi` (`CURL_IMPERSONATE = "chrome152"`) | Strict insertion order for HTTP/2 fingerprinting; `sec-ch-ua` (v152), `sec-fetch-*`, `priority`. Sent with `default_headers=False`. |
 | **Media CDN Profile** (`get_cdn_headers`) | `Chrome/152.0.0.0` (Windows) | DASH segments & progressive MP4 CDN fetches (`.bilivideo.com`, upos mirrors) | Raw socket (`CdnConnection`) | `Referer`, `Origin: https://www.bilibili.com`, `Accept: */*`. Validates UA string; bypassing App UA 403. |
 | **General Web API** (`get_web_api_headers`) | `Chrome/152.0.0.0` (Windows) | Normal Web APIs (Wbi nav key, subtitles, video info, WebSocket live danmaku) | `httpx` AsyncClient / `aiohttp` | Fixed Chrome UA, `Accept-Language: zh-CN,zh;q=0.9`. |
@@ -62,6 +62,6 @@ export BILI_USER_AGENT="Mozilla/5.0 BiliDroid/..."
 
 Browser and CDN fingerprints are intentionally managed internally by [`python/miku/core/fingerprints.py`](../python/miku/core/fingerprints.py) to prevent misconfiguration that could break playback or trigger risk controls.
 
-## 4. Space & Gaia Risk Control Architecture
+## 5. Space & Gaia Risk Control Architecture
 
 For detailed reverse-engineering findings on Space endpoints (`/x/space/wbi/acc/info`, `/x/space/wbi/arc/search`), Gaia gateway handshakes (`ExGetAxe` / `ExClimbCongLing`), the `X-BILI-SEC-TOKEN` cookie, and `@bilibili/bili-user-fingerprint` projection formulas (`dm_img_inter`), see [`doc/space_risk_control.md`](space_risk_control.md).

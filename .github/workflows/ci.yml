@@ -41,6 +41,9 @@ jobs:
       - name: Run lint checks
         run: npm run lint
 
+      - name: Check i18n catalogs
+        run: npm run check:i18n
+
       - name: Check bytecode compilation
         run: npm run check:compile
 

@@ -1,6 +1,6 @@
 # Configuration Reference
 
-MikuInvidious can be configured using `config.toml` (recommended) or environment variables. Configuration file settings (`config.toml`) override environment variable defaults, with the sole exception of `SITE_URL`, which overrides `site.site_url` if set in the environment.
+MikuInvidious can be configured using `config.toml` (recommended) or environment variables. Configuration file settings (`config.toml`) override environment variable defaults, except for `SITE_URL` (overrides `site.site_url`) and `DEFAULT_ACCENT_COLOR` / `DEFAULT_ACCENT` (overrides `display.default_accent`), which take precedence when set in the environment.
 
 ---
 
@@ -27,12 +27,13 @@ Configuration for the web server (Granian / Quart).
 | :--- | :--- | :--- | :--- |
 | `host` | `SERVER_HOST` | `0.0.0.0` | Host IP address to bind to (`::` for dual-stack IPv4/IPv6). |
 | `port` | `SERVER_PORT` | `8888` | Port to bind to. |
+| `secret_key` | `QUART_SECRET_KEY` | (ephemeral) | Secret key for signing session cookies and CSRF tokens. Recommended in production so sessions survive restarts. |
 | `debug` | `QUART_DEBUG` | `false` | Enables Quart debug mode and auto-reload. |
 | `access_log` | `SERVER_ACCESS_LOG` | `false` | Granian per-request access log. Disabled by default because media proxying/polling floods application logs. |
 | `monitor_fd` | `MONITOR_FD` | `false` | Enables file descriptor leak monitoring. |
 
 > [!NOTE]
-> **Session Secret Key:** `miku.core.app.create_app()` uses `[server].secret_key` (or `QUART_SECRET_KEY`) when configured, and otherwise generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at each startup.
+> **Session Secret Key:** `miku.core.app.create_app()` uses `[server].secret_key` (or `QUART_SECRET_KEY`) when configured, and otherwise generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at each startup (which resets active sessions and CSRF tokens across restarts). Setting `QUART_SECRET_KEY` is recommended in production.
 
 ---
 
@@ -42,6 +43,7 @@ UI themes and internationalization.
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `default_theme` | (None) | `modern` | Default theme for new visitors (`modern` is the active Tailwind CSS theme). |
+| `default_accent` | `DEFAULT_ACCENT_COLOR`, `DEFAULT_ACCENT` | `#a85383` | Default Material You seed accent hex color (`#rgb`, `#rrggbb`, or `#rrggbbaa`). Environment variables override `config.toml`. |
 | `default_locale` | `DEFAULT_LOCALE` | `zh-CN` | Fallback UI locale when no query param (`?lang=`), cookie, or `Accept-Language` match. |
 | `supported_locales` | `SUPPORTED_LOCALES` | (auto-discover) | Comma-separated list of allowed locales (e.g. `en,zh-CN,zh-TW,ja`). If unset, offers all locales under `locales/`. |
 
@@ -144,10 +146,10 @@ Sliding-window Redis-backed rate limiting per IP address.
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master toggle for rate limiting. |
-| `trusted_proxies` | `TRUSTED_PROXIES` | `""` | Comma-separated list of IP addresses or CIDR blocks whose forwarding proxy headers (`X-Forwarded-For`, etc.) are trusted. Loopback and private peers are also trusted even when this setting is empty. |
+| `trusted_proxies` | `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | Comma-separated list of IP addresses or CIDR blocks whose `X-Forwarded-For` header is trusted for client IP extraction (`get_client_ip()`). |
 
-> [!WARNING]
-> **Implicit Private Forwarder Trust:** `rate_limit.py` automatically trusts loopback peers and addresses classified as private by Python’s `ipaddress` module, even when `trusted_proxies` is empty. Restrict direct access to the application from those peers to controlled proxies, and ensure every trusted proxy overwrites `X-Real-IP` and `X-Forwarded-For` with validated client IP values so clients cannot spoof their rate-limit identity.
+> [!IMPORTANT]
+> **Reverse Proxy Trust (`TRUSTED_PROXIES`):** `rate_limit.py` trusts forwarding headers **only** from peers matching `trusted_proxies` (defaulting to loopback `127.0.0.1/8,::1/128`; private networks are **not** implicitly trusted). When deploying behind Caddy or Nginx in Docker, include the proxy container's subnet in `TRUSTED_PROXIES` (for example, `compose.yml` pins the `miku_net` bridge to `172.30.0.0/24` and sets `TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24`) so `rate_limit` and `PerIpSlotLimiter` see real client IPs instead of the proxy's IP. Ensure your reverse proxy overwrites/strips untrusted `X-Forwarded-For` headers at the edge.
 
 ---
 

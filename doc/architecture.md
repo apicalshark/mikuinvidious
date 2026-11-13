@@ -170,7 +170,7 @@ graph TD
 
 ### Industrial Core Package (`python/miku/`)
 - **`miku.core.app`**: Standardized application factory (`create_app()`) configuring Quart, template/static paths, JSON providers, timeout ceilings, and session security.
-- **`miku.core.config`**: Decoupled TOML configuration loader supporting environment overrides (`MIKU_*`), version extraction, and dynamic config paths.
+- **`miku.core.config`**: Decoupled TOML configuration loader supporting environment variable overrides, version extraction, and dynamic config paths.
 - **`miku.services.redis`**: Fast-fail Redis connection pool factory enforcing a strict 1.0s socket timeout and 0 automatic retries to prevent event loop exhaustion.
 - **`miku.services.cache`**: Unified cache get/set/stale operations and singleflight-protected caching decorators.
 - **`miku.services.network`**: Global HTTPX async client connection pool lifecycle with connection pooling and proxy support.

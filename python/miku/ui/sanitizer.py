@@ -60,15 +60,20 @@ ALLOWED_TAGS = {
 
 ALLOWED_ATTRIBUTES = {
     "a": {"href", "title"},
-    "img": {"src", "alt", "title", "class", "width", "height"},
+    "img": {"src", "alt", "title", "class", "width", "height", "style"},
     "code": {"class"},
     "pre": {"class"},
-    "span": {"style", "class"},
-    "div": {"style", "class"},
-    "p": {"style", "class"},
-    "figure": {"style", "class"},
-    "blockquote": {"style", "class"},
-    "*": {"style", "class"},
+    "span": {"style"},
+    "div": {"style"},
+    "p": {"style"},
+    "figure": {"style"},
+    "blockquote": {"style"},
+    "h1": {"style"},
+    "h2": {"style"},
+    "h3": {"style"},
+    "h4": {"style"},
+    "h5": {"style"},
+    "h6": {"style"},
 }
 
 ALLOWED_STYLES = {
@@ -96,5 +101,5 @@ def sanitize_html(html: str) -> str:
         attributes=ALLOWED_ATTRIBUTES,
         filter_style_properties=ALLOWED_STYLES,
         clean_content_tags={"script", "style"},
-        link_rel=None,
+        link_rel="noopener noreferrer",
     )

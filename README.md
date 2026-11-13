@@ -28,7 +28,7 @@ This is an actively maintained, privacy-focused fork of [0xacab.org/johnxina/mik
 - **Live Streaming**: Stable proxying with heartbeats and real-time SSE chat.
 - **Content Discovery**: Proxied articles (cv/opus) and global search with filters.
 - **Privacy**: No-account browsing, proxying all Bilibili traffic, and zero tracking.
-- **Languages**: UI in English, Simplified/Traditional Chinese, and Japanese. Upstream Bilibili content stays as-is.
+- **Languages**: UI in 7 languages (English, Simplified/Traditional Chinese, Japanese, Korean, German, and Ukrainian). Upstream Bilibili content stays as-is.
 
 ### Demo video:
 
@@ -74,7 +74,7 @@ Settings can be customized in `compose.yml` or `config.toml`. Key variables:
 - `SITE_NAME`: Instance name.
 - `SITE_URL`: Public URL.
 - `REDIS_URL`: Redis connection string.
-- `HTTP_PROXY` / `HTTPS_PROXY`: SOCKS5 proxy (uses included `warp` service by default).
+- `HTTP_PROXY` / `HTTPS_PROXY`: Optional SOCKS5/HTTP proxy (e.g., Cloudflare WARP via `tools/warp/`).
 
 ## Contributing
 

@@ -9,7 +9,7 @@ from miku.media.b23_resolver import (
 )
 
 
-class TestExtractUrl:
+class TestExtractUrl(unittest.TestCase):
     def test_extract_plain_b23_url(self):
         assert extract_b23_or_bili_url("https://b23.tv/abc1234") == "https://b23.tv/abc1234"
         assert extract_b23_or_bili_url("http://b23.tv/XYZ789") == "https://b23.tv/XYZ789"
@@ -39,7 +39,7 @@ class TestExtractUrl:
         assert extract_b23_or_bili_url(None) is None
 
 
-class TestCleanBilibiliUrl:
+class TestCleanBilibiliUrl(unittest.TestCase):
     def test_clean_tracking_parameters(self):
         dirty = (
             "https://www.bilibili.com/video/BV1xx411c7xx"

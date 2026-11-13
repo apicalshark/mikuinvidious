@@ -86,13 +86,20 @@ async def video_listen_view(vid, idx=0):
     v = video.Video(bvid=vid, credential=appcred)
 
     async def get_audio_url():
-        if not await appredis.exists(f"mikuinv_{vid}_{idx}_0"):
+        try:
+            exists = await appredis.exists(f"mikuinv_{vid}_{idx}_0")
+        except Exception:
+            exists = False
+        if not exists:
             try:
                 vsrc = await video_get_src_for_qn(v, idx, 16)
-                if "durl" in vsrc and vsrc["durl"]:
-                    await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc["durl"][0]["url"])
             except Exception:
-                pass
+                return
+            if "durl" in vsrc and vsrc["durl"]:
+                try:
+                    await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc["durl"][0]["url"])
+                except Exception:
+                    pass
 
     cache_ttl = cache_minutes("video_minutes") * 60
     cache_key = f"video:data:{vid}:{idx}"
@@ -209,8 +216,7 @@ async def _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall, c
 
 
 @app.route("/api/component/player/<vid>/<int:idx>")
-@rate_limit(limit=300, window=60, key_func=_component_ip_key)
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["loose"], key_func=_component_ip_key)
 async def api_component_player(vid, idx):
     if not _is_valid_vid(vid):
         return _bad_vid_response()
@@ -248,12 +254,16 @@ async def api_component_player(vid, idx):
 
             async with asyncio.timeout(8.0):
                 data = await video_get_dash_for_qn(v, idx, ep_id=ep_id, cid=pgc_cid)
-            if _is_final_play_data(data):
-                if isinstance(data, dict) and data.get("dash"):
-                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
-                return data
         except Exception as e:
             print(f"[Player] playurl fetch failed for {vid}:{idx}: {e}")
+            return None
+        if _is_final_play_data(data):
+            if isinstance(data, dict) and data.get("dash"):
+                try:
+                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
+                except Exception as e:
+                    print(f"[Player] dash cache write failed for {vid}:{idx}: {e}")
+            return data
         return None
 
     # Known PGC cid from the season lookup below (None for plain UGC).
@@ -370,8 +380,7 @@ async def _get_subtitles(v, idx) -> list:
 
 
 @app.route("/api/component/meta/<vid>/<int:idx>")
-@rate_limit(limit=300, window=60, key_func=_component_ip_key)
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["loose"], key_func=_component_ip_key)
 async def api_component_meta(vid, idx):
     if not _is_valid_vid(vid):
         return _bad_vid_response()
@@ -406,8 +415,7 @@ async def api_component_meta(vid, idx):
 
 
 @app.route("/api/component/comments/<vid>/<int:idx>/more")
-@rate_limit(limit=300, window=60, key_func=_component_ip_key)
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["loose"], key_func=_component_ip_key)
 async def api_component_meta_more(vid, idx):
     """Fetch the next page of top-level comments (infinite scroll, matching PipePipe)."""
     if not _is_valid_comment_oid(vid):
@@ -440,8 +448,7 @@ async def api_component_meta_more(vid, idx):
 
 
 @app.route("/api/component/comments/<vid>/<int:rpid>")
-@rate_limit(limit=300, window=60, key_func=_component_ip_key)
-@rate_limit(**RATE_LIMITS["normal"])
+@rate_limit(**RATE_LIMITS["loose"], key_func=_component_ip_key)
 async def api_component_sub_comments(vid, rpid):
     """Return rendered sub-comment HTML for a given parent comment."""
     if not _is_valid_comment_oid(vid):
@@ -477,7 +484,13 @@ async def video_view(vid, idx=0):
     if not re.match(r"^(BV[a-zA-Z0-9]{10}|av\d+)$", vid):
         return Response("Invalid video ID format", status=400)
 
-    idx, ato = int(idx), request.args.get("ato") == "1"
+    ato = request.args.get("ato") == "1"
+    try:
+        idx = int(idx)
+        if idx < 0:
+            return Response("Invalid video index", status=400)
+    except TypeError, ValueError:
+        return Response("Invalid video index", status=400)
     if request.args.get("listen") == "1":
         return await video_listen_view(vid, idx)
     vid = av2bv(vid[2:]) if vid.startswith("av") else vid

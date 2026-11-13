@@ -1367,11 +1367,18 @@ function initDanmaku(video, container, controller) {
   if (window.is_live) {
     startDanmaku([]);
   } else {
-    fetch("/res/danmaku/" + window.current_vid + ":" + window.idx).then((r) =>
-      r.json().then((ds) => {
-        startDanmaku(ds);
+    fetch("/res/danmaku/" + window.current_vid + ":" + window.idx)
+      .then((r) => {
+        if (!r.ok) throw new Error("Danmaku HTTP " + r.status);
+        return r.json();
       })
-    );
+      .then((ds) => {
+        startDanmaku(Array.isArray(ds) ? ds : []);
+      })
+      .catch((err) => {
+        console.warn("Failed to load danmaku:", err);
+        startDanmaku([]);
+      });
   }
 }
 

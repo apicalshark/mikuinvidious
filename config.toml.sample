@@ -8,8 +8,8 @@ site_url = 'http://localhost:8888'
 
 # You are required to set this if you have any modification to the source code.
 # Learn more at https://www.gnu.org/licenses/agpl-3.0.html.
-# Set to 'false' if no modifications are made.
-site_modified_source_code_url = 'https://github.com/apicalshark/mikuinvidious'
+# Set to false if no modifications are made (e.g., 'https://github.com/apicalshark/mikuinvidious').
+site_modified_source_code_url = false
 
 # This will not really disable download, it just hides the download buttons on the UI.
 site_allow_download = true
@@ -39,14 +39,15 @@ robots_policy = 'strict'
 #    - local only: use 'localhost'
 #    - ipv4 only: use '0.0.0.0'
 #    - both ipv4 or ipv6: use '::'
-host = '::'
+host = '0.0.0.0'
 
 # Port to listen on.
 port = 8888
 
-# A random secret key is generated at each startup for security.
-# Sessions are invalidated on restart (acceptable for this use case).
-# Do not set a static secret_key - it will be ignored.
+# Secret key for signing session cookies and CSRF tokens.
+# Recommend setting QUART_SECRET_KEY (or secret_key below) in production so
+# sessions survive restarts. When unset, an ephemeral key is generated on startup.
+# secret_key = ''
 
 # Support auto-reload and detailed error messages.
 # Also controlled by the QUART_DEBUG environment variable.
@@ -65,7 +66,7 @@ use_cred = false
 # Sensitive information, don't tell anybody. 
 # For gathering these, see https://nemo2011.github.io/bilibili-api/#/get-credential.
 # 
-# SECURITY: Credentials can be stored encrypted using libsodium (XChaCha20-Poly1305).
+# SECURITY: Credentials can be stored encrypted using libsodium (XSalsa20-Poly1305).
 # To encrypt: python tools/encrypt_secrets.py --encrypt SESSDATA "your_value"
 # Set SECRETS_MASTER_KEY environment variable (generate with --generate-key)
 # Encrypted values are base64 strings that will be auto-decrypted at runtime.
@@ -151,4 +152,8 @@ port = 6379
 
 [rate_limit]
 enabled = false
-# trusted_proxies = '172.18.0.0/16'
+# Comma-separated IPs/CIDRs whose X-Forwarded-For headers are trusted.
+# Defaults to '127.0.0.1/8,::1/128' (loopback only). When running behind
+# Caddy/Nginx in Docker, include the proxy container subnet (compose.yml
+# pins 172.30.0.0/24 via TRUSTED_PROXIES).
+# trusted_proxies = '127.0.0.1/8,::1/128,172.30.0.0/24'

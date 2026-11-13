@@ -34,7 +34,7 @@ Do not run tests indiscriminately. Evaluate the scope of your changes first:
 | :--- | :--- | :--- |
 | **Documentation / Markdown only** (`*.md`, `doc/*`) | Check git status & file links | **DO NOT run unit tests, compileall, or linters.** |
 | **Frontend assets only** (`static/*`, `templates/*`) | `npm run lint:frontend`<br>`npm run build:css` (if Tailwind CSS modified)<br>`npm run build:i18n` (if translatable strings change: extracts the catalog, then updates and compiles translations)<br>`npm run check:i18n` (to verify catalogs) | **DO NOT run Python unit tests.** |
-| **Python code modified** (`python/*`, `tests/*`) | `uv run ruff check python`<br>`uv run python -m compileall -q python tests tools` (syntax only; verify affected imports separately)<br>`npm run build:i18n` (if translatable strings change: extracts the catalog, then updates and compiles translations)<br>`npm run check:i18n` (if catalogs change)<br>`NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests` | Do not skip bytecode or ruff checks before PRs. |
+| **Python code modified** (`python/*`, `tests/*`) | `uv run ruff check python tests tools`<br>`uv run python -m compileall -q python tests tools`<br>`npm run build:i18n` (if translatable strings change: extracts the catalog, then updates and compiles translations)<br>`npm run check:i18n` (if catalogs change)<br>`NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests` | Do not skip bytecode or ruff checks before PRs. |
 
 ### Command Reference
 
@@ -47,8 +47,8 @@ NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH
 uv run python -m compileall -f python tests tools
 
 # Python Linting & Formatting
-uv run ruff check python
-uv run ruff format python
+uv run ruff check python tests tools
+uv run ruff format python tests tools
 
 # Frontend Linting & Formatting (When static JS/CSS/templates change)
 npm run lint:frontend
@@ -95,10 +95,10 @@ npm run build:i18n
 - **Focused Tests & Code:** Organize tests by module/feature in `tests/` (never grab-bag files like `test_review_fixes.py`); avoid speculative single-use wrappers, dead fallbacks, and swallowed exceptions.
 - **Concise Comments & Synced Docs:** Write comments/docstrings only for non-obvious invariants; update `AGENTS.md` and `doc/*.md` whenever module paths or architecture change.
 - **Docker (`compose.yml`):**
-  - `app`: Granian running Quart (`:8080`).
+  - `app`: Granian running Quart (`:8080`) on pinned bridge subnet `172.30.0.0/24` with `TRUSTED_PROXIES` configured for Caddy.
   - `caddy`: Reverse proxy & static server (`:8000`).
   - `redis`: Session and cache persistence.
-  - `warp`: Cloudflare WARP SOCKS5 proxy (`:1080`, optional, for datacenter IPs).
+  - Optional Cloudflare WARP SOCKS5 proxy (`:1080`, for datacenter IPs) can be configured via `tools/warp/`.
 - **Config:** Managed via `config.toml` (sample: `config.toml.sample`) or environment variables. `site_url` defaults to `http://localhost:8888`.
 
 ---

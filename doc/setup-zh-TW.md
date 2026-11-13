@@ -173,8 +173,8 @@ Caddy 預設自動處理 SSL/TLS 憑證。
    cp config.toml.sample config.toml
    ```
    編輯 `config.toml`：
-   - 在 `[server]` 中設置 `secret_key`。
-   - 確保 `[redis]` 中的 `url = "redis://localhost:6379"`。
+   - 在 `[server]` 中設置 `secret_key`（或設置環境變數 `QUART_SECRET_KEY`），以便工作階段在重啟後保持有效。
+   - 確保 `[redis]` 中的 `redis_url = "redis://localhost:6379"`。
    - 如果您使用 SOCKS5/HTTP 代理，請配置 `[proxy]` 中的 `proxy_url`。
 
 ### 步驟 3：執行

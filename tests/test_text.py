@@ -1,6 +1,11 @@
 import unittest
 
-from miku.media.transformers import _proxied_emote_src, _render_reply_content_py, render_reply_content, strip_search_highlight
+from miku.media.transformers import (
+    _proxied_emote_src,
+    _render_reply_content_py,
+    render_reply_content,
+    strip_search_highlight,
+)
 
 
 class TestText(unittest.TestCase):

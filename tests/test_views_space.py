@@ -75,7 +75,7 @@ class SpaceFetchTests(unittest.IsolatedAsyncioTestCase):
 
 class PaginationVisibilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_space_pagination_visibility(self):
-        import miku.ui.filters as filters# noqa: F401
+        import miku.ui.filters as filters  # noqa: F401
 
         uinfo = {"mid": 177291194, "name": "DECO27_Official", "sign": "", "face": ""}
         vlist = [
@@ -120,7 +120,7 @@ class PaginationVisibilityTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("?i=2", html3)
 
     async def test_author_pagination_visibility(self):
-        import miku.ui.filters as filters# noqa: F401
+        import miku.ui.filters as filters  # noqa: F401
 
         uinfo = {"mid": 177291194, "name": "DECO27_Official", "sign": "", "face": ""}
         articles = [
@@ -144,7 +144,7 @@ class PaginationVisibilityTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("?i=1", html)
 
     async def test_zone_pagination_visibility(self):
-        import miku.ui.filters as filters# noqa: F401
+        import miku.ui.filters as filters  # noqa: F401
 
         # Page 2 of 3 (count=25, size=10) -> Next page (?i=3) must exist
         async with app.test_request_context("/vv/1?i=2"):

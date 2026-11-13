@@ -41,15 +41,25 @@ async def audio_view(auid):
     auid_int = int(auid_str)
 
     async def get_audio_url():
-        if not await appredis.exists(f"mikuinv_{auid}_{0}_0"):
+        try:
+            exists = await appredis.exists(f"mikuinv_{auid}_{0}_0")
+        except Exception:
+            exists = False
+        if not exists:
             try:
                 asrc = await a.get_download_url()
-                if "cdns" in asrc and asrc["cdns"]:
-                    await appredis.setex(f"mikuinv_{auid}_{0}_0", 1800, asrc["cdns"][0])
-                elif "url" in asrc:
-                    await appredis.setex(f"mikuinv_{auid}_{0}_0", 1800, asrc["url"])
             except Exception:
-                pass
+                return
+            url = None
+            if "cdns" in asrc and asrc["cdns"]:
+                url = asrc["cdns"][0]
+            elif "url" in asrc:
+                url = asrc["url"]
+            if url:
+                try:
+                    await appredis.setex(f"mikuinv_{auid}_{0}_0", 1800, url)
+                except Exception:
+                    pass
 
     cache_ttl = cache_minutes("audio_minutes") * 60
     cache_key = f"audio:data:{auid}"
@@ -171,15 +181,25 @@ async def audio_list_view(amid, idx=0):
         a = audio.Audio(current_song["id"], credential=appcred)
 
         async def get_audio_url():
-            if not await appredis.exists(f"mikuinv_{amid}_{idx}_0"):
+            try:
+                exists = await appredis.exists(f"mikuinv_{amid}_{idx}_0")
+            except Exception:
+                exists = False
+            if not exists:
                 try:
                     asrc = await a.get_download_url()
-                    if "cdns" in asrc and asrc["cdns"]:
-                        await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["cdns"][0])
-                    elif "url" in asrc:
-                        await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, asrc["url"])
                 except Exception:
-                    pass
+                    return
+                url = None
+                if "cdns" in asrc and asrc["cdns"]:
+                    url = asrc["cdns"][0]
+                elif "url" in asrc:
+                    url = asrc["url"]
+                if url:
+                    try:
+                        await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, url)
+                    except Exception:
+                        pass
 
         results = await asyncio.gather(
             a.get_info(),

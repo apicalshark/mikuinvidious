@@ -84,15 +84,29 @@
       btnLoading.classList.add("flex");
       btn.disabled = true;
 
+      var metaEl = document.querySelector('meta[name="csrf-token"]');
+      var formTokenEl = form.querySelector('input[name="csrf_token"]');
+      var csrfToken =
+        (metaEl && metaEl.getAttribute("content")) || (formTokenEl && formTokenEl.value) || "";
+
       fetch("/api/convert", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrfToken,
+        },
         body: JSON.stringify({ url: val }),
       })
         .then(function (res) {
-          return res.json().then(function (data) {
-            return { ok: res.ok, data: data };
-          });
+          return res
+            .json()
+            .catch(function () {
+              return {};
+            })
+            .then(function (data) {
+              return { ok: res.ok, data: data };
+            });
         })
         .then(function (resObj) {
           btnText.classList.remove("hidden");
