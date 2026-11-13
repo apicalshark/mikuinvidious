@@ -162,47 +162,48 @@ graph TD
 
 ---
 
-## 3. 模組完整清單（`python/`）
+## 3. 模組完整清單（`python/miku/`）
 
-### 應用程式核心與組態
+### 應用程式核心與服務
 
-- **`app.py`**：初始化 Quart 應用、配置安全標頭、註冊全域例外處理器並掛載藍圖。
-- **`main.py`**：本機開發執行入口，包裹 Granian ASGI 伺服器。
-- **`shared.py`**：全域系統設定物件（`appconf`）、Redis 連線池（`appredis`）、HTTP 連線池（`Network`）、代理設定與併發信號量。
-- **`csrf.py`**：針對狀態變更請求生成並驗證 CSRF 權杖。
-- **`rate_limit.py`**：基於 Redis 權杖桶的滑動視窗速率限制器，支援 CIDR 信任代理標頭解析與私有網路預設信任。
-- **`secrets_encryption.py`**：透過 libsodium XChaCha20-Poly1305 對靜態設定檔中的敏感憑證進行加解密。
-- **`i18n.py` 與 `i18n_strings.py`**：多國語系國際化引擎，處理地區偏好解析與 gettext 翻譯字典。
+- **`python/main.py`**：Granian ASGI 啟動入口（`miku.app:app`）。
+- **`miku/app.py`**：初始化 Quart 應用、配置安全標頭、註冊全域例外處理器並掛載藍圖。
+- **`miku/state.py`**：全域共用執行期狀態（`appredis`、HTTPX 客戶端、範本渲染器）。
+- **`miku/core/config.py` 與 `miku/core/app.py`**：系統組態載入（`appconf`）與 Quart 應用工廠（`create_app()`）。
+- **`miku/services/`**：Redis 連線池（`redis.py`）、HTTP 客戶端與代理（`network.py`）、快取（`cache.py`）、併發信號量（`concurrency.py`）、憑證管理（`credential.py`）與 `bili_ticket` 生命週期（`ticket.py`）。
+- **`miku/core/csrf.py`**：針對狀態變更請求生成並驗證 CSRF 權杖。
+- **`miku/core/rate_limit.py`**：基於 Redis 權杖桶的滑動視窗速率限制器，支援 CIDR 信任代理標頭解析（不再隱式信任私有網路）。
+- **`miku/core/secrets_encryption.py`**：透過 libsodium XSalsa20-Poly1305 對靜態設定檔中的敏感憑證進行加解密。
+- **`miku/ui/`（`i18n.py`、`i18n_strings.py`、`filters.py`、`renderer.py`、`sanitizer.py`）**：語系解析、翻譯字典、Jinja2 過濾器、主題渲染與 HTML 淨化。
 
-### 視圖與介面呈現層
+### 視圖與介面呈現層（`miku/views/`）
 
-- **`views.py`**：靜態轉發外觀模組，彙整並導出所有子視圖之路由處理函式。
-- **`views_home.py`**：首頁推薦動態、全站搜尋、分區導覽、觀看歷史、開源授權宣告與 `/convert` 短網址去追蹤解析。
-- **`views_video.py`**：影片中繼資料、多 P 分集清單、相關影片推薦與內嵌播放器組件。
-- **`views_space.py`**：創作者空間主頁、影片存檔、JSON 訂閱端點（`/space/<mid>/json`）與專欄文章。
-- **`views_bangumi.py`**：動畫、影劇季番頁面、集數索引與 Nyaa.si BT 種子聚合。
-- **`views_live.py`**：直播間串流房間、伺服器端格式選擇（FLV / HLS）與分區導覽。
-- **`views_audio.py`**：音樂單曲播放頁面、專輯歌單與播放器視圖。
-- **`filters.py`**：Jinja2 介面過濾器，格式化時間戳記、位元組大小與播放時長。
-- **`transformers.py`**：資料規格化轉換層，將上游 API 異質回應清洗為前端範本所需結構。
-- **`res.py`**：提供即時彈幕 XML 轉換與伺服器端重導向資源。
+- **`miku/views/__init__.py`**：藍圖註冊外觀模組，彙整並導出所有子視圖藍圖。
+- **`miku/views/home.py`**：首頁推薦動態、全站搜尋、分區導覽、觀看歷史、開源授權宣告與 `/convert` 短網址去追蹤解析。
+- **`miku/views/video.py`**：影片中繼資料、多 P 分集清單、相關影片推薦與內嵌播放器組件。
+- **`miku/views/space.py`**：創作者空間主頁、影片存檔、JSON 訂閱端點（`/space/<mid>/json`）與專欄文章。
+- **`miku/views/bangumi.py`**：動畫、影劇季番頁面、集數索引與 Nyaa.si BT 種子聚合。
+- **`miku/views/live.py`**：直播間串流房間、伺服器端格式選擇（FLV / HLS）與分區導覽。
+- **`miku/views/audio.py`**：音樂單曲播放頁面、專輯歌單與播放器視圖。
+- **`miku/media/transformers.py`**：資料規格化轉換層，將上游 API 異質回應清洗為前端範本所需結構。
+- **`miku/media/res.py`**：提供即時彈幕 XML 轉換與伺服器端重導向資源。
 
-### 媒體串流與 DASH 管線
+### 媒體串流與 DASH 管線（`miku/dash/` 與 `miku/media/`）
 
-- **`dash_proxy.py`**：DASH 隨選視訊與背景下載之中央轉發外觀。
-- **`dash_common.py`**：核心資料結構、鏡像節點健康度計數器與 Range 敏感節點標記。
-- **`dash_fetch.py`**：抓取播放串流連結、在 Redis 中標準化快取並管理 L1 記憶體 LRU 快取。
-- **`dash_mpd.py`**：動態生成符合 ISO/IEC 23009-1 標準之 DASH 清單（`manifest.mpd`）。
-- **`dash_stream.py`**：HTTP Range 分段串流代理、多鏡像自動容錯、停滯看門狗與 Socket 連線複用池（`_PlaybackKeepAlivePool`）。
-- **`dash_download_track.py`**：分段背景下載器，搭載自適應降速階梯與 ffmpeg 無損音視訊封裝。
-- **`dash_download_job.py`**：下載佇列併發排程器與狀態查詢 REST API。
-- **`proxy.py`**：漸進式媒體串流（`/proxy/video/`）與圖片代理（`/proxy/pic/`）。
-- **`image_cache.py`**：高效能本機磁碟 LRU 圖片快取，具備容量自動修剪功能。
-- **`stream.py`**：原生 TCP Socket 輔助程式，搭配全域持久化 `_TLS_CONTEXT`。
-- **`live_manager.py`**：直播串流長連線管理與定時心跳封包維持。
-- **`dns_cache.py`**：非同步 Stale-While-Revalidate DNS 解析快取，徹底杜絕 SSRF 攻擊與連線抖動。
-- **`danmaku.py`**：抓取、Protobuf 解碼與轉換 Bilibili 直播與影片彈幕。
-- **`b23_resolver.py`**：於伺服器端解析 `b23.tv` 短網址，防範客戶端追蹤。
+- **`miku/dash/__init__.py`**：DASH 隨選視訊與背景下載套件導出外觀。
+- **`miku/dash/common.py`**：核心資料結構、鏡像節點健康度計數器與 Range 敏感節點標記。
+- **`miku/dash/fetch.py`**：抓取播放串流連結、在 Redis 中標準化快取並管理 L1 記憶體 LRU 快取。
+- **`miku/dash/mpd.py`**：動態生成符合 ISO/IEC 23009-1 標準之 DASH 清單（`manifest.mpd`）。
+- **`miku/dash/stream.py`**：HTTP Range 分段串流代理、多鏡像自動容錯、停滯看門狗與 Socket 連線複用池（`_PlaybackKeepAlivePool`）。
+- **`miku/dash/download_track.py`**：分段背景下載器，搭載自適應降速階梯與 ffmpeg 無損音視訊封裝。
+- **`miku/dash/download_job.py`**：下載佇列併發排程器與狀態查詢 REST API。
+- **`miku/media/proxy.py`**：漸進式媒體串流（`/proxy/video/`）與圖片代理（`/proxy/pic/`）。
+- **`miku/media/image_cache.py`**：高效能本機磁碟 LRU 圖片快取，具備容量自動修剪功能。
+- **`miku/media/stream.py`**：原生 TCP Socket 輔助程式，搭配全域持久化 `_TLS_CONTEXT`。
+- **`miku/media/live_manager.py`**：直播串流長連線管理與定時心跳封包維持。
+- **`miku/core/dns_cache.py`**：非同步 Stale-While-Revalidate DNS 解析快取，徹底杜絕 SSRF 攻擊與連線抖動。
+- **`miku/media/danmaku.py`**：抓取、Protobuf 解碼與轉換 Bilibili 直播與影片彈幕。
+- **`miku/media/b23_resolver.py`**：於伺服器端解析 `b23.tv` 短網址，防範客戶端追蹤。
 - **`ip_slots.py`**：外連 IP 併發平衡控制器。
 - **`refresher.py` 與 `ticket_legacy.py`**：上游憑證與 Web 票券定時更新維護任務。
 

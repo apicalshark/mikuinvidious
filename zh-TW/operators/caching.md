@@ -31,7 +31,7 @@ MikuInvidious 採用跨行程記憶體、Redis 與本機磁碟的多層次快取
 
 ## 2. DASH 播放網址快取（雙層快取）
 
-隨選視訊播放採用位於 `python/dash_fetch.py` 的雙層快取機制：
+隨選視訊播放採用位於 `python/miku/dash/fetch.py` 的雙層快取機制：
 
 - **L1 行程記憶體 LRU 快取**：在應用行程記憶體中快取最多 64 筆串流清單（`_DASH_MEM_MAX = 64`，`_DASH_MEM_TTL = 30s`）。播放中連續發起的音訊與視訊分段直接自記憶體取用，完全跳過 Redis 查詢。
 - **L2 Redis 快取**：規格化各節點鏡像網址，將播放清單快取於 `miku_dash_<vid>_<idx>`，預設 TTL 為 1800 秒。
@@ -41,7 +41,7 @@ MikuInvidious 採用跨行程記憶體、Redis 與本機磁碟的多層次快取
 
 ## 3. 圖片磁碟快取（本機 LRU）
 
-由 `python/image_cache.py` 處理的圖片代理請求（`/proxy/pic/*`）直接存放於本機專屬目錄：
+由 `python/miku/media/image_cache.py` 處理的圖片代理請求（`/proxy/pic/*`）直接存放於本機專屬目錄：
 
 - **預設路徑**：`data/img_cache`（由環境變數 `IMAGE_CACHE_DIR` 指定，Docker 中映射至 `img_cache` 儲存卷）。
 - **配額與自動修剪**：預設上限為 2048 MB（`IMAGE_CACHE_MAX_SIZE_MB`）。當磁碟用量超出此上限時，系統自動啟動 LRU 清理，將容量削減至上限的 80%。

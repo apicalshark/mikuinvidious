@@ -19,12 +19,12 @@ MikuInvidious is an asynchronous, privacy-first web frontend and media proxy for
 
 | Subsystem | Key Files | Responsibility |
 | :--- | :--- | :--- |
-| **Core & App** | `python/app.py`, `python/shared.py`, `python/main.py` | Quart application setup, global error handling, Redis connection pools, HTTP clients, and config loading. |
-| **View Layer** | `python/views.py`, `python/views_*.py` | Route handlers split into `views_home.py`, `views_video.py`, `views_space.py`, `views_bangumi.py`, `views_live.py`, `views_audio.py`. |
-| **DASH Engine** | `python/dash_*.py` | Modular pipeline: `dash_mpd.py`, `dash_fetch.py`, `dash_stream.py`, `dash_common.py`, `dash_download_track.py`, `dash_download_job.py`. |
-| **Media & Caches** | `python/proxy.py`, `python/image_cache.py`, `python/live_manager.py` | Image proxying with LRU disk cache, progressive MP4 fallback, live streams with heartbeat injection. |
-| **Networking & Defense** | `python/dns_cache.py`, `python/rate_limit.py`, `python/ip_slots.py`, `python/stream.py` | Async DNS SSRF guard, Redis token bucket rate limiting, IP slot concurrency balancing, raw socket TLS contexts. |
-| **API Wrapper** | `python/api/` (`client.py`, `video.py`, `user.py`, `bangumi.py`, etc.) | Upstream Bilibili HTTP client with WBI query signing, ticket generation, and datacenter IP risk mitigation. |
+| **Core & App** | `python/main.py`, `python/miku/app.py`, `python/miku/state.py`, `python/miku/core/`, `python/miku/services/` | Quart application setup, global error handling, Redis connection pools, HTTP clients, and config loading. |
+| **View Layer** | `python/miku/views/` | Route blueprints: `home.py`, `video.py`, `space.py`, `bangumi.py`, `live.py`, `audio.py` (re-exported via `miku.views`). |
+| **DASH Engine** | `python/miku/dash/` | Modular pipeline: `mpd.py`, `fetch.py`, `stream.py`, `common.py`, `download_track.py`, `download_job.py` (re-exported via `miku.dash`). |
+| **Media & Caches** | `python/miku/media/` | Image proxying with LRU disk cache (`proxy.py`, `image_cache.py`), live streams (`live_manager.py`, `stream.py`), danmaku, and resolvers. |
+| **Networking & Defense** | `python/miku/core/` (`dns_cache.py`, `rate_limit.py`, `ip_slots.py`), `python/miku/media/stream.py` | Async DNS SSRF guard, Redis sliding-window rate limiting, IP slot concurrency balancing, raw socket TLS contexts. |
+| **API Wrapper** | `python/miku/api/` (`client.py`, `video.py`, `user.py`, `bangumi.py`, etc.) | Upstream Bilibili HTTP client with WBI query signing, ticket generation, and datacenter IP risk mitigation. |
 | **Templates & Static** | `templates/themes/modern/`, `static/` | Jinja2 templates, Tailwind styles, and vendored player scripts. |
 
 ---

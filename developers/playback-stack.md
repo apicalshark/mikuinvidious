@@ -99,7 +99,7 @@ The DASH engine is divided into six modular components located in `python/`:
 
 ## 4. Invariant Rules
 
-- **DASH CDN User-Agent**: MUST send web Chrome UA (`build_cdn_headers()` in `python/fingerprints.py`). Android UA (`BiliDroid`) triggers HTTP 403 on `.bilivideo.com`.
+- **DASH CDN User-Agent**: MUST send web Chrome UA (`get_cdn_headers()` in `python/miku/core/fingerprints.py`). Android UA (`BiliDroid`) triggers HTTP 403 on `.bilivideo.com`.
 - **Ticket Cookie vs. Header**: NEVER send the `bili_ticket` cookie to web APIs (triggers anti-bot `v_voucher` precheck). Send it ONLY via the `x-bili-ticket` header for CDN/DASH proxying.
 - **Playback vs. Download Segregation**:
   - *Playback*: Fails fast (2 mirrors min, 4s handshake, 3s sweep budget). dash.js owns abandon/ABR. Reuses upstream sockets.

@@ -41,13 +41,13 @@ uv run python/main.py
 
 ## 2. Trusted Proxies & Client IP Detection
 
-The rate limiter evaluates client IPs using `get_client_ip()` in `python/rate_limit.py`:
+The rate limiter evaluates client IPs using `get_client_ip()` in `python/miku/core/rate_limit.py`:
 
-1. **Direct Peer Check**: If the connecting peer is outside private ranges and not listed in `trusted_proxies`, the TCP remote IP is used directly. Any forwarded headers (`X-Real-IP`, `X-Forwarded-For`) from untrusted peers are ignored to prevent identity spoofing.
-2. **Trusted Proxy Forwarding**: If the connecting peer is loopback (`127.0.0.1`, `::1`), a private RFC 1918 address (such as Docker bridge `172.18.0.0/16`), or explicitly matches a CIDR in `trusted_proxies`, the application trusts `X-Real-IP` and `X-Forwarded-For`.
+1. **Direct Peer Check**: If the connecting peer does not match `trusted_proxies` (which defaults to loopback `127.0.0.1/8,::1/128`), the TCP remote IP is used directly. Private RFC 1918 networks are **not** implicitly trusted, and any forwarded headers (`X-Forwarded-For`, `X-Real-IP`) from untrusted peers are ignored to prevent identity spoofing.
+2. **Trusted Proxy Forwarding**: If the connecting peer matches a CIDR in `trusted_proxies` (for example `172.30.0.0/24` in Docker Compose), the application parses `X-Forwarded-For` from right to left (stopping at the first untrusted IP, falling back to `X-Real-IP`).
 
 > [!WARNING]
-> **Implicit Private Forwarder Trust**: Because loopback and private RFC 1918 networks are trusted implicitly, you must ensure that direct access to the application's configured listening port (e.g. 8888 for bare-metal or 8080 in container networks) is firewalled, and that your reverse proxy (Caddy) always overwrites `X-Real-IP` with the validated client remote address.
+> **Reverse Proxy Trust**: Ensure direct access to the application's listening port (e.g., `8888` for bare-metal or `8080` in container networks) is firewalled, include your reverse proxy's IP/subnet in `TRUSTED_PROXIES` when running behind Docker/Caddy, and configure the edge proxy to overwrite/strip untrusted `X-Forwarded-For` headers.
 
 ---
 

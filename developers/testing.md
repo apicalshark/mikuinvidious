@@ -69,6 +69,6 @@ npm run build:i18n
 ## 3. High-Risk Testing Zones
 
 - **DASH Engine (`python/dash_*.py`)**: Any modifications to mirror failover, bounded Range checks, keep-alive socket pools, or signature refresh MUST be validated against `tests/test_mpd.py` and `tests/test_proxy_flood.py`.
-- **Live Stream Manager (`python/live_manager.py`)**: Validated via `tests/test_live.py`.
-- **Danmaku Converter (`python/danmaku.py`)**: Validated via `tests/test_danmaku.py`.
-- **Image Disk Cache (`python/image_cache.py`)**: Validated via `tests/test_image_cache.py`.
+- **Live Stream Manager (`python/miku/media/live_manager.py`)**: Validated via `tests/test_live.py`.
+- **Danmaku Converter (`python/miku/media/danmaku.py`)**: Validated via `tests/test_danmaku.py`.
+- **Image Disk Cache (`python/miku/media/image_cache.py`)**: Validated via `tests/test_image_cache.py`.

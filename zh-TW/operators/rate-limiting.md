@@ -41,13 +41,13 @@ uv run python/main.py
 
 ## 2. 信任代理與客戶端 IP 辨識
 
-速率限制器透過 `python/rate_limit.py` 中的 `get_client_ip()` 判定客戶端 IP：
+速率限制器透過 `python/miku/core/rate_limit.py` 中的 `get_client_ip()` 判定客戶端 IP：
 
-1. **直接對端檢查**：若連線對端非私有網路位址且未列於 `trusted_proxies` 中，系統直接採信 TCP 對端 IP。任何由未受信任對端發送之 `X-Real-IP` 或 `X-Forwarded-For` 將被完全忽視，防止訪客偽造身分。
-2. **信任代理轉發**：若連線對端為本機 loopback（`127.0.0.1`、`::1`）、私有網路網段（如 Docker 虛擬網路 `172.18.0.0/16`），或明確符合 `trusted_proxies` 中的 CIDR 規則，應用程式採信 `X-Real-IP` 與 `X-Forwarded-For`。
+1. **直接對端檢查**：若連線對端未符合 `trusted_proxies`（預設僅為 loopback `127.0.0.1/8,::1/128`），系統直接採信 TCP 對端 IP。私有 RFC 1918 網段**不會**被隱式信任，來自未受信任對端的 `X-Forwarded-For` 或 `X-Real-IP` 將被完全忽視，以防止身分偽造。
+2. **信任代理轉發**：若連線對端符合 `trusted_proxies` 中的 CIDR 規則（例如 Docker Compose 的 `172.30.0.0/24`），應用程式會由右向左解析 `X-Forwarded-For`（於第一個不受信任的 IP 處停止，若無則退回讀取 `X-Real-IP`）。
 
 > [!WARNING]
-> **私有網路預設信任注意事項**：由於 loopback 與 RFC 1918 私有網路預設受採信，請務必將應用程式所配置之監聽埠號（如裸機部署的 8888 或容器網路的 8080）透過防火牆阻擋外部直接存取，並確認您的反向代理（Caddy）在轉送時確實將 `X-Real-IP` 覆寫為驗證過的客戶端遠端 IP。
+> **反向代理信任注意事項**：請務必將應用程式監聽埠號（如裸機部署的 `8888` 或容器網路的 `8080`）透過防火牆阻擋外部直接存取；在 Docker/Caddy 後方部署時請將代理網段加入 `TRUSTED_PROXIES`，並於邊緣代理覆寫或剝除不受信任的 `X-Forwarded-For` 標頭。
 
 ---
 

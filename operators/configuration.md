@@ -29,12 +29,13 @@ Configuration for the web server (Granian / Quart).
 | :--- | :--- | :--- | :--- |
 | `host` | `SERVER_HOST` | `0.0.0.0` | Host IP address to bind to (`::` for dual-stack IPv4/IPv6). |
 | `port` | `SERVER_PORT` | `8888` | Port to bind to (8080 inside Docker). |
+| `secret_key` | `QUART_SECRET_KEY` | `(ephemeral)` | Secret key for signing session cookies and CSRF tokens. Recommended in production so sessions survive restarts. |
 | `debug` | `QUART_DEBUG` | `false` | Enables Quart debug mode and auto-reload. |
 | `access_log` | `SERVER_ACCESS_LOG` | `false` | Granian per-request access log. Disabled by default because media proxying/polling floods application logs. |
 | `monitor_fd` | `MONITOR_FD` | `false` | Enables file descriptor leak monitoring. |
 
 > [!NOTE]
-> **Ephemeral Session Secret Key & Process Affinity**: For security, `shared.py` generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at every startup. User sessions are intentionally invalidated across server restarts; static secret keys in configuration files are ignored. Because independently started worker processes generate different keys and will reject each other's session cookies (causing intermittent CSRF failures on downloads and language switches), deployments must run a single worker process or enforce strict session affinity (sticky sessions) across backend instances.
+> **Session Secret Key & Process Affinity**: `miku.core.app.create_app()` uses `[server].secret_key` (or `QUART_SECRET_KEY`) when configured, and otherwise generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at every startup (which resets active sessions and CSRF tokens across restarts). Because independently started worker processes without a shared key reject each other's session cookies, set `QUART_SECRET_KEY` in production or run a single worker process.
 
 ---
 
@@ -45,6 +46,7 @@ UI themes and internationalization.
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `default_theme` | (None) | `modern` | Default theme for new visitors (`modern` is the active Tailwind CSS theme). |
+| `default_accent` | `DEFAULT_ACCENT_COLOR`, `DEFAULT_ACCENT` | `#a85383` | Default Material You seed accent hex color (`#rgb`, `#rrggbb`, or `#rrggbbaa`). Environment variables override `config.toml`. |
 | `default_locale` | `DEFAULT_LOCALE` | `zh-CN` | Fallback UI locale when no query param (`?lang=`), cookie, or `Accept-Language` match. |
 | `supported_locales` | `SUPPORTED_LOCALES` | (auto-discover) | Comma-separated list of allowed locales (e.g. `en,zh-CN,zh-TW,ja`). If unset, offers all locales under `locales/`. |
 
@@ -161,16 +163,16 @@ Sliding-window Redis token bucket rate limiting per client IP address.
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master toggle for rate limiting. |
-| `trusted_proxies` | `TRUSTED_PROXIES` | `""` | Comma-separated list of IP addresses or CIDR blocks whose forwarding proxy headers (`X-Real-IP`, `X-Forwarded-For`) are trusted. |
+| `trusted_proxies` | `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | Comma-separated list of IP addresses or CIDR blocks whose `X-Forwarded-For` header is trusted for client IP extraction (`get_client_ip()`). |
 
 > [!WARNING]
-> **Implicit Private Forwarder Trust**: `rate_limit.py` automatically trusts loopback peers and private IP addresses (e.g. Docker networks), even when `trusted_proxies` is empty. Ensure your reverse proxy (Caddy) sets `header_up X-Real-IP {remote_host}`.
+> **Reverse Proxy Trust (`TRUSTED_PROXIES`)**: `rate_limit.py` trusts forwarding headers **only** from peers matching `trusted_proxies` (private networks are **not** implicitly trusted). When deploying behind Caddy or Nginx in Docker, include the proxy container's subnet in `TRUSTED_PROXIES` (for example, `compose.yml` pins `miku_net` to `172.30.0.0/24` and sets `TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24`). Ensure your reverse proxy overwrites/strips untrusted `X-Forwarded-For` headers at the edge.
 
 ---
 
 ## Image Disk Cache (Environment Variables)
 
-The local disk cache for proxied images (`/proxy/pic/*`) in `python/image_cache.py` is configured via environment variables:
+The local disk cache for proxied images (`/proxy/pic/*`) in `python/miku/media/image_cache.py` is configured via environment variables:
 
 | Environment Variable | Default | Description |
 | :--- | :--- | :--- |
@@ -180,7 +182,7 @@ The local disk cache for proxied images (`/proxy/pic/*`) in `python/image_cache.
 
 ---
 
-## Framework Defaults & Timeouts (`python/shared.py`)
+## Framework Defaults & Timeouts (`python/miku/core/config.py`)
 
 To support long-form video playback and media streaming without idle connection drops, Quart is configured by default with:
 

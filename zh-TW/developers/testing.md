@@ -69,6 +69,6 @@ npm run build:i18n
 ## 3. 高風險測試核心區域
 
 - **DASH 串流引擎（`python/dash_*.py`）**：任何針對鏡像容錯、有界 Range 檢查、長連線複用池或簽章重整之修改，必須通過 `tests/test_mpd.py` 與 `tests/test_proxy_flood.py` 驗證。
-- **直播串流管理（`python/live_manager.py`）**：由 `tests/test_live.py` 覆蓋驗證。
-- **即時彈幕轉換（`python/danmaku.py`）**：由 `tests/test_danmaku.py` 覆蓋驗證。
-- **圖片磁碟快取（`python/image_cache.py`）**：由 `tests/test_image_cache.py` 覆蓋驗證。
+- **直播串流管理（`python/miku/media/live_manager.py`）**：由 `tests/test_live.py` 覆蓋驗證。
+- **即時彈幕轉換（`python/miku/media/danmaku.py`）**：由 `tests/test_danmaku.py` 覆蓋驗證。
+- **圖片磁碟快取（`python/miku/media/image_cache.py`）**：由 `tests/test_image_cache.py` 覆蓋驗證。

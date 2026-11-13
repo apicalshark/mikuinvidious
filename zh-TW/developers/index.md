@@ -19,12 +19,12 @@ MikuInvidious 是一套非同步、隱私優先的 Bilibili 網頁前端與媒�
 
 | 子系統 | 關鍵模組 | 職責與架構 |
 | :--- | :--- | :--- |
-| **核心與應用** | `python/app.py`, `python/shared.py`, `python/main.py` | Quart 應用實例化、全域例外處理器、Redis 連線池、HTTP 客戶端管理與組態載入。 |
-| **視圖層（Views）** | `python/views.py`, `python/views_*.py` | 路由處理器拆分為 `views_home.py`、`views_video.py`、`views_space.py`、`views_bangumi.py`、`views_live.py`、`views_audio.py`。 |
-| **DASH 串流引擎** | `python/dash_*.py` | 模組化串流管線：`dash_mpd.py`、`dash_fetch.py`、`dash_stream.py`、`dash_common.py`、`dash_download_track.py`、`dash_download_job.py`。 |
-| **媒體與快取** | `python/proxy.py`, `python/image_cache.py`, `python/live_manager.py` | 圖片代理與本機 LRU 磁碟快取、傳統 MP4 漸進退避代理、直播長連線與心跳封包注入。 |
-| **網路與安全防禦** | `python/dns_cache.py`, `python/rate_limit.py`, `python/ip_slots.py`, `python/stream.py` | 非同步 DNS SSRF 防禦、Redis 權杖桶速率限制、外連 IP 併發平衡、原生 TCP Socket 與持久化 TLS 上下文。 |
-| **API 封裝** | `python/api/` (`client.py`, `video.py`, `user.py`, `bangumi.py` 等) | 向上游 Bilibili 發起請求之 HTTP 客戶端，處理 WBI 簽名、Ticket 簽章與資料中心 IP 退避。 |
+| **核心與應用** | `python/main.py`、`python/miku/app.py`、`python/miku/state.py`、`python/miku/core/`、`python/miku/services/` | Quart 應用實例化、全域例外處理器、Redis 連線池、HTTP 客戶端管理與組態載入。 |
+| **視圖層（Views）** | `python/miku/views/` | 路由藍圖：`home.py`、`video.py`、`space.py`、`bangumi.py`、`live.py`、`audio.py`（經由 `miku.views` 彙整導出）。 |
+| **DASH 串流引擎** | `python/miku/dash/` | 模組化串流管線：`mpd.py`、`fetch.py`、`stream.py`、`common.py`、`download_track.py`、`download_job.py`（經由 `miku.dash` 彙整導出）。 |
+| **媒體與快取** | `python/miku/media/` | 圖片代理與本機 LRU 磁碟快取（`proxy.py`、`image_cache.py`）、直播長連線（`live_manager.py`、`stream.py`）、彈幕與短網址解析。 |
+| **網路與安全防禦** | `python/miku/core/`（`dns_cache.py`、`rate_limit.py`、`ip_slots.py`）、`python/miku/media/stream.py` | 非同步 DNS SSRF 防禦、Redis 滑動視窗速率限制、外連 IP 併發平衡、原生 TCP Socket 與持久化 TLS 上下文。 |
+| **API 封裝** | `python/miku/api/`（`client.py`, `video.py`, `user.py`, `bangumi.py` 等） | 向上游 Bilibili 發起請求之 HTTP 客戶端，處理 WBI 簽名、Ticket 簽章與資料中心 IP 退避。 |
 | **範本與靜態資源** | `templates/themes/modern/`, `static/` | Jinja2 網頁範本、Tailwind CSS 樣式表，以及自託管的播放器腳本。 |
 
 ---

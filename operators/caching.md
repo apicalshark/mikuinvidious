@@ -31,7 +31,7 @@ All cached page responses emit an `X-Cache: HIT` or `X-Cache: MISS` HTTP respons
 
 ## 2. DASH Playurl Cache (Dual-Layer)
 
-Video playback uses a high-performance dual-layer cache in `python/dash_fetch.py`:
+Video playback uses a high-performance dual-layer cache in `python/miku/dash/fetch.py`:
 
 - **L1 In-Memory LRU Cache**: Retains up to 64 parsed stream manifests in process memory (`_DASH_MEM_MAX = 64`, `_DASH_MEM_TTL = 30s`). Consecutive video fragment requests bypass Redis lookups entirely.
 - **L2 Redis Cache**: Normalizes stream mirror URLs and stores playurl responses under `miku_dash_<vid>_<idx>` with an 1800-second TTL.
@@ -41,7 +41,7 @@ Video playback uses a high-performance dual-layer cache in `python/dash_fetch.py
 
 ## 3. Image Disk Cache (Local LRU)
 
-Image proxy requests (`/proxy/pic/*`) in `python/image_cache.py` are saved to a dedicated local disk directory:
+Image proxy requests (`/proxy/pic/*`) in `python/miku/media/image_cache.py` are saved to a dedicated local disk directory:
 
 - **Default Directory**: `data/img_cache` (configured via `IMAGE_CACHE_DIR`, mapped to Docker volume `img_cache`).
 - **Quota & Trimming**: Capped at 2048 MB (`IMAGE_CACHE_MAX_SIZE_MB`). When disk usage exceeds this threshold, an automatic LRU prune trims total disk consumption down to 80% of the limit.

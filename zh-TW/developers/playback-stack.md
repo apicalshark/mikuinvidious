@@ -94,7 +94,7 @@ DASH 串流引擎在 `python/` 中拆分為六個解耦的模組：
 
 ## 4. 關鍵不變原則
 
-- **DASH CDN 使用者代理**：必須發送桌面 Chrome UA（`python/fingerprints.py` 中的 `build_cdn_headers()`）。發送 Android UA（`BiliDroid`）將直接引發 `.bilivideo.com` 403 存取拒絕。
+- **DASH CDN 使用者代理**：必須發送桌面 Chrome UA（`python/miku/core/fingerprints.py` 中的 `get_cdn_headers()`）。發送 Android UA（`BiliDroid`）將直接引發 `.bilivideo.com` 403 存取拒絕。
 - **Ticket Cookie 與 Header 規範**：絕不能將 `bili_ticket` 當作 Cookie 傳送給 Web API（這會誘發防爬蟲 `v_voucher` 檢查）；它只能以 `x-bili-ticket` 標頭形式發送給 CDN 代理。
 - **播放與下載邏輯嚴格分離**：
   - *播放路徑*：快速失敗（至少 2 個鏡像，4 秒交握，3 秒時間預算）。由前端 dash.js 自行調配 ABR 畫質。複用上游連線。

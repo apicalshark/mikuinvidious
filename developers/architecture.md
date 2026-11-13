@@ -162,47 +162,48 @@ graph TD
 
 ---
 
-## 3. Comprehensive Module Inventory (`python/`)
+## 3. Comprehensive Module Inventory (`python/miku/`)
 
-### Application Core & Configuration
+### Application Core & Services
 
-- **`app.py`**: Initializes the Quart application, sets up security headers, registers error handlers, and attaches blueprints.
-- **`main.py`**: Local development launcher wrapping the Granian ASGI server.
-- **`shared.py`**: Central system configuration (`appconf`), Redis pool manager (`appredis`), HTTP connection pools (`Network`), proxy configuration, and concurrency semaphores.
-- **`csrf.py`**: Token generation, validation, and session binding for state-mutating requests.
-- **`rate_limit.py`**: Sliding-window Redis token bucket rate limiter with IP validation, CIDR proxy header inspection, and implicit loopback/private trust.
-- **`secrets_encryption.py`**: Encrypts and decrypts sensitive credentials at rest using libsodium XChaCha20-Poly1305.
-- **`i18n.py` & `i18n_strings.py`**: Internationalization engine providing locale resolution and translation catalog bindings.
+- **`python/main.py`**: Granian ASGI launcher (`miku.app:app`).
+- **`miku/app.py`**: Initializes the Quart application, sets up security headers, registers error handlers, and attaches blueprints.
+- **`miku/state.py`**: Shared singleton runtime state (`appredis`, HTTPX clients, template renderer).
+- **`miku/core/config.py` & `miku/core/app.py`**: Central system configuration (`appconf`) and Quart app factory (`create_app()`).
+- **`miku/services/`**: Redis pool (`redis.py`), HTTP clients & proxies (`network.py`), caching (`cache.py`), concurrency semaphores (`concurrency.py`), credentials (`credential.py`), and `bili_ticket` lifecycle (`ticket.py`).
+- **`miku/core/csrf.py`**: Token generation, validation, and session binding for state-mutating requests.
+- **`miku/core/rate_limit.py`**: Sliding-window Redis rate limiter with IP validation and explicit CIDR `trusted_proxies` header inspection (no implicit private IP trust).
+- **`miku/core/secrets_encryption.py`**: Encrypts and decrypts sensitive credentials at rest using libsodium XSalsa20-Poly1305.
+- **`miku/ui/` (`i18n.py`, `i18n_strings.py`, `filters.py`, `renderer.py`, `sanitizer.py`)**: Locale resolution, translation catalogs, Jinja2 filters, theme rendering, and HTML sanitization.
 
-### Views & Presentation Layer
+### Views & Presentation Layer (`miku/views/`)
 
-- **`views.py`**: Static re-export facade exposing route handlers across views.
-- **`views_home.py`**: Index feed, search endpoints, zone categories, history, licenses, and `/convert` B23 resolution.
-- **`views_video.py`**: Video metadata rendering, multi-part page lists, related recommendations, and inline player components.
-- **`views_space.py`**: User space profiles, video archives, JSON feeds (`/space/<mid>/json`), and article views.
-- **`views_bangumi.py`**: Anime, movies, and documentary seasons, episode indexing, and Nyaa.si torrent integration.
-- **`views_live.py`**: Live stream rooms, server-side format selection (FLV/HLS), and category navigation.
-- **`views_audio.py`**: Audio song playback, playlists, and audio player templates.
-- **`filters.py`**: Jinja2 presentation filters for human-readable timestamps, byte sizes, and duration formatting.
-- **`transformers.py`**: Data normalization layer standardizing upstream API responses for template consumption.
-- **`res.py`**: Dynamic auxiliary assets like Danmaku XML and server-side redirects.
+- **`miku/views/__init__.py`**: Blueprint registry re-exporting all route modules.
+- **`miku/views/home.py`**: Index feed, search endpoints, zone categories, history, licenses, and `/convert` B23 resolution.
+- **`miku/views/video.py`**: Video metadata rendering, multi-part page lists, related recommendations, and inline player components.
+- **`miku/views/space.py`**: User space profiles, video archives, JSON feeds (`/space/<mid>/json`), and article views.
+- **`miku/views/bangumi.py`**: Anime, movies, and documentary seasons, episode indexing, and Nyaa.si torrent integration.
+- **`miku/views/live.py`**: Live stream rooms, server-side format selection (FLV/HLS), and category navigation.
+- **`miku/views/audio.py`**: Audio song playback, playlists, and audio player templates.
+- **`miku/media/transformers.py`**: Data normalization layer standardizing upstream API responses for template consumption.
+- **`miku/media/res.py`**: Dynamic auxiliary assets like Danmaku XML and server-side redirects.
 
-### Media Streaming & DASH Pipeline
+### Media Streaming & DASH Pipeline (`miku/dash/` & `miku/media/`)
 
-- **`dash_proxy.py`**: Central re-export facade for DASH VOD and downloads.
-- **`dash_common.py`**: Core data structures, playback mirror health tracking, and range-shy cache.
-- **`dash_fetch.py`**: Fetches playurls, caches normalized tracks in Redis, and manages L1 in-memory LRU fallback.
-- **`dash_mpd.py`**: Generates dynamic ISO/IEC 23009-1 DASH manifests (`manifest.mpd`).
-- **`dash_stream.py`**: HTTP Range track proxying, multi-mirror failover, watchdog, and upstream socket reuse (`_PlaybackKeepAlivePool`).
-- **`dash_download_track.py`**: Segmented background track downloader with adaptive pacing ladders and ffmpeg muxing.
-- **`dash_download_job.py`**: Download queue concurrency controller and status polling REST endpoints.
-- **`proxy.py`**: Progressive media streaming (`/proxy/video/`) and image proxying (`/proxy/pic/`).
-- **`image_cache.py`**: High-performance disk-based LRU image cache with automatic capacity pruning.
-- **`stream.py`**: Raw TCP socket helpers with persistent `_TLS_CONTEXT` for low-latency streaming.
-- **`live_manager.py`**: Persistent live stream connection buffering and heartbeat injection.
-- **`dns_cache.py`**: Async stale-while-revalidate DNS resolver preventing SSRF attacks and inline latency spikes.
-- **`danmaku.py`**: Fetches, decodes protobuf, and converts Bilibili live/video danmaku.
-- **`b23_resolver.py`**: Resolves `b23.tv` short links server-side to prevent client tracking.
+- **`miku/dash/__init__.py`**: Package facade re-exporting DASH VOD and download APIs.
+- **`miku/dash/common.py`**: Core data structures, playback mirror health tracking, and range-shy cache.
+- **`miku/dash/fetch.py`**: Fetches playurls, caches normalized tracks in Redis, and manages L1 in-memory LRU fallback.
+- **`miku/dash/mpd.py`**: Generates dynamic ISO/IEC 23009-1 DASH manifests (`manifest.mpd`).
+- **`miku/dash/stream.py`**: HTTP Range track proxying, multi-mirror failover, watchdog, and upstream socket reuse (`_PlaybackKeepAlivePool`).
+- **`miku/dash/download_track.py`**: Segmented background track downloader with adaptive pacing ladders and ffmpeg muxing.
+- **`miku/dash/download_job.py`**: Download queue concurrency controller and status polling REST endpoints.
+- **`miku/media/proxy.py`**: Progressive media streaming (`/proxy/video/`) and image proxying (`/proxy/pic/`).
+- **`miku/media/image_cache.py`**: High-performance disk-based LRU image cache with automatic capacity pruning.
+- **`miku/media/stream.py`**: Raw TCP socket helpers with persistent `_TLS_CONTEXT` for low-latency streaming.
+- **`miku/media/live_manager.py`**: Persistent live stream connection buffering and heartbeat injection.
+- **`miku/core/dns_cache.py`**: Async stale-while-revalidate DNS resolver preventing SSRF attacks and inline latency spikes.
+- **`miku/media/danmaku.py`**: Fetches, decodes protobuf, and converts Bilibili live/video danmaku.
+- **`miku/media/b23_resolver.py`**: Resolves `b23.tv` short links server-side to prevent client tracking.
 - **`ip_slots.py`**: Concurrency controller balancing outbound requests across IP pools.
 - **`refresher.py` & `ticket_legacy.py`**: Upstream credential and web ticket refresh maintenance.
 
