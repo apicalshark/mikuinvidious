@@ -56,6 +56,8 @@ class ThemeTemplateTests(unittest.TestCase):
 
         src = BASE_HTML.read_text()
         inline = re.search(r'<script nonce="\{\{ csp_nonce \}\}">(try\{var __m.*?)</script>', src).group(1)
+        # Jinja expressions (e.g. `{{ x | tojson }}`) render to JS literals.
+        inline = re.sub(r"\{\{.*?\}\}", '""', inline)
         try:
             with tempfile.NamedTemporaryFile("w", suffix=".js", delete=True) as f:
                 f.write(inline)
