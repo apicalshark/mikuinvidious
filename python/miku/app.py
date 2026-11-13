@@ -214,7 +214,6 @@ async def set_lang_api():
     lang = normalize_supported(raw)
     if lang is None:
         return Response("Unsupported language", status=400)
-    print(f"[I18n] Setting language to {lang}")
     redirect_to = request.headers.get("Referer") or "/preferences"
     if redirect_to:
         parsed = urlparse(redirect_to)
