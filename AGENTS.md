@@ -8,10 +8,10 @@ Detailed specs: [`doc/architecture.md`](doc/architecture.md) | [`doc/dash_archit
 
 ## Critical Invariants & Gotchas (Do Not Regress)
 
-- **DASH CDN User-Agent:** MUST send web Chrome UA (`build_cdn_headers()` in `python/fingerprints.py`). Android UA (`BiliDroid`) triggers HTTP 403 on `.bilivideo.com`.
+- **DASH CDN User-Agent:** MUST send web Chrome UA (`get_cdn_headers()` in `python/miku/core/fingerprints.py`). Android UA (`BiliDroid`) triggers HTTP 403 on `.bilivideo.com`.
 - **Ticket Cookie vs. Header:** NEVER send the `bili_ticket` cookie to web APIs (triggers anti-bot `v_voucher` precheck). Send it ONLY via the `x-bili-ticket` *header* for CDN/DASH proxying.
 - **Redis Fast-Fail:** Hot paths must fail fast (`REDIS_SOCKET_TIMEOUT=1s`, `REDIS_RETRY=0`). In DASH track proxying, Redis failure must degrade to playurl fetch with a 30s cooldown (`_DASH_REDIS_COOLDOWN`) and use in-memory cache backup (`_DASH_MEM_TTL=30s`).
-- **DNS SSRF Guard:** Uses stale-while-revalidate (`python/dns_cache.py`) to keep DNS resolution off the hot fragment path.
+- **DNS SSRF Guard:** Uses stale-while-revalidate (`python/miku/core/dns_cache.py`) to keep DNS resolution off the hot fragment path.
 - **Datacenter IP Risk-Control:** Datacenter IPs encounter HTTP 412 / `-352` without WARP. Space routes fall back to `/x/web-interface/card` and `/x/series/recArchivesByKeywords` with `dm_img_*` fingerprints. Throttled empty responses set `User._degraded` and emit `X-Degraded`.
 - **Playurl Risk Gate:** Detects `code==0 + data.v_voucher`; retries once via avoidance lane (`isGaiaAvoided=true`, `dm_img_*` WebGL template), then falls back to PGC.
 - **UGC Fake-404 on PGC:** Risk control causes UGC endpoints to return `-404` for PGC titles. Never let UGC `cid` resolution failure veto the PGC playurl path (`ep_id` fallback).
@@ -67,18 +67,22 @@ npm run build:i18n
 
 ## Codebase Map
 
-- `python/app.py`: Quart app initialization, error handlers, and blueprint registration.
-- `python/views.py`: Re-export facade for submodules (`views_home.py`, `views_video.py`, `views_space.py`, `views_bangumi.py`, `views_live.py`, `views_audio.py`).
-- `python/dash_proxy.py`: Facade for DASH streaming & download engine:
-  - `dash_common.py`: Constants, types, mirror health & range-shy caches.
-  - `dash_fetch.py`: Playurl retrieval, Redis caching, signature freshness.
-  - `dash_mpd.py`: Dynamic ISO/IEC 23009-1 MPD manifest generation.
-  - `dash_stream.py`: HTTP Range track proxying, multi-mirror failover, watchdog.
-  - `dash_download_track.py`: Segmented downloading, adaptive pacing, ffmpeg muxing.
-  - `dash_download_job.py`: Background job registry, queue concurrency, REST API.
-- `python/proxy.py` & `python/live_manager.py`: Progressive media & live stream raw-socket proxying via `CdnConnection`.
-- `python/api/`: Local async Bilibili API wrapper (`client.py`, `video.py`, `user.py`, `live.py`, `bangumi.py`, etc.).
-- `python/shared.py`: Configuration, Redis (`appredis`), httpx client management, and theming.
+- `python/main.py`: Granian ASGI production launcher (`miku.app:app`, 1 worker).
+- `python/miku/app.py`: Quart app initialization, error handlers, and blueprint registration.
+- `python/miku/state.py`: Shared singleton runtime state (`appredis`, HTTPX client, template renderer).
+- `python/miku/core/`: Config (`config.py`), app factory (`app.py`), CSRF (`csrf.py`), rate limiting (`rate_limit.py`), DNS cache (`dns_cache.py`), fingerprints (`fingerprints.py`), IP slots (`ip_slots.py`), and secrets encryption (`secrets_encryption.py`).
+- `python/miku/services/`: Cache (`cache.py`), concurrency (`concurrency.py`), credentials (`credential.py`), network (`network.py`), Redis (`redis.py`), and ticket lifecycle (`ticket.py`).
+- `python/miku/views/`: View blueprints (`home.py`, `video.py`, `space.py`, `bangumi.py`, `live.py`, `audio.py`) re-exported via `miku.views`.
+- `python/miku/dash/`: DASH streaming & download engine re-exported via `miku.dash`:
+  - `common.py`: Constants, types, mirror health & range-shy caches.
+  - `fetch.py`: Playurl retrieval, Redis caching, signature freshness.
+  - `mpd.py`: Dynamic ISO/IEC 23009-1 MPD manifest generation.
+  - `stream.py`: HTTP Range track proxying, multi-mirror failover, watchdog.
+  - `download_track.py`: Segmented downloading, adaptive pacing, ffmpeg muxing.
+  - `download_job.py`: Background job registry, queue concurrency, REST API.
+- `python/miku/media/`: Progressive media (`proxy.py`), live stream raw-socket proxying (`live_manager.py`, `stream.py`), danmaku (`danmaku.py`), image cache (`image_cache.py`), transformers (`transformers.py`), and resolvers (`b23_resolver.py`, `nyaa.py`, `extra.py`, `res.py`, `refresher.py`).
+- `python/miku/api/`: Local async Bilibili API wrapper (`client.py`, `wbi.py`, `bvid.py`, `video.py`, `user.py`, `live.py`, `bangumi.py`, etc.).
+- `python/miku/ui/`: Jinja2 filters (`filters.py`), i18n (`i18n.py`, `i18n_strings.py`), theme renderer (`renderer.py`), and HTML sanitizer (`sanitizer.py`).
 
 ---
 

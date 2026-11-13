@@ -152,7 +152,7 @@ Sliding-window Redis-backed rate limiting per IP address.
 ---
 
 ## Image Disk Cache (Environment Configured)
-The local disk cache for proxied images (`/proxy/pic/*`) in `python/image_cache.py` is configured via environment variables:
+The local disk cache for proxied images (`/proxy/pic/*`) in `python/miku/media/image_cache.py` is configured via environment variables:
 
 | Environment Variable | Default | Description |
 | :--- | :--- | :--- |
@@ -162,7 +162,7 @@ The local disk cache for proxied images (`/proxy/pic/*`) in `python/image_cache.
 
 ---
 
-## Framework Defaults & Timeouts (`python/shared.py`)
+## Framework Defaults & Timeouts (`python/miku/core/config.py`)
 To support long-form video playback and media streaming without idle connection drops, Quart is configured by default with:
 - `RESPONSE_TIMEOUT = 10800` (3 hours)
 - `BODY_TIMEOUT = 10800` (3 hours)

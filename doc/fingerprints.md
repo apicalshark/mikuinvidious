@@ -1,6 +1,6 @@
 # Client Fingerprints & User-Agent Management
 
-All client fingerprints, HTTP User-Agent strings, and request headers in MikuInvidious are centralized in [`python/fingerprints.py`](../python/fingerprints.py).
+All client fingerprints, HTTP User-Agent strings, and request headers in MikuInvidious are centralized in [`python/miku/core/fingerprints.py`](../python/miku/core/fingerprints.py).
 
 This document explains the architecture, the rationale behind each profile, and verified anti-bot gotchas.
 
@@ -33,7 +33,7 @@ Randomizing User-Agents or using mismatched browser versions triggers immediate 
 
 ### A. Media CDN Requires Web User-Agent (HTTP 403 on BiliDroid)
 * **Gotcha**: Requesting video streams (`.bilivideo.com`, upos mirrors, akamaized) with an Android app User-Agent (`BiliDroid/...`) returns **HTTP 403 Forbidden**.
-* **Invariant**: All DASH and progressive VOD proxying/downloading (`proxy_dash`, `proxy_video`, `dash_download_track`) **must** use `get_cdn_headers()` and must never inherit `get_app_headers()`.
+* **Invariant**: All DASH and progressive VOD proxying/downloading (`proxy_dash`, `proxy_video`, `miku.dash.download_track`) **must** use `get_cdn_headers()` and must never inherit `get_app_headers()`.
 
 ### B. TLS Fingerprint & Client Hints Must Align (Anti-Bot `-352`)
 * **Gotcha**: On endpoints protected by Gaia risk control (e.g. `getInfoByRoom`), Bilibili compares the HTTP/2 settings, TLS fingerprint (JA3/JA4), `user-agent`, and `sec-ch-ua` Client Hints. If the TLS impersonation target is Chrome 152 but the User-Agent claims to be a different browser version or Firefox, the request is flagged as an automated bot and rejected with `-352`.
@@ -60,7 +60,7 @@ Environment variable alternative:
 export BILI_USER_AGENT="Mozilla/5.0 BiliDroid/..."
 ```
 
-Browser and CDN fingerprints are intentionally managed internally by [`python/fingerprints.py`](../python/fingerprints.py) to prevent misconfiguration that could break playback or trigger risk controls.
+Browser and CDN fingerprints are intentionally managed internally by [`python/miku/core/fingerprints.py`](../python/miku/core/fingerprints.py) to prevent misconfiguration that could break playback or trigger risk controls.
 
 ## 4. Space & Gaia Risk Control Architecture
 
