@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 from urllib.parse import urlparse
 
 import httpx
-from miku.media.proxy import _BFS_IMAGE_CDNS, _get_image_mirror_candidates, render_proxy_pic
+from miku.media.proxy import _get_image_mirror_candidates, render_proxy_pic
 from miku.state import image_limiter
 
 
@@ -527,19 +527,19 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
 class TestProxyPicShardingAndRetry(unittest.IsolatedAsyncioTestCase):
     def test_sharding_spreads_across_fast_cdns_and_distinct_fallback(self):
-        """BFS image paths shard deterministically across fast hdslb/biliimg CDNs with a distinct fallback."""
-        primaries = set()
-        for i in range(40):
-            cands = _get_image_mirror_candidates(f"https://i0.hdslb.com/bfs/archive/cover_{i}.jpg@320w.webp")
-            self.assertEqual(len(cands), 2)
-            h1 = urlparse(cands[0]).netloc
-            h2 = urlparse(cands[1]).netloc
-            self.assertIn(h1, _BFS_IMAGE_CDNS)
-            self.assertIn(h2, _BFS_IMAGE_CDNS)
-            self.assertNotEqual(h1, h2)
-            primaries.add(h1)
+        """BFS image URLs keep original primary (e.g. i0) and fall back to i2.biliimg.com then i1.hdslb.com."""
+        cands = _get_image_mirror_candidates("https://i0.hdslb.com/bfs/archive/cover_0.jpg@320w.webp")
+        self.assertEqual(
+            [urlparse(u).netloc for u in cands],
+            ["i0.hdslb.com", "i2.biliimg.com", "i1.hdslb.com"],
+        )
 
-        self.assertEqual(primaries, set(_BFS_IMAGE_CDNS))
+        # If original is i2.biliimg.com, fallbacks skip it and use i0 then i1
+        cands_i2 = _get_image_mirror_candidates("https://i2.biliimg.com/bfs/archive/cover_0.jpg@320w.webp")
+        self.assertEqual(
+            [urlparse(u).netloc for u in cands_i2],
+            ["i2.biliimg.com", "i0.hdslb.com", "i1.hdslb.com"],
+        )
 
         # Non-BFS paths and non-CDN hosts are not rewritten
         self.assertEqual(
@@ -620,7 +620,7 @@ class TestProxyPicShardingAndRetry(unittest.IsolatedAsyncioTestCase):
                     await client.aclose()
 
     async def test_exhausted_retry_returns_502_on_double_timeout(self):
-        """If both primary and alternate mirrors time out, returns 502 after 2 attempts."""
+        """If primary and fallback mirrors all time out, returns 502 after 3 attempts."""
         attempts = []
 
         def handler(req: httpx.Request) -> httpx.Response:
@@ -636,7 +636,7 @@ class TestProxyPicShardingAndRetry(unittest.IsolatedAsyncioTestCase):
             ):
                 resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/both_timeout.jpg")
             self.assertEqual(resp.status_code, 502)
-            self.assertEqual(len(attempts), 2)
+            self.assertEqual(attempts, ["i0.hdslb.com", "i2.biliimg.com", "i1.hdslb.com"])
         finally:
             await client.aclose()
 

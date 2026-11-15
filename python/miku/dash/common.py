@@ -15,7 +15,8 @@
 
 import re
 import time
-from urllib.parse import urlparse
+import zlib
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 from quart import Blueprint
 
@@ -129,13 +130,148 @@ _ALLOWED_DASH_DOMAINS = [
 
 
 def _is_mcdn_url(url: str) -> bool:
-    """Detect Bilibili M-CDN (PCDN) edge nodes (PipePipe b3303f4).
+    """Detect Bilibili M-CDN / PCDN edge nodes and PCDN-only resource paths.
 
-    Typically ``*.mcdn.bilivideo.cn`` / ``*.edge.mountaintoys.cn``. They are
-    built for the web player: flaky HEAD, non-browser 403s, short-lived
-    signatures — bad first choice for proxying/downloads.
+    Typically ``*.mcdn.bilivideo.cn``, ``*.edge.mountaintoys.cn``,
+    ``*.szbdyd.com``, or ``/v1/resource`` PCDN paths. They are built for the
+    web player: flaky HEAD, non-browser 403s, short-lived signatures, and
+    ``/v1/resource`` rejects host-rewriting to regular ``upos`` mirrors.
     """
-    return "mcdn.bilivideo" in url or "mountaintoys" in url or "os=mcdn" in url
+    return (
+        "mcdn.bilivideo" in url
+        or "mountaintoys" in url
+        or "szbdyd.com" in url
+        or "os=mcdn" in url
+        or "/v1/resource" in url
+    )
+
+
+# Probed Bilibili DASH playback CDNs (2026-11-15, Range 0-262143 on signed .m4s):
+# Tier 1 — Fast overseas / HK Equinix mirrors (~100-600ms, 3.4-20.1 Mbps):
+#   upos-sz-mirroraliov.bilivideo.com  -> Alibaba overseas (104ms, 20.1 Mbps)
+#   cn-hk-eq-01-03.bilivideo.com       -> HK Equinix BCache (282ms, 7.4 Mbps)
+#   cn-hk-eq-01-05.bilivideo.com       -> HK Equinix BCache (277ms, 7.6 Mbps)
+#   cn-hk-eq-01-01.bilivideo.com       -> HK Equinix BCache (608ms, 3.4 Mbps)
+#   upos-sz-mirrorcosov.bilivideo.com  -> Tencent overseas (354ms, 5.9 Mbps; 514 on some 4K/HDR)
+_TIER1_DASH_CDNS = (
+    "upos-sz-mirroraliov.bilivideo.com",
+    "cn-hk-eq-01-03.bilivideo.com",
+    "cn-hk-eq-01-05.bilivideo.com",
+    "cn-hk-eq-01-01.bilivideo.com",
+    "upos-sz-mirrorcosov.bilivideo.com",
+)
+
+# Tier 2 — Mainland mirrors (slower from overseas; last-resort failover behind Tier 1):
+#   upos-sz-mirrorali.bilivideo.com    -> Mainland Alibaba (2139ms, 1.0 Mbps)
+#   upos-sz-mirroralib.bilivideo.com   -> Mainland Alibaba (794ms, 2.6 Mbps)
+#   upos-sz-mirrorali02.bilivideo.com  -> Mainland Alibaba (7611ms, 0.3 Mbps)
+#   upos-sz-mirrorbos.bilivideo.com    -> Baidu BOS (2628ms, 0.8 Mbps)
+#   upos-tf-all-tx.bilivideo.com       -> Tencent (3006ms, 0.7 Mbps)
+#   upos-sz-mirrorcos.bilivideo.com    -> Tencent COS IPv6 (2790ms, 0.8 Mbps)
+#   upos-sz-mirrorhw.bilivideo.com     -> Huawei mainland (1773ms; often 959 in TW)
+_TIER2_DASH_CDNS = (
+    "upos-sz-mirrorali.bilivideo.com",
+    "upos-sz-mirroralib.bilivideo.com",
+    "upos-sz-mirrorali02.bilivideo.com",
+    "upos-sz-mirrorbos.bilivideo.com",
+    "upos-tf-all-tx.bilivideo.com",
+    "upos-sz-mirrorcos.bilivideo.com",
+    "upos-sz-mirrorhw.bilivideo.com",
+)
+_TIER2_DASH_CDN_SET = frozenset(_TIER2_DASH_CDNS)
+
+# Known NXDOMAIN in TW/overseas — never synthesized; kept only if playurl returns them.
+#   upos-sz-mirrorhwov.bilivideo.com   -> NXDOMAIN
+#   upos-hz-mirroraliov.bilivideo.com  -> NXDOMAIN
+_DEAD_DASH_CDN_SET = frozenset(
+    {
+        "upos-sz-mirrorhwov.bilivideo.com",
+        "upos-hz-mirroraliov.bilivideo.com",
+    }
+)
+
+# Host-locked stream memory: some playurl signatures (e.g. os=cosovbv) reject
+# host-rewriting with 403. Remember them so subsequent fragments skip synthetic
+# mirrors instead of burning a 403 failover hop every time.
+_HOST_LOCK_TTL = 1800.0
+_HOST_LOCK_MAX = 256
+_host_locked_os: dict[str, float] = {}  # lock_key -> expire_monotonic
+
+
+def _host_lock_key(url: str) -> str:
+    try:
+        parsed = urlparse(url)
+        os_vals = parse_qs(parsed.query).get("os")
+        if os_vals and os_vals[0]:
+            return os_vals[0]
+        return parsed.path or ""
+    except Exception:
+        return ""
+
+
+def _is_host_locked_url(url: str) -> bool:
+    if not url or not _host_locked_os:
+        return False
+    key = _host_lock_key(url)
+    if not key:
+        return False
+    exp = _host_locked_os.get(key)
+    if exp is None:
+        return False
+    if time.monotonic() >= exp:
+        _host_locked_os.pop(key, None)
+        return False
+    return True
+
+
+def _note_host_locked(url: str):
+    key = _host_lock_key(url)
+    if not key:
+        return
+    now = time.monotonic()
+    _host_locked_os[key] = now + _HOST_LOCK_TTL
+    if len(_host_locked_os) > _HOST_LOCK_MAX:
+        for k in [k for k, exp in _host_locked_os.items() if exp <= now]:
+            del _host_locked_os[k]
+
+
+def _is_tier2_dash_url(url: str) -> bool:
+    return (urlparse(url).hostname or "").lower() in _TIER2_DASH_CDN_SET
+
+
+def _is_dead_dash_url(url: str) -> bool:
+    return (urlparse(url).hostname or "").lower() in _DEAD_DASH_CDN_SET
+
+
+def _synthesize_dash_mirrors(url: str) -> tuple[list[str], list[str]]:
+    """Generate Tier 1 and Tier 2 mirror URLs from a rewritable bilivideo URL."""
+    if not url or _is_mcdn_url(url) or _is_host_locked_url(url):
+        return [], []
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if not (host.endswith(".bilivideo.com") or host.endswith(".bilivideo.cn")):
+        return [], []
+    tier1 = [
+        urlunparse(parsed._replace(netloc=cdn))
+        for cdn in _TIER1_DASH_CDNS
+        if cdn != host
+    ]
+    tier2 = [
+        urlunparse(parsed._replace(netloc=cdn))
+        for cdn in _TIER2_DASH_CDNS
+        if cdn != host
+    ]
+    return tier1, tier2
+
+
+def _shard_dash_urls(urls: list[str], seed_url: str) -> list[str]:
+    """Deterministically rotate Tier 1 mirrors per track path so tracks spread load
+    across fast edges while staying sticky to preserve keep-alive socket reuse."""
+    if len(urls) <= 1:
+        return list(urls)
+    path = urlparse(seed_url).path or seed_url
+    idx = zlib.crc32(path.encode("utf-8")) % len(urls)
+    return urls[idx:] + urls[:idx]
 
 
 def _is_direct_cdn_url(url: str) -> bool:
@@ -406,42 +542,75 @@ def _parse_416_total(cr: str | None) -> int | None:
         return None
 
 
-# Only transport health is tracked: handshake stalls, connection/protocol
-# errors, mid-body cuts, slow bodies, unusable responses. 403/412/514 are
-# auth-level (dead signatures — handled by the ticket/playurl refresh paths)
-# and never mark a mirror sick. Success clears immediately; failures expire
-# after _MIRROR_SICK_COOLDOWN so recovered edges rejoin automatically.
+# Transport & edge health tracking: handshake stalls, connection/protocol
+# errors, mid-body cuts, slow bodies, unusable responses, and 514/959 regional
+# rejections. Uses strike-based escalating cooldowns (30s -> 120s -> 300s) so
+# a single transient hiccup rotates within Tier 1 briefly while repeated failures
+# stay out of rotation longer. Clean transfers decay strikes gradually and update
+# passive EWMA throughput (bytes/sec) without extra probe traffic.
 # Single worker, so a plain dict is fine.
-_MIRROR_SICK_COOLDOWN = 120.0
+_MIRROR_COOLDOWNS = (30.0, 120.0, 300.0)
+_MIRROR_SICK_COOLDOWN = _MIRROR_COOLDOWNS[-1]
+_MIRROR_EWMA_ALPHA = 0.35
+_MIRROR_EWMA_MIN_BYTES = 64 * 1024
 _MIRROR_HEALTH_MAX = 1024
-_mirror_health: dict = {}  # host -> [consecutive_fails, last_fail_monotonic]
+# host -> [strikes, cooldown_until_monotonic, last_fail_monotonic, ewma_bps]
+_mirror_health: dict[str, list] = {}
 
 
-def _note_mirror_ok(host: str | None):
-    """Clear a mirror's failure record after a clean full-body transfer."""
+def _note_mirror_ok(host: str | None, bytes_served: int = 0, elapsed_sec: float = 0.0):
+    """Decay strikes and update passive EWMA throughput after a clean transfer."""
     if not host:
         return
-    _mirror_health.pop(host, None)
+    entry = _mirror_health.get(host)
+    bps = 0.0
+    if bytes_served >= _MIRROR_EWMA_MIN_BYTES and elapsed_sec >= 0.01:
+        bps = bytes_served / elapsed_sec
+    if entry is None:
+        if bps > 0:
+            _mirror_health[host] = [0, 0.0, 0.0, bps]
+        return
+    if entry[0] > 0:
+        entry[0] -= 1
+    if entry[0] == 0:
+        entry[1] = 0.0
+        entry[2] = 0.0
+    if bps > 0:
+        entry[3] = (entry[3] * (1.0 - _MIRROR_EWMA_ALPHA) + bps * _MIRROR_EWMA_ALPHA) if entry[3] > 0 else bps
+    if entry[0] == 0 and entry[3] <= 0:
+        _mirror_health.pop(host, None)
 
 
-def _note_mirror_bad(host: str | None):
-    """Record a transport failure for a mirror (sick for _MIRROR_SICK_COOLDOWN)."""
+def _note_mirror_bad(host: str | None, *, cooldown: float | None = None):
+    """Record a mirror failure with escalating cooldown (30s -> 120s -> 300s)."""
     if not host:
         return
     now = time.monotonic()
     entry = _mirror_health.get(host)
     if entry is None:
-        _mirror_health[host] = [1, now]
+        strikes = 1
+        dur = cooldown if cooldown is not None else _MIRROR_COOLDOWNS[0]
+        _mirror_health[host] = [strikes, now + dur, now, 0.0]
     else:
         entry[0] += 1
-        entry[1] = now
+        idx = min(entry[0] - 1, len(_MIRROR_COOLDOWNS) - 1)
+        dur = cooldown if cooldown is not None else _MIRROR_COOLDOWNS[idx]
+        entry[1] = max(entry[1], now + dur)
+        entry[2] = now
     if len(_mirror_health) > _MIRROR_HEALTH_MAX:
-        cutoff = now - _MIRROR_SICK_COOLDOWN
-        for h in [h for h, (_, last) in _mirror_health.items() if last < cutoff]:
+        for h in [h for h, (st, until, _, ewma) in _mirror_health.items() if until <= now and st == 0 and ewma <= 0]:
             del _mirror_health[h]
+        if len(_mirror_health) > _MIRROR_HEALTH_MAX:
+            for h in [h for h, (_, until, _, _) in _mirror_health.items() if until <= now]:
+                del _mirror_health[h]
 
 
 def _mirror_last_fail(host: str) -> float:
+    entry = _mirror_health.get(host)
+    return entry[2] if entry is not None else 0.0
+
+
+def _mirror_cooldown_until(host: str) -> float:
     entry = _mirror_health.get(host)
     return entry[1] if entry is not None else 0.0
 
@@ -458,21 +627,21 @@ def _parse_range_start(range_header: str | None) -> int | None:
 
 
 def _mirror_is_sick(host: str | None) -> bool:
-    """True when a mirror failed recently and hasn't proven healthy since."""
+    """True when a mirror is currently inside its failure cooldown window."""
     if not host:
         return False
     entry = _mirror_health.get(host)
     if entry is None or entry[0] <= 0:
         return False
-    return time.monotonic() - entry[1] < _MIRROR_SICK_COOLDOWN
+    return time.monotonic() < entry[1]
 
 
 def _order_urls_by_health(urls: list) -> list:
-    """Healthy mirrors first (original order), recently-failed last (oldest failure first)."""
+    """Healthy mirrors first (original order), mirrors in cooldown last (earliest expiry first)."""
     healthy, sick = [], []
     for u in urls:
         (sick if _mirror_is_sick(urlparse(u).hostname or "") else healthy).append(u)
-    sick.sort(key=lambda u: _mirror_last_fail(urlparse(u).hostname or ""))
+    sick.sort(key=lambda u: _mirror_cooldown_until(urlparse(u).hostname or ""))
     return healthy + sick
 
 
@@ -518,13 +687,17 @@ def _mirror_range_shy_at(host: str | None, want: int | None) -> bool:
 
 
 def _segment_mirror_order(candidates: list, seg_index: int) -> list:
-    """Per-segment mirror order: rotate healthy stable mirrors first.
+    """Per-segment mirror order: rotate healthy Tier 1 mirrors first.
 
-    Rotation spreads back-to-back load so no single edge throttles (the
-    decaying-speed failure mode); sick mirrors trail for failover only;
-    M-CDN stays last-resort.
+    Rotation spreads back-to-back load across fast Tier 1 edges so no single
+    edge throttles; Tier 2 mainland, sick mirrors, and M-CDN stay in the tail
+    for failover only.
     """
-    stable = [u for u in candidates if not _is_mcdn_url(u)] or list(candidates)
+    tier1 = [
+        u for u in candidates
+        if not _is_mcdn_url(u) and not _is_tier2_dash_url(u) and not _is_dead_dash_url(u)
+    ]
+    stable = tier1 or [u for u in candidates if not _is_mcdn_url(u)] or list(candidates)
     tail = [u for u in candidates if u not in stable]
     healthy = [u for u in stable if not _mirror_is_sick(urlparse(u).hostname or "")]
     sick = [u for u in stable if u not in healthy]

@@ -3,7 +3,6 @@ import contextlib
 import re
 import uuid
 import weakref
-import zlib
 from urllib.parse import urljoin, urlparse, urlunparse
 
 from quart import Blueprint, Response, has_request_context, request
@@ -164,16 +163,17 @@ _ALLOWED_IMAGE_TYPES = frozenset(
 
 
 def _get_image_mirror_candidates(url: str) -> list[str]:
-    """Return [primary, alternate_mirror] for sharded /bfs/ image URLs, else [url]."""
+    """Return [original, fallback_1, fallback_2] for /bfs/ image URLs, else [url]."""
     parsed = urlparse(url)
-    if parsed.netloc.lower() not in _BFS_IMAGE_CDNS or not parsed.path.startswith("/bfs/"):
+    host = parsed.netloc.lower()
+    if host not in _BFS_IMAGE_CDNS or not parsed.path.startswith("/bfs/"):
         return [url]
-    idx = zlib.crc32(parsed.path.encode("utf-8")) % len(_BFS_IMAGE_CDNS)
-    alt_idx = (idx + 1) % len(_BFS_IMAGE_CDNS)
-    return [
-        urlunparse(parsed._replace(netloc=_BFS_IMAGE_CDNS[idx])),
-        urlunparse(parsed._replace(netloc=_BFS_IMAGE_CDNS[alt_idx])),
-    ]
+    fallbacks = [
+        urlunparse(parsed._replace(netloc=cdn))
+        for cdn in _BFS_IMAGE_CDNS
+        if cdn != host
+    ][:2]
+    return [url, *fallbacks]
 
 
 async def is_safe_proxy_url(url: str) -> bool:

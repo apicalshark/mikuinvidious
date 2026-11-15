@@ -524,8 +524,12 @@ class DashSingleflightCancellationTests(unittest.IsolatedAsyncioTestCase):
 
 class DashAudioOptimizationTests(unittest.IsolatedAsyncioTestCase):
     def test_dash_candidate_urls_prioritizes_direct_cdn_over_akamai_and_mcdn(self):
+        from urllib.parse import urlparse
+
+        from miku.dash.common import _DEAD_DASH_CDN_SET, _TIER1_DASH_CDNS, _TIER2_DASH_CDNS
         from miku.dash.stream import _dash_candidate_urls
 
+        dash_common._host_locked_os.clear()
         track = {
             "base_url": "https://upos-hz-mirrorakam.akamaized.net/track.m4s",
             "backup_url": [
@@ -534,10 +538,68 @@ class DashAudioOptimizationTests(unittest.IsolatedAsyncioTestCase):
             ],
         }
         candidates = _dash_candidate_urls(track)
-        self.assertEqual(len(candidates), 3)
-        self.assertIn("mirrorcosov.bilivideo.com", candidates[0])
-        self.assertIn("mirrorakam.akamaized.net", candidates[1])
-        self.assertIn("mcdn.bilivideo.cn", candidates[2])
+        hosts = [urlparse(u).hostname for u in candidates]
+        akam_idx = hosts.index("upos-hz-mirrorakam.akamaized.net")
+        mcdn_idx = hosts.index("d1.mcdn.bilivideo.cn")
+        for h in _TIER1_DASH_CDNS:
+            self.assertIn(h, hosts[:akam_idx])
+        for h in _TIER2_DASH_CDNS:
+            idx = hosts.index(h)
+            self.assertGreater(idx, akam_idx)
+            self.assertLess(idx, mcdn_idx)
+        for h in _DEAD_DASH_CDN_SET:
+            self.assertNotIn(h, hosts)
+
+    def test_pcdn_and_host_locked_urls_not_synthesized(self):
+        from urllib.parse import urlparse
+
+        from miku.dash.stream import _dash_candidate_urls
+
+        dash_common._host_locked_os.clear()
+        self.assertTrue(dash_common._is_mcdn_url("https://node.szbdyd.com/video.m4s"))
+        self.assertTrue(dash_common._is_mcdn_url("https://upos-sz-mirrorcos.bilivideo.com/v1/resource/123.m4s"))
+
+        pcdn_track = {
+            "base_url": "https://upos-sz-mirrorcos.bilivideo.com/v1/resource/123.m4s",
+            "backup_url": ["https://upos-hz-mirrorakam.akamaized.net/123.m4s"],
+        }
+        pcdn_cands = _dash_candidate_urls(pcdn_track)
+        self.assertEqual(len(pcdn_cands), 2)
+        self.assertIn("akamaized.net", pcdn_cands[0])
+
+        locked_url = "https://upos-sz-mirrorcosov.bilivideo.com/upgcxcode/1/2/3.m4s?os=cosovbv"
+        dash_common._note_host_locked(locked_url)
+        try:
+            locked_cands = _dash_candidate_urls({"base_url": locked_url, "backup_url": []})
+            self.assertEqual([urlparse(u).hostname for u in locked_cands], ["upos-sz-mirrorcosov.bilivideo.com"])
+        finally:
+            dash_common._host_locked_os.clear()
+
+    def test_mirror_health_escalating_cooldown_and_decay(self):
+        dash_common._mirror_health.clear()
+        host = "upos-sz-mirroraliov.bilivideo.com"
+        try:
+            dash_common._note_mirror_bad(host)
+            self.assertTrue(dash_common._mirror_is_sick(host))
+            st1, until1, _, _ = dash_common._mirror_health[host]
+            self.assertEqual(st1, 1)
+
+            dash_common._note_mirror_bad(host)
+            st2, until2, _, _ = dash_common._mirror_health[host]
+            self.assertEqual(st2, 2)
+            self.assertGreater(until2 - until1, 60.0)
+
+            # One clean transfer decays strike by 1 and records EWMA bps
+            dash_common._note_mirror_ok(host, bytes_served=256 * 1024, elapsed_sec=0.1)
+            st3, _, _, ewma = dash_common._mirror_health[host]
+            self.assertEqual(st3, 1)
+            self.assertGreater(ewma, 1_000_000.0)
+
+            # Second clean transfer clears strikes
+            dash_common._note_mirror_ok(host, bytes_served=256 * 1024, elapsed_sec=0.1)
+            self.assertFalse(dash_common._mirror_is_sick(host))
+        finally:
+            dash_common._mirror_health.clear()
 
     async def test_peek_content_length_sends_range_zero_and_parses_content_range(self):
         sent_headers = {}

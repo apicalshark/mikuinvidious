@@ -36,12 +36,15 @@ from miku.dash.common import (
     DASH_PLAYBACK_MIRROR_BUDGET,
     _build_dash_cdn_headers,
     _expected_resume_start,
+    _is_dead_dash_url,
     _is_direct_cdn_url,
     _is_mcdn_url,
     _is_safe_dash_url,
     _is_safe_dash_url_async,
+    _is_tier2_dash_url,
     _is_valid_vid,
     _mirror_range_shy_at,
+    _note_host_locked,
     _note_mirror_bad,
     _note_mirror_ok,
     _note_mirror_range_shy,
@@ -51,7 +54,9 @@ from miku.dash.common import (
     _parse_content_range_full,
     _parse_range_start,
     _pick_stable_dash_url,
+    _shard_dash_urls,
     _shift_dash_range,
+    _synthesize_dash_mirrors,
     dash_proxy_bp,
 )
 from miku.dash.fetch import (
@@ -66,45 +71,60 @@ from miku.state import UPSTREAM_RESPONSE_BLACKLIST, Network, TicketManager
 
 
 def _dash_candidate_urls(track: dict) -> list:
-    """Primary + backup CDN URLs for a DASH track, safety-checked.
+    """Primary + backup + sharded Tier 1/Tier 2 CDN URLs for a DASH track.
 
     Bilibili serves every track from ``base_url`` with 2-3 mirrors in
-    ``backup_url``. The primary edge sometimes stalls individual objects
-    (cold cache / tarpit: latency swinging from ms to 25s+), so the proxy
-    must be able to fail over instead of hanging on the primary.
-
-    M-CDN (PCDN) edges are deprioritized but kept as last-resort mirrors
-    (PipePipe b3303f4 ``pickStableStreamUrl``): the stable URL goes first,
-    remaining mirrors follow for failover.
+    ``backup_url``. We expand rewritable ``bilivideo`` tracks with verified
+    Tier 1 overseas/HK mirrors (sharded deterministically per track path so
+    video/audio/concurrent tracks spread load while keeping keep-alive sockets
+    hot) and Tier 2 mainland fallbacks behind Akamai. M-CDN (PCDN) edges stay
+    last-resort.
     """
-    candidates = []
     primary = track.get("base_url") or track.get("baseUrl")
     backups = track.get("backup_url") or track.get("backupUrl") or []
     if isinstance(backups, str):
         backups = [backups]
     if not isinstance(backups, list):
         backups = []
-    ordered = []
+
+    raw_urls = []
     stable = _pick_stable_dash_url(primary, backups)
     if stable:
-        ordered.append(stable)
+        raw_urls.append(stable)
     for url in [primary, *backups]:
-        if isinstance(url, str) and url and url not in ordered:
-            ordered.append(url)
+        if isinstance(url, str) and url and url not in raw_urls:
+            raw_urls.append(url)
 
-    # Direct CDN first (0), other stable (1), M-CDN last as failover-only (2).
-    def _mirror_rank(u: str) -> int:
-        if _is_direct_cdn_url(u):
-            return 0
-        if _is_mcdn_url(u):
-            return 2
-        return 1
+    seed_url = next(
+        (
+            u for u in raw_urls
+            if _is_direct_cdn_url(u) and not _is_dead_dash_url(u) and _is_safe_dash_url(u)
+        ),
+        None,
+    )
+    tier1_syn, tier2_syn = _synthesize_dash_mirrors(seed_url) if seed_url else ([], [])
 
-    ordered.sort(key=_mirror_rank)
-    for url in ordered:
-        if isinstance(url, str) and url and url not in candidates and _is_safe_dash_url(url):
-            candidates.append(url)
-    return candidates
+    tier1_direct, tier1_other, tier2_urls, dead_urls, mcdn_urls = [], [], [], [], []
+    seen = set()
+    for url in [*raw_urls, *tier1_syn, *tier2_syn]:
+        if not isinstance(url, str) or not url or url in seen or not _is_safe_dash_url(url):
+            continue
+        seen.add(url)
+        if _is_mcdn_url(url):
+            mcdn_urls.append(url)
+        elif _is_dead_dash_url(url):
+            dead_urls.append(url)
+        elif _is_tier2_dash_url(url):
+            tier2_urls.append(url)
+        elif _is_direct_cdn_url(url):
+            tier1_direct.append(url)
+        else:
+            tier1_other.append(url)
+
+    if seed_url and len(tier1_direct) > 1:
+        tier1_direct = _shard_dash_urls(tier1_direct, seed_url)
+
+    return [*tier1_direct, *tier1_other, *tier2_urls, *dead_urls, *mcdn_urls]
 
 
 # ---------------------------------------------------------------------------
@@ -719,6 +739,7 @@ async def _fetch_dash_track(
     ticket_refreshed = False
     last_error: Exception | None = None
     forbidden_seen = False
+    forbidden_403_hosts: set[str] = set()
     pooled_checked = False
     handshake_timeout = attempt_timeout or DASH_ATTEMPT_TIMEOUT
     started = time.monotonic()
@@ -773,9 +794,13 @@ async def _fetch_dash_track(
                 _note_mirror_bad(urlparse(url).hostname or "")
                 print(f"[DashProxy] {label} {host} failed ({exc}), trying next mirror")
                 continue
-        if resp_headers.status_code in [403, 412, 514, 567]:
+        if resp_headers.status_code in [403, 412, 514, 567, 959]:
             await conn.close()
             forbidden_seen = True
+            if resp_headers.status_code == 403:
+                forbidden_403_hosts.add(host)
+            elif resp_headers.status_code in (514, 959):
+                _note_mirror_bad(host, cooldown=300.0)
             last_error = RuntimeError(f"CDN returned {resp_headers.status_code}")
             if not ticket_refreshed:
                 headers = await _refresh_dash_ticket(headers)
@@ -811,6 +836,8 @@ async def _fetch_dash_track(
                 continue
         else:
             content_length, content_range = None, None
+        if forbidden_403_hosts and host not in forbidden_403_hosts:
+            _note_host_locked(url)
         return conn, resp_headers, url, content_length, content_range
     raise _DashUpstreamError(
         f"all mirrors failed for {label}: {last_error}",
@@ -1034,6 +1061,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
             gen_started = True
             same_resumes = 0
             clean = True  # this connection served the whole fragment, start to end
+            body_started = time.monotonic()
             try:
                 while True:
                     attempt_base = yielded
@@ -1105,7 +1133,7 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
                         used_url = used
                         host = urlparse(used).hostname or "-"
                         continue
-                    _note_mirror_ok(host)
+                    _note_mirror_ok(host, yielded, time.monotonic() - body_started)
                     if clean and _dash_conn_bankable(conn, resp_headers, yielded):
                         # Socket sits exactly at the next boundary: hand it to the
                         # next fragment instead of paying another handshake.
