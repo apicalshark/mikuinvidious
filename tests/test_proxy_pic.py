@@ -1,9 +1,10 @@
 import asyncio
 import unittest
 from unittest.mock import AsyncMock, patch
+from urllib.parse import urlparse
 
 import httpx
-from miku.media.proxy import render_proxy_pic
+from miku.media.proxy import _BFS_IMAGE_CDNS, _get_image_mirror_candidates, render_proxy_pic
 from miku.state import image_limiter
 
 
@@ -331,11 +332,13 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
                 await cache.close()
                 await client.aclose()
 
+        expected_primary = _get_image_mirror_candidates("https://i0.hdslb.com/bfs/pic.jpg?foo=1&bar=2")[0]
+        expected_host = urlparse(expected_primary).netloc
         self.assertEqual(
             requested_urls,
             [
-                "https://i0.hdslb.com/bfs/pic.jpg?foo=1&bar=2",
-                "https://i0.hdslb.com/bfs/pic.jpg?foo=2",
+                f"https://{expected_host}/bfs/pic.jpg?foo=1&bar=2",
+                f"https://{expected_host}/bfs/pic.jpg?foo=2",
             ],
         )
 
@@ -520,6 +523,122 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
         results = await asyncio.wait_for(asyncio.gather(*(fetch() for _ in range(150))), timeout=5.0)
         self.assertEqual(len(results), 150)
         self.assertTrue(all(status == 200 and body == b"ok" for status, body in results))
+
+
+class TestProxyPicShardingAndRetry(unittest.IsolatedAsyncioTestCase):
+    def test_sharding_spreads_across_fast_cdns_and_distinct_fallback(self):
+        """BFS image paths shard deterministically across fast hdslb/biliimg CDNs with a distinct fallback."""
+        primaries = set()
+        for i in range(40):
+            cands = _get_image_mirror_candidates(f"https://i0.hdslb.com/bfs/archive/cover_{i}.jpg@320w.webp")
+            self.assertEqual(len(cands), 2)
+            h1 = urlparse(cands[0]).netloc
+            h2 = urlparse(cands[1]).netloc
+            self.assertIn(h1, _BFS_IMAGE_CDNS)
+            self.assertIn(h2, _BFS_IMAGE_CDNS)
+            self.assertNotEqual(h1, h2)
+            primaries.add(h1)
+
+        self.assertEqual(primaries, set(_BFS_IMAGE_CDNS))
+
+        # Non-BFS paths and non-CDN hosts are not rewritten
+        self.assertEqual(
+            _get_image_mirror_candidates("https://i0.hdslb.com/favicon.ico"),
+            ["https://i0.hdslb.com/favicon.ico"],
+        )
+        self.assertEqual(
+            _get_image_mirror_candidates("https://article.biliimg.com/bfs/article/1.jpg"),
+            ["https://article.biliimg.com/bfs/article/1.jpg"],
+        )
+
+    async def test_retry_once_on_html_response_succeeds_and_caches_original_url(self):
+        """When primary mirror returns text/html, render_proxy_pic retries once on alternate mirror."""
+        import tempfile
+
+        from miku.media.image_cache import ImageCache
+
+        requested_hosts = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            requested_hosts.append(req.url.host)
+            if len(requested_hosts) == 1:
+                return httpx.Response(200, headers={"Content-Type": "text/html"}, content=b"<html>throttled</html>")
+            return httpx.Response(200, headers={"Content-Type": "image/jpeg"}, content=b"\xff\xd8\xff\xe0OK")
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cache = ImageCache(cache_dir=tmpdir)
+            try:
+                with (
+                    patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+                    patch("miku.media.proxy.image_cache", cache),
+                    patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
+                ):
+                    resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/retry_html.jpg")
+                    self.assertEqual(resp.status_code, 200)
+                    self.assertEqual(await resp.get_data(), b"\xff\xd8\xff\xe0OK")
+                    self.assertEqual(len(requested_hosts), 2)
+                    self.assertNotEqual(requested_hosts[0], requested_hosts[1])
+
+                    # Cached under original URL key
+                    resp2 = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/retry_html.jpg")
+                    self.assertEqual(resp2.status_code, 200)
+                    self.assertEqual(resp2.headers.get("X-Cache"), "HIT")
+                    self.assertEqual(len(requested_hosts), 2)
+            finally:
+                await cache.close()
+                await client.aclose()
+
+    async def test_retry_once_on_non_200_and_timeout(self):
+        """Retries once on non-200 status or ReadTimeout, and stops after 2 total attempts on failure."""
+        for mode in ("non_200", "timeout"):
+            with self.subTest(mode=mode):
+                attempts = []
+
+                def handler(req: httpx.Request, m=mode, attempts=attempts) -> httpx.Response:
+                    attempts.append(req.url.host)
+                    if len(attempts) == 1:
+                        if m == "non_200":
+                            return httpx.Response(502, headers={"Content-Type": "text/html"}, content=b"bad gateway")
+                        raise httpx.ReadTimeout("upstream timed out", request=req)
+                    return httpx.Response(200, headers={"Content-Type": "image/png"}, content=b"\x89PNGok")
+
+                client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+                try:
+                    with (
+                        patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+                        patch("miku.media.proxy.image_cache.get", new=AsyncMock(return_value=None)),
+                        patch("miku.media.proxy.image_cache.set", new=AsyncMock()),
+                        patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
+                    ):
+                        resp = await render_proxy_pic(f"/proxy/pic/i0.hdslb.com/bfs/archive/{mode}.png")
+                    self.assertEqual(resp.status_code, 200)
+                    self.assertEqual(await resp.get_data(), b"\x89PNGok")
+                    self.assertEqual(len(attempts), 2)
+                    self.assertNotEqual(attempts[0], attempts[1])
+                finally:
+                    await client.aclose()
+
+    async def test_exhausted_retry_returns_502_on_double_timeout(self):
+        """If both primary and alternate mirrors time out, returns 502 after 2 attempts."""
+        attempts = []
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            attempts.append(req.url.host)
+            raise httpx.ReadTimeout("timed out", request=req)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        try:
+            with (
+                patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+                patch("miku.media.proxy.image_cache.get", new=AsyncMock(return_value=None)),
+                patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
+            ):
+                resp = await render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/archive/both_timeout.jpg")
+            self.assertEqual(resp.status_code, 502)
+            self.assertEqual(len(attempts), 2)
+        finally:
+            await client.aclose()
 
 
 if __name__ == "__main__":

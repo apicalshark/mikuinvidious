@@ -3,7 +3,8 @@ import contextlib
 import re
 import uuid
 import weakref
-from urllib.parse import urljoin
+import zlib
+from urllib.parse import urljoin, urlparse, urlunparse
 
 from quart import Blueprint, Response, has_request_context, request
 
@@ -115,10 +116,171 @@ _ALLOWED_PROXY_DOMAINS = (
     ".akamaized.net",
 )
 
+# Verified fast HTTP/2 BFS image CDN mirrors (~290-540ms p50 on 30-image bursts):
+#   i0.hdslb.com   - Baidu (bdydns.com) / Wangsu (cdn20.com), HTTP/2
+#   i1.hdslb.com   - Wangsu (cdn20.com), HTTP/2
+#   i2.hdslb.com   - Wangsu (cdn20.com) / Baidu (bdydns.com), HTTP/2
+#   s2.hdslb.com   - Alibaba (kunlunar.com), HTTP/2
+#   i2.biliimg.com - Tencent Overseas (ovscdns.com) / Baidu (bdydns.com), HTTP/2
+#
+# Other working BFS mirrors (excluded from shard pool due to higher latency):
+#   s1.hdslb.com        - Alibaba (kunlunar.com), HTTP/2 (~1.2-1.4s p50)
+#   s3.hdslb.com        - Alibaba (kunlunar.com), HTTP/2 (IPv6-only)
+#   i0.biliimg.com      - Tencent Overseas / Baidu, HTTP/2 (~2.2s p50, 4-5.5s max)
+#   i1.biliimg.com      - Zenlayer, HTTP/1.1 only (~1.6-1.7s p50, 3.2-4.9s max)
+#   i3.biliimg.com      - Zenlayer, HTTP/1.1 only
+#   archive.biliimg.com - Baidu (bdydns.com), HTTP/2 (spikes to 5.5s on cold URLs)
+#
+# Broken / non-existent hosts (do not use):
+#   i3.hdslb.com (kunlunpi.com, ReadTimeout), i4.hdslb.com (kunlunhuf.com, 403 HTML),
+#   bstatic.hdslb.com (TLS handshake failure), i5-i9/s0/s4.hdslb.com (NXDOMAIN).
+_BFS_IMAGE_CDNS = (
+    "i0.hdslb.com",
+    "i2.biliimg.com",
+    "i1.hdslb.com",
+    "s2.hdslb.com",
+    "i2.hdslb.com",
+)
+_BARE_IMAGE_TYPES = {
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "png": "image/png",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "bmp": "image/bmp",
+    "avif": "image/avif",
+}
+_ALLOWED_IMAGE_TYPES = frozenset(
+    {
+        "image/jpeg",
+        "image/jpg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/bmp",
+        "image/avif",
+    }
+)
+
+
+def _get_image_mirror_candidates(url: str) -> list[str]:
+    """Return [primary, alternate_mirror] for sharded /bfs/ image URLs, else [url]."""
+    parsed = urlparse(url)
+    if parsed.netloc.lower() not in _BFS_IMAGE_CDNS or not parsed.path.startswith("/bfs/"):
+        return [url]
+    idx = zlib.crc32(parsed.path.encode("utf-8")) % len(_BFS_IMAGE_CDNS)
+    alt_idx = (idx + 1) % len(_BFS_IMAGE_CDNS)
+    return [
+        urlunparse(parsed._replace(netloc=_BFS_IMAGE_CDNS[idx])),
+        urlunparse(parsed._replace(netloc=_BFS_IMAGE_CDNS[alt_idx])),
+    ]
+
 
 async def is_safe_proxy_url(url: str) -> bool:
     """Validate that a URL is safe to proxy (not pointing to internal/private IPs)."""
     return await is_safe_public_url(url, _ALLOWED_PROXY_DOMAINS, use_dns_cache=False)
+
+
+async def _fetch_image_once(
+    client,
+    target_url: str,
+    original_url: str,
+    headers: dict,
+    *,
+    can_retry: bool,
+) -> tuple[Response | None, bool]:
+    """Fetch an image from one mirror. Returns (response_or_none, should_retry)."""
+    resp = None
+    current_url = target_url
+    redirect_count = 0
+    MAX_REDIRECTS = 3
+    try:
+        while True:
+            req = client.build_request("GET", current_url, headers=headers)
+            # Headers are validated before reading body
+            resp = await client.send(req, stream=True, follow_redirects=False)
+
+            if resp.is_redirect and "location" in resp.headers:
+                if redirect_count >= MAX_REDIRECTS:
+                    await resp.aclose()
+                    return Response("Forbidden: Too many redirects", status=403), False
+                redirect_count += 1
+                loc = resp.headers["location"]
+                await resp.aclose()
+                next_url = urljoin(current_url, loc)
+                if not await is_safe_proxy_url(next_url):
+                    print(f"[Proxy] Forbidden redirect destination: {next_url}")
+                    return Response("Forbidden: Invalid redirect target", status=403), False
+                current_url = next_url
+                continue
+            break
+
+        if resp.status_code != 200 and can_retry:
+            print(f"[Proxy] Image upstream returned {resp.status_code} from {current_url}, retrying alternate mirror")
+            await resp.aclose()
+            return None, True
+
+        content_type = resp.headers.get("content-type", "").lower().split(";")[0].strip()
+        # Bilibili's image CDN sometimes returns a bare extension
+        # ("jpg") instead of a MIME type. Normalize those so covers
+        # load; anything else non-image is still rejected below.
+        content_type = _BARE_IMAGE_TYPES.get(content_type, content_type)
+        if content_type not in _ALLOWED_IMAGE_TYPES:
+            await resp.aclose()
+            if can_retry:
+                print(
+                    f"[Proxy] Invalid Content-Type ({content_type}) from {current_url}, retrying alternate mirror"
+                )
+                return None, True
+            print(f"[Proxy] Invalid Content-Type for image: {content_type}")
+            return Response("Forbidden: Invalid content type", status=403), False
+
+        # Reject oversized payloads early if declared
+        cl_header = resp.headers.get("content-length")
+        if cl_header and cl_header.isdigit() and int(cl_header) > MAX_IMAGE_SIZE:
+            await resp.aclose()
+            return Response("Payload Too Large", status=413), False
+
+        # Read the image content into memory and immediately close the upstream
+        # connection, returning it to the HTTPX connection pool while still inside
+        # the image_limiter semaphore. Streaming the response to slow client
+        # browsers held pool connections open indefinitely, causing PoolTimeout (502)
+        # when concurrent client requests exceeded max_connections.
+        chunks = []
+        total_size = 0
+        try:
+            async for chunk in resp.aiter_bytes(65536):
+                total_size += len(chunk)
+                if total_size > MAX_IMAGE_SIZE:
+                    return Response("Payload Too Large", status=413), False
+                chunks.append(chunk)
+        finally:
+            await resp.aclose()
+
+        content = b"".join(chunks)
+
+        # Store to disk cache under the original request URL key
+        if resp.status_code == 200:
+            await image_cache.set(original_url, content, content_type)
+
+        proxy_resp = Response(
+            content,
+            status=resp.status_code,
+            content_type=content_type,
+        )
+        proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
+        proxy_resp.headers["X-Cache"] = "MISS"
+        return proxy_resp, False
+    except Exception as e:
+        if resp is not None:
+            with contextlib.suppress(Exception):
+                await resp.aclose()
+        err = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
+        if can_retry:
+            print(f"[Proxy] Image fetch error from {current_url} ({err}), retrying alternate mirror")
+            return None, True
+        print(f"[Proxy] Error in render_proxy_pic for {original_url}: {err}")
+        return Response("Upstream error", status=502), False
 
 
 async def render_proxy_pic(req_path):
@@ -157,105 +319,19 @@ async def render_proxy_pic(req_path):
             return proxy_resp
 
         headers = get_common_headers(appconf["bili"]).copy()
-
         client = await Network.get_image_client()
-        resp = None
-        current_url = url
-        redirect_count = 0
-        MAX_REDIRECTS = 3
-        try:
-            while True:
-                req = client.build_request("GET", current_url, headers=headers)
-                # Headers are validated before reading body
-                resp = await client.send(req, stream=True, follow_redirects=False)
-
-                if resp.is_redirect and "location" in resp.headers:
-                    if redirect_count >= MAX_REDIRECTS:
-                        await resp.aclose()
-                        return Response("Forbidden: Too many redirects", status=403)
-                    redirect_count += 1
-                    loc = resp.headers["location"]
-                    await resp.aclose()
-                    next_url = urljoin(current_url, loc)
-                    if not await is_safe_proxy_url(next_url):
-                        print(f"[Proxy] Forbidden redirect destination: {next_url}")
-                        return Response("Forbidden: Invalid redirect target", status=403)
-                    current_url = next_url
-                    continue
-                break
-
-            content_type = resp.headers.get("content-type", "").lower().split(";")[0].strip()
-            # Bilibili's image CDN sometimes returns a bare extension
-            # ("jpg") instead of a MIME type. Normalize those so covers
-            # load; anything else non-image is still rejected below.
-            bare_image_types = {
-                "jpg": "image/jpeg",
-                "jpeg": "image/jpeg",
-                "png": "image/png",
-                "gif": "image/gif",
-                "webp": "image/webp",
-                "bmp": "image/bmp",
-                "avif": "image/avif",
-            }
-            if content_type in bare_image_types:
-                content_type = bare_image_types[content_type]
-            allowed_image_types = {
-                "image/jpeg",
-                "image/jpg",
-                "image/png",
-                "image/gif",
-                "image/webp",
-                "image/bmp",
-                "image/avif",
-            }
-            if content_type not in allowed_image_types:
-                print(f"[Proxy] Invalid Content-Type for image: {content_type}")
-                await resp.aclose()
-                return Response("Forbidden: Invalid content type", status=403)
-
-            # Reject oversized payloads early if declared
-            cl_header = resp.headers.get("content-length")
-            if cl_header and cl_header.isdigit() and int(cl_header) > MAX_IMAGE_SIZE:
-                await resp.aclose()
-                return Response("Payload Too Large", status=413)
-
-            # Read the image content into memory and immediately close the upstream
-            # connection, returning it to the HTTPX connection pool while still inside
-            # the image_limiter semaphore. Streaming the response to slow client
-            # browsers held pool connections open indefinitely, causing PoolTimeout (502)
-            # when concurrent client requests exceeded max_connections.
-            chunks = []
-            total_size = 0
-            try:
-                async for chunk in resp.aiter_bytes(65536):
-                    total_size += len(chunk)
-                    if total_size > MAX_IMAGE_SIZE:
-                        return Response("Payload Too Large", status=413)
-                    chunks.append(chunk)
-            finally:
-                await resp.aclose()
-
-            content = b"".join(chunks)
-
-            # Store to disk cache asynchronously
-            if resp.status_code == 200:
-                await image_cache.set(url, content, content_type)
-
-            proxy_resp = Response(
-                content,
-                status=resp.status_code,
-                content_type=content_type,
+        candidates = _get_image_mirror_candidates(url)
+        for idx, candidate_url in enumerate(candidates):
+            proxy_resp, should_retry = await _fetch_image_once(
+                client,
+                candidate_url,
+                url,
+                headers,
+                can_retry=idx < len(candidates) - 1,
             )
-            proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
-            proxy_resp.headers["X-Cache"] = "MISS"
-            return proxy_resp
-        except Exception as e:
-            if resp:
-                with contextlib.suppress(Exception):
-                    await resp.aclose()
-            err = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
-            print(f"[Proxy] Error in render_proxy_pic for {url}: {err}")
-            return Response("Upstream error", status=502)
+            if not should_retry:
+                return proxy_resp
+        return Response("Upstream error", status=502)
 
 
 async def _image_rate_key(req) -> str:

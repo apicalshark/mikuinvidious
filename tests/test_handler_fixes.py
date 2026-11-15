@@ -45,7 +45,7 @@ class TestProxyRedirectSecurity(unittest.IsolatedAsyncioTestCase):
         """Verify that image proxy redirects to loopback addresses are blocked with 403."""
 
         def mock_handler(request: httpx.Request):
-            if request.url.host == "i0.hdslb.com":
+            if request.url.host.endswith((".hdslb.com", ".biliimg.com")):
                 return httpx.Response(302, headers={"Location": "http://127.0.0.1:8080/internal.png"})
             elif request.url.host == "127.0.0.1":
                 return httpx.Response(200, headers={"Content-Type": "image/png"}, content=b"\x89PNGfake")
