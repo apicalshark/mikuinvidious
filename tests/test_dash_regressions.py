@@ -556,6 +556,18 @@ class DashAudioOptimizationTests(unittest.IsolatedAsyncioTestCase):
         for h in _DEAD_DASH_CDN_SET:
             self.assertNotIn(h, hosts)
 
+    def test_is_mcdn_url_parses_host_query_and_path(self):
+        self.assertTrue(dash_common._is_mcdn_url("https://node.szbdyd.com/video.m4s"))
+        self.assertTrue(dash_common._is_mcdn_url("https://xy1x2x3x4xy.mcdn.bilivideo.cn/video.m4s"))
+        self.assertTrue(dash_common._is_mcdn_url("https://edge.mountaintoys.cn/video.m4s"))
+        self.assertTrue(dash_common._is_mcdn_url("https://upos-sz-mirrorcos.bilivideo.com/video.m4s?os=mcdn"))
+        self.assertTrue(dash_common._is_mcdn_url("https://upos-sz-mirrorcos.bilivideo.com/v1/resource/123.m4s"))
+
+        self.assertFalse(dash_common._is_mcdn_url("https://evil.com/szbdyd.com/video.m4s"))
+        self.assertFalse(dash_common._is_mcdn_url("https://evil-szbdyd.com/video.m4s"))
+        self.assertFalse(dash_common._is_mcdn_url("https://evil.com/video.m4s?ref=mcdn.bilivideo.cn"))
+        self.assertFalse(dash_common._is_mcdn_url("https://upos-sz-mirroraliov.bilivideo.com/upgcxcode/1.m4s?os=upos"))
+
     def test_pcdn_and_host_locked_urls_not_synthesized(self):
         from urllib.parse import urlparse
 

@@ -129,6 +129,15 @@ _ALLOWED_DASH_DOMAINS = [
 ]
 
 
+_MCDN_HOST_SUFFIXES = (
+    ".mcdn.bilivideo.cn",
+    ".mcdn.bilivideo.com",
+    ".mountaintoys.cn",
+    ".szbdyd.com",
+)
+_MCDN_HOSTS = frozenset(h.lstrip(".") for h in _MCDN_HOST_SUFFIXES)
+
+
 def _is_mcdn_url(url: str) -> bool:
     """Detect Bilibili M-CDN / PCDN edge nodes and PCDN-only resource paths.
 
@@ -137,13 +146,16 @@ def _is_mcdn_url(url: str) -> bool:
     web player: flaky HEAD, non-browser 403s, short-lived signatures, and
     ``/v1/resource`` rejects host-rewriting to regular ``upos`` mirrors.
     """
-    return (
-        "mcdn.bilivideo" in url
-        or "mountaintoys" in url
-        or "szbdyd.com" in url
-        or "os=mcdn" in url
-        or "/v1/resource" in url
-    )
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    host = (parsed.hostname or "").lower()
+    if host in _MCDN_HOSTS or host.endswith(_MCDN_HOST_SUFFIXES):
+        return True
+    if "mcdn" in parse_qs(parsed.query).get("os", []):
+        return True
+    return "/v1/resource" in parsed.path
 
 
 # Probed Bilibili DASH playback CDNs (2026-11-15, Range 0-262143 on signed .m4s):
