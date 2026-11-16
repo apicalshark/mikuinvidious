@@ -32,7 +32,7 @@ services:
       - miku_net
 
   caddy:
-    image: caddy:alpine@sha256:f6228111e5fafa1a5238258d0858e103f10599b8d1659a146e7726681a002bb9
+    image: caddy:alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
     container_name: miku_caddy
     restart: always
     ports:
@@ -50,7 +50,7 @@ services:
       - miku_net
 
   redis:
-    image: redis:alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+    image: redis:alpine@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
     container_name: miku_redis
     restart: always
     networks:
