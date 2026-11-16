@@ -34,7 +34,7 @@
     "@tailwindcss/cli": "^4.3.4",
     "@tailwindcss/typography": "^0.5.20",
     "prettier": "^3.9.10",
-    "tailwindcss": "^4.3.4"
+    "tailwindcss": "^4.3.5"
   },
   "dependencies": {
     "danmaku": "^2.0.10",
