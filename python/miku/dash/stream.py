@@ -96,10 +96,7 @@ def _dash_candidate_urls(track: dict) -> list:
             raw_urls.append(url)
 
     seed_url = next(
-        (
-            u for u in raw_urls
-            if _is_direct_cdn_url(u) and not _is_dead_dash_url(u) and _is_safe_dash_url(u)
-        ),
+        (u for u in raw_urls if _is_direct_cdn_url(u) and not _is_dead_dash_url(u) and _is_safe_dash_url(u)),
         None,
     )
     tier1_syn, tier2_syn = _synthesize_dash_mirrors(seed_url) if seed_url else ([], [])

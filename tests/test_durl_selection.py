@@ -31,9 +31,7 @@ class DurlSelectionTests(unittest.TestCase):
                 duplicate = durl_result(64, 80, "1080p requested")
                 results = [exact, duplicate] if exact_first else [duplicate, exact]
                 results.extend([durl_result(32, 16, "360p requested"), None])
-                picked = _select_durl_results(
-                    results, {"support_formats": [{"quality": "32", "display_desc": "480p"}]}
-                )
+                picked = _select_durl_results(results, {"support_formats": [{"quality": "32", "display_desc": "480p"}]})
                 self.assertEqual([r["quality"] for r in picked], [64, 32])
                 self.assertIs(picked[0], exact)
                 self.assertEqual([r["new_description"] for r in picked], ["720p exact", "480p"])

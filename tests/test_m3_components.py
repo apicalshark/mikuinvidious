@@ -47,7 +47,6 @@ class TestM3Components(unittest.TestCase):
             {{ m3_chip(label='1,234', icon='ion-ios-thumbs-up', title='Likes') }}
         """)
         rendered = template.render()
-        self.assertIn('1,234', rendered)
+        self.assertIn("1,234", rendered)
         self.assertIn('title="Likes"', rendered)
-        self.assertIn('ion-ios-thumbs-up', rendered)
-
+        self.assertIn("ion-ios-thumbs-up", rendered)

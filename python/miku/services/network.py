@@ -128,10 +128,7 @@ def _ensure_safe_httpcore_http2() -> None:
 
         async def handle_async_request(self, request: h2_mod.Request) -> h2_mod.Response:
             if not self.can_handle_request(request.url.origin):
-                raise RuntimeError(
-                    f"Attempted to send request to {request.url.origin} on connection "
-                    f"to {self._origin}"
-                )
+                raise RuntimeError(f"Attempted to send request to {request.url.origin} on connection to {self._origin}")
 
             async with self._state_lock:
                 if self._state in (
@@ -148,9 +145,7 @@ def _ensure_safe_httpcore_http2() -> None:
                 if not self._sent_connection_init:
                     try:
                         sci_kwargs = {"request": request}
-                        async with Trace(
-                            "send_connection_init", h2_mod.logger, request, sci_kwargs
-                        ):
+                        async with Trace("send_connection_init", h2_mod.logger, request, sci_kwargs):
                             await self._send_connection_init(**sci_kwargs)
                         self._max_streams = 1
                         self._max_streams_semaphore = _H2StreamLimiter(self._max_streams)
@@ -161,10 +156,7 @@ def _ensure_safe_httpcore_http2() -> None:
                         raise exc
 
             await self._max_streams_semaphore.acquire()
-            if (
-                self._state == h2_mod.HTTPConnectionState.CLOSED
-                or self._connection_error
-            ):
+            if self._state == h2_mod.HTTPConnectionState.CLOSED or self._connection_error:
                 self._max_streams_semaphore.release()
                 raise ConnectionNotAvailable()
 
@@ -179,30 +171,18 @@ def _ensure_safe_httpcore_http2() -> None:
 
             try:
                 kwargs = {"request": request, "stream_id": stream_id}
-                async with Trace(
-                    "send_request_headers", h2_mod.logger, request, kwargs
-                ):
-                    await self._send_request_headers(
-                        request=request, stream_id=stream_id
-                    )
-                async with Trace(
-                    "send_request_body", h2_mod.logger, request, kwargs
-                ):
+                async with Trace("send_request_headers", h2_mod.logger, request, kwargs):
+                    await self._send_request_headers(request=request, stream_id=stream_id)
+                async with Trace("send_request_body", h2_mod.logger, request, kwargs):
                     await self._send_request_body(request=request, stream_id=stream_id)
-                async with Trace(
-                    "receive_response_headers", h2_mod.logger, request, kwargs
-                ) as trace:
-                    status, headers = await self._receive_response(
-                        request=request, stream_id=stream_id
-                    )
+                async with Trace("receive_response_headers", h2_mod.logger, request, kwargs) as trace:
+                    status, headers = await self._receive_response(request=request, stream_id=stream_id)
                     trace.return_value = (status, headers)
 
                 return h2_mod.Response(
                     status=status,
                     headers=headers,
-                    content=h2_mod.HTTP2ConnectionByteStream(
-                        self, request, stream_id=stream_id
-                    ),
+                    content=h2_mod.HTTP2ConnectionByteStream(self, request, stream_id=stream_id),
                     extensions={
                         "http_version": b"HTTP/2",
                         "network_stream": self._network_stream,
@@ -212,9 +192,7 @@ def _ensure_safe_httpcore_http2() -> None:
             except BaseException as exc:  # noqa: PIE786
                 with AsyncShieldCancellation():
                     kwargs = {"stream_id": stream_id}
-                    async with Trace(
-                        "response_closed", h2_mod.logger, request, kwargs
-                    ):
+                    async with Trace("response_closed", h2_mod.logger, request, kwargs):
                         await self._response_closed(stream_id=stream_id)
 
                 if isinstance(exc, h2.exceptions.ProtocolError):
@@ -224,12 +202,8 @@ def _ensure_safe_httpcore_http2() -> None:
 
                 raise exc
 
-        async def _receive_remote_settings_change(
-            self, event: h2.events.RemoteSettingsChanged
-        ) -> None:
-            max_concurrent_streams = event.changed_settings.get(
-                h2.settings.SettingCodes.MAX_CONCURRENT_STREAMS
-            )
+        async def _receive_remote_settings_change(self, event: h2.events.RemoteSettingsChanged) -> None:
+            max_concurrent_streams = event.changed_settings.get(h2.settings.SettingCodes.MAX_CONCURRENT_STREAMS)
             if max_concurrent_streams:
                 new_max_streams = min(
                     max_concurrent_streams.new_value,
@@ -240,16 +214,11 @@ def _ensure_safe_httpcore_http2() -> None:
                     self._max_streams_semaphore.set_max_streams(new_max_streams)
 
         async def _response_closed(self, stream_id: int) -> None:
-            if (
-                self._h2_state.state_machine.state
-                != h2.connection.ConnectionState.CLOSED
-            ):
+            if self._h2_state.state_machine.state != h2.connection.ConnectionState.CLOSED:
                 stream = self._h2_state.streams.get(stream_id)
                 if stream is not None and not stream.closed:
                     try:
-                        self._h2_state.reset_stream(
-                            stream_id, error_code=h2.errors.ErrorCodes.CANCEL
-                        )
+                        self._h2_state.reset_stream(stream_id, error_code=h2.errors.ErrorCodes.CANCEL)
                     except h2.exceptions.ProtocolError:
                         pass
 
@@ -260,10 +229,7 @@ def _ensure_safe_httpcore_http2() -> None:
 
                 if self._connection_terminated and not self._events:
                     await self.aclose()
-                elif (
-                    self._state == h2_mod.HTTPConnectionState.ACTIVE
-                    and not self._events
-                ):
+                elif self._state == h2_mod.HTTPConnectionState.ACTIVE and not self._events:
                     self._state = h2_mod.HTTPConnectionState.IDLE
                     if self._keepalive_expiry is not None:
                         now = time.monotonic()

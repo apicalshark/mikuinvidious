@@ -37,7 +37,7 @@ def safe_json_loads(data: str | bytes, default: Any = None) -> Any:
         if not isinstance(parsed, (dict, list)):
             return default
         return parsed
-    except (orjson.JSONDecodeError, UnicodeDecodeError, ValueError):
+    except orjson.JSONDecodeError, UnicodeDecodeError, ValueError:
         return default
 
 
@@ -65,7 +65,7 @@ async def cache_get(redis_client, key: str, max_age_seconds: float) -> dict[str,
         return None
     try:
         age = time.time() - float(data.get("fetched_at", 0))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if age < 0 or age > max_age_seconds:
         return None
@@ -94,7 +94,7 @@ async def cache_get_stale(
         return None, False
     try:
         age = time.time() - float(data.get("fetched_at", 0))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None, False
     if age < 0 or age > max_age_seconds + stale_window_seconds:
         return None, False

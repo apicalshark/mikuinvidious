@@ -5,6 +5,7 @@ from jinja2 import Environment, FileSystemLoader
 
 ROOT = Path(__file__).resolve().parent.parent
 
+
 class TestM3Views(unittest.TestCase):
     def setUp(self):
         self.env = Environment(loader=FileSystemLoader("templates"))

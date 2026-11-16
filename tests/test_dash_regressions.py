@@ -131,7 +131,9 @@ class DownloadCancellation(unittest.IsolatedAsyncioTestCase):
         with (
             tempfile.TemporaryDirectory() as tmp,
             patch.object(
-                dash_download_track, "_failover_dash_conn", AsyncMock(return_value=(conn, "https://example.com/a", headers))
+                dash_download_track,
+                "_failover_dash_conn",
+                AsyncMock(return_value=(conn, "https://example.com/a", headers)),
             ),
             patch.object(dash_download_track, "_yield_dash_body", body),
         ):
@@ -186,7 +188,9 @@ class AdditionalBoundaries(unittest.IsolatedAsyncioTestCase):
         with (
             tempfile.TemporaryDirectory() as tmp,
             patch.object(
-                dash_download_track, "_failover_dash_conn", AsyncMock(return_value=(conn, "https://example.com/a", headers))
+                dash_download_track,
+                "_failover_dash_conn",
+                AsyncMock(return_value=(conn, "https://example.com/a", headers)),
             ),
             patch.object(dash_download_track, "_yield_dash_body", body),
         ):
@@ -215,7 +219,9 @@ class AdditionalBoundaries(unittest.IsolatedAsyncioTestCase):
             patch.object(dash_download_track, "_DOWNLOAD_SEGMENT_SIZE", 1),
             patch.object(dash_download_track, "_pace_delay", return_value=0),
             patch.object(
-                dash_download_track, "_failover_dash_conn", AsyncMock(return_value=(conn, "https://example.com/a", first))
+                dash_download_track,
+                "_failover_dash_conn",
+                AsyncMock(return_value=(conn, "https://example.com/a", first)),
             ) as fetch,
             patch.object(dash_download_track, "_yield_dash_body", body),
         ):

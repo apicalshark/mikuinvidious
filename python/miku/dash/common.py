@@ -251,16 +251,8 @@ def _synthesize_dash_mirrors(url: str) -> tuple[list[str], list[str]]:
     host = (parsed.hostname or "").lower()
     if not (host.endswith(".bilivideo.com") or host.endswith(".bilivideo.cn")):
         return [], []
-    tier1 = [
-        urlunparse(parsed._replace(netloc=cdn))
-        for cdn in _TIER1_DASH_CDNS
-        if cdn != host
-    ]
-    tier2 = [
-        urlunparse(parsed._replace(netloc=cdn))
-        for cdn in _TIER2_DASH_CDNS
-        if cdn != host
-    ]
+    tier1 = [urlunparse(parsed._replace(netloc=cdn)) for cdn in _TIER1_DASH_CDNS if cdn != host]
+    tier2 = [urlunparse(parsed._replace(netloc=cdn)) for cdn in _TIER2_DASH_CDNS if cdn != host]
     return tier1, tier2
 
 
@@ -693,10 +685,7 @@ def _segment_mirror_order(candidates: list, seg_index: int) -> list:
     edge throttles; Tier 2 mainland, sick mirrors, and M-CDN stay in the tail
     for failover only.
     """
-    tier1 = [
-        u for u in candidates
-        if not _is_mcdn_url(u) and not _is_tier2_dash_url(u) and not _is_dead_dash_url(u)
-    ]
+    tier1 = [u for u in candidates if not _is_mcdn_url(u) and not _is_tier2_dash_url(u) and not _is_dead_dash_url(u)]
     stable = tier1 or [u for u in candidates if not _is_mcdn_url(u)] or list(candidates)
     tail = [u for u in candidates if u not in stable]
     healthy = [u for u in stable if not _mirror_is_sick(urlparse(u).hostname or "")]

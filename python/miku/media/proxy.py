@@ -168,11 +168,7 @@ def _get_image_mirror_candidates(url: str) -> list[str]:
     host = parsed.netloc.lower()
     if host not in _BFS_IMAGE_CDNS or not parsed.path.startswith("/bfs/"):
         return [url]
-    fallbacks = [
-        urlunparse(parsed._replace(netloc=cdn))
-        for cdn in _BFS_IMAGE_CDNS
-        if cdn != host
-    ][:2]
+    fallbacks = [urlunparse(parsed._replace(netloc=cdn)) for cdn in _BFS_IMAGE_CDNS if cdn != host][:2]
     return [url, *fallbacks]
 
 
@@ -228,9 +224,7 @@ async def _fetch_image_once(
         if content_type not in _ALLOWED_IMAGE_TYPES:
             await resp.aclose()
             if can_retry:
-                print(
-                    f"[Proxy] Invalid Content-Type ({content_type}) from {current_url}, retrying alternate mirror"
-                )
+                print(f"[Proxy] Invalid Content-Type ({content_type}) from {current_url}, retrying alternate mirror")
                 return None, True
             print(f"[Proxy] Invalid Content-Type for image: {content_type}")
             return Response("Forbidden: Invalid content type", status=403), False

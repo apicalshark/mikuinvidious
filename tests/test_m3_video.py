@@ -6,6 +6,7 @@ from jinja2 import Environment, FileSystemLoader
 ROOT = Path(__file__).resolve().parent.parent
 VIDEO_HTML = ROOT / "templates" / "themes" / "modern" / "video.html"
 
+
 class TestM3Video(unittest.TestCase):
     def setUp(self):
         self.env = Environment(loader=FileSystemLoader("templates"))
@@ -76,5 +77,4 @@ class TestM3Video(unittest.TestCase):
         rendered = template.render(**context)
         self.assertIn("Test Video Title", rendered)
         self.assertIn("Test Creator", rendered)
-        self.assertIn("title=\"Likes\"", rendered)
-
+        self.assertIn('title="Likes"', rendered)

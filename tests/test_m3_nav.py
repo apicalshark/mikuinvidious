@@ -4,6 +4,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 BASE_HTML = ROOT / "templates" / "themes" / "modern" / "base.html"
 
+
 class TestM3Nav(unittest.TestCase):
     def test_nav_mobile_elements(self):
         html = BASE_HTML.read_text(encoding="utf-8")
