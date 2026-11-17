@@ -1,3 +1,6 @@
+# Copyright (c) 2023-2026 MikuInvidious Team
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Per-IP anti-flood hardening for the media proxies and scrape-amplifying APIs.
 
 Principle under test: isolation is strictly per client IP. There is no global

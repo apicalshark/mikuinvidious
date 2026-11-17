@@ -1,3 +1,6 @@
+# Copyright (c) 2023-2026 MikuInvidious Team
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Run with PYTHONPATH=python .venv/bin/python -m unittest discover -s tests.
 
 Covers the safe reply-emoji renderer (transformers.render_reply_content):

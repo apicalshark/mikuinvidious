@@ -1,3 +1,6 @@
+# Copyright (c) 2023-2026 MikuInvidious Team
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Client-side theme toggle regressions.
 
 Run with PYTHONPATH=python .venv/bin/python -m unittest discover -s tests.

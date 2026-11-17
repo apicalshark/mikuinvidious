@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2023-2026 MikuInvidious Team
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Compile locales/*/LC_MESSAGES/messages.po to messages.json.
 
 JSON schema: flat ``{msgid: msgstr}`` for plain strings; plural entries are

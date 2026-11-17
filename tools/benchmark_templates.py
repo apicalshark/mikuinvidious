@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright (c) 2023-2026 MikuInvidious Team
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Benchmark Jinja2 template rendering latency for cache misses."""
 
 import asyncio

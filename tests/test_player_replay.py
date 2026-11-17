@@ -1,3 +1,6 @@
+# Copyright (c) 2023-2026 MikuInvidious Team
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for player replay cache retention after ended state.
 
 Run with PYTHONPATH=python uv run python -m unittest discover -s tests.

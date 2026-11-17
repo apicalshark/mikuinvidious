@@ -1,3 +1,6 @@
+# Copyright (c) 2023-2026 MikuInvidious Team
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Playback mirror sweep is bounded by time, not by a mirror count.
 
 A refusing edge fails in ~100ms, so a count cap (the old `_PLAYBACK_MAX_MIRRORS
