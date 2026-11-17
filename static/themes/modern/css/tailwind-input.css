@@ -425,6 +425,43 @@
     user-select: none;
   }
 
+  .bili-avatar-has-pendant .bili-avatar-img {
+    width: 57.1429%;
+    height: 57.1429%;
+  }
+
+  .bili-avatar-has-pendant .bili-pendant-img {
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    transform: none;
+  }
+
+  .bili-avatar-has-pendant .bili-avatar-vip-dot {
+    right: 15%;
+    bottom: 14%;
+    width: 24%;
+    height: 24%;
+  }
+
+  .bili-avatar-compact-pendant .bili-avatar-img {
+    width: 78.7%;
+    height: 78.7%;
+  }
+
+  .bili-avatar-compact-pendant .bili-pendant-img {
+    width: 137.5%;
+    height: 137.5%;
+  }
+
+  .bili-avatar-compact-pendant .bili-avatar-vip-dot {
+    right: 4%;
+    bottom: 4%;
+    width: 30%;
+    height: 30%;
+  }
+
   .bili-lv {
     display: inline-flex;
     align-items: center;
@@ -484,16 +521,7 @@
     min-height: 12px;
     max-width: 28px;
     max-height: 28px;
-    border-radius: 9999px;
-    background-color: var(--color-sakura, #fb7299);
-    color: #fff;
-    border: 1.5px solid var(--md-sys-color-surface, #fff);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 9px;
-    font-weight: 700;
-    line-height: 1;
+    display: block;
     pointer-events: none;
     user-select: none;
     z-index: 2;

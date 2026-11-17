@@ -119,7 +119,7 @@ def clean_bilibili_url(target_url: str) -> dict:
         res_type = "opus"
         res_id = f"opus{m_opus.group(1)}"
         canonical_clean_url = f"https://www.bilibili.com/opus/{m_opus.group(1)}"
-        local_path = f"/read/{res_id}"
+        local_path = f"/opus/{m_opus.group(1)}"
 
     # 6. Live (live.bilibili.com/<id> or /live/<id>)
     elif (hostname == "live.bilibili.com" and (m_live := re.search(r"^/([0-9]+)", path))) or (

@@ -146,8 +146,16 @@ async def _fetch_comment_page(
     return data if isinstance(data, dict) else {}
 
 
-async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credential=None, next_offset="") -> dict:
-    started = time.monotonic()
+async def get_comments(
+    oid,
+    type_,
+    page_index=1,
+    order=OrderType.TIME,
+    credential=None,
+    next_offset="",
+    timeout: float | None = None,
+) -> dict:
+    deadline = time.monotonic() + timeout if timeout is not None else None
     page_index = _validate_page_index(page_index)
     type_value = type_.value if isinstance(type_, Enum) else type_
     order_value = order.value if isinstance(order, Enum) else order
@@ -160,16 +168,18 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
     # Cookies are deliberately omitted (send_cookies=False) so generated
     # device cookies don't trigger ~3-item risk-control truncation.
     headers = build_chrome_headers(origin=_MAIN_ORIGIN, referer=_MAIN_ORIGIN + "/")
-    data = await _fetch_comment_page(oid_numeric, type_value, mode, next_offset, headers, credential)
+    first_budget = max(0.0, deadline - time.monotonic()) if deadline is not None else None
+    async with asyncio.timeout(first_budget):
+        data = await _fetch_comment_page(oid_numeric, type_value, mode, next_offset, headers, credential)
 
     cursor = data.get("cursor") or {}
-    retry_budget = 3.5 - (time.monotonic() - started)
+    retry_budget = deadline - time.monotonic() if deadline is not None else None
     if (
         not next_offset
         and mode == 3
         and not (data.get("replies") or [])
         and (cursor.get("all_count") or 0) > len(data.get("top_replies") or [])
-        and retry_budget >= 0.25
+        and (retry_budget is None or retry_budget > 0.05)
     ):
         try:
             web_guest_params = {

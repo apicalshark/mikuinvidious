@@ -5,11 +5,11 @@
      data-is-end="{{ 'true' if sub_comments['page']['num'] * sub_comments['page']['size'] >= sub_comments['page']['count'] else 'false' }}">
     {% if sub_comments["replies"] %}
         {% for rep in sub_comments['replies'] %}
-            <div class="flex gap-3 group" data-rpid="{{ rep['rpid'] }}">
+            <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
                 {% set mvip = rep['member'].get('vip') %}
                 <a href="/space/{{ rep['member']['mid'] }}"
                    class="shrink-0 group-hover:opacity-90 transition-opacity">
-                    {{ avatar_with_pendant(rep['member']['avatar'], rep['member'].get('pendant'), vip=mvip, size_class="w-7 h-7", img_suffix="@32w_32h.webp") }}
+                    {{ avatar_with_pendant(rep['member']['avatar'], rep['member'].get('pendant'), vip=mvip, size_class="w-7 h-7", img_suffix="@32w_32h.webp", compact_pendant=true) }}
                 </a>
                 <div class="grow space-y-0.5">
                     {% set is_vip = mvip is mapping and mvip.get('vipStatus') == 1 and mvip.get('nickname_color') %}

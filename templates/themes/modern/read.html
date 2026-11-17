@@ -1,11 +1,16 @@
 {% extends "themes/modern/base.html" %}
 {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
 {% block head %}
-    {% if is_opus %}
-        <link rel="alternate" href="https://www.bilibili.com/opus/{{ cid }}" />
-        <title>{{ arinfo['title'] }} - {{ _("Illustrations") }} - MikuInvidious</title>
+    {% set bili_opus_id = opus_id if (opus_id is defined and opus_id) else (arinfo.get('opus_id') or (cid if is_opus else '')) %}
+    {% if bili_opus_id %}
+        <link rel="alternate"
+              href="https://www.bilibili.com/opus/{{ bili_opus_id }}" />
     {% else %}
         <link rel="alternate" href="https://www.bilibili.com/read/{{ cid }}" />
+    {% endif %}
+    {% if is_opus %}
+        <title>{{ arinfo['title'] }} - {{ _("Illustrations") }} - MikuInvidious</title>
+    {% else %}
         <title>{{ arinfo['title'] }} - {{ _("Articles") }} - MikuInvidious</title>
     {% endif %}
     <meta name="referrer" content="never" />
@@ -13,51 +18,92 @@
 {% block content %}
     <div class="max-w-4xl mx-auto">
         <!-- Article Header -->
-        <div class="bg-surface dark:bg-surface-variant/20 rounded-t-3xl p-8 md:p-12 pb-6 space-y-6 shadow-xs mb-px">
-            <h1 class="text-3xl md:text-4xl font-bold text-on-surface leading-tight tracking-tight">{{ arinfo['title'] }}</h1>
-            <div class="flex flex-wrap items-center justify-between gap-6 border-b border-surface-variant/20 pb-6">
-                {% set aauthor = arinfo.get('author', {}) %}
-                {% set avip = aauthor.get('vip') %}
-                {% set is_avip = avip is mapping and (avip.get('status') == 1 or avip.get('vipStatus') == 1) and avip.get('nickname_color') %}
-                {% set alevel = aauthor.get('level') if aauthor.get('level') is not none else aauthor.get('level_info', {}).get('current_level') %}
-                <a href="/space/{{ aauthor['mid'] }}"
-                   class="flex items-center gap-3 group">
-                    {{ avatar_with_pendant(aauthor['face'], aauthor.get('pendant'), vip=avip, size_class="w-12 h-12", img_suffix="@48w_48h.webp", alt=aauthor['name']) }}
-                    <div>
-                        <div class="flex items-center gap-1.5 flex-wrap">
-                            <span class="font-bold {{ 'bili-vip-name' if is_avip else 'text-on-surface' }} group-hover:text-primary transition-colors">{{ aauthor['name'] }}</span>
-                            {{ level_badge(alevel, aauthor.get('is_senior_member')) }}
+        <div class="bg-surface dark:bg-surface-variant/20 rounded-t-3xl overflow-hidden shadow-xs mb-px">
+            {% set covers = arinfo.get('covers') or [] %}
+            {% if covers %}
+                <div class="w-full bg-surface-container/30">
+                    <img src="{{ covers[0] }}"
+                         alt="{{ arinfo['title'] }}"
+                         class="w-full h-auto max-h-96 object-cover" />
+                </div>
+            {% endif %}
+            <div class="p-8 md:p-12 pb-6 space-y-6">
+                <h1 class="text-3xl md:text-4xl font-bold text-on-surface leading-tight tracking-tight">{{ arinfo['title'] }}</h1>
+                <div class="flex flex-wrap items-center justify-between gap-6 border-b border-surface-variant/20 pb-6">
+                    {% set aauthor = arinfo.get('author', {}) %}
+                    {% set avip = aauthor.get('vip') %}
+                    {% set is_avip = avip is mapping and (avip.get('status') == 1 or avip.get('vipStatus') == 1) and avip.get('nickname_color') %}
+                    {% set alevel = aauthor.get('level') if aauthor.get('level') is not none else aauthor.get('level_info', {}).get('current_level') %}
+                    <a href="/space/{{ aauthor['mid'] }}"
+                       class="flex items-center gap-4 group">
+                        {{ avatar_with_pendant(aauthor['face'], aauthor.get('pendant'), vip=avip, size_class="w-12 h-12", pendant_size_class="w-16 h-16", img_suffix="@48w_48h.webp", alt=aauthor['name']) }}
+                        <div>
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <span class="font-bold {{ 'bili-vip-name' if is_avip else 'text-on-surface' }} group-hover:text-primary transition-colors">{{ aauthor['name'] }}</span>
+                                {{ level_badge(alevel, aauthor.get('is_senior_member')) }}
+                            </div>
+                            <div class="flex items-center gap-2 flex-wrap text-xs text-on-surface-variant">
+                                <span>{{ arinfo['publish_time']|date }}</span>
+                                {% if aauthor.get("ip_location") %}<span>{{ aauthor['ip_location'] }}</span>{% endif %}
+                            </div>
                         </div>
-                        <div class="flex items-center gap-2 flex-wrap text-xs text-on-surface-variant">
-                            <span>{{ arinfo['publish_time']|date }}</span>
-                            {% if aauthor.get("ip_location") %}<span>{{ aauthor['ip_location'] }}</span>{% endif %}
+                    </a>
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div class="flex flex-wrap gap-4 text-on-surface-variant text-sm font-medium">
+                            <div class="flex items-center gap-1.5">
+                                <i class="icon ion-ios-eye text-lg"></i> {{ arinfo['stats']['view']|intsep }}
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <i class="icon ion-ios-thumbs-up text-lg"></i> {{ arinfo['stats']['like']|intsep }}
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <i class="icon ion-logo-bitcoin text-lg"></i> {{ arinfo['stats']['coin']|intsep }}
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <i class="icon ion-ios-bookmark text-lg"></i> {{ arinfo['stats']['favorite']|intsep }}
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <i class="icon ion-md-share text-lg"></i> {{ arinfo['stats']['share']|intsep }}
+                            </div>
                         </div>
-                    </div>
-                </a>
-                <div class="flex gap-4 text-on-surface-variant text-sm font-medium">
-                    <div class="flex items-center gap-1.5">
-                        <i class="icon ion-ios-eye text-lg"></i> {{ arinfo['stats']['view']|intsep }}
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <i class="icon ion-ios-thumbs-up text-lg"></i> {{ arinfo['stats']['like']|intsep }}
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <i class="icon ion-logo-bitcoin text-lg"></i> {{ arinfo['stats']['coin']|intsep }}
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <i class="icon ion-ios-bookmark text-lg"></i> {{ arinfo['stats']['favorite']|intsep }}
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <i class="icon ion-md-share text-lg"></i> {{ arinfo['stats']['share']|intsep }}
+                        {% set bili_opus_id = opus_id if (opus_id is defined and opus_id) else (arinfo.get('opus_id') or (cid if is_opus else '')) %}
+                        <a href="https://www.bilibili.com/{{ 'opus/' ~ bili_opus_id if bili_opus_id else 'read/' ~ cid }}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="md3-button md3-button-tonal">
+                            <i class="icon ion-logo-youtube"></i>
+                            <span>{{ _("Read on Bilibili") }}</span>
+                        </a>
                     </div>
                 </div>
             </div>
         </div>
         <!-- Article Content -->
         <div class="bg-surface dark:bg-surface-variant/10 rounded-b-3xl p-8 md:p-12 shadow-xs mb-6">
-            <article class="prose prose-lg dark:prose-invert max-w-none prose-headings:font-bold prose-headings:text-on-surface prose-p:text-on-surface-variant prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-img:rounded-xl prose-img:shadow-md prose-img:mx-auto prose-blockquote:border-l-primary prose-blockquote:bg-surface-variant/10 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg">
+            <article class="prose prose-lg dark:prose-invert max-w-2xl mx-auto prose-headings:font-bold prose-headings:text-on-surface prose-p:text-on-surface-variant prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-img:mx-auto prose-blockquote:border-l-primary prose-blockquote:bg-surface-variant/10 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg">
                 {{ article_content|safe }}
             </article>
+            {% set atags = arinfo.get('tags') or [] %}
+            {% set acopyright = arinfo.get('copyright') or {} %}
+            {% if atags or acopyright %}
+                <div class="max-w-2xl mx-auto mt-10 pt-6 border-t border-surface-variant/20 space-y-4">
+                    {% if atags %}
+                        <div class="flex flex-wrap items-center gap-2">
+                            <i class="icon ion-ios-pricetag text-on-surface-variant/60"></i>
+                            {% for tag in atags %}
+                                <a href="/search?q={{ tag|urlencode }}"
+                                   class="px-3 py-1 rounded-full bg-surface-container text-xs text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors">{{ tag }}</a>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                    {% if acopyright.get("left_text") or acopyright.get("right_text") %}
+                        <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-on-surface-variant/75">
+                            <span>{{ acopyright.get('left_text', '') }}</span>
+                            {% if acopyright.get("right_text") %}<span>{{ acopyright.get("right_text") }}</span>{% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
         </div>
         {% if vcomments is defined %}
             {% set vid = comment_oid %}

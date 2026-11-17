@@ -113,11 +113,11 @@ class TestRootB32tvRedirect(unittest.IsolatedAsyncioTestCase):
     async def test_root_redirect_opus(self):
         with patch(
             "miku.app.resolve_b23_target",
-            new=AsyncMock(return_value={"status": "ok", "local_path": "/read/opus12345"}),
+            new=AsyncMock(return_value={"status": "ok", "local_path": "/opus/12345"}),
         ):
             resp = await self.client.get("/opus99")
             self.assertEqual(resp.status_code, 302)
-            self.assertEqual(resp.headers.get("Location"), "/read/opus12345")
+            self.assertEqual(resp.headers.get("Location"), "/opus/12345")
 
     async def test_root_redirect_read_cv(self):
         with patch(
@@ -148,3 +148,46 @@ class TestRootB32tvRedirect(unittest.IsolatedAsyncioTestCase):
     async def test_root_redirect_invalid_format(self):
         resp = await self.client.get("/bad!chars")
         self.assertEqual(resp.status_code, 400)
+
+    async def test_search_redirects_article_and_opus_urls_to_read_path(self):
+        cases = [
+            ("https://www.bilibili.com/read/cv7376731/", "/read/cv7376731"),
+            ("CV7376731", "/read/cv7376731"),
+            ("https://www.bilibili.com/read/mobile/7376731", "/read/cv7376731"),
+            ("opus733063343227535376", "/opus/733063343227535376"),
+            ("https://www.bilibili.com/opus/448554062135640432", "/opus/448554062135640432"),
+        ]
+        for query, expected_location in cases:
+            resp = await self.client.get("/search", query_string={"q": query})
+            self.assertEqual(resp.status_code, 302)
+            self.assertEqual(resp.headers.get("Location"), expected_location)
+
+    async def test_search_article_uses_cached_opus_id_when_available(self):
+        sinfo = {
+            "page": 1,
+            "numPages": 1,
+            "numResults": 1,
+            "result": [
+                {
+                    "id": 7376731,
+                    "title": "Sample",
+                    "image_urls": ["https://i0.hdslb.com/bfs/article/a.png"],
+                    "mid": 519487206,
+                    "author": "Tester",
+                    "pub_time": 1600000000,
+                    "view": 100,
+                }
+            ],
+        }
+        with (
+            patch("miku.views.home.search.search_by_type", AsyncMock(return_value=sinfo)),
+            patch("miku.views.home.cache_minutes", return_value=10),
+            patch("miku.views.home.cache_get", AsyncMock(return_value={"opus_id": "428546721494533554"})),
+        ):
+            resp = await self.client.get("/search", query_string={"q": "Sample", "t": "article"})
+
+        self.assertEqual(resp.status_code, 200)
+        body = await resp.get_data(as_text=True)
+        self.assertIn("/opus/428546721494533554", body)
+        self.assertNotIn("/read/opus", body)
+        self.assertNotIn("/read/cv7376731", body)

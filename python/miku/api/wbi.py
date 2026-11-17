@@ -100,12 +100,13 @@ def encode_wbi_query(params: dict[str, Any]) -> str:
 
 
 def enc_wbi(params: dict[str, Any], mixin_key: str) -> dict[str, Any]:
-    """Calculate and append wts and w_rid signatures to query parameters."""
+    """Calculate and append w_rid and wts signatures in browser param order."""
     if not mixin_key:
         raise ValueError("Empty WBI mixin key")
 
     params.pop("w_rid", None)
-    params["wts"] = int(time.time())
+    params.pop("wts", None)
+    wts = int(time.time())
     if params.get("web_location") is None:
         params["web_location"] = 1315873
 
@@ -113,11 +114,12 @@ def enc_wbi(params: dict[str, Any], mixin_key: str) -> dict[str, Any]:
         if isinstance(v, str):
             params[k] = v.translate(_WBI_FILTER_TABLE)
 
-    # Match PipePipe / bilibili-API-collect: sort keys, then percent-encode each
-    # pair with %20 (NOT '+' which breaks WBI signatures on space characters).
+    to_sign = dict(params)
+    to_sign["wts"] = wts
     query = "&".join(
         f"{urllib.parse.quote(str(k), safe='')}={urllib.parse.quote(str(v).translate(_WBI_FILTER_TABLE), safe='')}"
-        for k, v in sorted(params.items())
+        for k, v in sorted(to_sign.items())
     )
     params["w_rid"] = hashlib.md5((query + mixin_key).encode("utf-8")).hexdigest()
+    params["wts"] = wts
     return params

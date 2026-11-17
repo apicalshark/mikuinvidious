@@ -115,8 +115,8 @@
                         {% set olevel = ometa.get("level") if ometa.get("level") is not none else ometa.get("level_info", {}).get("current_level") %}
                         {% set oloc = vinfo.get("pub_location") or ometa.get("ip_location") %}
                         <a href="/space/{{ vinfo['owner']['mid'] }}"
-                           class="flex items-center gap-3 group w-full md:w-auto">
-                            {{ avatar_with_pendant(vinfo['owner']['face'], ometa.get('pendant'), vip=ovip, size_class="w-10 h-10", img_suffix="@48w_48h.webp", alt=vinfo['owner']['name']) }}
+                           class="flex items-center gap-4 group w-full md:w-auto">
+                            {{ avatar_with_pendant(vinfo['owner']['face'], ometa.get('pendant'), vip=ovip, size_class="w-10 h-10", pendant_size_class="w-14 h-14", img_suffix="@48w_48h.webp", alt=vinfo['owner']['name']) }}
                             <div class="flex flex-col">
                                 <div class="flex items-center gap-1.5 flex-wrap">
                                     <span class="font-bold {{ 'bili-vip-name' if is_ovip else 'text-on-surface' }} group-hover:text-primary transition-colors">{{ vinfo['owner']['name'] }}</span>
@@ -190,11 +190,11 @@
                     {% if vcomments["replies"] %}
                         {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
                         {% for rep in vcomments['replies'] %}
-                            <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
+                            <div class="flex gap-5 group" data-rpid="{{ rep['rpid'] }}">
                                 {% set mvip = rep['member'].get('vip') %}
                                 <a href="/space/{{ rep['member']['mid'] }}"
                                    class="shrink-0 group-hover:opacity-90 transition-opacity">
-                                    {{ avatar_with_pendant(rep['member']['avatar'], rep['member'].get('pendant'), vip=mvip, size_class="w-10 h-10", img_suffix="@48w_48h.webp") }}
+                                    {{ avatar_with_pendant(rep['member']['avatar'], rep['member'].get('pendant'), vip=mvip, size_class="w-10 h-10", img_suffix="@48w_48h.webp", compact_pendant=true) }}
                                 </a>
                                 <div class="grow space-y-1">
                                     {% set is_vip = mvip is mapping and mvip.get('vipStatus') == 1 and mvip.get('nickname_color') %}

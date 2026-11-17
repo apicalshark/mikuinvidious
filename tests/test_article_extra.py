@@ -70,6 +70,158 @@ class TestArticleExtra(unittest.IsolatedAsyncioTestCase):
         self.assertIn("#112233", rendered)
         self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", rendered)
 
+    def test_opus_colors_empty_paragraphs_dividers_and_metadata(self):
+        state = {
+            "detail": {
+                "modules": [
+                    {
+                        "module_type": "MODULE_TYPE_TOP",
+                        "module_top": {
+                            "display": {
+                                "album": {
+                                    "pics": [
+                                        {
+                                            "url": "https://i0.hdslb.com/bfs/article/cover.png",
+                                            "width": 640,
+                                            "height": 188,
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                    },
+                    {
+                        "module_type": "MODULE_TYPE_TITLE",
+                        "module_title": {"text": "Test Article"},
+                    },
+                    {
+                        "module_type": "MODULE_TYPE_CONTENT",
+                        "module_content": {
+                            "paragraphs": [
+                                {
+                                    "para_type": 1,
+                                    "align": 1,
+                                    "text": {
+                                        "nodes": [
+                                            {
+                                                "type": "TEXT_NODE_TYPE_WORD",
+                                                "word": {
+                                                    "words": "Colorful Bold",
+                                                    "color": "var(--Cy4, #4FD3D1)",
+                                                    "style": {"bold": True},
+                                                },
+                                            }
+                                        ]
+                                    },
+                                },
+                                {
+                                    "para_type": 1,
+                                    "text": {
+                                        "nodes": [
+                                            {
+                                                "type": "TEXT_NODE_TYPE_WORD",
+                                                "word": {"words": "\n", "color": ""},
+                                            }
+                                        ]
+                                    },
+                                },
+                                {
+                                    "para_type": 2,
+                                    "pic": {
+                                        "pics": [
+                                            {
+                                                "url": "http://i0.hdslb.com/bfs/article/poster.jpg",
+                                                "width": 500,
+                                                "height": 707,
+                                            }
+                                        ]
+                                    },
+                                },
+                                {
+                                    "para_type": 2,
+                                    "pic": {
+                                        "pics": [
+                                            {
+                                                "url": "http://i0.hdslb.com/bfs/article/divider.png",
+                                                "width": 124,
+                                                "height": 32,
+                                            }
+                                        ]
+                                    },
+                                },
+                            ]
+                        },
+                    },
+                    {
+                        "module_type": "MODULE_TYPE_EXTEND",
+                        "module_extend": {
+                            "items": [
+                                {"text": "Miku"},
+                                {"text": "LIVE"},
+                                {"text": "Miku"},
+                            ]
+                        },
+                    },
+                    {
+                        "module_type": "MODULE_TYPE_COPYRIGHT",
+                        "module_copyright": {
+                            "left_text": "Original content",
+                            "right_text": "cv8036178",
+                        },
+                    },
+                ]
+            }
+        }
+        raw_html = f"<script>window.__INITIAL_STATE__ = {json.dumps(state)};</script>"
+        rendered = extra.article_to_html(raw_html)
+        info = extra.get_article_info(raw_html, "cv8036178")
+
+        self.assertIn('style="color:#4FD3D1"', rendered.replace(" ", ""))
+        self.assertIn('<strong><span style="color:#4FD3D1">Colorful Bold</span></strong>', rendered)
+        self.assertIn('style="text-align:center"', rendered.replace(" ", ""))
+        self.assertIn("<p><br>", rendered)
+        self.assertIn('src="/proxy/pic/i0.hdslb.com/bfs/article/poster.jpg"', rendered)
+        self.assertIn('width="500"', rendered)
+        self.assertIn('class="mx-auto rounded-xl"', rendered)
+        self.assertIn('src="/proxy/pic/i0.hdslb.com/bfs/article/divider.png"', rendered)
+        self.assertIn('width="124"', rendered)
+        self.assertIn('class="mx-auto"', rendered)
+
+        self.assertEqual(info["covers"], ["/proxy/pic/i0.hdslb.com/bfs/article/cover.png"])
+        self.assertEqual(info["tags"], ["Miku", "LIVE"])
+        self.assertEqual(
+            info["copyright"],
+            {"left_text": "Original content", "right_text": "cv8036178"},
+        )
+
+    def test_legacy_article_holder_preserves_empty_paragraph_and_var_color(self):
+        raw_html = (
+            '<div id="read-article-holder">'
+            '<p><span style="background-color: #fff; color: var(--Ma3, #F7AEEB);">Hi</span></p>'
+            "<p>\n</p>"
+            '<img data-src="//i0.hdslb.com/bfs/article/div.png" width="124" height="32">'
+            "</div>"
+        )
+        rendered = extra.article_to_html(raw_html)
+        self.assertIn("color:#F7AEEB", rendered.replace(" ", ""))
+        self.assertIn("<p><br>", rendered)
+        self.assertIn('class="mx-auto"', rendered)
+        self.assertNotIn("rounded-xl", rendered)
+
+    def test_merge_article_viewinfo_cover_fallback(self):
+        arinfo = {"title": "", "stats": {"view": 0}, "covers": []}
+        extra.merge_article_viewinfo(
+            arinfo,
+            {
+                "title": "Legacy Title",
+                "stats": {"view": 99},
+                "banner_url": "https://i0.hdslb.com/bfs/article/banner.jpg",
+            },
+        )
+        self.assertEqual(arinfo["title"], "Legacy Title")
+        self.assertEqual(arinfo["stats"]["view"], 99)
+        self.assertEqual(arinfo["covers"], ["/proxy/pic/i0.hdslb.com/bfs/article/banner.jpg"])
+
     async def test_article_to_any_pandoc_timeout_terminates_and_returns_empty(self):
         fake_proc = MagicMock()
         fake_proc.returncode = None

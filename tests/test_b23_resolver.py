@@ -138,7 +138,7 @@ class TestCleanBilibiliUrl(unittest.TestCase):
         assert res["type"] == "opus"
         assert res["id"] == "opus123456789"
         assert res["clean_url"] == "https://www.bilibili.com/opus/123456789"
-        assert res["local_path"] == "/read/opus123456789"
+        assert res["local_path"] == "/opus/123456789"
 
     def test_classify_live(self):
         url = "https://live.bilibili.com/12345?broadcast_type=0&is_story_h5=0"

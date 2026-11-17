@@ -424,8 +424,9 @@ async def api_component_meta(vid, idx):
 
     comments_closed = False
     try:
-        async with asyncio.timeout(4.0):
-            raw_result = await comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE)
+        raw_result = await comment.get_comments(
+            vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE, timeout=4.0
+        )
     except Exception as exc:
         debug(f"safe_api exception for vid={vid}: {type(exc).__name__}: {exc}")
         comments_closed = getattr(exc, "code", None) == comment.COMMENTS_CLOSED_CODE
@@ -461,8 +462,7 @@ async def api_component_meta_more(vid, idx):
     order = comment.OrderType.TIME if request.args.get("mode", type=int) == 2 else comment.OrderType.LIKE
 
     try:
-        async with asyncio.timeout(4.0):
-            raw = await comment.get_comments(vid, comment_type, 1, order, next_offset=next_offset)
+        raw = await comment.get_comments(vid, comment_type, 1, order, next_offset=next_offset, timeout=4.0)
     except Exception:
         raw = None
     failed = not isinstance(raw, dict)
