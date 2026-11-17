@@ -3,13 +3,16 @@
 
 import asyncio
 import datetime
+import re
+import uuid
 
 import orjson
 from quart import Response, request
 
-from miku.api import article, opus, user
+from miku.api import article, comment, opus, user
+from miku.api.client import _get_anonymous_cookies
 from miku.api.exceptions import is_risk_error
-from miku.core.fingerprints import get_article_scrape_headers
+from miku.core.fingerprints import CHROME_UA, get_article_scrape_headers
 from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
 from miku.media.extra import article_to_any, article_to_html, get_article_info
 from miku.state import (
@@ -337,6 +340,49 @@ async def author_view(mid):
     return html
 
 
+async def _fetch_article_comments(arinfo: dict, cvid: str, is_opus: bool) -> tuple[dict, str, int, bool]:
+    comment_oid = str(arinfo.get("comment_id") or cvid)
+    default_type = (
+        comment.CommentResourceType.DYNAMIC_DRAW.value if is_opus else comment.CommentResourceType.ARTICLE.value
+    )
+    comment_type = arinfo.get("comment_type") or default_type
+    comments_closed = False
+    raw = None
+    try:
+        async with asyncio.timeout(3.5):
+            raw = await comment.get_comments(comment_oid, comment_type, 1, comment.OrderType.LIKE)
+    except Exception as exc:
+        comments_closed = getattr(exc, "code", None) == comment.COMMENTS_CLOSED_CODE
+    empty = {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
+    vcomments = raw if isinstance(raw, dict) else empty
+    return vcomments, comment_oid, comment_type, comments_closed
+
+
+async def _resolve_cv_opus_id(client, cvid: str, cookie_header: str) -> str | None:
+    try:
+        api_headers = {
+            "User-Agent": CHROME_UA,
+            "Referer": f"https://www.bilibili.com/read/cv{cvid}/",
+            "Origin": "https://www.bilibili.com",
+            "Cookie": cookie_header,
+        }
+        api_req = await client.send(
+            client.build_request(
+                "GET",
+                f"https://api.bilibili.com/x/article/view?id={cvid}",
+                headers=api_headers,
+            ),
+        )
+        api_json = orjson.loads(api_req.text) if api_req.status_code == 200 else None
+        await api_req.aclose()
+        dyn_id = (api_json or {}).get("data", {}).get("dyn_id_str") if isinstance(api_json, dict) else None
+        if dyn_id:
+            return str(dyn_id)
+    except Exception:
+        pass
+    return None
+
+
 @app.route("/read/<cid>")
 @app.route("/read/<cid>/")
 @app.route("/read/mobile/<cid>")
@@ -349,10 +395,25 @@ async def read_view(cid):
     url = (
         f"https://www.bilibili.com/opus/{cid.replace('opus', '')}"
         if is_opus
-        else f"https://www.bilibili.com/read/{cid}"
+        else f"https://www.bilibili.com/read/{cid}/"
     )
     cvid = cid.replace("cv", "").replace("opus", "")
-    scrape_headers = get_article_scrape_headers(appconf.get("bili"))
+    scrape_headers = dict(get_article_scrape_headers(appconf.get("bili")))
+    scrape_headers["User-Agent"] = CHROME_UA
+    scrape_headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    scrape_headers["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.8"
+    cookie_parts = {}
+    try:
+        anon = await _get_anonymous_cookies()
+        if isinstance(anon, dict):
+            cookie_parts.update({k: v for k, v in anon.items() if v})
+    except Exception:
+        pass
+    if getattr(appcred, "buvid3", None):
+        cookie_parts["buvid3"] = appcred.buvid3
+    if not cookie_parts.get("buvid3"):
+        cookie_parts["buvid3"] = f"{str(uuid.uuid4()).upper()}infoc"
+    scrape_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookie_parts.items())
 
     # Optional pandoc export (any supported format).
     want_format = (
@@ -369,6 +430,11 @@ async def read_view(cid):
     # the key so /read/cv.. and /opus/.. never share entries.
     use_cache = want_format is None and cache_ttl > 0
     cache_key = f"read:data:{cid}:{'opus' if is_opus else 'cv'}"
+    opus_map_key = f"cv:opus:{cvid}"
+    if not is_opus and cache_ttl > 0:
+        mapped_opus = await cache_get(opus_map_key, cache_ttl)
+        if isinstance(mapped_opus, str) and mapped_opus.isdigit():
+            url = f"https://www.bilibili.com/opus/{mapped_opus}"
     if use_cache:
         data = await cache_get(cache_key, cache_ttl)
         if (
@@ -379,12 +445,19 @@ async def read_view(cid):
             and data.get("content")
             and "Failed to parse article content" not in data.get("content")
         ):
+            vcomments, comment_oid, comment_type, comments_closed = await _fetch_article_comments(
+                data["arinfo"], cvid, is_opus
+            )
             html = await render_template_with_theme(
                 "read.html",
                 cid=cid,
                 arinfo=data["arinfo"],
                 article_content=data["content"],
                 is_opus=is_opus,
+                vcomments=vcomments,
+                comment_oid=comment_oid,
+                comment_type=comment_type,
+                comments_closed=comments_closed,
             )
             return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
 
@@ -425,11 +498,36 @@ async def read_view(cid):
                 print(f"[Article] Attempt {attempts_made}/3 for {cid} parse failed: {e}")
             if want_format is not None or "Failed to parse article content" not in parsed:
                 text, content = body, parsed
+                if not is_opus and cache_ttl > 0:
+                    if m_opus := re.search(r"/opus/(\d+)", str(getattr(req, "url", ""))):
+                        await cache_set(opus_map_key, m_opus.group(1), cache_ttl)
                 break
             last_error = "Content module missing or unparseable"
             print(
                 f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) stripped or unparseable content (length={len(body)})"
             )
+            if not is_opus and "article-web-app" in body:
+                dyn_id = await _resolve_cv_opus_id(client, cvid, scrape_headers["Cookie"])
+                if dyn_id:
+                    url = f"https://www.bilibili.com/opus/{dyn_id}"
+                    if cache_ttl > 0:
+                        await cache_set(opus_map_key, dyn_id, cache_ttl)
+                    opus_req = await client.send(
+                        client.build_request("GET", url, headers=scrape_headers),
+                        follow_redirects=True,
+                    )
+                    opus_status, opus_body = opus_req.status_code, opus_req.text
+                    await opus_req.aclose()
+                    last_status = opus_status
+                    if opus_status == 200:
+                        try:
+                            opus_parsed = article_to_html(opus_body)
+                        except Exception as e:
+                            opus_parsed = "<p>Failed to parse article content.</p>"
+                            last_error = f"Parse exception: {e}"
+                        if want_format is not None or "Failed to parse article content" not in opus_parsed:
+                            text, content = opus_body, opus_parsed
+                            break
         except Exception as e:
             last_error = f"{type(e).__name__}: {e}"
             print(f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) network error: {e}")
@@ -474,6 +572,24 @@ async def read_view(cid):
                     arinfo["title"] = api_info["title"]
         except Exception as e:
             print(f"[Article] Supplementary metadata lookup failed for {cid}: {e}")
+        author_mid = (arinfo.get("author") or {}).get("mid") if isinstance(arinfo, dict) else None
+        if author_mid:
+            try:
+                async with asyncio.timeout(2.5):
+                    uinfo = await user.User(author_mid, credential=appcred).get_user_info()
+                if isinstance(uinfo, dict) and uinfo:
+                    arinfo["author"].setdefault("pendant", uinfo.get("pendant"))
+                    arinfo["author"].setdefault("vip", uinfo.get("vip"))
+                    if uinfo.get("level") is not None:
+                        arinfo["author"]["level"] = uinfo.get("level")
+                    elif isinstance(uinfo.get("level_info"), dict):
+                        arinfo["author"].setdefault("level_info", uinfo.get("level_info"))
+                    if uinfo.get("is_senior_member"):
+                        arinfo["author"]["is_senior_member"] = uinfo.get("is_senior_member")
+                    if uinfo.get("ip_location"):
+                        arinfo["author"]["ip_location"] = uinfo.get("ip_location")
+            except Exception:
+                pass
         # Only cache fully parsed articles; stripped anti-bot bodies are
         # retried live next time instead of sticking.
         if (
@@ -485,8 +601,17 @@ async def read_view(cid):
             and "Failed to parse article content" not in content
         ):
             await cache_set(cache_key, {"arinfo": arinfo, "content": content}, cache_ttl)
+        vcomments, comment_oid, comment_type, comments_closed = await _fetch_article_comments(arinfo, cvid, is_opus)
         html = await render_template_with_theme(
-            "read.html", cid=cid, arinfo=arinfo, article_content=content, is_opus=is_opus
+            "read.html",
+            cid=cid,
+            arinfo=arinfo,
+            article_content=content,
+            is_opus=is_opus,
+            vcomments=vcomments,
+            comment_oid=comment_oid,
+            comment_type=comment_type,
+            comments_closed=comments_closed,
         )
         if use_cache:
             return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})

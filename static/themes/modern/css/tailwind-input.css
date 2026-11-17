@@ -411,4 +411,91 @@
     background: var(--md-sys-color-surface-container-high);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   }
+
+  .bili-pendant-img {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 175%;
+    height: 175%;
+    max-width: none;
+    transform: translate(-50%, -50%);
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .bili-lv {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #fff;
+    letter-spacing: 0.02em;
+    user-select: none;
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+
+  .bili-lv-0,
+  .bili-lv-1 {
+    background-color: #bfbfbf;
+  }
+
+  .bili-lv-2 {
+    background-color: #95ddb2;
+  }
+
+  .bili-lv-3 {
+    background-color: #92d1e5;
+  }
+
+  .bili-lv-4 {
+    background-color: #ffb37c;
+  }
+
+  .bili-lv-5 {
+    background-color: #ff6c00;
+  }
+
+  .bili-lv-6 {
+    background-color: #ff0000;
+  }
+
+  .bili-lv-senior {
+    background: linear-gradient(90deg, #ff6b00 0%, #ff0000 100%);
+  }
+
+  .bili-vip-name {
+    color: var(--color-sakura, #fb7299);
+  }
+
+  .bili-avatar-vip-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 34%;
+    height: 34%;
+    min-width: 12px;
+    min-height: 12px;
+    max-width: 28px;
+    max-height: 28px;
+    border-radius: 9999px;
+    background-color: var(--color-sakura, #fb7299);
+    color: #fff;
+    border: 1.5px solid var(--md-sys-color-surface, #fff);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+    user-select: none;
+    z-index: 2;
+  }
 }

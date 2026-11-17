@@ -1,4 +1,5 @@
 {% extends "themes/modern/base.html" %}
+{% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
 {% block head %}
     {% if is_opus %}
         <link rel="alternate" href="https://www.bilibili.com/opus/{{ cid }}" />
@@ -15,14 +16,22 @@
         <div class="bg-surface dark:bg-surface-variant/20 rounded-t-3xl p-8 md:p-12 pb-6 space-y-6 shadow-xs mb-px">
             <h1 class="text-3xl md:text-4xl font-bold text-on-surface leading-tight tracking-tight">{{ arinfo['title'] }}</h1>
             <div class="flex flex-wrap items-center justify-between gap-6 border-b border-surface-variant/20 pb-6">
-                <a href="/space/{{ arinfo['author']['mid'] }}"
+                {% set aauthor = arinfo.get('author', {}) %}
+                {% set avip = aauthor.get('vip') %}
+                {% set is_avip = avip is mapping and (avip.get('status') == 1 or avip.get('vipStatus') == 1) and avip.get('nickname_color') %}
+                {% set alevel = aauthor.get('level') if aauthor.get('level') is not none else aauthor.get('level_info', {}).get('current_level') %}
+                <a href="/space/{{ aauthor['mid'] }}"
                    class="flex items-center gap-3 group">
-                    <img src="{{ arinfo['author']['face']|pic }}"
-                         alt="{{ arinfo['author']['name'] }}"
-                         class="w-12 h-12 rounded-full object-cover group-hover:opacity-90 transition-opacity" />
+                    {{ avatar_with_pendant(aauthor['face'], aauthor.get('pendant'), vip=avip, size_class="w-12 h-12", img_suffix="@48w_48h.webp", alt=aauthor['name']) }}
                     <div>
-                        <div class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ arinfo['author']['name'] }}</div>
-                        <div class="text-xs text-on-surface-variant">{{ arinfo['publish_time']|date }}</div>
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="font-bold {{ 'bili-vip-name' if is_avip else 'text-on-surface' }} group-hover:text-primary transition-colors">{{ aauthor['name'] }}</span>
+                            {{ level_badge(alevel, aauthor.get('is_senior_member')) }}
+                        </div>
+                        <div class="flex items-center gap-2 flex-wrap text-xs text-on-surface-variant">
+                            <span>{{ arinfo['publish_time']|date }}</span>
+                            {% if aauthor.get("ip_location") %}<span>{{ aauthor['ip_location'] }}</span>{% endif %}
+                        </div>
                     </div>
                 </a>
                 <div class="flex gap-4 text-on-surface-variant text-sm font-medium">
@@ -45,10 +54,17 @@
             </div>
         </div>
         <!-- Article Content -->
-        <div class="bg-surface dark:bg-surface-variant/10 rounded-b-3xl p-8 md:p-12 shadow-xs">
+        <div class="bg-surface dark:bg-surface-variant/10 rounded-b-3xl p-8 md:p-12 shadow-xs mb-6">
             <article class="prose prose-lg dark:prose-invert max-w-none prose-headings:font-bold prose-headings:text-on-surface prose-p:text-on-surface-variant prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-img:rounded-xl prose-img:shadow-md prose-img:mx-auto prose-blockquote:border-l-primary prose-blockquote:bg-surface-variant/10 prose-blockquote:py-2 prose-blockquote:px-4 prose-blockquote:rounded-r-lg">
                 {{ article_content|safe }}
             </article>
         </div>
+        {% if vcomments is defined %}
+            {% set vid = comment_oid %}
+            {% set is_live = false %}
+            {% include "themes/modern/components/meta_part.html" %}
+            <script defer
+                    src="/static/themes/modern/js/comments.js?v={{ asset_version }}"></script>
+        {% endif %}
     </div>
 {% endblock %}

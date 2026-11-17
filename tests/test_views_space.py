@@ -259,6 +259,30 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Connection reset by peer", logs)
         self.assertIn("[Article] Failed to fetch article cv27188030", logs)
 
+    async def test_read_view_sends_buvid3_cookie(self):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 404
+        mock_resp.text = "Not Found"
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(
+                views_space, "_get_anonymous_cookies", AsyncMock(return_value={"buvid3": "TEST-BUVID3-infoc"})
+            ),
+        ):
+            async with app.test_request_context("/read/cv12576864"):
+                resp = await views_space.read_view("cv12576864")
+
+        self.assertEqual(resp[1], 404)
+        _, kwargs = mock_client.build_request.call_args
+        self.assertIn("buvid3=TEST-BUVID3-infoc", kwargs["headers"].get("Cookie", ""))
+
 
 if __name__ == "__main__":
     unittest.main()

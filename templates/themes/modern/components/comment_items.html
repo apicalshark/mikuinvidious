@@ -1,22 +1,30 @@
+{% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
 <div id="comments-cursor"
      data-next-offset="{{ vcomments.get('next_offset', '') }}"
-     data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"></div>
+     data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"
+     data-mode="{{ vcomments.get('mode', 3) }}"></div>
 {% for rep in vcomments['replies'] %}
     <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
-        <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
-            <img loading="lazy"
-                 class="w-10 h-10 rounded-full object-cover group-hover:opacity-90 transition-opacity"
-                 src="{{ (rep['member']['avatar'] + "@48w_48h.webp")|pic }}"
-                 alt="" />
+        {% set mvip = rep['member'].get('vip') %}
+        <a href="/space/{{ rep['member']['mid'] }}"
+           class="shrink-0 group-hover:opacity-90 transition-opacity">
+            {{ avatar_with_pendant(rep['member']['avatar'], rep['member'].get('pendant'), vip=mvip, size_class="w-10 h-10", img_suffix="@48w_48h.webp") }}
         </a>
         <div class="grow space-y-1">
-            <div class="flex items-baseline justify-between">
+            {% set is_vip = mvip is mapping and mvip.get('vipStatus') == 1 and mvip.get('nickname_color') %}
+            <div class="flex items-center gap-1.5 flex-wrap">
                 <a href="/space/{{ rep['member']['mid'] }}"
-                   class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
-                <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
+                   class="font-bold text-sm {{ 'bili-vip-name' if is_vip else 'text-on-surface' }} hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
+                {{ level_badge(rep['member'].get('level_info', {}).get('current_level'), rep['member'].get('is_senior_member')) }}
             </div>
-            <p class="text-sm text-on-surface leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
-            <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
+            <p class="text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
+            <div class="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-on-surface-variant/70 pt-1">
+                {% set cdate = rep.get('ctime')|date %}
+                {% set tdesc = rep.get('reply_control', {}).get('time_desc') %}
+                {% if cdate or tdesc %}<span>{{ cdate or tdesc }}</span>{% endif %}
+                {% if rep.get("reply_control", {}).get("location") %}
+                    <span>{{ rep['reply_control']['location'] }}</span>
+                {% endif %}
                 <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
                 {% set rcount = rep.get('rcount', 0) %}
                 {% if rcount > 0 %}
@@ -24,6 +32,7 @@
                             data-vid="{{ vid }}"
                             data-root="{{ rep['rpid'] }}"
                             data-count="{{ rcount }}"
+                            data-comment-type="{{ comment_type|default(1) }}"
                             data-expanded="0">
                         <i class="icon ion-ios-chatboxes"></i> <span>{{ ngettext('%(count)s reply', '%(count)s replies', rcount) % {'count': rcount} }}</span><i class="icon ion-ios-arrow-down sub-toggle-chevron"></i>
                     </button>

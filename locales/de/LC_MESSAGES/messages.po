@@ -2,179 +2,179 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-13 03:13+0000\n"
+"POT-Creation-Date: 2026-11-17 19:47+0800\n"
 "Language: de\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: python/miku/ui/i18n_strings.py:30
+#: python/miku/ui/i18n_strings.py:18
 msgid "Article does not exist or parse error"
 msgstr "Artikel existiert nicht oder Parserfehler"
 
-#: python/miku/ui/i18n_strings.py:31
+#: python/miku/ui/i18n_strings.py:19
 msgid "Article not found"
 msgstr "Artikel nicht gefunden"
 
-#: python/miku/ui/i18n_strings.py:32
+#: python/miku/ui/i18n_strings.py:20
 msgid "Audio mode load failed"
 msgstr "Audiomodus konnte nicht geladen werden"
 
-#: python/miku/ui/i18n_strings.py:33
+#: python/miku/ui/i18n_strings.py:21
 msgid "Backend server sent an invalid response"
 msgstr "Backend-Server hat eine ungültige Antwort gesendet"
 
-#: python/miku/ui/i18n_strings.py:34
+#: python/miku/ui/i18n_strings.py:22
 msgid "Bad request"
 msgstr "Ungültige Anfrage"
 
-#: python/miku/ui/i18n_strings.py:35
+#: python/miku/ui/i18n_strings.py:23
 msgid "Bangumi load failed"
 msgstr "Bangumi konnte nicht geladen werden"
 
-#: python/miku/ui/i18n_strings.py:36
+#: python/miku/ui/i18n_strings.py:24
 msgid "Bilibili returned empty result (-404)"
 msgstr "Bilibili hat ein leeres Ergebnis zurückgegeben (-404)"
 
-#: python/miku/ui/i18n_strings.py:37
+#: python/miku/ui/i18n_strings.py:25
 msgid "Failed to fetch the live list. Please try again later."
 msgstr "Livliste konnte nicht abgerufen werden. Bitte versuche es später erneut."
 
-#: python/miku/ui/i18n_strings.py:38
+#: python/miku/ui/i18n_strings.py:26
 msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "Profil dieses Benutzers konnte nicht abgerufen werden. Bitte versuche es später erneut."
 
-#: python/miku/ui/i18n_strings.py:39
+#: python/miku/ui/i18n_strings.py:27
 msgid ""
 "Failed to load bangumi info. Please check your network or try again later."
 msgstr "Bangumi-Info konnte nicht geladen werden. Bitte prüfe dein Netzwerk oder versuche es später erneut."
 
-#: python/miku/ui/i18n_strings.py:40
+#: python/miku/ui/i18n_strings.py:28
 msgid ""
 "Failed to load the live room. Please check your network or try again later."
 msgstr "Liveraum konnte nicht geladen werden. Bitte prüfe dein Netzwerk oder versuche es später erneut."
 
-#: python/miku/ui/i18n_strings.py:41
+#: python/miku/ui/i18n_strings.py:29
 msgid "Failed to resolve the redirect target."
 msgstr "Weiterleitungsziel konnte nicht aufgelöst werden."
 
-#: python/miku/ui/i18n_strings.py:42
+#: python/miku/ui/i18n_strings.py:30
 msgid ""
 "Failed to resolve the short link. Please check your network connection or "
 "proxy settings."
 msgstr "Kurzlink konnte nicht aufgelöst werden. Bitte prüfe deine Netzwerkverbindung oder Proxy-Einstellungen."
 
-#: python/miku/ui/i18n_strings.py:43
+#: python/miku/ui/i18n_strings.py:31
 msgid ""
 "Internal server error. Please try again later or contact the administrator."
 msgstr "Interner Serverfehler. Bitte versuche es später erneut oder wende dich an den Administrator."
 
-#: python/miku/ui/i18n_strings.py:44
+#: python/miku/ui/i18n_strings.py:32
 msgid "Invalid request parameters. Please check and try again."
 msgstr "Ungültige Anfrageparameter. Bitte prüfe sie und versuche es erneut."
 
-#: python/miku/ui/i18n_strings.py:45
+#: python/miku/ui/i18n_strings.py:33
 msgid "Live list load failed"
 msgstr "Livliste konnte nicht geladen werden"
 
-#: python/miku/ui/i18n_strings.py:46
+#: python/miku/ui/i18n_strings.py:34
 msgid "Live load failed"
 msgstr "Live konnte nicht geladen werden"
 
-#: python/miku/ui/i18n_strings.py:47
+#: python/miku/ui/i18n_strings.py:35
 msgid "Network error"
 msgstr "Netzwerkfehler"
 
-#: python/miku/ui/i18n_strings.py:48
+#: python/miku/ui/i18n_strings.py:36
 msgid "No search keyword provided."
 msgstr "Kein Suchbegriff angegeben."
 
-#: python/miku/ui/i18n_strings.py:49
+#: python/miku/ui/i18n_strings.py:37
 msgid "No songs found"
 msgstr "Keine Lieder gefunden"
 
-#: python/miku/ui/i18n_strings.py:50
+#: python/miku/ui/i18n_strings.py:38
 msgid "Page not found (404)"
 msgstr "Seite nicht gefunden (404)"
 
-#: python/miku/ui/i18n_strings.py:51
+#: python/miku/ui/i18n_strings.py:39
 msgid "Parse error"
 msgstr "Parserfehler"
 
-#: python/miku/ui/i18n_strings.py:52
+#: python/miku/ui/i18n_strings.py:40
 msgid "Playlist empty"
 msgstr "Wiedergabeliste leer"
 
-#: python/miku/ui/i18n_strings.py:53
+#: python/miku/ui/i18n_strings.py:41
 msgid "Please check the URL."
 msgstr "Bitte prüfe die URL."
 
-#: python/miku/ui/i18n_strings.py:54
+#: python/miku/ui/i18n_strings.py:42
 msgid "Please check your network connection or proxy settings."
 msgstr "Bitte prüfe deine Netzwerkverbindung oder Proxy-Einstellungen."
 
-#: python/miku/ui/i18n_strings.py:55
+#: python/miku/ui/i18n_strings.py:43
 msgid "Please check your network or try again later."
 msgstr "Bitte prüfe dein Netzwerk oder versuche es später erneut."
 
-#: python/miku/ui/i18n_strings.py:56
+#: python/miku/ui/i18n_strings.py:44
 msgid "Please check your request and try again."
 msgstr "Bitte prüfe deine Anfrage und versuche es erneut."
 
-#: python/miku/ui/i18n_strings.py:57
+#: python/miku/ui/i18n_strings.py:45
 msgid "Please enter a search keyword and try again."
 msgstr "Bitte gib einen Suchbegriff ein und versuche es erneut."
 
-#: python/miku/ui/i18n_strings.py:58
+#: python/miku/ui/i18n_strings.py:46
 msgid "Please try refreshing the page, or check the server network connection."
 msgstr "Bitte aktualisiere die Seite oder prüfe die Netzwerkverbindung des Servers."
 
-#: python/miku/ui/i18n_strings.py:59
+#: python/miku/ui/i18n_strings.py:47
 msgid "Search failed"
 msgstr "Suche fehlgeschlagen"
 
-#: python/miku/ui/i18n_strings.py:60
+#: python/miku/ui/i18n_strings.py:48
 msgid "Server error"
 msgstr "Serverfehler"
 
-#: python/miku/ui/i18n_strings.py:61
+#: python/miku/ui/i18n_strings.py:49
 msgid "Space load failed"
 msgstr "Space konnte nicht geladen werden"
 
-#: python/miku/ui/i18n_strings.py:62
+#: python/miku/ui/i18n_strings.py:50
 msgid ""
 "The article you requested most likely does not exist. Please check your "
 "request."
 msgstr "Der angeforderte Artikel existiert höchstwahrscheinlich nicht. Bitte prüfe deine Anfrage."
 
-#: python/miku/ui/i18n_strings.py:63
+#: python/miku/ui/i18n_strings.py:51
 msgid "The requested page does not exist."
 msgstr "Die angeforderte Seite existiert nicht."
 
-#: python/miku/ui/i18n_strings.py:64
+#: python/miku/ui/i18n_strings.py:52
 msgid "The requested resource does not exist."
 msgstr "Die angeforderte Ressource existiert nicht."
 
-#: python/miku/ui/i18n_strings.py:66
+#: python/miku/ui/i18n_strings.py:54
 msgid ""
 "This content is usually unavailable in your region or has been removed by "
 "Bilibili. Please try again later."
 msgstr "Dieser Inhalt ist in deiner Region meist nicht verfügbar oder wurde von Bilibili entfernt. Bitte versuche es später erneut."
 
-#: python/miku/ui/i18n_strings.py:69
+#: python/miku/ui/i18n_strings.py:57
 msgid "This content may be region-restricted or removed."
 msgstr "Dieser Inhalt ist möglicherweise regional gesperrt oder entfernt."
 
-#: python/miku/ui/i18n_strings.py:70
+#: python/miku/ui/i18n_strings.py:58
 msgid ""
 "This video may have been deleted, is under review, or is region-restricted."
 msgstr "Dieses Video wurde möglicherweise gelöscht, wird geprüft oder ist regional gesperrt."
 
-#: python/miku/ui/i18n_strings.py:71
+#: python/miku/ui/i18n_strings.py:59
 msgid "Video load failed"
 msgstr "Video konnte nicht geladen werden"
 
-#: python/miku/ui/i18n_strings.py:72
+#: python/miku/ui/i18n_strings.py:60
 msgid "You have no browsing history yet."
 msgstr "Du hast noch keinen Browserverlauf."
 
@@ -182,8 +182,8 @@ msgstr "Du hast noch keinen Browserverlauf."
 msgid "Resolving video URL..."
 msgstr "Video-URL wird aufgelöst …"
 
-#: static/themes/modern/js/player.js:1706
-#: static/themes/modern/js/player.js:1776 templates/macros.html:62
+#: static/themes/modern/js/player.js:1713
+#: static/themes/modern/js/player.js:1783 templates/macros.html:62
 msgid "Resolution"
 msgstr "Auflösung"
 
@@ -211,11 +211,11 @@ msgstr "Danmaku umschalten"
 msgid "Switch resolution"
 msgstr "Auflösung wechseln"
 
-#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:38
+#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:56
 msgid "This user has no bio yet."
 msgstr "Dieser Benutzer hat noch keine Bio."
 
-#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:47
+#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:64
 msgid "Bilibili Space"
 msgstr "Bilibili-Space"
 
@@ -223,15 +223,15 @@ msgstr "Bilibili-Space"
 #: templates/themes/modern/search.html:15
 #: templates/themes/modern/search_article.html:12
 #: templates/themes/modern/search_user.html:12
-#: templates/themes/modern/space.html:65
+#: templates/themes/modern/space.html:82
 msgid "Videos"
 msgstr "Videos"
 
-#: templates/themes/modern/author.html:55 templates/themes/modern/read.html:8
+#: templates/themes/modern/author.html:55 templates/themes/modern/read.html:9
 #: templates/themes/modern/search.html:19
 #: templates/themes/modern/search_article.html:16
 #: templates/themes/modern/search_user.html:16
-#: templates/themes/modern/space.html:52
+#: templates/themes/modern/space.html:69
 msgid "Articles"
 msgstr "Artikel"
 
@@ -249,7 +249,7 @@ msgstr "Aufrufe"
 #: templates/themes/modern/search.html:67
 #: templates/themes/modern/search_article.html:84
 #: templates/themes/modern/search_user.html:58
-#: templates/themes/modern/space.html:112 templates/themes/modern/zone.html:75
+#: templates/themes/modern/space.html:129 templates/themes/modern/zone.html:75
 msgid "Previous page"
 msgstr "Vorherige Seite"
 
@@ -258,7 +258,7 @@ msgstr "Vorherige Seite"
 #: templates/themes/modern/search.html:73
 #: templates/themes/modern/search_article.html:90
 #: templates/themes/modern/search_user.html:64
-#: templates/themes/modern/space.html:118 templates/themes/modern/zone.html:81
+#: templates/themes/modern/space.html:135 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "Nächste Seite"
 
@@ -377,15 +377,15 @@ msgstr "Link-Konverter"
 msgid "Proudly released under AGPLv3"
 msgstr "Stolz unter AGPLv3 veröffentlicht"
 
-#: templates/themes/modern/base.html:325
+#: templates/themes/modern/base.html:324
 msgid "View JavaScript licenses"
 msgstr "JavaScript-Lizenzen ansehen"
 
-#: templates/themes/modern/base.html:330
+#: templates/themes/modern/base.html:329
 msgid "Privacy policy"
 msgstr "Datenschutzerklärung"
 
-#: templates/themes/modern/base.html:337
+#: templates/themes/modern/base.html:336
 msgid "Donate"
 msgstr "Spenden"
 
@@ -449,11 +449,11 @@ msgstr "Öffnen"
 msgid "Copied!"
 msgstr "Kopiert!"
 
-#: static/themes/modern/js/convert.js:107
+#: static/themes/modern/js/convert.js:121
 msgid "Failed to resolve URL"
 msgstr "URL konnte nicht aufgelöst werden"
 
-#: static/themes/modern/js/convert.js:129
+#: static/themes/modern/js/convert.js:143
 msgid "Network error. Please try again."
 msgstr "Netzwerkfehler. Bitte versuche es erneut."
 
@@ -518,8 +518,8 @@ msgid "suffix."
 msgstr "Suffix ein."
 
 #: templates/themes/modern/components/m3_components.html:127
-#: templates/themes/modern/video.html:128
-#: templates/themes/modern/video_listen.html:127
+#: templates/themes/modern/video.html:138
+#: templates/themes/modern/video_listen.html:137
 #: templates/themes/modern/zone.html:49
 msgid "Watch on Bilibili"
 msgstr "Auf Bilibili ansehen"
@@ -530,7 +530,7 @@ msgid "Audio mode"
 msgstr "Audiomodus"
 
 #: templates/themes/modern/components/m3_components.html:147
-#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:300
+#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:317
 msgid "views"
 msgstr "Aufrufe"
 
@@ -598,7 +598,7 @@ msgid ""
 "quality"
 msgstr "Immer die höchste verfügbare Videospur abspielen statt automatischer Qualitätsanpassung"
 
-#: templates/themes/modern/read.html:5
+#: templates/themes/modern/read.html:6
 msgid "Illustrations"
 msgstr "Illustrationen"
 
@@ -636,8 +636,10 @@ msgstr "Umfassend"
 msgid "Most clicks"
 msgstr "Meiste Klicks"
 
+#: templates/themes/modern/components/meta_part.html:20
 #: templates/themes/modern/search.html:26
 #: templates/themes/modern/search_article.html:23
+#: templates/themes/modern/video_listen.html:182
 msgid "Newest"
 msgstr "Neueste"
 
@@ -693,31 +695,31 @@ msgstr "Höchstes Level"
 msgid "No users found"
 msgstr "Keine Benutzer gefunden"
 
-#: templates/themes/modern/space.html:57
+#: templates/themes/modern/space.html:74
 msgid "RSS Feed"
 msgstr "RSS-Feed"
 
-#: templates/themes/modern/space.html:71
+#: templates/themes/modern/space.html:88
 msgid ""
 "Video list temporarily unavailable — Bilibili rate-limited this instance. "
 "Profile shown; videos should return in a few minutes."
 msgstr "Videoliste vorübergehend nicht verfügbar — Bilibili hat diese Instanz ratenlimitiert. Profil wird angezeigt; Videos sollten in wenigen Minuten zurückkehren."
 
-#: templates/themes/modern/space.html:75
+#: templates/themes/modern/space.html:92
 msgid ""
 "Video list could not be loaded due to a network error. Profile shown; please "
 "retry shortly."
 msgstr "Videoliste konnte wegen eines Netzwerkfehlers nicht geladen werden. Profil wird angezeigt; bitte versuche es in Kürze erneut."
 
-#: templates/themes/modern/space.html:97
+#: templates/themes/modern/space.html:114
 msgid "Nothing to show right now — see notice above."
 msgstr "Derzeit gibt es nichts anzuzeigen — siehe Hinweis oben."
 
-#: templates/themes/modern/space.html:99
+#: templates/themes/modern/space.html:116
 msgid "Nothing to show right now — loading failed, see notice above."
 msgstr "Derzeit gibt es nichts anzuzeigen — Laden fehlgeschlagen, siehe Hinweis oben."
 
-#: templates/themes/modern/space.html:101
+#: templates/themes/modern/space.html:118
 msgid "This user has no videos yet."
 msgstr "Dieser Benutzer hat noch keine Videos."
 
@@ -741,46 +743,46 @@ msgstr "Favoriten"
 msgid "Share"
 msgstr "Teilen"
 
-#: templates/themes/modern/video.html:151
+#: templates/themes/modern/video.html:161
 msgid "Download"
 msgstr "Herunterladen"
 
 #: static/themes/modern/js/comments.js:97
-#: templates/themes/modern/components/meta_part.html:6
-#: templates/themes/modern/video.html:171
-#: templates/themes/modern/video_listen.html:158
+#: templates/themes/modern/components/meta_part.html:8
+#: templates/themes/modern/video.html:181
+#: templates/themes/modern/video_listen.html:170
 msgid "Comments"
 msgstr "Kommentare"
 
-#: templates/themes/modern/video.html:200
+#: templates/themes/modern/video.html:217
 msgid "Loading comments..."
 msgstr "Kommentare werden geladen …"
 
-#: templates/themes/modern/video.html:219
-#: templates/themes/modern/video.html:222
+#: templates/themes/modern/video.html:236
+#: templates/themes/modern/video.html:239
 msgid "Live chat"
 msgstr "Livechat"
 
-#: templates/themes/modern/video.html:231
+#: templates/themes/modern/video.html:248
 msgid "Connecting to chat..."
 msgstr "Verbinde mit Chat …"
 
-#: templates/themes/modern/video.html:242
-#: templates/themes/modern/video_listen.html:221
+#: templates/themes/modern/video.html:259
+#: templates/themes/modern/video_listen.html:253
 msgid "Episodes"
 msgstr "Episoden"
 
-#: templates/themes/modern/video.html:248
-#: templates/themes/modern/video_listen.html:227
+#: templates/themes/modern/video.html:265
+#: templates/themes/modern/video_listen.html:259
 msgid "Autoplay next"
 msgstr "Nächste automatisch abspielen"
 
-#: templates/themes/modern/video.html:279
-#: templates/themes/modern/video_listen.html:255
+#: templates/themes/modern/video.html:296
+#: templates/themes/modern/video_listen.html:287
 msgid "Recommended"
 msgstr "Empfohlen"
 
-#: templates/themes/modern/video_listen.html:274
+#: templates/themes/modern/video_listen.html:306
 msgid "Play"
 msgstr "Abspielen"
 
@@ -793,8 +795,8 @@ msgid "Load more replies"
 msgstr "Weitere Antworten laden"
 
 #: static/themes/modern/js/comments.js:31
-#: templates/themes/modern/components/meta_part.html:25
-#: templates/themes/modern/video_listen.html:210
+#: templates/themes/modern/components/meta_part.html:41
+#: templates/themes/modern/video_listen.html:242
 msgid "Load more comments"
 msgstr "Weitere Kommentare laden"
 
@@ -813,21 +815,21 @@ msgstr "Puffern: %(available)s / %(target)s"
 msgid "Video mode"
 msgstr "Videomodus"
 
-#: templates/themes/modern/video_listen.html:142
+#: templates/themes/modern/video_listen.html:152
 msgid "Download audio"
 msgstr "Audio herunterladen"
 
 #: static/themes/modern/js/comments.js:39
-#: templates/themes/modern/components/comment_items.html:28
-#: templates/themes/modern/video_listen.html:189
+#: templates/themes/modern/components/comment_items.html:37
+#: templates/themes/modern/video_listen.html:221
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
 msgstr[0] "%(count)s Antwort"
 msgstr[1] "%(count)s Antworten"
 
-#: templates/themes/modern/components/meta_part.html:13
-#: templates/themes/modern/video_listen.html:198
+#: templates/themes/modern/components/meta_part.html:28
+#: templates/themes/modern/video_listen.html:230
 msgid "No comments yet or failed to load"
 msgstr "Noch keine Kommentare oder Laden fehlgeschlagen"
 
@@ -835,7 +837,7 @@ msgstr "Noch keine Kommentare oder Laden fehlgeschlagen"
 msgid "Zone"
 msgstr "Zone"
 
-#: templates/themes/modern/components/meta_part.html:11
+#: templates/themes/modern/components/meta_part.html:26
 msgid "Comments are closed by the uploader."
 msgstr "Kommentare wurden vom Uploader deaktiviert."
 
@@ -986,28 +988,28 @@ msgstr "Stream beendet"
 msgid "Live stream has ended"
 msgstr "Livestream beendet"
 
-#: static/themes/modern/js/player.js:1450
+#: static/themes/modern/js/player.js:1457
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "Auto (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1473
-#: static/themes/modern/js/player.js:1477
-#: static/themes/modern/js/player.js:1508
-#: static/themes/modern/js/player.js:1512
+#: static/themes/modern/js/player.js:1480
+#: static/themes/modern/js/player.js:1484
+#: static/themes/modern/js/player.js:1515
+#: static/themes/modern/js/player.js:1519
 msgid "Auto"
 msgstr "Auto"
 
-#: static/themes/modern/js/player.js:1637
+#: static/themes/modern/js/player.js:1644
 msgid "Back"
 msgstr "Zurück"
 
-#: static/themes/modern/js/player.js:1707
+#: static/themes/modern/js/player.js:1714
 msgid "Audio"
 msgstr "Audio"
 
-#: static/themes/modern/js/player.js:1708
-#: static/themes/modern/js/player.js:1777
+#: static/themes/modern/js/player.js:1715
+#: static/themes/modern/js/player.js:1784
 msgid "Playback speed"
 msgstr "Wiedergabegeschwindigkeit"
 
@@ -1041,6 +1043,11 @@ msgstr ""
 #: static/themes/modern/js/comments.js:98
 msgid "Failed to load comments, please try again later"
 msgstr "Kommentare konnten nicht geladen werden, bitte versuche es später erneut"
+
+#: templates/themes/modern/components/meta_part.html:17
+#: templates/themes/modern/video_listen.html:179
+msgid "Hot"
+msgstr ""
 
 #~ msgid "No articles yet"
 #~ msgstr "Noch keine Artikel"

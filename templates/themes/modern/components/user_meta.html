@@ -1,0 +1,33 @@
+{% macro avatar_with_pendant(avatar_url, pendant=none, vip=none, size_class="w-10 h-10", img_suffix="@48w_48h.webp", alt="", ring_class="", img_class="") %}
+    {% set pendant_url = (pendant.get("image_enhance") or pendant.get("image")) if pendant is mapping else "" %}
+    {% set is_vip = vip is mapping and (vip.get("status") == 1 or vip.get("vipStatus") == 1) %}
+    {% set vip_title = (vip.get("label", {}).get("text") if is_vip and vip.get("label") is mapping else "") or "大会员" %}
+    <div class="relative inline-flex items-center justify-center shrink-0 {{ size_class }}">
+        <img loading="lazy"
+             class="w-full h-full rounded-full object-cover {{ ring_class }} {{ img_class }}"
+             src="{{ (avatar_url + img_suffix)|pic }}"
+             alt="{{ alt }}" />
+        {% if pendant_url %}
+            <img loading="lazy"
+                 aria-hidden="true"
+                 src="{{ pendant_url|pic }}"
+                 alt=""
+                 class="bili-pendant-img" />
+        {% endif %}
+        {% if is_vip %}
+            <span class="bili-avatar-vip-dot" title="{{ vip_title }}">大</span>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{% macro level_badge(level, is_senior=0) %}
+    {% if level is not none and level != "" %}
+        {% set lv_int = level|int %}
+        {% set lv_clamped = 6 if lv_int > 6 else (0 if lv_int < 0 else lv_int) %}
+        {% set senior_cls = " bili-lv-senior" if (is_senior and lv_clamped == 6) else "" %}
+        <span class="bili-lv bili-lv-{{ lv_clamped }}{{ senior_cls }}"
+              title="LV{{ lv_clamped }}">LV{{ lv_clamped }}
+            {%- if is_senior and lv_clamped == 6 %}+{% endif -%}
+        </span>
+    {% endif %}
+{% endmacro %}

@@ -1,3 +1,4 @@
+{% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
 <div class="sub-comments-page mt-3 space-y-3 border-on-surface/10"
      data-page="{{ sub_comments['page']['num'] }}"
      data-count="{{ sub_comments['page']['count'] }}"
@@ -5,22 +6,26 @@
     {% if sub_comments["replies"] %}
         {% for rep in sub_comments['replies'] %}
             <div class="flex gap-3 group" data-rpid="{{ rep['rpid'] }}">
-                <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
-                    <img loading="lazy"
-                         class="w-7 h-7 rounded-full object-cover group-hover:opacity-90 transition-opacity"
-                         src="{{ (rep['member']['avatar'] + '@32w_32h.webp')|pic }}"
-                         alt="" />
+                {% set mvip = rep['member'].get('vip') %}
+                <a href="/space/{{ rep['member']['mid'] }}"
+                   class="shrink-0 group-hover:opacity-90 transition-opacity">
+                    {{ avatar_with_pendant(rep['member']['avatar'], rep['member'].get('pendant'), vip=mvip, size_class="w-7 h-7", img_suffix="@32w_32h.webp") }}
                 </a>
                 <div class="grow space-y-0.5">
-                    <div class="flex items-baseline gap-2">
+                    {% set is_vip = mvip is mapping and mvip.get('vipStatus') == 1 and mvip.get('nickname_color') %}
+                    <div class="flex items-center gap-1.5 flex-wrap">
                         <a href="/space/{{ rep['member']['mid'] }}"
-                           class="font-semibold text-xs text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
-                        {% if rep.get("reply_control", {}).get("time_desc") %}
-                            <span class="text-xs text-on-surface-variant/60">{{ rep['reply_control']['time_desc'] }}</span>
-                        {% endif %}
+                           class="font-semibold text-xs {{ 'bili-vip-name' if is_vip else 'text-on-surface' }} hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
+                        {{ level_badge(rep['member'].get('level_info', {}).get('current_level'), rep['member'].get('is_senior_member')) }}
                     </div>
-                    <p class="text-sm text-on-surface leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
-                    <div class="flex items-center gap-3 text-xs text-on-surface-variant/60 pt-0.5">
+                    <p class="text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
+                    <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-on-surface-variant/60 pt-0.5">
+                        {% set cdate = rep.get('ctime')|date %}
+                        {% set tdesc = rep.get('reply_control', {}).get('time_desc') %}
+                        {% if cdate or tdesc %}<span>{{ cdate or tdesc }}</span>{% endif %}
+                        {% if rep.get("reply_control", {}).get("location") %}
+                            <span>{{ rep['reply_control']['location'] }}</span>
+                        {% endif %}
                         <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default">
                             <i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}
                         </span>

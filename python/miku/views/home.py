@@ -106,7 +106,8 @@ async def search_view():
 
     # URL Jump logic
     b23_link = extract_b23_or_bili_url(q)
-    if b23_link and "b23.tv" in b23_link:
+    b23_host = (urlparse(b23_link).hostname or "").lower() if b23_link else ""
+    if b23_host == "b23.tv" or b23_host.endswith(".b23.tv"):
         res = await resolve_b23_target(q)
         if res.get("status") == "ok" and res.get("local_path"):
             return redirect(res["local_path"])

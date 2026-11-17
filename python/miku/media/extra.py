@@ -96,6 +96,12 @@ def get_article_info(article_text, cid):
                 arinfo["author"]["mid"] = author.get("mid")
                 arinfo["author"]["name"] = author.get("name")
                 arinfo["author"]["face"] = author.get("face")
+                if isinstance(author.get("pendant"), dict):
+                    arinfo["author"]["pendant"] = author.get("pendant")
+                if isinstance(author.get("vip"), dict):
+                    arinfo["author"]["vip"] = author.get("vip")
+                if isinstance(author.get("level_info"), dict):
+                    arinfo["author"]["level_info"] = author.get("level_info")
                 arinfo["publish_time"] = author.get("pub_ts", 0)
 
             # Stats
@@ -116,6 +122,14 @@ def get_article_info(article_text, cid):
 
         if not arinfo["stats"]["view"] and "basic" in detail:
             arinfo["stats"]["view"] = detail["basic"].get("view_count", 0)
+
+        if "basic" in detail and isinstance(detail["basic"], dict):
+            cid_str = detail["basic"].get("comment_id_str")
+            ctype = detail["basic"].get("comment_type")
+            if cid_str:
+                arinfo["comment_id"] = str(cid_str)
+            if ctype is not None:
+                arinfo["comment_type"] = _to_int(ctype)
 
         # Coerce numeric fields to int (Bilibili sometimes sends them as strings,
         # e.g. ``pub_ts`` on the opus format) so template filters like |date
