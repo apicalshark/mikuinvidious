@@ -311,6 +311,24 @@ async def space_json_feed(mid):
     return Response(raw, status=200, content_type="application/feed+json", headers=feed_headers)
 
 
+def _unique_title_opus_map(items: list) -> dict[str, str]:
+    title_to_opus: dict[str, str] = {}
+    ambiguous_titles: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        oid = str(item.get("opus_id") or "").strip()
+        title = str(item.get("content") or "").strip()
+        if oid.isdigit() and title:
+            if title in title_to_opus and title_to_opus[title] != oid:
+                ambiguous_titles.add(title)
+            else:
+                title_to_opus.setdefault(title, oid)
+    for title in ambiguous_titles:
+        title_to_opus.pop(title, None)
+    return title_to_opus
+
+
 async def _enrich_author_articles_with_opus(u, uarticles: dict, pn: int, first_opus_res, article_ttl: int) -> None:
     """Attach opus_id to creator space articles and warm cv->opus cache entries."""
     articles = uarticles.get("articles") if isinstance(uarticles, dict) else None
@@ -331,20 +349,22 @@ async def _enrich_author_articles_with_opus(u, uarticles: dict, pn: int, first_o
                 break
             opus_items.extend(cur.get("items") or [])
 
-    title_to_opus: dict[str, str] = {}
-    for item in opus_items:
-        if not isinstance(item, dict):
-            continue
-        oid = str(item.get("opus_id") or "").strip()
-        title = str(item.get("content") or "").strip()
-        if oid.isdigit() and title and title not in title_to_opus:
-            title_to_opus[title] = oid
+    title_to_opus = _unique_title_opus_map(opus_items)
+    article_title_counts: dict[str, int] = {}
+    for art in articles:
+        if isinstance(art, dict):
+            t = str(art.get("title") or "").strip()
+            if t:
+                article_title_counts[t] = article_title_counts.get(t, 0) + 1
 
     warm_tasks = []
     for art in articles:
         if not isinstance(art, dict):
             continue
-        matched = title_to_opus.get(str(art.get("title") or "").strip())
+        t = str(art.get("title") or "").strip()
+        if article_title_counts.get(t, 0) != 1:
+            continue
+        matched = title_to_opus.get(t)
         if matched:
             art["opus_id"] = matched
             if article_ttl > 0 and art.get("id"):
@@ -465,11 +485,7 @@ async def _resolve_cv_opus_id(client, cvid: str, cookie_header: str) -> str | No
             title = str(vinfo.get("title") or "").strip() if isinstance(vinfo, dict) else ""
             if mid and title:
                 opus_res = await user.User(mid, credential=appcred).get_opus_articles()
-                for item in (opus_res or {}).get("items") or []:
-                    if isinstance(item, dict) and str(item.get("content") or "").strip() == title:
-                        oid = str(item.get("opus_id") or "").strip()
-                        if oid.isdigit():
-                            return oid
+                return _unique_title_opus_map((opus_res or {}).get("items") or []).get(title)
         except Exception:
             pass
     return None

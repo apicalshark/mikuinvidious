@@ -532,6 +532,70 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
             resp_bad_opus = await views_space.read_view("opus733063343227535376")
         self.assertEqual(resp_bad_opus[1], 404)
 
+    async def test_enrich_author_articles_skips_ambiguous_titles_and_cache(self):
+        uarts = {
+            "articles": [
+                {"id": 101, "title": "Update"},
+                {"id": 102, "title": "Update"},
+                {"id": 103, "title": "Repeated Opus"},
+                {"id": 104, "title": "Unique"},
+            ]
+        }
+        opus_feed = {
+            "items": [
+                {"opus_id": "9001", "content": "Update"},
+                {"opus_id": "9002", "content": "Repeated Opus"},
+                {"opus_id": "9003", "content": "Repeated Opus"},
+                {"opus_id": "9004", "content": "Unique"},
+            ],
+            "has_more": False,
+        }
+        cache_mock = AsyncMock()
+        with patch.object(views_space, "cache_set", cache_mock):
+            await views_space._enrich_author_articles_with_opus(MagicMock(), uarts, 1, opus_feed, 300)
+
+        self.assertNotIn("opus_id", uarts["articles"][0])
+        self.assertNotIn("opus_id", uarts["articles"][1])
+        self.assertNotIn("opus_id", uarts["articles"][2])
+        self.assertEqual(uarts["articles"][3].get("opus_id"), "9004")
+        cache_mock.assert_awaited_once_with("cv:opus:104", {"opus_id": "9004"}, 300)
+
+    async def test_resolve_cv_opus_id_skips_ambiguous_title_fallback(self):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.json = MagicMock(return_value={"code": -509, "message": "too fast"})
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+
+        with (
+            patch("asyncio.sleep", AsyncMock()),
+            patch.object(
+                views_space.article,
+                "Article",
+                return_value=MagicMock(get_info=AsyncMock(return_value={"mid": 519487206, "title": "Update"})),
+            ),
+            patch.object(
+                views_space.user,
+                "User",
+                return_value=MagicMock(
+                    get_opus_articles=AsyncMock(
+                        return_value={
+                            "items": [
+                                {"opus_id": "111", "content": "Update"},
+                                {"opus_id": "222", "content": "Update"},
+                            ]
+                        }
+                    )
+                ),
+            ),
+        ):
+            resolved = await views_space._resolve_cv_opus_id(mock_client, "7376731", "")
+
+        self.assertIsNone(resolved)
+
 
 if __name__ == "__main__":
     unittest.main()
