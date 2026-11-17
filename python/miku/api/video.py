@@ -60,7 +60,7 @@ def _get_dm_img_params(fingerprint: bool = True) -> dict[str, str]:
     renderer = f"ANGLE ({vendor}, {model} Direct3D11 vs_5_0 ps_5_0, D3D11)Google Inc. ({vendor})"
 
     webgl_version_b64 = base64.b64encode(_WEBGL_VERSION.encode()).decode().rstrip("=")
-    renderer_b64 = base64.b64encode(renderer[:-1].encode()).decode().rstrip("=")
+    renderer_b64 = base64.b64encode(renderer.encode()).decode()[:-2]
 
     # Formulas from official SDK: _186aea (wh) and _580c77 (of).
     # of on initial un-scrolled page is [rnd_of, 2*rnd_of, rnd_of];
