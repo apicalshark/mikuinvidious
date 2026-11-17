@@ -319,9 +319,9 @@ def opus_modules_to_html(modules):
                     align = p.get("align")
                     if align is None and isinstance(p.get("format"), dict):
                         align = p["format"].get("align")
-                    if align == 2 or align == 1:
+                    if align == 1:
                         align_style = ' style="text-align: center;"'
-                    elif align == 3:
+                    elif align == 2:
                         align_style = ' style="text-align: right;"'
 
                     if p_content.strip():
