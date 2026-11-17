@@ -275,6 +275,10 @@
         const moreLabel = moreBtn ? moreBtn.querySelector("span") : null;
         if (!vid || !list) return;
 
+        const prevMode =
+          document.getElementById("comments-cursor")?.dataset.mode ||
+          document.querySelector(".comment-sort-btn.text-primary")?.dataset.sort ||
+          "3";
         commentsLoading = true;
         paintSortButtons(sortMode);
         fetch(
@@ -298,6 +302,7 @@
           })
           .catch((err) => {
             console.error("[comments] sort switch failed:", err);
+            paintSortButtons(prevMode);
           })
           .finally(() => {
             commentsLoading = false;

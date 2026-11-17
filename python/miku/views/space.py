@@ -432,7 +432,8 @@ async def read_view(cid):
     cache_key = f"read:data:{cid}:{'opus' if is_opus else 'cv'}"
     opus_map_key = f"cv:opus:{cvid}"
     if not is_opus and cache_ttl > 0:
-        mapped_opus = await cache_get(opus_map_key, cache_ttl)
+        cached_opus = await cache_get(opus_map_key, cache_ttl)
+        mapped_opus = cached_opus.get("opus_id") if isinstance(cached_opus, dict) else None
         if isinstance(mapped_opus, str) and mapped_opus.isdigit():
             url = f"https://www.bilibili.com/opus/{mapped_opus}"
     if use_cache:
@@ -502,7 +503,7 @@ async def read_view(cid):
                 text, content = body, parsed
                 if not is_opus and cache_ttl > 0:
                     if m_opus := re.search(r"/opus/(\d+)", str(getattr(req, "url", ""))):
-                        await cache_set(opus_map_key, m_opus.group(1), cache_ttl)
+                        await cache_set(opus_map_key, {"opus_id": m_opus.group(1)}, cache_ttl)
                 break
             last_error = "Content module missing or unparseable"
             print(
@@ -513,7 +514,7 @@ async def read_view(cid):
                 if dyn_id:
                     url = f"https://www.bilibili.com/opus/{dyn_id}"
                     if cache_ttl > 0:
-                        await cache_set(opus_map_key, dyn_id, cache_ttl)
+                        await cache_set(opus_map_key, {"opus_id": dyn_id}, cache_ttl)
                     opus_req = await client.send(
                         client.build_request("GET", url, headers=scrape_headers),
                         follow_redirects=True,

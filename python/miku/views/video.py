@@ -45,10 +45,11 @@ async def _fetch_owner_meta(vinfo: dict) -> dict:
         return {}
     if not isinstance(uinfo, dict) or not uinfo:
         return {}
+    raw_level_info = uinfo.get("level_info")
     meta = {
         "pendant": uinfo.get("pendant"),
         "level": uinfo.get("level"),
-        "level_info": uinfo.get("level_info"),
+        "level_info": raw_level_info if isinstance(raw_level_info, dict) else {},
         "is_senior_member": uinfo.get("is_senior_member"),
         "vip": uinfo.get("vip"),
         "ip_location": uinfo.get("ip_location"),

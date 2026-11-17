@@ -7,8 +7,10 @@ Minimal drop-in for ``bilibili_api.comment`` covering get_comments and its
 enums as used by MikuInvidious.
 """
 
+import asyncio
 import json as _json
 import sys
+import time
 from enum import Enum
 
 from .client import (
@@ -145,6 +147,7 @@ async def _fetch_comment_page(
 
 
 async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credential=None, next_offset="") -> dict:
+    started = time.monotonic()
     page_index = _validate_page_index(page_index)
     type_value = type_.value if isinstance(type_, Enum) else type_
     order_value = order.value if isinstance(order, Enum) else order
@@ -160,11 +163,13 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
     data = await _fetch_comment_page(oid_numeric, type_value, mode, next_offset, headers, credential)
 
     cursor = data.get("cursor") or {}
+    retry_budget = 3.5 - (time.monotonic() - started)
     if (
         not next_offset
         and mode == 3
         and not (data.get("replies") or [])
         and (cursor.get("all_count") or 0) > len(data.get("top_replies") or [])
+        and retry_budget >= 0.25
     ):
         try:
             web_guest_params = {
@@ -175,9 +180,10 @@ async def get_comments(oid, type_, page_index=1, order=OrderType.TIME, credentia
                     separators=(",", ":"),
                 ),
             }
-            guest_data = await _fetch_comment_page(
-                oid_numeric, type_value, mode, next_offset, headers, credential, extra_params=web_guest_params
-            )
+            async with asyncio.timeout(retry_budget):
+                guest_data = await _fetch_comment_page(
+                    oid_numeric, type_value, mode, next_offset, headers, credential, extra_params=web_guest_params
+                )
             if guest_data.get("replies"):
                 data = guest_data
                 cursor = data.get("cursor") or {}

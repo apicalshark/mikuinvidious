@@ -283,6 +283,44 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         _, kwargs = mock_client.build_request.call_args
         self.assertIn("buvid3=TEST-BUVID3-infoc", kwargs["headers"].get("Cookie", ""))
 
+    async def test_read_view_unwraps_cv_opus_dict_mapping(self):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "<html></html>"
+        mock_resp.url = "https://www.bilibili.com/opus/99887766"
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+
+        async def fake_cache_get(key, _ttl):
+            if key == "cv:opus:12576864":
+                return {"opus_id": "99887766"}
+            return None
+
+        mock_cache_set = AsyncMock()
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=10),
+            patch.object(views_space, "cache_get", side_effect=fake_cache_get),
+            patch.object(views_space, "cache_set", mock_cache_set),
+            patch.object(views_space, "article_to_html", return_value="<p>ok</p>"),
+            patch.object(views_space, "get_article_info", return_value={}),
+            patch.object(views_space, "_fetch_article_comments", AsyncMock(return_value=({}, "", 12, False))),
+            patch.object(views_space, "render_template_with_theme", AsyncMock(return_value="rendered")),
+        ):
+            async with app.test_request_context("/read/cv12576864"):
+                resp = await views_space.read_view("cv12576864")
+
+        self.assertEqual(resp.status_code, 200)
+        _, req_kwargs = mock_client.build_request.call_args
+        self.assertEqual(mock_client.build_request.call_args[0][1], "https://www.bilibili.com/opus/99887766")
+        self.assertIn("Cookie", req_kwargs["headers"])
+        opus_set_calls = [c for c in mock_cache_set.await_args_list if c.args[0] == "cv:opus:12576864"]
+        self.assertEqual(len(opus_set_calls), 1)
+        self.assertEqual(opus_set_calls[0].args[1], {"opus_id": "99887766"})
+
 
 if __name__ == "__main__":
     unittest.main()
