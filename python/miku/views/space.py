@@ -588,7 +588,9 @@ async def read_view(cid):
     attempts_made = 0
     max_attempts = 5
     client = await Network.get_async_client()
+    opus_lookup_done = False
     if not is_opus and not resolved_opus_id:
+        opus_lookup_done = True
         dyn_id = await _resolve_cv_opus_id(client, cvid, scrape_headers["Cookie"])
         if dyn_id:
             if cache_ttl > 0:
@@ -641,7 +643,8 @@ async def read_view(cid):
             print(
                 f"[Article] Attempt {attempts_made}/{max_attempts} for {cid} ({url}) stripped or unparseable content (length={len(body)})"
             )
-            if not is_opus and "article-web-app" in body:
+            if not is_opus and not opus_lookup_done and "article-web-app" in body:
+                opus_lookup_done = True
                 dyn_id = await _resolve_cv_opus_id(client, cvid, scrape_headers["Cookie"])
                 if dyn_id:
                     if cache_ttl > 0:

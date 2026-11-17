@@ -59,7 +59,7 @@ def _get_dm_img_params(fingerprint: bool = True) -> dict[str, str]:
     vendor, model = random.choice(_WEBGL_RENDERER_TEMPLATES)
     renderer = f"ANGLE ({vendor}, {model} Direct3D11 vs_5_0 ps_5_0, D3D11)Google Inc. ({vendor})"
 
-    webgl_version_b64 = base64.b64encode(_WEBGL_VERSION.encode()).decode().rstrip("=")
+    webgl_version_b64 = base64.b64encode(_WEBGL_VERSION.encode()).decode()[:-2]
     renderer_b64 = base64.b64encode(renderer.encode()).decode()[:-2]
 
     # Formulas from official SDK: _186aea (wh) and _580c77 (of).

@@ -457,6 +457,34 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Cookie", req_kwargs["headers"])
         self.assertEqual(render.await_args.kwargs["opus_id"], "99887766")
 
+    async def test_read_view_runs_cv_opus_lookup_once_across_retries(self):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.text = '<div id="article-web-app"></div>'
+        mock_resp.url = "https://www.bilibili.com/read/cv7376731/"
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+        resolve_mock = AsyncMock(return_value=None)
+        render_err = AsyncMock(return_value="error")
+
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space, "_resolve_cv_opus_id", resolve_mock),
+            patch.object(views_space, "article_to_html", return_value="<p>Failed to parse article content.</p>"),
+            patch("asyncio.sleep", AsyncMock()),
+            patch.object(views_space, "render_template_with_theme", render_err),
+        ):
+            async with app.test_request_context("/read/cv7376731"):
+                _, status = await views_space.read_view("cv7376731")
+
+        self.assertEqual(status, 502)
+        resolve_mock.assert_awaited_once()
+        self.assertEqual(mock_client.send.await_count, 5)
+
     async def test_author_view_enriches_articles_with_opus_links(self):
         import miku.ui.filters as filters  # noqa: F401
 
