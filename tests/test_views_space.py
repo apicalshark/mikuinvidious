@@ -180,7 +180,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(resp[1], 502)
         logs = log_out.getvalue()
-        self.assertIn("[Article] Attempt 1/3 for cv27188030", logs)
+        self.assertIn("[Article] Attempt 1/5 for cv27188030", logs)
         self.assertIn("returned HTTP 412", logs)
         self.assertIn("[Article] Failed to fetch article cv27188030", logs)
         self.assertIn("last_status=412", logs)
@@ -233,7 +233,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(resp[1], 502)
         logs = log_out.getvalue()
-        self.assertIn("[Article] Attempt 1/3 for cv27188030", logs)
+        self.assertIn("[Article] Attempt 1/5 for cv27188030", logs)
         self.assertIn("stripped or unparseable content", logs)
         self.assertIn("[Article] Failed to fetch article cv27188030", logs)
 
@@ -254,7 +254,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(resp[1], 502)
         logs = log_out.getvalue()
-        self.assertIn("[Article] Attempt 1/3 for cv27188030", logs)
+        self.assertIn("[Article] Attempt 1/5 for cv27188030", logs)
         self.assertIn("network error", logs)
         self.assertIn("Connection reset by peer", logs)
         self.assertIn("[Article] Failed to fetch article cv27188030", logs)

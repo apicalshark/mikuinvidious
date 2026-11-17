@@ -471,7 +471,8 @@ async def read_view(cid):
     last_status = 0
     last_error = None
     attempts_made = 0
-    for attempt in range(3):
+    max_attempts = 5
+    for attempt in range(max_attempts):
         attempts_made = attempt + 1
         try:
             req = await client.send(
@@ -487,15 +488,16 @@ async def read_view(cid):
                 break
             if status != 200:
                 last_error = f"HTTP {status}"
-                print(f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) returned HTTP {status}")
-                await asyncio.sleep(0.4 * (attempt + 1))
+                print(f"[Article] Attempt {attempts_made}/{max_attempts} for {cid} ({url}) returned HTTP {status}")
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(0.6 * (attempt + 1))
                 continue
             try:
                 parsed = article_to_html(body)
             except Exception as e:
                 parsed = "<p>Failed to parse article content.</p>"
                 last_error = f"Parse exception: {e}"
-                print(f"[Article] Attempt {attempts_made}/3 for {cid} parse failed: {e}")
+                print(f"[Article] Attempt {attempts_made}/{max_attempts} for {cid} parse failed: {e}")
             if want_format is not None or "Failed to parse article content" not in parsed:
                 text, content = body, parsed
                 if not is_opus and cache_ttl > 0:
@@ -504,7 +506,7 @@ async def read_view(cid):
                 break
             last_error = "Content module missing or unparseable"
             print(
-                f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) stripped or unparseable content (length={len(body)})"
+                f"[Article] Attempt {attempts_made}/{max_attempts} for {cid} ({url}) stripped or unparseable content (length={len(body)})"
             )
             if not is_opus and "article-web-app" in body:
                 dyn_id = await _resolve_cv_opus_id(client, cvid, scrape_headers["Cookie"])
@@ -530,8 +532,9 @@ async def read_view(cid):
                             break
         except Exception as e:
             last_error = f"{type(e).__name__}: {e}"
-            print(f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) network error: {e}")
-        await asyncio.sleep(0.4 * (attempt + 1))
+            print(f"[Article] Attempt {attempts_made}/{max_attempts} for {cid} ({url}) network error: {e}")
+        if attempt < max_attempts - 1:
+            await asyncio.sleep(0.6 * (attempt + 1))
 
     if text is None:
         print(
