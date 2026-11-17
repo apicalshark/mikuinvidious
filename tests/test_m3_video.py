@@ -3,7 +3,9 @@
 
 import unittest
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import miku.views.video as views_video
 from jinja2 import Environment, FileSystemLoader
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -81,3 +83,18 @@ class TestM3Video(unittest.TestCase):
         self.assertIn("Test Video Title", rendered)
         self.assertIn("Test Creator", rendered)
         self.assertIn('title="Likes"', rendered)
+
+
+class TestOwnerMeta(unittest.IsolatedAsyncioTestCase):
+    async def test_fetch_owner_meta_normalizes_missing_level_info_to_dict(self):
+        fake_user = MagicMock()
+        fake_user.get_user_info = AsyncMock(return_value={"name": "Test", "level": None, "level_info": None})
+        with (
+            patch.object(views_video, "cache_get", AsyncMock(return_value=None)),
+            patch.object(views_video, "cache_set", AsyncMock()),
+            patch.object(views_video.user, "User", return_value=fake_user),
+        ):
+            meta = await views_video._fetch_owner_meta({"owner": {"mid": 12345}})
+
+        self.assertEqual(meta["level_info"], {})
+        self.assertIsNone(meta["level_info"].get("current_level"))

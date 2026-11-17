@@ -3,15 +3,28 @@
 
 import asyncio
 import datetime
+import re
+import urllib.parse
+import uuid
 
 import orjson
-from quart import Response, request
+from quart import Response, redirect, request, url_for
 
-from miku.api import article, opus, user
+from miku.api import article, comment, opus, user
+from miku.api.client import _get_anonymous_cookies, get_wbi_mixin_key
 from miku.api.exceptions import is_risk_error
-from miku.core.fingerprints import get_article_scrape_headers
+from miku.api.wbi import enc_wbi
+from miku.core.fingerprints import CHROME_UA, get_article_scrape_headers
 from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
-from miku.media.extra import article_to_any, article_to_html, get_article_info
+from miku.media.extra import (
+    article_to_any,
+    article_to_html,
+    get_article_info,
+    merge_article_viewinfo,
+    merge_opus_modules_info,
+    opus_detail_to_arinfo,
+    opus_modules_to_html,
+)
 from miku.state import (
     Network,
     app,
@@ -298,6 +311,68 @@ async def space_json_feed(mid):
     return Response(raw, status=200, content_type="application/feed+json", headers=feed_headers)
 
 
+def _unique_title_opus_map(items: list) -> dict[str, str]:
+    title_to_opus: dict[str, str] = {}
+    ambiguous_titles: set[str] = set()
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        oid = str(item.get("opus_id") or "").strip()
+        title = str(item.get("content") or "").strip()
+        if oid.isdigit() and title:
+            if title in title_to_opus and title_to_opus[title] != oid:
+                ambiguous_titles.add(title)
+            else:
+                title_to_opus.setdefault(title, oid)
+    for title in ambiguous_titles:
+        title_to_opus.pop(title, None)
+    return title_to_opus
+
+
+async def _enrich_author_articles_with_opus(u, uarticles: dict, pn: int, first_opus_res, article_ttl: int) -> None:
+    """Attach opus_id to creator space articles and warm cv->opus cache entries."""
+    articles = uarticles.get("articles") if isinstance(uarticles, dict) else None
+    if not isinstance(articles, list) or not articles:
+        return
+    opus_items = []
+    cur = first_opus_res
+    if isinstance(cur, dict):
+        opus_items.extend(cur.get("items") or [])
+        for _ in range(1, min(pn, 5)):
+            if not cur.get("has_more") or not cur.get("offset"):
+                break
+            try:
+                cur = await u.get_opus_articles(offset=cur["offset"])
+            except Exception:
+                break
+            if not isinstance(cur, dict):
+                break
+            opus_items.extend(cur.get("items") or [])
+
+    title_to_opus = _unique_title_opus_map(opus_items)
+    article_title_counts: dict[str, int] = {}
+    for art in articles:
+        if isinstance(art, dict):
+            t = str(art.get("title") or "").strip()
+            if t:
+                article_title_counts[t] = article_title_counts.get(t, 0) + 1
+
+    warm_tasks = []
+    for art in articles:
+        if not isinstance(art, dict):
+            continue
+        t = str(art.get("title") or "").strip()
+        if article_title_counts.get(t, 0) != 1:
+            continue
+        matched = title_to_opus.get(t)
+        if matched:
+            art["opus_id"] = matched
+            if article_ttl > 0 and art.get("id"):
+                warm_tasks.append(cache_set(f"cv:opus:{art['id']}", {"opus_id": matched}, article_ttl))
+    if warm_tasks:
+        await asyncio.gather(*warm_tasks, return_exceptions=True)
+
+
 @app.route("/author/<mid>")
 @app.route("/author/<mid>/")
 @rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("author"))
@@ -310,7 +385,7 @@ async def author_view(mid):
     # Page-1 payload uses the base key; deeper pages get per-page keys.
     cache_ttl = cache_minutes("author_minutes") * 60
     use_cache = cache_ttl > 0
-    cache_key = f"author:data:{mid}" if pn == 1 else f"author:data:{mid}:{pn}"
+    cache_key = f"author:data:v2:{mid}" if pn == 1 else f"author:data:v2:{mid}:{pn}"
     cache_hit = False
     uinfo = uarticles = None
     if use_cache:
@@ -322,7 +397,19 @@ async def author_view(mid):
                 uinfo = uarticles = None
     if not cache_hit:
         u = user.User(mid, credential=appcred)
-        uinfo, uarticles = await asyncio.gather(u.get_user_info(), u.get_articles(pn=pn, ps=28))
+        opus_coro = u.get_opus_articles() if pn <= 5 else asyncio.sleep(0, result=None)
+        uinfo, uarticles, first_opus = await asyncio.gather(
+            u.get_user_info(),
+            u.get_articles(pn=pn, ps=20),
+            opus_coro,
+            return_exceptions=True,
+        )
+        if isinstance(uinfo, BaseException):
+            raise uinfo
+        if isinstance(uarticles, BaseException):
+            raise uarticles
+        article_ttl = cache_minutes("article_minutes") * 60
+        await _enrich_author_articles_with_opus(u, uarticles, pn, first_opus, article_ttl)
         # Only cache a healthy payload; never stick a broken profile.
         if use_cache and isinstance(uinfo, dict) and uinfo and isinstance(uarticles, dict):
             await cache_set(cache_key, {"uinfo": uinfo, "uarticles": uarticles}, cache_ttl)
@@ -337,22 +424,125 @@ async def author_view(mid):
     return html
 
 
-@app.route("/read/<cid>")
+async def _fetch_article_comments(arinfo: dict, cvid: str, is_opus: bool) -> tuple[dict, str, int, bool]:
+    comment_oid = str(arinfo.get("comment_id") or cvid)
+    default_type = (
+        comment.CommentResourceType.DYNAMIC_DRAW.value if is_opus else comment.CommentResourceType.ARTICLE.value
+    )
+    comment_type = arinfo.get("comment_type") or default_type
+    comments_closed = False
+    raw = None
+    try:
+        raw = await comment.get_comments(comment_oid, comment_type, 1, comment.OrderType.LIKE, timeout=3.5)
+    except Exception as exc:
+        comments_closed = getattr(exc, "code", None) == comment.COMMENTS_CLOSED_CODE
+    empty = {"page": {"count": 0}, "replies": [], "next_offset": "", "is_end": True}
+    vcomments = raw if isinstance(raw, dict) else empty
+    return vcomments, comment_oid, comment_type, comments_closed
+
+
+async def _resolve_cv_opus_id(client, cvid: str, cookie_header: str) -> str | None:
+    api_headers = {
+        "User-Agent": CHROME_UA,
+        "Referer": f"https://www.bilibili.com/read/cv{cvid}/",
+        "Origin": "https://www.bilibili.com",
+        "Cookie": cookie_header,
+    }
+    params: dict[str, object] = {"id": cvid, "gaia_source": "main_web", "web_location": "333.976"}
+    try:
+        mixin = await get_wbi_mixin_key()
+        if mixin:
+            params = enc_wbi(params, mixin)
+    except Exception:
+        params = {"id": cvid}
+    target_url = f"https://api.bilibili.com/x/article/view?{urllib.parse.urlencode(params)}"
+
+    saw_throttle = False
+    for attempt in range(2):
+        try:
+            api_req = await client.send(client.build_request("GET", target_url, headers=api_headers))
+            api_json = orjson.loads(api_req.text) if api_req.status_code == 200 else None
+            await api_req.aclose()
+            if isinstance(api_json, dict):
+                data = api_json.get("data")
+                if isinstance(data, dict):
+                    dyn_id = data.get("dyn_id_str") or (data.get("opus") or {}).get("opus_id")
+                    if dyn_id is not None and str(dyn_id).isdigit():
+                        return str(dyn_id)
+                if api_json.get("code") in (-509, -352):
+                    saw_throttle = True
+                    if attempt == 0:
+                        await asyncio.sleep(0.35)
+                        continue
+            break
+        except Exception:
+            break
+
+    if saw_throttle:
+        try:
+            vinfo = await article.Article(int(cvid)).get_info()
+            mid = vinfo.get("mid") if isinstance(vinfo, dict) else None
+            title = str(vinfo.get("title") or "").strip() if isinstance(vinfo, dict) else ""
+            if mid and title:
+                opus_res = await user.User(mid, credential=appcred).get_opus_articles()
+                return _unique_title_opus_map((opus_res or {}).get("items") or []).get(title)
+        except Exception:
+            pass
+    return None
+
+
+@app.route("/opus/<cid>/", endpoint="opus_view_slash")
+@app.route("/opus/<cid>", endpoint="opus_view")
+@app.route("/read/mobile/<cid>/", endpoint="read_mobile_view_slash")
+@app.route("/read/mobile/<cid>", endpoint="read_mobile_view")
 @app.route("/read/<cid>/")
-@app.route("/read/mobile/<cid>")
-@app.route("/read/mobile/<cid>/")
-@app.route("/opus/<cid>")
-@app.route("/opus/<cid>/")
+@app.route("/read/<cid>")
 @rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("article"))
 async def read_view(cid):
-    is_opus = "opus" in request.path or not cid.startswith("cv")
-    url = (
-        f"https://www.bilibili.com/opus/{cid.replace('opus', '')}"
-        if is_opus
-        else f"https://www.bilibili.com/read/{cid}"
-    )
-    cvid = cid.replace("cv", "").replace("opus", "")
-    scrape_headers = get_article_scrape_headers(appconf.get("bili"))
+    is_opus = request.path.lower().startswith("/opus/")
+    if is_opus:
+        if not cid.isdigit():
+            return await render_template_with_theme(
+                "error.html",
+                status="Article not found",
+                desc="Invalid opus ID",
+                suggest="Please check the opus URL and try again.",
+            ), 404
+        cvid = cid
+        url = f"https://www.bilibili.com/opus/{cvid}"
+    else:
+        norm_cid = cid.lower()
+        if norm_cid.startswith("cv"):
+            cvid = norm_cid[2:]
+        elif request.path.lower().startswith("/read/mobile/") and norm_cid.isdigit():
+            cvid = norm_cid
+        else:
+            cvid = ""
+        if not cvid.isdigit():
+            return await render_template_with_theme(
+                "error.html",
+                status="Article not found",
+                desc="Invalid article ID",
+                suggest="Please check the article URL and try again.",
+            ), 404
+        url = f"https://www.bilibili.com/read/cv{cvid}/"
+    resolved_opus_id = cvid if is_opus else None
+    scrape_headers = dict(get_article_scrape_headers(appconf.get("bili")))
+    scrape_headers["User-Agent"] = CHROME_UA
+    scrape_headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    scrape_headers["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.8"
+    cookie_parts = {}
+    try:
+        anon = await _get_anonymous_cookies()
+        if isinstance(anon, dict):
+            cookie_parts.update({k: v for k, v in anon.items() if v})
+    except Exception:
+        pass
+    if getattr(appcred, "buvid3", None):
+        cookie_parts["buvid3"] = appcred.buvid3
+    if not cookie_parts.get("buvid3"):
+        cookie_parts["buvid3"] = f"{str(uuid.uuid4()).upper()}infoc"
+    scrape_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookie_parts.items())
 
     # Optional pandoc export (any supported format).
     want_format = (
@@ -368,7 +558,16 @@ async def read_view(cid):
     # File exports (?format=) bypass the cache; the HTML flavor is part of
     # the key so /read/cv.. and /opus/.. never share entries.
     use_cache = want_format is None and cache_ttl > 0
-    cache_key = f"read:data:{cid}:{'opus' if is_opus else 'cv'}"
+    cache_key = f"read:data:v2:{cid}:{'opus' if is_opus else 'cv'}"
+    opus_map_key = f"cv:opus:{cvid}"
+    if not is_opus and cache_ttl > 0:
+        cached_opus = await cache_get(opus_map_key, cache_ttl)
+        mapped_opus = cached_opus.get("opus_id") if isinstance(cached_opus, dict) else None
+        if isinstance(mapped_opus, str) and mapped_opus.isdigit():
+            if want_format is None:
+                return redirect(url_for("opus_view", cid=mapped_opus))
+            resolved_opus_id = mapped_opus
+            url = f"https://www.bilibili.com/opus/{mapped_opus}"
     if use_cache:
         data = await cache_get(cache_key, cache_ttl)
         if (
@@ -379,26 +578,48 @@ async def read_view(cid):
             and data.get("content")
             and "Failed to parse article content" not in data.get("content")
         ):
+            vcomments, comment_oid, comment_type, comments_closed = await _fetch_article_comments(
+                data["arinfo"], cvid, is_opus
+            )
+            opus_id_out = data["arinfo"].get("opus_id") or resolved_opus_id
             html = await render_template_with_theme(
                 "read.html",
                 cid=cid,
                 arinfo=data["arinfo"],
                 article_content=data["content"],
                 is_opus=is_opus,
+                opus_id=opus_id_out,
+                vcomments=vcomments,
+                comment_oid=comment_oid,
+                comment_type=comment_type,
+                comments_closed=comments_closed,
             )
             return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
 
-    client = await Network.get_async_client()
-
-    # The public read/opus page is intermittently served with the content module
-    # stripped (anti-bot) from datacenter IPs, even though HTTP 200 with title.
-    # Retry the scrape until the article body actually parses (or give up).
+    arinfo = None
     text = None
     content = None
     last_status = 0
     last_error = None
     attempts_made = 0
-    for attempt in range(3):
+    max_attempts = 5
+    client = await Network.get_async_client()
+    opus_lookup_done = False
+    if not is_opus and not resolved_opus_id:
+        opus_lookup_done = True
+        dyn_id = await _resolve_cv_opus_id(client, cvid, scrape_headers["Cookie"])
+        if dyn_id:
+            if cache_ttl > 0:
+                await cache_set(opus_map_key, {"opus_id": dyn_id}, cache_ttl)
+            if want_format is None:
+                return redirect(url_for("opus_view", cid=dyn_id))
+            resolved_opus_id = dyn_id
+            url = f"https://www.bilibili.com/opus/{dyn_id}"
+
+    # The public read/opus page is intermittently served with the content module
+    # stripped (anti-bot) from datacenter IPs, even though HTTP 200 with title.
+    # Retry the scrape until the article body actually parses (or give up).
+    for attempt in range(max_attempts):
         attempts_made = attempt + 1
         try:
             req = await client.send(
@@ -414,28 +635,83 @@ async def read_view(cid):
                 break
             if status != 200:
                 last_error = f"HTTP {status}"
-                print(f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) returned HTTP {status}")
-                await asyncio.sleep(0.4 * (attempt + 1))
+                print(f"[Article] Attempt {attempts_made}/{max_attempts} for {cid} ({url}) returned HTTP {status}")
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(0.6 * (attempt + 1))
                 continue
             try:
                 parsed = article_to_html(body)
             except Exception as e:
                 parsed = "<p>Failed to parse article content.</p>"
                 last_error = f"Parse exception: {e}"
-                print(f"[Article] Attempt {attempts_made}/3 for {cid} parse failed: {e}")
+                print(f"[Article] Attempt {attempts_made}/{max_attempts} for {cid} parse failed: {e}")
             if want_format is not None or "Failed to parse article content" not in parsed:
                 text, content = body, parsed
+                if not is_opus:
+                    if m_opus := re.search(r"/opus/(\d+)", str(getattr(req, "url", ""))):
+                        resolved_opus_id = m_opus.group(1)
+                        if cache_ttl > 0:
+                            await cache_set(opus_map_key, {"opus_id": resolved_opus_id}, cache_ttl)
+                        if want_format is None:
+                            return redirect(url_for("opus_view", cid=resolved_opus_id))
                 break
             last_error = "Content module missing or unparseable"
             print(
-                f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) stripped or unparseable content (length={len(body)})"
+                f"[Article] Attempt {attempts_made}/{max_attempts} for {cid} ({url}) stripped or unparseable content (length={len(body)})"
             )
+            if not is_opus and not opus_lookup_done and "article-web-app" in body:
+                opus_lookup_done = True
+                dyn_id = await _resolve_cv_opus_id(client, cvid, scrape_headers["Cookie"])
+                if dyn_id:
+                    if cache_ttl > 0:
+                        await cache_set(opus_map_key, {"opus_id": dyn_id}, cache_ttl)
+                    if want_format is None:
+                        return redirect(url_for("opus_view", cid=dyn_id))
+                    resolved_opus_id = dyn_id
+                    url = f"https://www.bilibili.com/opus/{dyn_id}"
+                    opus_req = await client.send(
+                        client.build_request("GET", url, headers=scrape_headers),
+                        follow_redirects=True,
+                    )
+                    opus_status, opus_body = opus_req.status_code, opus_req.text
+                    await opus_req.aclose()
+                    last_status = opus_status
+                    if opus_status == 200:
+                        try:
+                            opus_parsed = article_to_html(opus_body)
+                        except Exception as e:
+                            opus_parsed = "<p>Failed to parse article content.</p>"
+                            last_error = f"Parse exception: {e}"
+                        if want_format is not None or "Failed to parse article content" not in opus_parsed:
+                            text, content = opus_body, opus_parsed
+                            break
         except Exception as e:
             last_error = f"{type(e).__name__}: {e}"
-            print(f"[Article] Attempt {attempts_made}/3 for {cid} ({url}) network error: {e}")
-        await asyncio.sleep(0.4 * (attempt + 1))
+            print(f"[Article] Attempt {attempts_made}/{max_attempts} for {cid} ({url}) network error: {e}")
+        if attempt < max_attempts - 1:
+            await asyncio.sleep(0.6 * (attempt + 1))
 
-    if text is None:
+    if text is None and is_opus and want_format is None and last_status != 404:
+        try:
+            o = opus.Opus(int(cvid), credential=appcred)
+            api_info = await o.get_info()
+            item = api_info.get("item") if isinstance(api_info, dict) else None
+            if isinstance(item, dict):
+                json_html = opus_modules_to_html(item.get("modules") or [])
+                if json_html:
+                    arinfo = opus_detail_to_arinfo(item)
+                    content = json_html
+                    rid_str = str((item.get("basic") or {}).get("rid_str") or "")
+                    if rid_str.isdigit():
+                        try:
+                            view_info = await article.Article(int(rid_str)).get_info()
+                            merge_article_viewinfo(arinfo, view_info)
+                        except Exception:
+                            pass
+        except Exception as e:
+            print(f"[Article] Opus JSON API fallback failed for {cid}: {e}")
+
+    if content is None:
         print(
             f"[Article] Failed to fetch article {cid} ({url}) after {attempts_made} attempt(s) "
             f"(last_status={last_status}, last_error={last_error})"
@@ -453,27 +729,39 @@ async def read_view(cid):
         return await article_to_any(text, want_format)
 
     try:
-        arinfo = get_article_info(text, cid)
-        try:
-            if is_opus:
-                o = opus.Opus(int(cvid), credential=appcred)
-                api_info = await o.get_info()
-                for module in api_info.get("item", {}).get("modules", []):
-                    if module.get("module_stat"):
-                        stat = module["module_stat"]
-                        arinfo["stats"]["like"] = stat.get("like", {}).get("count", arinfo["stats"]["like"])
-                        arinfo["stats"]["coin"] = stat.get("coin", {}).get("count", arinfo["stats"]["coin"])
-                        arinfo["stats"]["favorite"] = stat.get("favorite", {}).get("count", arinfo["stats"]["favorite"])
-                        arinfo["stats"]["share"] = stat.get("forward", {}).get("count", arinfo["stats"]["share"])
-            else:
-                ar = article.Article(int(cvid))
-                api_info = await ar.get_info()
-                if api_info.get("stats"):
-                    arinfo["stats"].update(api_info["stats"])
-                if api_info.get("title") and not arinfo["title"]:
-                    arinfo["title"] = api_info["title"]
-        except Exception as e:
-            print(f"[Article] Supplementary metadata lookup failed for {cid}: {e}")
+        if arinfo is None:
+            arinfo = get_article_info(text, cid)
+            try:
+                if is_opus:
+                    o = opus.Opus(int(cvid), credential=appcred)
+                    api_info = await o.get_info()
+                    merge_opus_modules_info(arinfo, api_info.get("item", {}).get("modules", []))
+                else:
+                    ar = article.Article(int(cvid))
+                    api_info = await ar.get_info()
+                    merge_article_viewinfo(arinfo, api_info)
+            except Exception as e:
+                print(f"[Article] Supplementary metadata lookup failed for {cid}: {e}")
+        author_mid = (arinfo.get("author") or {}).get("mid") if isinstance(arinfo, dict) else None
+        if author_mid:
+            try:
+                async with asyncio.timeout(2.5):
+                    uinfo = await user.User(author_mid, credential=appcred).get_user_info()
+                if isinstance(uinfo, dict) and uinfo:
+                    arinfo["author"].setdefault("pendant", uinfo.get("pendant"))
+                    arinfo["author"].setdefault("vip", uinfo.get("vip"))
+                    if uinfo.get("level") is not None:
+                        arinfo["author"]["level"] = uinfo.get("level")
+                    elif isinstance(uinfo.get("level_info"), dict):
+                        arinfo["author"].setdefault("level_info", uinfo.get("level_info"))
+                    if uinfo.get("is_senior_member"):
+                        arinfo["author"]["is_senior_member"] = uinfo.get("is_senior_member")
+                    if uinfo.get("ip_location"):
+                        arinfo["author"]["ip_location"] = uinfo.get("ip_location")
+            except Exception:
+                pass
+        if resolved_opus_id and isinstance(arinfo, dict):
+            arinfo["opus_id"] = resolved_opus_id
         # Only cache fully parsed articles; stripped anti-bot bodies are
         # retried live next time instead of sticking.
         if (
@@ -485,8 +773,18 @@ async def read_view(cid):
             and "Failed to parse article content" not in content
         ):
             await cache_set(cache_key, {"arinfo": arinfo, "content": content}, cache_ttl)
+        vcomments, comment_oid, comment_type, comments_closed = await _fetch_article_comments(arinfo, cvid, is_opus)
         html = await render_template_with_theme(
-            "read.html", cid=cid, arinfo=arinfo, article_content=content, is_opus=is_opus
+            "read.html",
+            cid=cid,
+            arinfo=arinfo,
+            article_content=content,
+            is_opus=is_opus,
+            opus_id=resolved_opus_id,
+            vcomments=vcomments,
+            comment_oid=comment_oid,
+            comment_type=comment_type,
+            comments_closed=comments_closed,
         )
         if use_cache:
             return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})

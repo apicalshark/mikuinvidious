@@ -172,6 +172,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
             patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space, "_resolve_cv_opus_id", AsyncMock(return_value=None)),
             patch("asyncio.sleep", AsyncMock()),
             patch("sys.stdout", log_out),
         ):
@@ -180,7 +181,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(resp[1], 502)
         logs = log_out.getvalue()
-        self.assertIn("[Article] Attempt 1/3 for cv27188030", logs)
+        self.assertIn("[Article] Attempt 1/5 for cv27188030", logs)
         self.assertIn("returned HTTP 412", logs)
         self.assertIn("[Article] Failed to fetch article cv27188030", logs)
         self.assertIn("last_status=412", logs)
@@ -199,6 +200,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
             patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space, "_resolve_cv_opus_id", AsyncMock(return_value=None)),
             patch("asyncio.sleep", AsyncMock()),
             patch("sys.stdout", log_out),
         ):
@@ -225,6 +227,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
             patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space, "_resolve_cv_opus_id", AsyncMock(return_value=None)),
             patch("asyncio.sleep", AsyncMock()),
             patch("sys.stdout", log_out),
         ):
@@ -233,7 +236,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(resp[1], 502)
         logs = log_out.getvalue()
-        self.assertIn("[Article] Attempt 1/3 for cv27188030", logs)
+        self.assertIn("[Article] Attempt 1/5 for cv27188030", logs)
         self.assertIn("stripped or unparseable content", logs)
         self.assertIn("[Article] Failed to fetch article cv27188030", logs)
 
@@ -246,6 +249,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
             patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space, "_resolve_cv_opus_id", AsyncMock(return_value=None)),
             patch("asyncio.sleep", AsyncMock()),
             patch("sys.stdout", log_out),
         ):
@@ -254,10 +258,343 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(resp[1], 502)
         logs = log_out.getvalue()
-        self.assertIn("[Article] Attempt 1/3 for cv27188030", logs)
+        self.assertIn("[Article] Attempt 1/5 for cv27188030", logs)
         self.assertIn("network error", logs)
         self.assertIn("Connection reset by peer", logs)
         self.assertIn("[Article] Failed to fetch article cv27188030", logs)
+
+    async def test_read_view_sends_buvid3_cookie(self):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 404
+        mock_resp.text = "Not Found"
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(
+                views_space, "_get_anonymous_cookies", AsyncMock(return_value={"buvid3": "TEST-BUVID3-infoc"})
+            ),
+        ):
+            async with app.test_request_context("/read/cv12576864"):
+                resp = await views_space.read_view("cv12576864")
+
+        self.assertEqual(resp[1], 404)
+        _, kwargs = mock_client.build_request.call_args
+        self.assertIn("buvid3=TEST-BUVID3-infoc", kwargs["headers"].get("Cookie", ""))
+
+    async def test_read_view_unwraps_cv_opus_dict_mapping(self):
+        async def fake_cache_get(key, _ttl):
+            if key == "cv:opus:12576864":
+                return {"opus_id": "99887766"}
+            return None
+
+        mock_client = AsyncMock()
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=10),
+            patch.object(views_space, "cache_get", side_effect=fake_cache_get),
+        ):
+            async with app.test_request_context("/read/cv12576864"):
+                resp = await views_space.read_view("cv12576864")
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.headers.get("Location"), "/opus/99887766")
+        mock_client.send.assert_not_awaited()
+
+    async def test_read_view_preresolves_cv_to_opus_before_scrape(self):
+        api_resp_509 = AsyncMock()
+        api_resp_509.status_code = 200
+        api_resp_509.text = '{"code": -509, "message": "too many requests"}'
+        api_resp_509.aclose = AsyncMock()
+
+        api_resp_ok = AsyncMock()
+        api_resp_ok.status_code = 200
+        api_resp_ok.text = '{"code": 0, "data": {"dyn_id_str": "428546721494533554"}}'
+        api_resp_ok.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        requested_urls = []
+
+        def fake_build_request(method, target_url, **kwargs):
+            requested_urls.append(target_url)
+            return MagicMock()
+
+        mock_client.build_request = MagicMock(side_effect=fake_build_request)
+        mock_client.send = AsyncMock(side_effect=[api_resp_509, api_resp_ok])
+
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space, "get_wbi_mixin_key", AsyncMock(return_value="0123456789abcdef0123456789abcdef")),
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            async with app.test_request_context("/read/cv7376731"):
+                resp = await views_space.read_view("cv7376731")
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp.headers.get("Location"), "/opus/428546721494533554")
+        self.assertEqual(len(requested_urls), 2)
+        self.assertTrue(requested_urls[0].startswith("https://api.bilibili.com/x/article/view?id=7376731"))
+        self.assertIn("gaia_source=main_web", requested_urls[0])
+        self.assertIn("web_location=333.976", requested_urls[0])
+        self.assertIn("w_rid=", requested_urls[0])
+
+    async def test_opus_view_falls_back_to_opus_json_api_when_html_scrape_fails(self):
+        opus_payload = {
+            "item": {
+                "basic": {"title": "Opus Title", "comment_id_str": "7376731", "comment_type": 12, "rid_str": "7376731"},
+                "modules": [
+                    {"module_type": "MODULE_TYPE_TITLE", "module_title": {"text": "Opus Title"}},
+                    {
+                        "module_type": "MODULE_TYPE_AUTHOR",
+                        "module_author": {"mid": 519487206, "name": "Tester", "face": "", "pub_ts": "1598617209"},
+                    },
+                    {
+                        "module_type": "MODULE_TYPE_CONTENT",
+                        "module_content": {
+                            "paragraphs": [
+                                {
+                                    "para_type": 1,
+                                    "text": {
+                                        "nodes": [
+                                            {
+                                                "type": "TEXT_NODE_TYPE_WORD",
+                                                "word": {"words": "Hello Opus JSON", "color": "var(--Cy4, #4FD3D1)"},
+                                            }
+                                        ]
+                                    },
+                                }
+                            ]
+                        },
+                    },
+                ],
+            }
+        }
+        viewinfo_payload = {
+            "stats": {"view": 5392},
+            "image_urls": ["https://i0.hdslb.com/bfs/article/banner/top.png"],
+        }
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 412
+        mock_resp.text = ""
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+        render = AsyncMock(return_value="json rendered")
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch("asyncio.sleep", AsyncMock()),
+            patch.object(
+                views_space.opus,
+                "Opus",
+                return_value=MagicMock(get_info=AsyncMock(return_value=opus_payload)),
+            ),
+            patch.object(
+                views_space.article,
+                "Article",
+                return_value=MagicMock(get_info=AsyncMock(return_value=viewinfo_payload)),
+            ),
+            patch.object(
+                views_space.user,
+                "User",
+                return_value=MagicMock(get_user_info=AsyncMock(return_value={})),
+            ),
+            patch.object(views_space, "_fetch_article_comments", AsyncMock(return_value=({}, "7376731", 12, False))),
+            patch.object(views_space, "render_template_with_theme", render),
+        ):
+            async with app.test_request_context("/opus/428546721494533554"):
+                html = await views_space.read_view("428546721494533554")
+
+        self.assertEqual(html, "json rendered")
+        mock_client.send.assert_awaited()
+        self.assertEqual(
+            mock_client.build_request.call_args[0][1],
+            "https://www.bilibili.com/opus/428546721494533554",
+        )
+        self.assertIn("Hello Opus JSON", render.await_args.kwargs["article_content"])
+        self.assertIn("#4FD3D1", render.await_args.kwargs["article_content"])
+        self.assertEqual(
+            render.await_args.kwargs["arinfo"]["covers"],
+            ["/proxy/pic/i0.hdslb.com/bfs/article/banner/top.png"],
+        )
+        self.assertEqual(render.await_args.kwargs["arinfo"]["stats"]["view"], 5392)
+
+    async def test_opus_view_scrapes_opus_url_with_cookie(self):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.text = "<html></html>"
+        mock_resp.url = "https://www.bilibili.com/opus/99887766"
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+
+        render = AsyncMock(return_value="rendered")
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space, "article_to_html", return_value="<p>ok</p>"),
+            patch.object(views_space, "get_article_info", return_value={"title": "T", "stats": {"view": 1}}),
+            patch.object(views_space.opus, "Opus", return_value=MagicMock(get_info=AsyncMock(return_value={}))),
+            patch.object(views_space, "_fetch_article_comments", AsyncMock(return_value=({}, "", 12, False))),
+            patch.object(views_space, "render_template_with_theme", render),
+        ):
+            async with app.test_request_context("/opus/99887766"):
+                html = await views_space.read_view("99887766")
+
+        self.assertEqual(html, "rendered")
+        _, req_kwargs = mock_client.build_request.call_args
+        self.assertEqual(mock_client.build_request.call_args[0][1], "https://www.bilibili.com/opus/99887766")
+        self.assertIn("Cookie", req_kwargs["headers"])
+        self.assertEqual(render.await_args.kwargs["opus_id"], "99887766")
+
+    async def test_read_view_runs_cv_opus_lookup_once_across_retries(self):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.text = '<div id="article-web-app"></div>'
+        mock_resp.url = "https://www.bilibili.com/read/cv7376731/"
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+        resolve_mock = AsyncMock(return_value=None)
+        render_err = AsyncMock(return_value="error")
+
+        with (
+            patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space, "_resolve_cv_opus_id", resolve_mock),
+            patch.object(views_space, "article_to_html", return_value="<p>Failed to parse article content.</p>"),
+            patch("asyncio.sleep", AsyncMock()),
+            patch.object(views_space, "render_template_with_theme", render_err),
+        ):
+            async with app.test_request_context("/read/cv7376731"):
+                _, status = await views_space.read_view("cv7376731")
+
+        self.assertEqual(status, 502)
+        resolve_mock.assert_awaited_once()
+        self.assertEqual(mock_client.send.await_count, 5)
+
+    async def test_author_view_enriches_articles_with_opus_links(self):
+        import miku.ui.filters as filters  # noqa: F401
+
+        uinfo = {"mid": 519487206, "name": "Tester", "sign": "", "face": "https://i0.hdslb.com/bfs/face/a.jpg"}
+        uarts = {
+            "articles": [
+                {
+                    "id": 7376731,
+                    "title": "Sample Article",
+                    "image_urls": ["https://i0.hdslb.com/bfs/article/a.png"],
+                    "publish_time": 1600000000,
+                    "stats": {"view": 100},
+                    "author": {"mid": 519487206, "name": "Tester"},
+                }
+            ],
+            "count": 1,
+            "pn": 1,
+            "ps": 20,
+        }
+        opus_feed = {
+            "items": [{"opus_id": "428546721494533554", "content": "Sample Article"}],
+            "offset": "",
+            "has_more": False,
+        }
+        with (
+            patch.object(user.User, "get_user_info", AsyncMock(return_value=uinfo)),
+            patch.object(user.User, "get_articles", AsyncMock(return_value=uarts)),
+            patch.object(user.User, "get_opus_articles", AsyncMock(return_value=opus_feed)),
+            patch.object(views_space, "cache_minutes", return_value=0),
+        ):
+            async with app.test_request_context("/author/519487206"):
+                html = await views_space.author_view("519487206")
+
+        self.assertIn("/opus/428546721494533554", html)
+        self.assertIn("https://www.bilibili.com/opus/428546721494533554", html)
+        self.assertNotIn("/read/opus", html)
+        self.assertNotIn("/read/cv7376731", html)
+
+    async def test_read_rejects_read_opus_alias_with_404(self):
+        async with app.test_request_context("/read/opus733063343227535376"):
+            resp = await views_space.read_view("opus733063343227535376")
+        self.assertEqual(resp[1], 404)
+
+        async with app.test_request_context("/opus/opus733063343227535376"):
+            resp_bad_opus = await views_space.read_view("opus733063343227535376")
+        self.assertEqual(resp_bad_opus[1], 404)
+
+    async def test_enrich_author_articles_skips_ambiguous_titles_and_cache(self):
+        uarts = {
+            "articles": [
+                {"id": 101, "title": "Update"},
+                {"id": 102, "title": "Update"},
+                {"id": 103, "title": "Repeated Opus"},
+                {"id": 104, "title": "Unique"},
+            ]
+        }
+        opus_feed = {
+            "items": [
+                {"opus_id": "9001", "content": "Update"},
+                {"opus_id": "9002", "content": "Repeated Opus"},
+                {"opus_id": "9003", "content": "Repeated Opus"},
+                {"opus_id": "9004", "content": "Unique"},
+            ],
+            "has_more": False,
+        }
+        cache_mock = AsyncMock()
+        with patch.object(views_space, "cache_set", cache_mock):
+            await views_space._enrich_author_articles_with_opus(MagicMock(), uarts, 1, opus_feed, 300)
+
+        self.assertNotIn("opus_id", uarts["articles"][0])
+        self.assertNotIn("opus_id", uarts["articles"][1])
+        self.assertNotIn("opus_id", uarts["articles"][2])
+        self.assertEqual(uarts["articles"][3].get("opus_id"), "9004")
+        cache_mock.assert_awaited_once_with("cv:opus:104", {"opus_id": "9004"}, 300)
+
+    async def test_resolve_cv_opus_id_skips_ambiguous_title_fallback(self):
+        mock_resp = AsyncMock()
+        mock_resp.status_code = 200
+        mock_resp.json = MagicMock(return_value={"code": -509, "message": "too fast"})
+        mock_resp.aclose = AsyncMock()
+
+        mock_client = AsyncMock()
+        mock_client.build_request = MagicMock()
+        mock_client.send = AsyncMock(return_value=mock_resp)
+
+        with (
+            patch("asyncio.sleep", AsyncMock()),
+            patch.object(
+                views_space.article,
+                "Article",
+                return_value=MagicMock(get_info=AsyncMock(return_value={"mid": 519487206, "title": "Update"})),
+            ),
+            patch.object(
+                views_space.user,
+                "User",
+                return_value=MagicMock(
+                    get_opus_articles=AsyncMock(
+                        return_value={
+                            "items": [
+                                {"opus_id": "111", "content": "Update"},
+                                {"opus_id": "222", "content": "Update"},
+                            ]
+                        }
+                    )
+                ),
+            ),
+        ):
+            resolved = await views_space._resolve_cv_opus_id(mock_client, "7376731", "")
+
+        self.assertIsNone(resolved)
 
 
 if __name__ == "__main__":

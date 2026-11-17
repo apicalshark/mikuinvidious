@@ -159,6 +159,23 @@ class TestFingerprints(unittest.TestCase):
         self.assertEqual(parsed.get("spmid"), "333.1387")
         self.assertEqual(parsed.get("mobi_app"), "web_i")
 
+    def test_cookie_header_preserves_chrome_order_and_drops_blocked_cookies(self):
+        from miku.api.client import _build_cookie_header
+
+        header = _build_cookie_header(
+            {
+                "b_lsid": "ls1",
+                "buvid3": "b3",
+                "bili_ticket": "secret",
+                "b_nut": "1700",
+                "LIVE_BUVID": "AUTO1",
+            },
+            existing="custom=1; _uuid=u1",
+        )
+        self.assertNotIn("bili_ticket", header)
+        names = [seg.split("=", 1)[0] for seg in header.split("; ")]
+        self.assertEqual(names, ["buvid3", "b_nut", "_uuid", "LIVE_BUVID", "b_lsid", "custom"])
+
 
 if __name__ == "__main__":
     unittest.main()

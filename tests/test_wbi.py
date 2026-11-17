@@ -77,6 +77,7 @@ class TestWbiSigner(unittest.TestCase):
         wire_query = encode_wbi_query(signed)
         self.assertIn("keyword=miku%20%20live%202026", wire_query)
         self.assertNotIn("+", wire_query)
+        self.assertEqual(list(signed.keys()), ["keyword", "cid", "web_location", "w_rid", "wts"])
 
     def test_enc_wbi_empty_mixin_key_raises(self):
         with self.assertRaises(ValueError):

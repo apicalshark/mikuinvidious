@@ -97,12 +97,51 @@ def _has_usable_cookies(cookies: dict[str, str] | None) -> bool:
     return any(v for k, v in cookies.items() if v and k not in _BLOCKED_WEB_COOKIES)
 
 
+_COOKIE_ORDER = (
+    "buvid3",
+    "b_nut",
+    "_uuid",
+    "home_feed_column",
+    "buvid4",
+    "browser_resolution",
+    "buvid_fp",
+    "LIVE_BUVID",
+    "SESSDATA",
+    "bili_jct",
+    "DedeUserID",
+    "DedeUserID__ckMd5",
+    "theme-tip-show",
+    "CURRENT_FNVAL",
+    "sid",
+    "rpdid",
+    "PVID",
+    "CURRENT_QUALITY",
+    "bili_ticket",
+    "bili_ticket_expires",
+    "ogv_device_support_dolby",
+    "ogv_device_support_hdr",
+    "b_lsid",
+)
+_COOKIE_ORDER_INDEX = {name: idx for idx, name in enumerate(_COOKIE_ORDER)}
+
+
 def _build_cookie_header(
     *cookie_sources: dict[str, Any] | None,
     existing: str | None = None,
 ) -> str:
-    """Build a Cookie header from *existing* and *cookie_sources*, filtering blocked cookies."""
+    """Build a Cookie header ordered like Chrome HTTP/2 requests, filtering blocked cookies."""
     merged: dict[str, str] = {}
+    if existing:
+        for segment in existing.split(";"):
+            segment = segment.strip()
+            if not segment or "=" not in segment:
+                continue
+            name, _, val = segment.partition("=")
+            name = name.strip()
+            if name in _BLOCKED_WEB_COOKIES or not name:
+                continue
+            merged[name] = val
+
     for source in cookie_sources:
         if not source:
             continue
@@ -111,19 +150,8 @@ def _build_cookie_header(
                 continue
             merged[k] = str(v)
 
-    parts: list[str] = []
-    if existing:
-        for segment in existing.split(";"):
-            segment = segment.strip()
-            if not segment or "=" not in segment:
-                continue
-            name, _, _ = segment.partition("=")
-            if name.strip() in _BLOCKED_WEB_COOKIES:
-                continue
-            parts.append(segment)
-
-    parts.extend(f"{k}={v}" for k, v in merged.items())
-    return "; ".join(parts)
+    ordered_keys = [k for k in _COOKIE_ORDER if k in merged] + [k for k in merged if k not in _COOKIE_ORDER_INDEX]
+    return "; ".join(f"{k}={merged[k]}" for k in ordered_keys)
 
 
 # Wbi mixin key cache
@@ -486,11 +514,18 @@ async def _fetch_anonymous_cookies(now: float) -> tuple[dict[str, str], float]:
     if not cookies.get("buvid4"):
         cookies["buvid4"] = f"{_generate_uuid()}-infoc"
 
-    # Step 2: Generate local cookies
+    # Step 2: Generate local cookies matching browser anonymous session defaults
     cookies["b_nut"] = str(int(now))
-    cookies["b_lsid"] = _generate_b_lsid()
     cookies["_uuid"] = _generate_uuid()
+    cookies["home_feed_column"] = "5"
     cookies["buvid_fp"] = "".join(random.choice("0123456789abcdef") for _ in range(32))
+    cookies["LIVE_BUVID"] = f"AUTO{int(now)}{''.join(random.choice('0123456789') for _ in range(9))}"
+    cookies["CURRENT_FNVAL"] = "4048"
+    cookies["sid"] = "".join(random.choice("0123456789abcdefghijklmnopqrstuvwxyz") for _ in range(8))
+    cookies["PVID"] = "1"
+    cookies["ogv_device_support_dolby"] = "0"
+    cookies["ogv_device_support_hdr"] = "0"
+    cookies["b_lsid"] = _generate_b_lsid()
 
     # Step 3: Generate bili_ticket via HMAC-SHA256 -> GenWebTicket.
     # NOTE: we do NOT send the bili_ticket as a cookie to Bilibili's web API.

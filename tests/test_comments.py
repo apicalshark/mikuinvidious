@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Unit tests for comment component and pagination endpoints."""
 
+import asyncio
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import miku.api.comment as api_comment
 import miku.views as views
 import miku.views.video as views_video
 
@@ -35,6 +37,95 @@ class CommentPaginationTests(unittest.IsolatedAsyncioTestCase):
             async with views.app.test_request_context("/api/component/comments/BV1xx411c7xx/0/more?next=offset1"):
                 result = await views_video.api_component_meta_more("BV1xx411c7xx", 0)
                 self.assertEqual(result, "rendered_comments")
+
+    async def test_get_comments_keeps_first_response_when_retry_budget_exhausted(self):
+        first_data = {
+            "cursor": {"all_count": 5, "is_end": True, "pagination_reply": {"next_offset": ""}},
+            "top_replies": [{"rpid": 1}],
+            "replies": [],
+        }
+
+        async def slow_first_fetch(*_args, **_kwargs):
+            await asyncio.sleep(0.06)
+            return first_data
+
+        with (
+            patch.object(api_comment, "_ensure_numeric_oid", AsyncMock(return_value=12345)),
+            patch.object(api_comment, "_fetch_comment_page", AsyncMock(side_effect=slow_first_fetch)) as mock_fetch,
+        ):
+            res = await api_comment.get_comments(
+                "BV1xx411c7xx",
+                api_comment.CommentResourceType.VIDEO,
+                1,
+                api_comment.OrderType.LIKE,
+                timeout=0.08,
+            )
+
+        self.assertEqual(mock_fetch.await_count, 1)
+        self.assertEqual([r["rpid"] for r in res["replies"]], [1])
+
+    async def test_get_comments_keeps_first_response_when_guest_retry_times_out(self):
+        first_data = {
+            "cursor": {"all_count": 5, "is_end": True, "pagination_reply": {"next_offset": ""}},
+            "top_replies": [{"rpid": 1}],
+            "replies": [],
+        }
+
+        async def fake_fetch(*_args, extra_params=None, **_kwargs):
+            if extra_params:
+                await asyncio.sleep(0.2)
+            return first_data
+
+        with (
+            patch.object(api_comment, "_ensure_numeric_oid", AsyncMock(return_value=12345)),
+            patch.object(api_comment, "_fetch_comment_page", side_effect=fake_fetch),
+        ):
+            res = await api_comment.get_comments(
+                "BV1xx411c7xx",
+                api_comment.CommentResourceType.VIDEO,
+                1,
+                api_comment.OrderType.LIKE,
+                timeout=0.08,
+            )
+
+        self.assertEqual([r["rpid"] for r in res["replies"]], [1])
+
+    async def test_get_comments_propagates_first_attempt_timeout(self):
+        async def slow_fetch(*_args, **_kwargs):
+            await asyncio.sleep(0.2)
+            return {}
+
+        with (
+            patch.object(api_comment, "_ensure_numeric_oid", AsyncMock(return_value=12345)),
+            patch.object(api_comment, "_fetch_comment_page", side_effect=slow_fetch),
+        ):
+            with self.assertRaises(TimeoutError):
+                await api_comment.get_comments(
+                    "BV1xx411c7xx",
+                    api_comment.CommentResourceType.VIDEO,
+                    1,
+                    api_comment.OrderType.LIKE,
+                    timeout=0.03,
+                )
+
+    async def test_get_comments_propagates_cancellation_on_guest_retry(self):
+        first_data = {
+            "cursor": {"all_count": 5, "is_end": True, "pagination_reply": {"next_offset": ""}},
+            "top_replies": [],
+            "replies": [],
+        }
+        with (
+            patch.object(api_comment, "_ensure_numeric_oid", AsyncMock(return_value=12345)),
+            patch.object(
+                api_comment,
+                "_fetch_comment_page",
+                AsyncMock(side_effect=[first_data, asyncio.CancelledError()]),
+            ),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await api_comment.get_comments(
+                    "BV1xx411c7xx", api_comment.CommentResourceType.VIDEO, 1, api_comment.OrderType.LIKE
+                )
 
 
 if __name__ == "__main__":

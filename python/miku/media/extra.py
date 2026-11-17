@@ -24,8 +24,29 @@ from miku.ui.sanitizer import (
 )
 
 _SAFE_COLOR_RE = re.compile(r"^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]{1,24})$")
+_CSS_VAR_FALLBACK_RE = re.compile(r"^var\(\s*--[a-zA-Z0-9_-]+\s*,\s*([^)]+?)\s*\)$")
 _SAFE_LANG_RE = re.compile(r"^[a-zA-Z0-9_+-]+$")
 _PANDOC_TIMEOUT = 30.0
+
+
+def _normalize_safe_color(raw_color):
+    """Extract and validate a safe CSS color (supporting ``var(--x, #HEX)``)."""
+    if not raw_color:
+        return None
+    color_str = str(raw_color).strip()
+    var_match = _CSS_VAR_FALLBACK_RE.fullmatch(color_str)
+    if var_match:
+        color_str = var_match.group(1).strip()
+    if not color_str.startswith("#") and re.fullmatch(r"[0-9a-fA-F]{6}|[0-9a-fA-F]{8}", color_str):
+        color_str = f"#{color_str}"
+    if _SAFE_COLOR_RE.fullmatch(color_str):
+        return color_str
+    return None
+
+
+def _is_divider_pic(width, height):
+    """Return True when an image's dimensions match a decorative divider strip."""
+    return 0 < height <= 64 and 0 < width <= 400
 
 
 def _to_int(value, default=0):
@@ -61,74 +82,277 @@ def _proxied_pic_url(raw_url):
     return "/proxy/pic/" + proxied
 
 
-def get_article_info(article_text, cid):
-    """Extract article info from INITIAL_STATE in HTML."""
-    pattern = re.compile(r"window\.__INITIAL_STATE__\s*=\s*({.*?});", re.DOTALL)
-    match = pattern.search(article_text)
+def merge_opus_modules_info(arinfo, modules):
+    """Populate article metadata fields from Opus module entries."""
+    arinfo.setdefault("covers", [])
+    arinfo.setdefault("tags", [])
+    arinfo.setdefault("copyright", {})
+    arinfo.setdefault("title", "")
+    arinfo.setdefault("publish_time", 0)
+    arinfo.setdefault("author", {})
+    arinfo.setdefault("stats", {"view": 0, "like": 0, "coin": 0, "favorite": 0, "share": 0})
+    for module in modules or []:
+        if not isinstance(module, dict):
+            continue
+        m_type = module.get("module_type")
 
+        if m_type == "MODULE_TYPE_TOP" or module.get("module_top"):
+            top = module.get("module_top") or {}
+            album = (top.get("display") or {}).get("album") or {}
+            for pic in album.get("pics") or []:
+                proxied = _proxied_pic_url(pic.get("url") if isinstance(pic, dict) else None)
+                if proxied and proxied not in arinfo["covers"]:
+                    arinfo["covers"].append(proxied)
+
+        elif m_type == "MODULE_TYPE_TITLE" or module.get("module_title"):
+            title_obj = module.get("module_title") or {}
+            if not arinfo["title"] and title_obj.get("text"):
+                arinfo["title"] = title_obj.get("text", "")
+            for tag_item in title_obj.get("tags") or []:
+                tag_name = tag_item.get("name") if isinstance(tag_item, dict) else str(tag_item or "")
+                tag_name = str(tag_name or "").strip()
+                if tag_name and tag_name not in arinfo["tags"]:
+                    arinfo["tags"].append(tag_name)
+
+        elif m_type == "MODULE_TYPE_AUTHOR" or module.get("module_author"):
+            author = module.get("module_author") or {}
+            if not arinfo["author"].get("mid"):
+                arinfo["author"]["mid"] = author.get("mid")
+            if not arinfo["author"].get("name"):
+                arinfo["author"]["name"] = author.get("name")
+            if not arinfo["author"].get("face"):
+                arinfo["author"]["face"] = author.get("face")
+            if isinstance(author.get("pendant"), dict) and "pendant" not in arinfo["author"]:
+                arinfo["author"]["pendant"] = author.get("pendant")
+            if isinstance(author.get("vip"), dict) and "vip" not in arinfo["author"]:
+                arinfo["author"]["vip"] = author.get("vip")
+            if isinstance(author.get("level_info"), dict) and "level_info" not in arinfo["author"]:
+                arinfo["author"]["level_info"] = author.get("level_info")
+            if not arinfo["publish_time"]:
+                arinfo["publish_time"] = author.get("pub_ts", 0)
+
+        elif m_type == "MODULE_TYPE_EXTEND" or module.get("module_extend"):
+            extend = module.get("module_extend") or {}
+            for item in extend.get("items") or []:
+                tag_text = str(item.get("text") or "").strip() if isinstance(item, dict) else ""
+                if tag_text and tag_text not in arinfo["tags"]:
+                    arinfo["tags"].append(tag_text)
+
+        elif m_type == "MODULE_TYPE_TOPIC" or module.get("module_topic"):
+            topic = module.get("module_topic") or {}
+            topic_name = str(topic.get("name") or "").strip()
+            if topic_name and topic_name not in arinfo["tags"]:
+                arinfo["tags"].append(topic_name)
+
+        elif m_type == "MODULE_TYPE_COPYRIGHT" or module.get("module_copyright"):
+            if not arinfo["copyright"]:
+                cpr = module.get("module_copyright") or {}
+                left_text = str(cpr.get("left_text") or cpr.get("text") or "").strip()
+                right_text = str(cpr.get("right_text") or "").strip()
+                if left_text or right_text:
+                    arinfo["copyright"] = {"left_text": left_text, "right_text": right_text}
+
+        elif m_type == "MODULE_TYPE_STAT" or module.get("module_stat"):
+            stat = module.get("module_stat") or {}
+            arinfo["stats"]["like"] = stat.get("like", {}).get("count", arinfo["stats"]["like"])
+            arinfo["stats"]["coin"] = stat.get("coin", {}).get("count", arinfo["stats"]["coin"])
+            arinfo["stats"]["favorite"] = stat.get("favorite", {}).get("count", arinfo["stats"]["favorite"])
+            arinfo["stats"]["share"] = stat.get("forward", {}).get("count", arinfo["stats"]["share"])
+            if "view" in stat:
+                arinfo["stats"]["view"] = stat.get("view", {}).get("count", arinfo["stats"]["view"])
+
+
+def merge_article_viewinfo(arinfo, api_info):
+    """Merge supplementary fields from Bilibili's article viewinfo API."""
+    if not isinstance(api_info, dict):
+        return
+    arinfo.setdefault("covers", [])
+    if api_info.get("stats"):
+        arinfo["stats"].update(api_info["stats"])
+    if api_info.get("title") and not arinfo.get("title"):
+        arinfo["title"] = api_info["title"]
+    if not arinfo["covers"]:
+        cover_candidates = []
+        if isinstance(api_info.get("image_urls"), list):
+            cover_candidates.extend(api_info["image_urls"][:1])
+        cover_candidates.append(api_info.get("banner_url"))
+        for raw_cover in cover_candidates:
+            proxied = _proxied_pic_url(raw_cover)
+            if proxied and proxied not in arinfo["covers"]:
+                arinfo["covers"].append(proxied)
+                break
+
+
+def opus_detail_to_arinfo(detail):
+    """Build normalized article info dict from an Opus detail or item payload."""
     arinfo = {
         "title": "",
         "author": {"mid": 0, "face": "", "name": ""},
         "publish_time": 0,
         "stats": {"view": 0, "like": 0, "coin": 0, "favorite": 0, "share": 0},
+        "covers": [],
+        "tags": [],
+        "copyright": {},
     }
+    if not isinstance(detail, dict):
+        return arinfo
 
-    if match:
-        state = orjson.loads(match.group(1))
-        detail = state.get("detail", {})
+    modules = detail.get("modules", [])
+    if not modules and isinstance(detail.get("item"), dict):
+        modules = detail["item"].get("modules", [])
 
-        # Try to find modules
-        modules = detail.get("modules", [])
-        if not modules and "item" in detail:
-            modules = detail["item"].get("modules", [])
+    merge_opus_modules_info(arinfo, modules)
 
-        for module in modules:
-            m_type = module.get("module_type")
+    basic = detail.get("basic")
+    if not isinstance(basic, dict) and isinstance(detail.get("item"), dict):
+        basic = detail["item"].get("basic")
+    if isinstance(basic, dict):
+        if not arinfo["title"] and basic.get("title"):
+            arinfo["title"] = str(basic.get("title", "")).replace(" - 哔哩哔哩", "")
+        if not arinfo["author"]["mid"] and basic.get("uid"):
+            arinfo["author"]["mid"] = basic.get("uid", 0)
+        if not arinfo["stats"]["view"] and basic.get("view_count"):
+            arinfo["stats"]["view"] = basic.get("view_count", 0)
+        cid_str = basic.get("comment_id_str")
+        ctype = basic.get("comment_type")
+        if cid_str:
+            arinfo["comment_id"] = str(cid_str)
+        if ctype is not None:
+            arinfo["comment_type"] = _to_int(ctype)
 
-            # Title
-            if m_type == "MODULE_TYPE_TITLE" or module.get("module_title"):
-                title_obj = module.get("module_title", {})
-                arinfo["title"] = title_obj.get("text", "")
-
-            # Author
-            elif m_type == "MODULE_TYPE_AUTHOR" or module.get("module_author"):
-                author = module.get("module_author", {})
-                arinfo["author"]["mid"] = author.get("mid")
-                arinfo["author"]["name"] = author.get("name")
-                arinfo["author"]["face"] = author.get("face")
-                arinfo["publish_time"] = author.get("pub_ts", 0)
-
-            # Stats
-            elif m_type == "MODULE_TYPE_STAT" or module.get("module_stat"):
-                stat = module.get("module_stat", {})
-                arinfo["stats"]["like"] = stat.get("like", {}).get("count", 0)
-                arinfo["stats"]["coin"] = stat.get("coin", {}).get("count", 0)
-                arinfo["stats"]["favorite"] = stat.get("favorite", {}).get("count", 0)
-                arinfo["stats"]["share"] = stat.get("forward", {}).get("count", 0)
-                if "view" in stat:
-                    arinfo["stats"]["view"] = stat.get("view", {}).get("count", 0)
-
-        if not arinfo["title"] and "basic" in detail:
-            arinfo["title"] = detail["basic"].get("title", "").replace(" - 哔哩哔哩", "")
-
-        if not arinfo["author"]["mid"] and "basic" in detail:
-            arinfo["author"]["mid"] = detail["basic"].get("uid", 0)
-
-        if not arinfo["stats"]["view"] and "basic" in detail:
-            arinfo["stats"]["view"] = detail["basic"].get("view_count", 0)
-
-        # Coerce numeric fields to int (Bilibili sometimes sends them as strings,
-        # e.g. ``pub_ts`` on the opus format) so template filters like |date
-        # (datetime.fromtimestamp) don't crash.
-        arinfo["publish_time"] = _to_int(arinfo["publish_time"])
-        arinfo["author"]["mid"] = _to_int(arinfo["author"]["mid"])
-        for _k in arinfo["stats"]:
-            arinfo["stats"][_k] = _to_int(arinfo["stats"][_k])
-
+    arinfo["publish_time"] = _to_int(arinfo["publish_time"])
+    arinfo["author"]["mid"] = _to_int(arinfo["author"]["mid"])
+    for _k in arinfo["stats"]:
+        arinfo["stats"][_k] = _to_int(arinfo["stats"][_k])
     return arinfo
 
 
+def get_article_info(article_text, cid):
+    """Extract article info from INITIAL_STATE in HTML."""
+    pattern = re.compile(r"window\.__INITIAL_STATE__\s*=\s*({.*?});", re.DOTALL)
+    match = pattern.search(article_text)
+    if match:
+        state = orjson.loads(match.group(1))
+        return opus_detail_to_arinfo(state.get("detail", {}))
+    return opus_detail_to_arinfo({})
+
+
 """Format the result returned by cv link."""
+
+
+def opus_modules_to_html(modules):
+    """Render sanitized HTML from Opus ``MODULE_TYPE_CONTENT`` module list."""
+    content_html = ""
+    for module in modules or []:
+        if not isinstance(module, dict):
+            continue
+        if module.get("module_type") == "MODULE_TYPE_CONTENT" or module.get("module_content"):
+            paragraphs = (module.get("module_content") or {}).get("paragraphs", [])
+            for p in paragraphs:
+                p_type = p.get("para_type")
+                if p_type == 1:
+                    text_nodes = (p.get("text") or {}).get("nodes", [])
+                    p_content = ""
+                    for node in text_nodes:
+                        text_html = ""
+                        url = None
+                        is_bold = False
+                        is_italic = False
+                        is_underline = False
+                        is_strikethrough = False
+                        color = None
+
+                        if node.get("rich"):
+                            rich = node["rich"]
+                            raw_text = str(rich.get("text") or "")
+                            url = rich.get("jump_url")
+                            rich_style = rich.get("style") if isinstance(rich.get("style"), dict) else {}
+                            color = rich.get("color") or rich_style.get("color")
+                            if rich.get("emoji"):
+                                emoji_url = rich["emoji"].get("icon_url")
+                                proxied_emoji = _proxied_pic_url(emoji_url)
+                                if proxied_emoji:
+                                    emoji_style = (
+                                        "width: 1.2em; height: 1.2em; display: inline-block; vertical-align: middle;"
+                                    )
+                                    text_html = (
+                                        f'<img src="{html_lib.escape(proxied_emoji, quote=True)}" '
+                                        f'style="{emoji_style}" '
+                                        f'alt="{html_lib.escape(raw_text, quote=True)}">'
+                                    )
+                                else:
+                                    text_html = html_lib.escape(raw_text, quote=True)
+                            else:
+                                text_html = html_lib.escape(raw_text, quote=True)
+                        elif node.get("word"):
+                            word = node["word"]
+                            text_html = html_lib.escape(str(word.get("words") or ""), quote=True)
+                            style_obj = word.get("style") if isinstance(word.get("style"), dict) else {}
+                            is_bold = bool(style_obj.get("bold") or word.get("bold"))
+                            is_italic = bool(style_obj.get("italic") or word.get("italic"))
+                            is_underline = bool(style_obj.get("underline") or word.get("underline"))
+                            is_strikethrough = bool(style_obj.get("strikethrough") or word.get("strikethrough"))
+                            color = word.get("color") or style_obj.get("color")
+                            if node.get("type") == "TEXT_NODE_TYPE_HYPERLINK" and not url:
+                                url = (node.get("link") or {}).get("url")
+
+                        safe_color = _normalize_safe_color(color)
+                        if safe_color:
+                            text_html = (
+                                f'<span style="color: {html_lib.escape(safe_color, quote=True)};">{text_html}</span>'
+                            )
+                        if is_bold:
+                            text_html = f"<strong>{text_html}</strong>"
+                        if is_italic:
+                            text_html = f"<em>{text_html}</em>"
+                        if is_underline:
+                            text_html = f"<u>{text_html}</u>"
+                        if is_strikethrough:
+                            text_html = f"<del>{text_html}</del>"
+
+                        if url:
+                            text_html = f'<a href="{html_lib.escape(str(url), quote=True)}">{text_html}</a>'
+
+                        p_content += text_html
+
+                    align_style = ""
+                    align = p.get("align")
+                    if align is None and isinstance(p.get("format"), dict):
+                        align = p["format"].get("align")
+                    if align == 1:
+                        align_style = ' style="text-align: center;"'
+                    elif align == 2:
+                        align_style = ' style="text-align: right;"'
+
+                    if p_content.strip():
+                        content_html += f"<p{align_style}>{p_content}</p>"
+                    else:
+                        content_html += f"<p{align_style}><br></p>"
+                elif p_type == 2:
+                    pics = (p.get("pic") or {}).get("pics", [])
+                    for pic in pics:
+                        proxied_url = _proxied_pic_url(pic.get("url"))
+                        if proxied_url:
+                            w = _to_int(pic.get("width"))
+                            h = _to_int(pic.get("height"))
+                            img_class = "mx-auto" if _is_divider_pic(w, h) else "mx-auto rounded-xl"
+                            size_attrs = f' width="{w}" height="{h}"' if w > 0 and h > 0 else ""
+                            img_html = (
+                                f'<img src="{html_lib.escape(proxied_url, quote=True)}"'
+                                f'{size_attrs} class="{img_class}">'
+                            )
+                            content_html += f'<figure style="text-align: center;">{img_html}</figure>'
+                elif p_type == 7:
+                    code = p.get("code") or {}
+                    raw_lang = str(code.get("lang") or "").replace("language-", "").strip()
+                    lang = raw_lang if _SAFE_LANG_RE.fullmatch(raw_lang) else "text"
+                    content = html_lib.escape(str(code.get("content") or ""), quote=True)
+                    content_html += (
+                        f'<pre><code class="language-{html_lib.escape(lang, quote=True)}">{content}</code></pre>'
+                    )
+    if content_html:
+        return sanitize_html(f'<div id="main-article">{content_html}</div>')
+    return ""
 
 
 def article_to_html(article_text):
@@ -136,7 +360,6 @@ def article_to_html(article_text):
     article_body = article_soup.find("div", id="read-article-holder")
 
     if not article_body:
-        # Try to parse from INITIAL_STATE if it's a new format article
         pattern = re.compile(r"window\.__INITIAL_STATE__\s*=\s*({.*?});", re.DOTALL)
         match = pattern.search(article_text)
         if match:
@@ -146,116 +369,9 @@ def article_to_html(article_text):
                 modules = detail.get("modules", [])
                 if not modules and "item" in detail:
                     modules = detail["item"].get("modules", [])
-
-                content_html = ""
-                for module in modules:
-                    if module.get("module_type") == "MODULE_TYPE_CONTENT" or module.get("module_content"):
-                        paragraphs = module.get("module_content", {}).get("paragraphs", [])
-                        for p in paragraphs:
-                            p_type = p.get("para_type")
-                            if p_type == 1:  # Text
-                                text_nodes = p.get("text", {}).get("nodes", [])
-                                p_content = ""
-                                for node in text_nodes:
-                                    text_html = ""
-                                    url = None
-                                    is_bold = False
-                                    is_italic = False
-                                    color = None
-
-                                    if node.get("rich"):
-                                        rich = node["rich"]
-                                        raw_text = str(rich.get("text") or "")
-                                        url = rich.get("jump_url")
-                                        if rich.get("emoji"):
-                                            emoji_url = rich["emoji"].get("icon_url")
-                                            proxied_emoji = _proxied_pic_url(emoji_url)
-                                            if proxied_emoji:
-                                                emoji_style = (
-                                                    "width: 1.2em; height: 1.2em; display: inline-block; "
-                                                    "vertical-align: middle;"
-                                                )
-                                                text_html = (
-                                                    f'<img src="{html_lib.escape(proxied_emoji, quote=True)}" '
-                                                    f'style="{emoji_style}" '
-                                                    f'alt="{html_lib.escape(raw_text, quote=True)}">'
-                                                )
-                                            else:
-                                                text_html = html_lib.escape(raw_text, quote=True)
-                                        else:
-                                            text_html = html_lib.escape(raw_text, quote=True)
-                                    elif node.get("word"):
-                                        word = node["word"]
-                                        text_html = html_lib.escape(str(word.get("words") or ""), quote=True)
-                                        if word.get("style"):
-                                            is_bold = word["style"].get("bold")
-                                            is_italic = word["style"].get("italic")
-                                            color = word["style"].get("color")
-
-                                    # Fallback for older format if necessary
-                                    if not text_html and node.get("type") == "TEXT_NODE_TYPE_WORD":
-                                        word = node.get("word", {})
-                                        text_html = html_lib.escape(str(word.get("words") or ""), quote=True)
-                                        is_bold = word.get("bold")
-                                        is_italic = word.get("italic")
-                                        color = word.get("color")
-                                    elif not text_html and node.get("type") == "TEXT_NODE_TYPE_HYPERLINK":
-                                        word = node.get("word", {})
-                                        text_html = html_lib.escape(str(word.get("words") or ""), quote=True)
-                                        url = node.get("link", {}).get("url")
-
-                                    if is_bold:
-                                        text_html = f"<strong>{text_html}</strong>"
-                                    if is_italic:
-                                        text_html = f"<em>{text_html}</em>"
-                                    if color:
-                                        color_str = str(color).strip()
-                                        if not color_str.startswith("#") and re.fullmatch(
-                                            r"[0-9a-fA-F]{6}|[0-9a-fA-F]{8}", color_str
-                                        ):
-                                            color_str = f"#{color_str}"
-                                        if _SAFE_COLOR_RE.fullmatch(color_str):
-                                            text_html = (
-                                                f'<span style="color: {html_lib.escape(color_str, quote=True)};">'
-                                                f"{text_html}</span>"
-                                            )
-
-                                    if url:
-                                        text_html = f'<a href="{html_lib.escape(str(url), quote=True)}">{text_html}</a>'
-
-                                    p_content += text_html
-
-                                # Alignment
-                                align_style = ""
-                                align = p.get("align")
-                                if align == 2 or align == 1:  # Center (opus uses 1 for center sometimes?)
-                                    align_style = ' style="text-align: center;"'
-                                elif align == 3:  # Right
-                                    align_style = ' style="text-align: right;"'
-
-                                content_html += f"<p{align_style}>{p_content}</p>"
-                            elif p_type == 2:  # Image
-                                pics = p.get("pic", {}).get("pics", [])
-                                for pic in pics:
-                                    proxied_url = _proxied_pic_url(pic.get("url"))
-                                    if proxied_url:
-                                        img_html = (
-                                            f'<img src="{html_lib.escape(proxied_url, quote=True)}" class="mx-auto">'
-                                        )
-                                        content_html += f'<figure style="text-align: center;">{img_html}</figure>'
-                            elif p_type == 7:  # Code
-                                code = p.get("code", {})
-                                raw_lang = str(code.get("lang") or "").replace("language-", "").strip()
-                                lang = raw_lang if _SAFE_LANG_RE.fullmatch(raw_lang) else "text"
-                                content = html_lib.escape(str(code.get("content") or ""), quote=True)
-                                content_html += (
-                                    f'<pre><code class="language-{html_lib.escape(lang, quote=True)}">'
-                                    f"{content}</code></pre>"
-                                )
-
-                if content_html:
-                    # Sanitize the generated HTML
-                    return sanitize_html(f'<div id="main-article">{content_html}</div>')
+                rendered = opus_modules_to_html(modules)
+                if rendered:
+                    return rendered
             except Exception as e:
                 print(f"Error parsing opus INITIAL_STATE: {e}")
                 pass
@@ -284,9 +400,14 @@ def article_to_html(article_text):
                 if proxied:
                     child["src"] = proxied
 
-            # Remove all other attributes except src and add mx-auto class
             src = child.get("src", "")
-            child.attrs = {"src": src, "class": "mx-auto"}
+            w = _to_int(child.get("width"))
+            h = _to_int(child.get("height"))
+            img_class = "mx-auto" if _is_divider_pic(w, h) else "mx-auto rounded-xl"
+            child.attrs = {"src": src, "class": img_class}
+            if w > 0 and h > 0:
+                child["width"] = str(w)
+                child["height"] = str(h)
             continue
 
         # Handle links
@@ -316,17 +437,19 @@ def article_to_html(article_text):
         if child.has_attr("style"):
             style = child["style"]
             # Preserve text-align
-            match_align = re.search(r"text-align\s*:\s*([^;]+)", style)
+            match_align = re.search(r"(?:^|[;\s])text-align\s*:\s*([^;]+)", style)
             if match_align:
                 new_style.append(f"text-align: {match_align.group(1).strip()}")
 
             # Preserve color
-            match_color = re.search(r"color\s*:\s*([^;]+)", style)
+            match_color = re.search(r"(?:^|[;\s])color\s*:\s*([^;]+)", style)
             if match_color:
-                new_style.append(f"color: {match_color.group(1).strip()}")
+                safe_color = _normalize_safe_color(match_color.group(1).strip())
+                if safe_color:
+                    new_style.append(f"color: {safe_color}")
 
             # Preserve font-weight
-            match_weight = re.search(r"font-weight\s*:\s*([^;]+)", style)
+            match_weight = re.search(r"(?:^|[;\s])font-weight\s*:\s*([^;]+)", style)
             if match_weight:
                 new_style.append(f"font-weight: {match_weight.group(1).strip()}")
 
@@ -338,6 +461,14 @@ def article_to_html(article_text):
         # Bilibili uses a lot of specific classes for layout.
 
         child.attrs = new_attrs
+
+        if (
+            child.name == "p"
+            and not child.find(["img", "br", "hr", "video", "iframe"])
+            and not child.get_text(strip=True)
+        ):
+            child.clear()
+            child.append(article_soup.new_tag("br"))
 
     # Sanitize the final HTML to prevent XSS
     return sanitize_html(str(article_body))

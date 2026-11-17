@@ -48,7 +48,7 @@
                          alt="Cover"
                          class="h-full w-full object-contain" />
                     <div id="audio-buffering"
-                         class="absolute inset-0 bg-black/70 flex items-center justify-center text-white hidden">
+                         class="absolute inset-0 bg-black/70 items-center justify-center text-white hidden">
                         <div id="audio-progress-text" class="text-sm font-bold">{{ _("Buffering: %(available)s / %(target)s") % {'available': '0.0s', 'target': '15.0s'} }}</div>
                     </div>
                     <audio controls
@@ -61,7 +61,7 @@
                 <!-- Title & Basic Actions -->
                 <div class="p-4 md:p-6 space-y-4">
                     <div class="flex items-start justify-between gap-4">
-                        <h1 class="text-lg md:text-xl font-bold text-on-surface leading-tight break-words line-clamp-2">
+                        <h1 class="text-lg md:text-xl font-bold text-on-surface leading-tight wrap-break-word line-clamp-2">
                             {{ vinfo['title'] }}
                         </h1>
                         <a id="avswitch"
@@ -108,14 +108,24 @@
                     <!-- Actions -->
                     <div class="flex flex-col md:flex-row gap-4 items-center justify-between">
                         <!-- Channel Info -->
+                        {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
+                        {% set ometa = owner_info|default({}) %}
+                        {% set ovip = ometa.get("vip") %}
+                        {% set is_ovip = ovip is mapping and (ovip.get("status") == 1 or ovip.get("vipStatus") == 1) and ovip.get("nickname_color") %}
+                        {% set olevel = ometa.get("level") if ometa.get("level") is not none else ometa.get("level_info", {}).get("current_level") %}
+                        {% set oloc = vinfo.get("pub_location") or ometa.get("ip_location") %}
                         <a href="/space/{{ vinfo['owner']['mid'] }}"
-                           class="flex items-center gap-3 group w-full md:w-auto">
-                            <img src="{{ vinfo['owner']['face']|pic }}"
-                                 alt="{{ vinfo['owner']['name'] }}"
-                                 class="w-10 h-10 rounded-full object-cover group-hover:opacity-90 transition-opacity" />
+                           class="flex items-center gap-4 group w-full md:w-auto">
+                            {{ avatar_with_pendant(vinfo['owner']['face'], ometa.get('pendant'), vip=ovip, size_class="w-10 h-10", pendant_size_class="w-14 h-14", img_suffix="@48w_48h.webp", alt=vinfo['owner']['name']) }}
                             <div class="flex flex-col">
-                                <span class="font-bold text-on-surface group-hover:text-primary transition-colors">{{ vinfo['owner']['name'] }}</span>
-                                <span class="text-xs text-on-surface-variant">{{ vinfo['pubdate']|date }}</span>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <span class="font-bold {{ 'bili-vip-name' if is_ovip else 'text-on-surface' }} group-hover:text-primary transition-colors">{{ vinfo['owner']['name'] }}</span>
+                                    {{ level_badge(olevel, ometa.get('is_senior_member')) }}
+                                </div>
+                                <div class="flex items-center gap-2 flex-wrap text-xs text-on-surface-variant">
+                                    <span>{{ vinfo['pubdate']|date }}</span>
+                                    {% if oloc %}<span>{{ oloc }}</span>{% endif %}
+                                </div>
                             </div>
                         </a>
                         <!-- External & Download -->
@@ -146,38 +156,61 @@
                         </div>
                     </div>
                     <!-- Description -->
-                    <div class="bg-surface-variant/10 rounded-xl p-4 text-sm text-on-surface leading-relaxed break-words max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
+                    <div class="bg-surface-variant/10 rounded-xl p-4 space-y-3 text-sm text-on-surface leading-relaxed wrap-break-word max-h-40 overflow-y-auto hover:max-h-[50vh] transition-all duration-500 custom-scrollbar">
                         {{ vinfo['desc']|format_desc }}
                     </div>
                 </div>
             </div>
             <!-- Comments -->
             <div class="bg-surface dark:bg-background rounded-2xl p-4 md:p-6 shadow-xs">
-                <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
-                    <i class="icon ion-ios-chatbubbles"></i>
-                    {{ _("Comments") }} ({{ vcomments['page']['count'] }})
-                </h3>
+                {% set active_mode = vcomments.get('mode', 3) %}
+                <div class="flex items-center justify-between gap-4 mb-4">
+                    <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
+                        <i class="icon ion-ios-chatbubbles"></i>
+                        {{ _("Comments") }} ({{ vcomments['page']['count'] }})
+                    </h3>
+                    <div class="flex items-center gap-2 text-xs font-medium"
+                         id="comments-sort-bar"
+                         data-vid="{{ vid }}"
+                         data-idx="{{ idx if idx is defined else 0 }}"
+                         data-comment-type="1">
+                        <button type="button"
+                                class="comment-sort-btn transition-colors cursor-pointer {{ 'text-primary font-bold' if active_mode != 2 else 'text-on-surface-variant hover:text-primary' }}"
+                                data-sort="3">{{ _("Hot") }}</button>
+                        <span class="text-outline-variant/60 select-none">|</span>
+                        <button type="button"
+                                class="comment-sort-btn transition-colors cursor-pointer {{ 'text-primary font-bold' if active_mode == 2 else 'text-on-surface-variant hover:text-primary' }}"
+                                data-sort="2">{{ _("Newest") }}</button>
+                    </div>
+                </div>
                 <div class="space-y-6" id="comments-list">
                     <div id="comments-cursor"
                          data-next-offset="{{ vcomments.get('next_offset', '') }}"
                          data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"></div>
                     {% if vcomments["replies"] %}
+                        {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
                         {% for rep in vcomments['replies'] %}
-                            <div class="flex gap-4 group" data-rpid="{{ rep['rpid'] }}">
-                                <a href="/space/{{ rep['member']['mid'] }}" class="shrink-0">
-                                    <img loading="lazy"
-                                         class="w-10 h-10 rounded-full object-cover group-hover:opacity-90 transition-opacity"
-                                         src="{{ (rep['member']['avatar'] + '@48w_48h.webp')|pic }}"
-                                         alt="" />
+                            <div class="flex gap-5 group" data-rpid="{{ rep['rpid'] }}">
+                                {% set mvip = rep['member'].get('vip') %}
+                                <a href="/space/{{ rep['member']['mid'] }}"
+                                   class="shrink-0 group-hover:opacity-90 transition-opacity">
+                                    {{ avatar_with_pendant(rep['member']['avatar'], rep['member'].get('pendant'), vip=mvip, size_class="w-10 h-10", img_suffix="@48w_48h.webp", compact_pendant=true) }}
                                 </a>
                                 <div class="grow space-y-1">
-                                    <div class="flex items-baseline justify-between">
+                                    {% set is_vip = mvip is mapping and mvip.get('vipStatus') == 1 and mvip.get('nickname_color') %}
+                                    <div class="flex items-center gap-1.5 flex-wrap">
                                         <a href="/space/{{ rep['member']['mid'] }}"
-                                           class="font-bold text-sm text-on-surface hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
-                                        <span class="text-xs text-on-surface-variant/70">{{ rep['reply_control']['time_desc'] }}</span>
+                                           class="font-bold text-sm {{ 'bili-vip-name' if is_vip else 'text-on-surface' }} hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
+                                        {{ level_badge(rep['member'].get('level_info', {}).get('current_level'), rep['member'].get('is_senior_member')) }}
                                     </div>
-                                    <p class="text-sm text-on-surface leading-relaxed break-words">{{ rep['content']|reply_content }}</p>
-                                    <div class="flex items-center gap-4 text-xs text-on-surface-variant/70 pt-1">
+                                    <p class="text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
+                                    <div class="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-on-surface-variant/70 pt-1">
+                                        {% set cdate = rep.get('ctime')|date %}
+                                        {% set tdesc = rep.get('reply_control', {}).get('time_desc') %}
+                                        {% if cdate or tdesc %}<span>{{ cdate or tdesc }}</span>{% endif %}
+                                        {% if rep.get("reply_control", {}).get("location") %}
+                                            <span>{{ rep['reply_control']['location'] }}</span>
+                                        {% endif %}
                                         <span class="flex items-center gap-1 hover:text-primary transition-colors cursor-default"><i class="icon ion-ios-thumbs-up"></i> {{ rep['like']|intsep }}</span>
                                         {% set rcount = rep.get('rcount', 0) %}
                                         {% if rcount > 0 %}

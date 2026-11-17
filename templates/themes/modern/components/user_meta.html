@@ -1,0 +1,43 @@
+{% macro avatar_with_pendant(avatar_url, pendant=none, vip=none, size_class="w-10 h-10", img_suffix="@48w_48h.webp", alt="", ring_class="", img_class="", pendant_size_class="", compact_pendant=false) %}
+    {% set pendant_url = (pendant.get("image_enhance") or pendant.get("image")) if pendant is mapping else "" %}
+    {% set is_vip = vip is mapping and (vip.get("status") == 1 or vip.get("vipStatus") == 1) %}
+    {% set vip_title = (vip.get("label", {}).get("text") if is_vip and vip.get("label") is mapping else "") or "大会员" %}
+    {% set has_contained_pendant = pendant_url and pendant_size_class %}
+    {% set has_compact_pendant = pendant_url and compact_pendant and not has_contained_pendant %}
+    <div class="relative inline-flex items-center justify-center shrink-0 {{ pendant_size_class if has_contained_pendant else size_class }}{% if has_contained_pendant %} bili-avatar-has-pendant{% elif has_compact_pendant %} bili-avatar-compact-pendant{% endif %}">
+        <img loading="lazy"
+             class="rounded-full object-cover {{ 'bili-avatar-img' if (has_contained_pendant or has_compact_pendant) else 'w-full h-full' }} {{ ring_class }} {{ img_class }}"
+             src="{{ (avatar_url + img_suffix)|pic }}"
+             alt="{{ alt }}" />
+        {% if pendant_url %}
+            <img loading="lazy"
+                 aria-hidden="true"
+                 src="{{ pendant_url|pic }}"
+                 alt=""
+                 class="bili-pendant-img" />
+        {% endif %}
+        {% if is_vip %}
+            <svg class="bili-avatar-vip-dot"
+                 viewBox="0 0 20 20"
+                 role="img"
+                 aria-label="{{ vip_title }}">
+                <title>{{ vip_title }}</title>
+                <circle cx="10" cy="10" r="10" fill="var(--md-sys-color-surface, #fff)" />
+                <circle cx="10" cy="10" r="8.2" fill="var(--color-sakura, #fb7299)" />
+                <polygon points="10,2.4 12.19,6.2 16.58,6.2 14.39,10 16.58,13.8 12.19,13.8 10,17.6 7.81,13.8 3.42,13.8 5.61,10 3.42,6.2 7.81,6.2" fill="#fff" />
+            </svg>
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{% macro level_badge(level, is_senior=0) %}
+    {% if level is not none and level != "" %}
+        {% set lv_int = level|int %}
+        {% set lv_clamped = 6 if lv_int > 6 else (0 if lv_int < 0 else lv_int) %}
+        {% set senior_cls = " bili-lv-senior" if (is_senior and lv_clamped == 6) else "" %}
+        <span class="bili-lv bili-lv-{{ lv_clamped }}{{ senior_cls }}"
+              title="LV{{ lv_clamped }}">LV{{ lv_clamped }}
+            {%- if is_senior and lv_clamped == 6 %}+{% endif -%}
+        </span>
+    {% endif %}
+{% endmacro %}

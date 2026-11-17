@@ -8,7 +8,7 @@ import sys
 import orjson
 from quart import Response, g, request
 
-from miku.api import comment, video
+from miku.api import comment, user, video
 from miku.api.bvid import av2bv
 from miku.core.rate_limit import RATE_LIMITS, get_client_ip, ip_family_key, rate_limit
 from miku.dash.common import _is_valid_vid
@@ -28,6 +28,36 @@ from miku.state import (
 _background_tasks = set()
 
 
+async def _fetch_owner_meta(vinfo: dict) -> dict:
+    owner = vinfo.get("owner") if isinstance(vinfo, dict) else None
+    mid = owner.get("mid") if isinstance(owner, dict) else None
+    if not mid:
+        return {}
+    cache_key = f"owner:meta:{mid}"
+    ttl = max(cache_minutes("space_minutes"), 30) * 60
+    cached = await cache_get(cache_key, ttl)
+    if isinstance(cached, dict) and cached:
+        return cached
+    try:
+        async with asyncio.timeout(2.5):
+            uinfo = await user.User(mid, credential=appcred).get_user_info()
+    except Exception:
+        return {}
+    if not isinstance(uinfo, dict) or not uinfo:
+        return {}
+    raw_level_info = uinfo.get("level_info")
+    meta = {
+        "pendant": uinfo.get("pendant"),
+        "level": uinfo.get("level"),
+        "level_info": raw_level_info if isinstance(raw_level_info, dict) else {},
+        "is_senior_member": uinfo.get("is_senior_member"),
+        "vip": uinfo.get("vip"),
+        "ip_location": uinfo.get("ip_location"),
+    }
+    await cache_set(cache_key, meta, ttl)
+    return meta
+
+
 async def _component_ip_key(req) -> str:
     """One coarse bucket per client IP across all ``/api/component/*`` routes.
 
@@ -45,6 +75,14 @@ _COMMENT_OID_RE = re.compile(r"^(BV[A-Za-z0-9]{10}|(?:av|au|am)?\d{1,20})$")
 
 def _is_valid_comment_oid(vid: str) -> bool:
     return bool(vid) and bool(_COMMENT_OID_RE.match(vid))
+
+
+_ALLOWED_COMMENT_TYPES = frozenset(t.value for t in comment.CommentResourceType)
+
+
+def _parse_comment_type() -> int:
+    raw = request.args.get("type", comment.CommentResourceType.VIDEO.value, type=int)
+    return raw if raw in _ALLOWED_COMMENT_TYPES else comment.CommentResourceType.VIDEO.value
 
 
 def _bad_vid_response() -> Response:
@@ -114,10 +152,12 @@ async def video_listen_view(vid, idx=0):
                 return_exceptions=True,
             )
             vcomments = res_cached[0] if isinstance(res_cached[0], dict) else {"page": {"count": 0}, "replies": []}
+            owner_info = await _fetch_owner_meta(vinfo)
             html = await render_template_with_theme(
                 "video_listen.html",
                 vid=vid,
                 vinfo=vinfo,
+                owner_info=owner_info,
                 vrelated=vrelated[:10],
                 vcomments=vcomments,
                 keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
@@ -166,10 +206,12 @@ async def video_listen_view(vid, idx=0):
             {"vinfo": vinfo, "vtags": vtags, "vrelated": vrelated, "vset": vset},
             cache_ttl,
         )
+    owner_info = await _fetch_owner_meta(vinfo)
     html = await render_template_with_theme(
         "video_listen.html",
         vid=vid,
         vinfo=vinfo,
+        owner_info=owner_info,
         vrelated=vrelated[:10],
         vcomments=vcomments,
         keywords=",".join(x.get("tag_name", "") for x in vtags),
@@ -382,8 +424,9 @@ async def api_component_meta(vid, idx):
 
     comments_closed = False
     try:
-        async with asyncio.timeout(4.0):
-            raw_result = await comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE)
+        raw_result = await comment.get_comments(
+            vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE, timeout=4.0
+        )
     except Exception as exc:
         debug(f"safe_api exception for vid={vid}: {type(exc).__name__}: {exc}")
         comments_closed = getattr(exc, "code", None) == comment.COMMENTS_CLOSED_CODE
@@ -415,12 +458,11 @@ async def api_component_meta_more(vid, idx):
     next_offset = request.args.get("next", "")
     if not isinstance(next_offset, str) or len(next_offset) > 512:
         next_offset = ""
+    comment_type = _parse_comment_type()
+    order = comment.OrderType.TIME if request.args.get("mode", type=int) == 2 else comment.OrderType.LIKE
 
     try:
-        async with asyncio.timeout(4.0):
-            raw = await comment.get_comments(
-                vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE, next_offset=next_offset
-            )
+        raw = await comment.get_comments(vid, comment_type, 1, order, next_offset=next_offset, timeout=4.0)
     except Exception:
         raw = None
     failed = not isinstance(raw, dict)
@@ -430,6 +472,7 @@ async def api_component_meta_more(vid, idx):
         "components/comment_items.html",
         vid=vid,
         vcomments=vcomments,
+        comment_type=comment_type,
         is_live=False,
     )
     return (body, 503) if failed else body
@@ -448,10 +491,11 @@ async def api_component_sub_comments(vid, rpid):
     page = request.args.get("page", 1, type=int)
     if page is None or page < 1:
         page = 1
+    comment_type = _parse_comment_type()
 
     try:
         async with asyncio.timeout(4.0):
-            result = await comment.get_sub_comments(vid, rpid, comment.CommentResourceType.VIDEO.value, page)
+            result = await comment.get_sub_comments(vid, rpid, comment_type, page)
     except Exception:
         result = None
     if not isinstance(result, dict):
@@ -517,10 +561,12 @@ async def video_view(vid, idx=0):
                 data["vrelated"],
                 data["vset"],
             )
+            owner_info = await _fetch_owner_meta(vinfo)
             html = await render_template_with_theme(
                 "video.html",
                 vid=vid,
                 vinfo=vinfo,
+                owner_info=owner_info,
                 vcomments={"page": {"count": 0}, "replies": []},
                 vrelated=vrelated[:15],
                 keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
@@ -574,10 +620,12 @@ async def video_view(vid, idx=0):
                     stale_data["vrelated"],
                     stale_data["vset"],
                 )
+                owner_info = await _fetch_owner_meta(vinfo)
                 html = await render_template_with_theme(
                     "video.html",
                     vid=vid,
                     vinfo=vinfo,
+                    owner_info=owner_info,
                     vcomments={"page": {"count": 0}, "replies": []},
                     vrelated=vrelated[:15],
                     keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
@@ -651,10 +699,12 @@ async def video_view(vid, idx=0):
     vcomments = {"page": {"count": 0}, "replies": []}
     supported_src = []
 
+    owner_info = await _fetch_owner_meta(vinfo)
     html = await render_template_with_theme(
         "video.html",
         vid=vid,
         vinfo=vinfo,
+        owner_info=owner_info,
         vcomments=vcomments,
         vrelated=vrelated[:15],
         keywords=",".join(x.get("tag_name", "") for x in vtags),

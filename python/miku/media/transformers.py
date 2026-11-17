@@ -49,8 +49,9 @@ def format_description(raw_desc):
     """Escapes HTML and formats newlines into paragraphs/breaks."""
     if not raw_desc:
         return ""
+    normalized = raw_desc.replace("\r\n", "\n").replace("\r", "\n")
     # Split into paragraphs by double newlines
-    paragraphs = re.split(r"\n\s*\n", raw_desc)
+    paragraphs = re.split(r"\n\s*\n", normalized)
     formatted_paragraphs = []
     for p in paragraphs:
         if p.strip():

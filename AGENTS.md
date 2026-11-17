@@ -93,7 +93,8 @@ npm run build:i18n
 - **No Shims or Flat-File Sprawl:** Place new Python modules in the appropriate `python/miku/*` package; never leave flat files in `python/` or backward-compatibility re-export shims—update callers and tests directly.
 - **Clean Frontend Assets:** Keep JS/CSS out of Jinja2 templates (use `static/themes/modern/js/` and `tailwind-input.css`); remove dead CSS/JS rather than leaving unused rules.
 - **Focused Tests & Code:** Organize tests by module/feature in `tests/` (never grab-bag files like `test_review_fixes.py`); avoid speculative single-use wrappers, dead fallbacks, and swallowed exceptions.
-- **Concise Comments & Synced Docs:** Write comments/docstrings only for non-obvious invariants; update `AGENTS.md` and `doc/*.md` whenever module paths or architecture change.
+- **No Comments Unless Requested & Synced Docs:** Do not add comments in code unless explicitly instructed by the user—write clear, self-explanatory code and encourage reading the code itself; update `AGENTS.md` and `doc/*.md` whenever module paths or architecture change.
+- **Strict URL Host Validation:** Never check URLs via substring matching (e.g., `"example.com" in url`); always parse with `urlparse(url).hostname` and verify exact host or `.domain` suffix.
 - **Docker (`compose.yml`):**
   - `app`: Granian running Quart (`:8080`) on pinned bridge subnet `172.30.0.0/24` with `TRUSTED_PROXIES` configured for Caddy.
   - `caddy`: Reverse proxy & static server (`:8000`).
@@ -106,6 +107,7 @@ npm run build:i18n
 ## MCP Tool Usage
 
 Use `call_mcp_tool(ServerName, ToolName, Arguments)`:
+
 - **Web Fetching:** Prefer `webfetch` (`fetch`) or `exa` (`web_fetch_exa`) over shell curls.
 - **Library Docs:** Use `context7_context7` (`query-docs`) for Quart, Tailwind, Redis, Caddy.
 - **Web Standards:** Use `mdn` (`get-doc`, `get-compat`) for Web APIs/CSS.

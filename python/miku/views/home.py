@@ -106,7 +106,8 @@ async def search_view():
 
     # URL Jump logic
     b23_link = extract_b23_or_bili_url(q)
-    if b23_link and "b23.tv" in b23_link:
+    b23_host = (urlparse(b23_link).hostname or "").lower() if b23_link else ""
+    if b23_host == "b23.tv" or b23_host.endswith(".b23.tv"):
         res = await resolve_b23_target(q)
         if res.get("status") == "ok" and res.get("local_path"):
             return redirect(res["local_path"])
@@ -117,13 +118,21 @@ async def search_view():
         return redirect(url_for("video_view", vid=m.group(0)))
 
     # 2. Article (cv/opus)
-    m = re.search(r"(cv\d+|opus\d+)", q, re.I)
+    m = re.search(r"cv(\d+)", q, re.I)
     if m:
-        return redirect(url_for("read_view", cid=m.group(0)))
+        return redirect(url_for("read_view", cid=f"cv{m.group(1)}"))
+
+    m = re.search(r"opus(\d+)", q, re.I)
+    if m:
+        return redirect(url_for("opus_view", cid=m.group(1)))
+
+    m = re.search(r"bilibili\.com/read/mobile/(\d+)", q, re.I)
+    if m:
+        return redirect(url_for("read_view", cid=f"cv{m.group(1)}"))
 
     m = re.search(r"bilibili\.com/opus/(\d+)", q, re.I)
     if m:
-        return redirect(url_for("read_view", cid=f"opus{m.group(1)}"))
+        return redirect(url_for("opus_view", cid=m.group(1)))
 
     # 3. Live
     m = re.search(r"live\.bilibili\.com/(\d+)", q)
@@ -178,7 +187,8 @@ async def search_view():
     results = []
     if search_type == search.SearchObjectType.VIDEO:
         for item in sinfo.get("result", []):
-            if item.get("type") in ["ketang", "pugv"]:
+            item_type = str(item.get("type") or "")
+            if item_type in ("ketang", "pugv") or item_type.startswith("video_ad") or not item.get("bvid"):
                 continue
             card = transformers.transform_video_card(item)
             if card:
@@ -193,6 +203,18 @@ async def search_view():
             card = transformers.transform_article_card(item)
             if card:
                 results.append(card)
+        art_ttl = cache_minutes("article_minutes") * 60
+        if art_ttl > 0 and results:
+            cards_with_id = [card for card in results if card.get("id")]
+            if cards_with_id:
+                cached_maps = await asyncio.gather(
+                    *(cache_get(f"cv:opus:{card['id']}", art_ttl) for card in cards_with_id),
+                    return_exceptions=True,
+                )
+                for card, cached_map in zip(cards_with_id, cached_maps, strict=True):
+                    mapped = cached_map.get("opus_id") if isinstance(cached_map, dict) else None
+                    if isinstance(mapped, str) and mapped.isdigit():
+                        card["opus_id"] = mapped
     elif search_type == search.SearchObjectType.USER:
         for item in sinfo.get("result", []):
             card = transformers.transform_user_card(item)

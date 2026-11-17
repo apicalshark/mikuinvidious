@@ -307,3 +307,17 @@ class User:
             if is_risk_error(e):
                 self._articles_degraded = True
             raise
+
+    async def get_opus_articles(self, offset="", feed_type="article") -> dict:
+        """Fetch user opus posts/articles directly via the opus space feed endpoint."""
+        params = {"host_mid": self.uid, "type": feed_type}
+        if offset:
+            params["offset"] = str(offset)
+        api = {
+            "url": "https://api.bilibili.com/x/polymer/web-dynamic/v1/opus/feed/space",
+            "method": "GET",
+            "verify": False,
+            "headers": _space_headers(self.uid),
+            "curl": True,
+        }
+        return await Api(**api, credential=self.credential).update_params(**params).result

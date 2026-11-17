@@ -411,4 +411,119 @@
     background: var(--md-sys-color-surface-container-high);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   }
+
+  .bili-pendant-img {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 175%;
+    height: 175%;
+    max-width: none;
+    transform: translate(-50%, -50%);
+    object-fit: contain;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .bili-avatar-has-pendant .bili-avatar-img {
+    width: 57.1429%;
+    height: 57.1429%;
+  }
+
+  .bili-avatar-has-pendant .bili-pendant-img {
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    transform: none;
+  }
+
+  .bili-avatar-has-pendant .bili-avatar-vip-dot {
+    right: 15%;
+    bottom: 14%;
+    width: 24%;
+    height: 24%;
+  }
+
+  .bili-avatar-compact-pendant .bili-avatar-img {
+    width: 78.7%;
+    height: 78.7%;
+  }
+
+  .bili-avatar-compact-pendant .bili-pendant-img {
+    width: 137.5%;
+    height: 137.5%;
+  }
+
+  .bili-avatar-compact-pendant .bili-avatar-vip-dot {
+    right: 4%;
+    bottom: 4%;
+    width: 30%;
+    height: 30%;
+  }
+
+  .bili-lv {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #fff;
+    letter-spacing: 0.02em;
+    user-select: none;
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+
+  .bili-lv-0,
+  .bili-lv-1 {
+    background-color: #bfbfbf;
+  }
+
+  .bili-lv-2 {
+    background-color: #95ddb2;
+  }
+
+  .bili-lv-3 {
+    background-color: #92d1e5;
+  }
+
+  .bili-lv-4 {
+    background-color: #ffb37c;
+  }
+
+  .bili-lv-5 {
+    background-color: #ff6c00;
+  }
+
+  .bili-lv-6 {
+    background-color: #ff0000;
+  }
+
+  .bili-lv-senior {
+    background: linear-gradient(90deg, #ff6b00 0%, #ff0000 100%);
+  }
+
+  .bili-vip-name {
+    color: var(--color-sakura, #fb7299);
+  }
+
+  .bili-avatar-vip-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 34%;
+    height: 34%;
+    min-width: 12px;
+    min-height: 12px;
+    max-width: 28px;
+    max-height: 28px;
+    display: block;
+    pointer-events: none;
+    user-select: none;
+    z-index: 2;
+  }
 }

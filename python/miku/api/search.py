@@ -11,6 +11,7 @@ Bilibili's risk control serves full results instead of truncating them --
 the same approach used by the comment module.
 """
 
+import random
 import sys
 from enum import Enum
 from urllib.parse import quote, urlsplit
@@ -291,7 +292,15 @@ async def search_by_type(  # noqa: C901 - faithful port of upstream param logic
     Returns:
         dict: raw result returned by the API
     """
-    params = {"keyword": keyword, "page": page, "page_size": page_size}
+    params = {
+        "keyword": keyword,
+        "page": page,
+        "page_size": page_size,
+        "qv_id": "".join(
+            random.choice("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") for _ in range(32)
+        ),
+        "web_location": "1430654",
+    }
     if search_type:
         params["search_type"] = search_type.value
     else:

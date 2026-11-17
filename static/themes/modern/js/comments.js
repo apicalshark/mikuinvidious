@@ -104,10 +104,14 @@
         });
     }
 
-    function fetchSubPage(vid, root, page) {
-      return fetch(`/api/component/comments/${vid}/${root}?page=${encodeURIComponent(page)}`, {
-        headers,
-      })
+    function fetchSubPage(vid, root, page, commentType) {
+      const typeParam = commentType ? `&type=${encodeURIComponent(commentType)}` : "";
+      return fetch(
+        `/api/component/comments/${vid}/${root}?page=${encodeURIComponent(page)}${typeParam}`,
+        {
+          headers,
+        }
+      )
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.text();
@@ -151,7 +155,7 @@
         if (more.dataset.loading === "1") return;
         more.dataset.loading = "1";
         label.textContent = MSG_LOADING_DOTS;
-        fetchSubPage(btn.dataset.vid, btn.dataset.root, more.dataset.next)
+        fetchSubPage(btn.dataset.vid, btn.dataset.root, more.dataset.next, btn.dataset.commentType)
           .then((pageEl) => {
             const st = appendSubPage(slot, pageEl);
             more.dataset.next = String(st.page + 1);
@@ -193,8 +197,12 @@
       if (label) label.textContent = MSG_LOADING_DOTS;
 
       try {
+        const commentType = moreBtn?.dataset.commentType || "";
+        const typeParam = commentType ? `&type=${encodeURIComponent(commentType)}` : "";
+        const mode = cursorEl.dataset.mode || "";
+        const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : "";
         const r = await fetch(
-          `/api/component/comments/${vid}/${idx}/more?next=${encodeURIComponent(next)}`,
+          `/api/component/comments/${vid}/${idx}/more?next=${encodeURIComponent(next)}${typeParam}${modeParam}`,
           { headers }
         );
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -217,6 +225,7 @@
           if (newCursor) {
             cursorEl.dataset.nextOffset = newCursor.dataset.nextOffset;
             cursorEl.dataset.isEnd = newCursor.dataset.isEnd;
+            if (newCursor.dataset.mode) cursorEl.dataset.mode = newCursor.dataset.mode;
           }
         }
         const cursorRepeated = cursorEl && cursorEl.dataset.nextOffset === previousNext;
@@ -240,7 +249,67 @@
       }
     };
 
+    function paintSortButtons(activeMode) {
+      document.querySelectorAll(".comment-sort-btn").forEach((btn) => {
+        const isActive = String(btn.dataset.sort) === String(activeMode);
+        btn.classList.toggle("text-primary", isActive);
+        btn.classList.toggle("font-bold", isActive);
+        btn.classList.toggle("text-on-surface-variant", !isActive);
+        btn.classList.toggle("hover:text-primary", !isActive);
+      });
+    }
+
     document.addEventListener("click", function (e) {
+      const sortBtn = e.target.closest(".comment-sort-btn");
+      if (sortBtn) {
+        if (commentsLoading) return;
+        const bar = sortBtn.closest("#comments-sort-bar");
+        const vid = bar?.dataset.vid || window.current_vid;
+        const idx = bar?.dataset.idx !== undefined ? bar.dataset.idx : window.idx || 0;
+        const commentType = bar?.dataset.commentType || "";
+        const typeParam = commentType ? `&type=${encodeURIComponent(commentType)}` : "";
+        const sortMode = sortBtn.dataset.sort || "3";
+        const list = document.getElementById("comments-list");
+        const moreContainer = document.getElementById("comments-load-more-container");
+        const moreBtn = document.getElementById("comments-load-more-btn");
+        const moreLabel = moreBtn ? moreBtn.querySelector("span") : null;
+        if (!vid || !list) return;
+
+        const prevMode =
+          document.getElementById("comments-cursor")?.dataset.mode ||
+          document.querySelector(".comment-sort-btn.text-primary")?.dataset.sort ||
+          "3";
+        commentsLoading = true;
+        paintSortButtons(sortMode);
+        fetch(
+          `/api/component/comments/${vid}/${idx}/more?mode=${encodeURIComponent(sortMode)}${typeParam}`,
+          { headers }
+        )
+          .then((r) => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.text();
+          })
+          .then((html) => {
+            list.innerHTML = html;
+            const cursorEl = document.getElementById("comments-cursor");
+            const activeMode = cursorEl?.dataset.mode || sortMode;
+            paintSortButtons(activeMode);
+            const hasMore =
+              cursorEl && cursorEl.dataset.isEnd !== "true" && Boolean(cursorEl.dataset.nextOffset);
+            if (moreContainer) moreContainer.classList.toggle("hidden", !hasMore);
+            if (moreBtn) moreBtn.disabled = false;
+            if (moreLabel) moreLabel.textContent = MSG_LOAD_MORE_COMMENTS;
+          })
+          .catch((err) => {
+            console.error("[comments] sort switch failed:", err);
+            paintSortButtons(prevMode);
+          })
+          .finally(() => {
+            commentsLoading = false;
+          });
+        return;
+      }
+
       const moreBtn = e.target.closest("#comments-load-more-btn");
       if (moreBtn) {
         const vid = moreBtn.dataset.vid || window.current_vid;
@@ -263,7 +332,7 @@
       const span = btn.querySelector("span");
       if (span) span.textContent = MSG_LOADING_DOTS;
       slot.dataset.loading = "1";
-      fetchSubPage(vid, root, "1")
+      fetchSubPage(vid, root, "1", btn.dataset.commentType)
         .then((pageEl) => {
           const st = appendSubPage(slot, pageEl);
           slot.dataset.page1 = "1";

@@ -59,8 +59,6 @@ def _get_dm_img_params(fingerprint: bool = True) -> dict[str, str]:
     vendor, model = random.choice(_WEBGL_RENDERER_TEMPLATES)
     renderer = f"ANGLE ({vendor}, {model} Direct3D11 vs_5_0 ps_5_0, D3D11)Google Inc. ({vendor})"
 
-    # Bilibili's official SDK (_28b679 in bili-user-fingerprint.min.js) slices
-    # the trailing 2 characters from the base64 string.
     webgl_version_b64 = base64.b64encode(_WEBGL_VERSION.encode()).decode()[:-2]
     renderer_b64 = base64.b64encode(renderer.encode()).decode()[:-2]
 

@@ -1,10 +1,26 @@
 <!-- Comments -->
 {% if not is_live %}
     <div class="bg-surface dark:bg-background rounded-2xl p-4 md:p-6 shadow-xs mb-6">
-        <h3 class="text-lg font-bold mb-4 text-on-surface flex items-center gap-2">
-            <i class="icon ion-ios-chatbubbles"></i>
-            {{ _("Comments") }} ({{ vcomments['page']['count'] }})
-        </h3>
+        {% set active_mode = vcomments.get('mode', 3) %}
+        <div class="flex items-center justify-between gap-4 mb-4">
+            <h3 class="text-lg font-bold text-on-surface flex items-center gap-2">
+                <i class="icon ion-ios-chatbubbles"></i>
+                {{ _("Comments") }} ({{ vcomments['page']['count'] }})
+            </h3>
+            <div class="flex items-center gap-2 text-xs font-medium"
+                 id="comments-sort-bar"
+                 data-vid="{{ vid }}"
+                 data-idx="{{ idx if idx is defined else 0 }}"
+                 data-comment-type="{{ comment_type|default(1) }}">
+                <button type="button"
+                        class="comment-sort-btn transition-colors cursor-pointer {{ 'text-primary font-bold' if active_mode != 2 else 'text-on-surface-variant hover:text-primary' }}"
+                        data-sort="3">{{ _("Hot") }}</button>
+                <span class="text-outline-variant/60 select-none">|</span>
+                <button type="button"
+                        class="comment-sort-btn transition-colors cursor-pointer {{ 'text-primary font-bold' if active_mode == 2 else 'text-on-surface-variant hover:text-primary' }}"
+                        data-sort="2">{{ _("Newest") }}</button>
+            </div>
+        </div>
         <div class="space-y-6" id="comments-list">
             {% include "themes/modern/components/comment_items.html" %}
             {% if not vcomments["replies"] and comments_closed %}
@@ -20,6 +36,7 @@
                     type="button"
                     data-vid="{{ vid }}"
                     data-idx="{{ idx if idx is defined else 0 }}"
+                    data-comment-type="{{ comment_type|default(1) }}"
                     class="md3-button md3-button-tonal w-full sm:w-auto">
                 <i class="icon ion-ios-arrow-down"></i>
                 <span>{{ _("Load more comments") }}</span>

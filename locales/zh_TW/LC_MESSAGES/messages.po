@@ -2,179 +2,179 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-13 03:13+0000\n"
+"POT-Creation-Date: 2026-11-17 19:47+0800\n"
 "Language: zh_TW\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-#: python/miku/ui/i18n_strings.py:30
+#: python/miku/ui/i18n_strings.py:18
 msgid "Article does not exist or parse error"
 msgstr "文章不存在或解析錯誤"
 
-#: python/miku/ui/i18n_strings.py:31
+#: python/miku/ui/i18n_strings.py:19
 msgid "Article not found"
 msgstr "找不到文章"
 
-#: python/miku/ui/i18n_strings.py:32
+#: python/miku/ui/i18n_strings.py:20
 msgid "Audio mode load failed"
 msgstr "音訊模式載入失敗"
 
-#: python/miku/ui/i18n_strings.py:33
+#: python/miku/ui/i18n_strings.py:21
 msgid "Backend server sent an invalid response"
 msgstr "後端伺服器傳回無效的回應"
 
-#: python/miku/ui/i18n_strings.py:34
+#: python/miku/ui/i18n_strings.py:22
 msgid "Bad request"
 msgstr "請求錯誤"
 
-#: python/miku/ui/i18n_strings.py:35
+#: python/miku/ui/i18n_strings.py:23
 msgid "Bangumi load failed"
 msgstr "番劇載入失敗"
 
-#: python/miku/ui/i18n_strings.py:36
+#: python/miku/ui/i18n_strings.py:24
 msgid "Bilibili returned empty result (-404)"
 msgstr "嗶哩嗶哩回傳空結果 (-404)"
 
-#: python/miku/ui/i18n_strings.py:37
+#: python/miku/ui/i18n_strings.py:25
 msgid "Failed to fetch the live list. Please try again later."
 msgstr "無法取得直播列表，請稍後再試。"
 
-#: python/miku/ui/i18n_strings.py:38
+#: python/miku/ui/i18n_strings.py:26
 msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "無法取得這位使用者的資料，請稍後再試。"
 
-#: python/miku/ui/i18n_strings.py:39
+#: python/miku/ui/i18n_strings.py:27
 msgid ""
 "Failed to load bangumi info. Please check your network or try again later."
 msgstr "無法載入番劇資訊，請檢查網路或稍後重試。"
 
-#: python/miku/ui/i18n_strings.py:40
+#: python/miku/ui/i18n_strings.py:28
 msgid ""
 "Failed to load the live room. Please check your network or try again later."
 msgstr "無法載入直播間，請檢查網路或稍後重試。"
 
-#: python/miku/ui/i18n_strings.py:41
+#: python/miku/ui/i18n_strings.py:29
 msgid "Failed to resolve the redirect target."
 msgstr "無法取得重新導向網址。"
 
-#: python/miku/ui/i18n_strings.py:42
+#: python/miku/ui/i18n_strings.py:30
 msgid ""
 "Failed to resolve the short link. Please check your network connection or "
 "proxy settings."
 msgstr "無法解析短網址，請檢查網路連線或代理設定。"
 
-#: python/miku/ui/i18n_strings.py:43
+#: python/miku/ui/i18n_strings.py:31
 msgid ""
 "Internal server error. Please try again later or contact the administrator."
 msgstr "伺服器內部錯誤，請稍後重試或聯繫管理員。"
 
-#: python/miku/ui/i18n_strings.py:44
+#: python/miku/ui/i18n_strings.py:32
 msgid "Invalid request parameters. Please check and try again."
 msgstr "請求參數無效，請檢查後重試。"
 
-#: python/miku/ui/i18n_strings.py:45
+#: python/miku/ui/i18n_strings.py:33
 msgid "Live list load failed"
 msgstr "直播列表載入失敗"
 
-#: python/miku/ui/i18n_strings.py:46
+#: python/miku/ui/i18n_strings.py:34
 msgid "Live load failed"
 msgstr "直播載入失敗"
 
-#: python/miku/ui/i18n_strings.py:47
+#: python/miku/ui/i18n_strings.py:35
 msgid "Network error"
 msgstr "網路錯誤"
 
-#: python/miku/ui/i18n_strings.py:48
+#: python/miku/ui/i18n_strings.py:36
 msgid "No search keyword provided."
 msgstr "尚未輸入搜尋關鍵字。"
 
-#: python/miku/ui/i18n_strings.py:49
+#: python/miku/ui/i18n_strings.py:37
 msgid "No songs found"
 msgstr "找不到歌曲"
 
-#: python/miku/ui/i18n_strings.py:50
+#: python/miku/ui/i18n_strings.py:38
 msgid "Page not found (404)"
 msgstr "找不到頁面 (404)"
 
-#: python/miku/ui/i18n_strings.py:51
+#: python/miku/ui/i18n_strings.py:39
 msgid "Parse error"
 msgstr "解析錯誤"
 
-#: python/miku/ui/i18n_strings.py:52
+#: python/miku/ui/i18n_strings.py:40
 msgid "Playlist empty"
 msgstr "歌單為空"
 
-#: python/miku/ui/i18n_strings.py:53
+#: python/miku/ui/i18n_strings.py:41
 msgid "Please check the URL."
 msgstr "請檢查 URL 是否正確。"
 
-#: python/miku/ui/i18n_strings.py:54
+#: python/miku/ui/i18n_strings.py:42
 msgid "Please check your network connection or proxy settings."
 msgstr "請檢查網路連線或代理設定。"
 
-#: python/miku/ui/i18n_strings.py:55
+#: python/miku/ui/i18n_strings.py:43
 msgid "Please check your network or try again later."
 msgstr "請檢查網路或稍後重試。"
 
-#: python/miku/ui/i18n_strings.py:56
+#: python/miku/ui/i18n_strings.py:44
 msgid "Please check your request and try again."
 msgstr "請檢查您的請求並重試。"
 
-#: python/miku/ui/i18n_strings.py:57
+#: python/miku/ui/i18n_strings.py:45
 msgid "Please enter a search keyword and try again."
 msgstr "請輸入搜尋關鍵字後重試。"
 
-#: python/miku/ui/i18n_strings.py:58
+#: python/miku/ui/i18n_strings.py:46
 msgid "Please try refreshing the page, or check the server network connection."
 msgstr "請重新整理頁面，或檢查伺服器網路連線。"
 
-#: python/miku/ui/i18n_strings.py:59
+#: python/miku/ui/i18n_strings.py:47
 msgid "Search failed"
 msgstr "搜尋失敗"
 
-#: python/miku/ui/i18n_strings.py:60
+#: python/miku/ui/i18n_strings.py:48
 msgid "Server error"
 msgstr "伺服器錯誤"
 
-#: python/miku/ui/i18n_strings.py:61
+#: python/miku/ui/i18n_strings.py:49
 msgid "Space load failed"
 msgstr "空間載入失敗"
 
-#: python/miku/ui/i18n_strings.py:62
+#: python/miku/ui/i18n_strings.py:50
 msgid ""
 "The article you requested most likely does not exist. Please check your "
 "request."
 msgstr "您要查看的文章很可能不存在，請檢查您的請求。"
 
-#: python/miku/ui/i18n_strings.py:63
+#: python/miku/ui/i18n_strings.py:51
 msgid "The requested page does not exist."
 msgstr "您請求的頁面不存在。"
 
-#: python/miku/ui/i18n_strings.py:64
+#: python/miku/ui/i18n_strings.py:52
 msgid "The requested resource does not exist."
 msgstr "您請求的資源不存在。"
 
-#: python/miku/ui/i18n_strings.py:66
+#: python/miku/ui/i18n_strings.py:54
 msgid ""
 "This content is usually unavailable in your region or has been removed by "
 "Bilibili. Please try again later."
 msgstr "這通常表示該內容在您所在的地區無法觀看，或已從嗶哩嗶哩下架，請稍後再試。"
 
-#: python/miku/ui/i18n_strings.py:69
+#: python/miku/ui/i18n_strings.py:57
 msgid "This content may be region-restricted or removed."
 msgstr "該內容可能受到地區限制或已被下架。"
 
-#: python/miku/ui/i18n_strings.py:70
+#: python/miku/ui/i18n_strings.py:58
 msgid ""
 "This video may have been deleted, is under review, or is region-restricted."
 msgstr "該影片可能已被刪除、審核中，或是受到地區限制。"
 
-#: python/miku/ui/i18n_strings.py:71
+#: python/miku/ui/i18n_strings.py:59
 msgid "Video load failed"
 msgstr "影片載入失敗"
 
-#: python/miku/ui/i18n_strings.py:72
+#: python/miku/ui/i18n_strings.py:60
 msgid "You have no browsing history yet."
 msgstr "尚無瀏覽紀錄。"
 
@@ -182,8 +182,8 @@ msgstr "尚無瀏覽紀錄。"
 msgid "Resolving video URL..."
 msgstr "正在解析影片網址..."
 
-#: static/themes/modern/js/player.js:1706
-#: static/themes/modern/js/player.js:1776 templates/macros.html:62
+#: static/themes/modern/js/player.js:1713
+#: static/themes/modern/js/player.js:1783 templates/macros.html:62
 msgid "Resolution"
 msgstr "解析度"
 
@@ -211,11 +211,11 @@ msgstr "切換彈幕"
 msgid "Switch resolution"
 msgstr "切換解析度"
 
-#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:38
+#: templates/themes/modern/author.html:35 templates/themes/modern/space.html:56
 msgid "This user has no bio yet."
 msgstr "這個人很懶，什麼都沒有寫。"
 
-#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:47
+#: templates/themes/modern/author.html:43 templates/themes/modern/space.html:64
 msgid "Bilibili Space"
 msgstr "嗶哩嗶哩空間"
 
@@ -223,15 +223,15 @@ msgstr "嗶哩嗶哩空間"
 #: templates/themes/modern/search.html:15
 #: templates/themes/modern/search_article.html:12
 #: templates/themes/modern/search_user.html:12
-#: templates/themes/modern/space.html:65
+#: templates/themes/modern/space.html:82
 msgid "Videos"
 msgstr "影片"
 
-#: templates/themes/modern/author.html:55 templates/themes/modern/read.html:8
+#: templates/themes/modern/author.html:55 templates/themes/modern/read.html:9
 #: templates/themes/modern/search.html:19
 #: templates/themes/modern/search_article.html:16
 #: templates/themes/modern/search_user.html:16
-#: templates/themes/modern/space.html:52
+#: templates/themes/modern/space.html:69
 msgid "Articles"
 msgstr "專欄"
 
@@ -249,7 +249,7 @@ msgstr "次閱讀"
 #: templates/themes/modern/search.html:67
 #: templates/themes/modern/search_article.html:84
 #: templates/themes/modern/search_user.html:58
-#: templates/themes/modern/space.html:112 templates/themes/modern/zone.html:75
+#: templates/themes/modern/space.html:129 templates/themes/modern/zone.html:75
 msgid "Previous page"
 msgstr "上一頁"
 
@@ -258,7 +258,7 @@ msgstr "上一頁"
 #: templates/themes/modern/search.html:73
 #: templates/themes/modern/search_article.html:90
 #: templates/themes/modern/search_user.html:64
-#: templates/themes/modern/space.html:118 templates/themes/modern/zone.html:81
+#: templates/themes/modern/space.html:135 templates/themes/modern/zone.html:81
 msgid "Next page"
 msgstr "下一頁"
 
@@ -377,15 +377,15 @@ msgstr "連結轉換器"
 msgid "Proudly released under AGPLv3"
 msgstr "以 AGPLv3 釋出為榮"
 
-#: templates/themes/modern/base.html:325
+#: templates/themes/modern/base.html:324
 msgid "View JavaScript licenses"
 msgstr "檢視 JavaScript 授權"
 
-#: templates/themes/modern/base.html:330
+#: templates/themes/modern/base.html:329
 msgid "Privacy policy"
 msgstr "隱私權政策"
 
-#: templates/themes/modern/base.html:337
+#: templates/themes/modern/base.html:336
 msgid "Donate"
 msgstr "贊助"
 
@@ -449,11 +449,11 @@ msgstr "開啟"
 msgid "Copied!"
 msgstr "已複製！"
 
-#: static/themes/modern/js/convert.js:107
+#: static/themes/modern/js/convert.js:121
 msgid "Failed to resolve URL"
 msgstr "解析連結失敗"
 
-#: static/themes/modern/js/convert.js:129
+#: static/themes/modern/js/convert.js:143
 msgid "Network error. Please try again."
 msgstr "網路錯誤，請重試。"
 
@@ -518,8 +518,8 @@ msgid "suffix."
 msgstr "後綴。"
 
 #: templates/themes/modern/components/m3_components.html:127
-#: templates/themes/modern/video.html:128
-#: templates/themes/modern/video_listen.html:127
+#: templates/themes/modern/video.html:138
+#: templates/themes/modern/video_listen.html:137
 #: templates/themes/modern/zone.html:49
 msgid "Watch on Bilibili"
 msgstr "在嗶哩嗶哩上觀看"
@@ -530,7 +530,7 @@ msgid "Audio mode"
 msgstr "音訊模式"
 
 #: templates/themes/modern/components/m3_components.html:147
-#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:300
+#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:317
 msgid "views"
 msgstr "播放次數"
 
@@ -598,7 +598,7 @@ msgid ""
 "quality"
 msgstr "始終播放最高可用畫質，而非自動切換畫質"
 
-#: templates/themes/modern/read.html:5
+#: templates/themes/modern/read.html:6
 msgid "Illustrations"
 msgstr "圖片"
 
@@ -636,8 +636,10 @@ msgstr "綜合排序"
 msgid "Most clicks"
 msgstr "最多點閱"
 
+#: templates/themes/modern/components/meta_part.html:20
 #: templates/themes/modern/search.html:26
 #: templates/themes/modern/search_article.html:23
+#: templates/themes/modern/video_listen.html:182
 msgid "Newest"
 msgstr "最新發布"
 
@@ -693,31 +695,31 @@ msgstr "最高等級"
 msgid "No users found"
 msgstr "找不到相關使用者"
 
-#: templates/themes/modern/space.html:57
+#: templates/themes/modern/space.html:74
 msgid "RSS Feed"
 msgstr "RSS 訂閱"
 
-#: templates/themes/modern/space.html:71
+#: templates/themes/modern/space.html:88
 msgid ""
 "Video list temporarily unavailable — Bilibili rate-limited this instance. "
 "Profile shown; videos should return in a few minutes."
 msgstr "影片列表暫時無法取得——Bilibili 已限制此站台的請求頻率。個人空間仍有顯示；影片應於幾分鐘後恢復。"
 
-#: templates/themes/modern/space.html:75
+#: templates/themes/modern/space.html:92
 msgid ""
 "Video list could not be loaded due to a network error. Profile shown; please "
 "retry shortly."
 msgstr "因網路錯誤，無法載入影片列表。個人空間仍有顯示；請稍後再試。"
 
-#: templates/themes/modern/space.html:97
+#: templates/themes/modern/space.html:114
 msgid "Nothing to show right now — see notice above."
 msgstr "目前沒有可顯示的內容——請參見上方通知。"
 
-#: templates/themes/modern/space.html:99
+#: templates/themes/modern/space.html:116
 msgid "Nothing to show right now — loading failed, see notice above."
 msgstr "目前沒有可顯示的內容——載入失敗，請參見上方通知。"
 
-#: templates/themes/modern/space.html:101
+#: templates/themes/modern/space.html:118
 msgid "This user has no videos yet."
 msgstr "這個使用者還沒有影片。"
 
@@ -741,46 +743,46 @@ msgstr "收藏"
 msgid "Share"
 msgstr "分享"
 
-#: templates/themes/modern/video.html:151
+#: templates/themes/modern/video.html:161
 msgid "Download"
 msgstr "下載"
 
 #: static/themes/modern/js/comments.js:97
-#: templates/themes/modern/components/meta_part.html:6
-#: templates/themes/modern/video.html:171
-#: templates/themes/modern/video_listen.html:158
+#: templates/themes/modern/components/meta_part.html:8
+#: templates/themes/modern/video.html:181
+#: templates/themes/modern/video_listen.html:170
 msgid "Comments"
 msgstr "留言"
 
-#: templates/themes/modern/video.html:200
+#: templates/themes/modern/video.html:217
 msgid "Loading comments..."
 msgstr "正在載入留言..."
 
-#: templates/themes/modern/video.html:219
-#: templates/themes/modern/video.html:222
+#: templates/themes/modern/video.html:236
+#: templates/themes/modern/video.html:239
 msgid "Live chat"
 msgstr "即時聊天"
 
-#: templates/themes/modern/video.html:231
+#: templates/themes/modern/video.html:248
 msgid "Connecting to chat..."
 msgstr "正在連線至聊天室..."
 
-#: templates/themes/modern/video.html:242
-#: templates/themes/modern/video_listen.html:221
+#: templates/themes/modern/video.html:259
+#: templates/themes/modern/video_listen.html:253
 msgid "Episodes"
 msgstr "選集"
 
-#: templates/themes/modern/video.html:248
-#: templates/themes/modern/video_listen.html:227
+#: templates/themes/modern/video.html:265
+#: templates/themes/modern/video_listen.html:259
 msgid "Autoplay next"
 msgstr "自動連播"
 
-#: templates/themes/modern/video.html:279
-#: templates/themes/modern/video_listen.html:255
+#: templates/themes/modern/video.html:296
+#: templates/themes/modern/video_listen.html:287
 msgid "Recommended"
 msgstr "推薦影片"
 
-#: templates/themes/modern/video_listen.html:274
+#: templates/themes/modern/video_listen.html:306
 msgid "Play"
 msgstr "播放"
 
@@ -793,8 +795,8 @@ msgid "Load more replies"
 msgstr "載入更多回覆"
 
 #: static/themes/modern/js/comments.js:31
-#: templates/themes/modern/components/meta_part.html:25
-#: templates/themes/modern/video_listen.html:210
+#: templates/themes/modern/components/meta_part.html:41
+#: templates/themes/modern/video_listen.html:242
 msgid "Load more comments"
 msgstr "載入更多留言"
 
@@ -813,20 +815,20 @@ msgstr "緩衝中：%(available)s / %(target)s"
 msgid "Video mode"
 msgstr "影片模式"
 
-#: templates/themes/modern/video_listen.html:142
+#: templates/themes/modern/video_listen.html:152
 msgid "Download audio"
 msgstr "下載音訊"
 
 #: static/themes/modern/js/comments.js:39
-#: templates/themes/modern/components/comment_items.html:28
-#: templates/themes/modern/video_listen.html:189
+#: templates/themes/modern/components/comment_items.html:37
+#: templates/themes/modern/video_listen.html:221
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
 msgstr[0] "%(count)s 則回覆"
 
-#: templates/themes/modern/components/meta_part.html:13
-#: templates/themes/modern/video_listen.html:198
+#: templates/themes/modern/components/meta_part.html:28
+#: templates/themes/modern/video_listen.html:230
 msgid "No comments yet or failed to load"
 msgstr "尚無留言或留言載入失敗"
 
@@ -834,7 +836,7 @@ msgstr "尚無留言或留言載入失敗"
 msgid "Zone"
 msgstr "分區"
 
-#: templates/themes/modern/components/meta_part.html:11
+#: templates/themes/modern/components/meta_part.html:26
 msgid "Comments are closed by the uploader."
 msgstr "UP主已關閉留言區。"
 
@@ -985,28 +987,28 @@ msgstr "直播流已結束"
 msgid "Live stream has ended"
 msgstr "直播已結束"
 
-#: static/themes/modern/js/player.js:1450
+#: static/themes/modern/js/player.js:1457
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自動 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1473
-#: static/themes/modern/js/player.js:1477
-#: static/themes/modern/js/player.js:1508
-#: static/themes/modern/js/player.js:1512
+#: static/themes/modern/js/player.js:1480
+#: static/themes/modern/js/player.js:1484
+#: static/themes/modern/js/player.js:1515
+#: static/themes/modern/js/player.js:1519
 msgid "Auto"
 msgstr "自動"
 
-#: static/themes/modern/js/player.js:1637
+#: static/themes/modern/js/player.js:1644
 msgid "Back"
 msgstr "返回"
 
-#: static/themes/modern/js/player.js:1707
+#: static/themes/modern/js/player.js:1714
 msgid "Audio"
 msgstr "音訊"
 
-#: static/themes/modern/js/player.js:1708
-#: static/themes/modern/js/player.js:1777
+#: static/themes/modern/js/player.js:1715
+#: static/themes/modern/js/player.js:1784
 msgid "Playback speed"
 msgstr "播放速度"
 
@@ -1040,6 +1042,11 @@ msgstr ""
 #: static/themes/modern/js/comments.js:98
 msgid "Failed to load comments, please try again later"
 msgstr "留言載入失敗，請稍後再試"
+
+#: templates/themes/modern/components/meta_part.html:17
+#: templates/themes/modern/video_listen.html:179
+msgid "Hot"
+msgstr "熱門"
 
 #~ msgid "Personalization settings"
 #~ msgstr "個性化設置"
