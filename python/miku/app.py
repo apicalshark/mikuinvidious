@@ -63,8 +63,10 @@ async def shutdown_cleanup():
     from miku.dash.download_job import shutdown_download_jobs
     from miku.dash.stream import playback_pool
     from miku.media.image_cache import image_cache
+    from miku.media.proxy import close_pic_proxy
 
     steps: list[tuple[str, Any]] = [
+        ("close_pic_proxy", close_pic_proxy),
         ("close_global_client", close_global_client),
         ("close_bili_client", close_bili_client),
         ("playback_pool.close_all", playback_pool.close_all),

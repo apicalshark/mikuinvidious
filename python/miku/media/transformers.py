@@ -299,7 +299,9 @@ def _proxied_emote_src(raw_url):
         return None
     if ".." in path.split("/"):
         return None
-    return "/proxy/pic/" + host + path
+    from miku.core.url_signing import sign_pic_target
+
+    return sign_pic_target(host + path)
 
 
 def _render_reply_content_py(message, emote):

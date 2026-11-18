@@ -3,7 +3,17 @@
 
 import unittest
 
+import miku.dash.mpd as dash_mpd
+from miku.core.url_signing import sign_dash_manifest_url, sign_dash_track_url
 from miku.dash.mpd import generate_vod_mpd
+
+
+def _manifest_sig(vid: str, idx: int) -> str:
+    return sign_dash_manifest_url(vid, idx).split("/")[4]
+
+
+def _track_sig(vid: str, idx: int, media_type: str, qn: int, cid: int) -> str:
+    return sign_dash_track_url(vid, idx, media_type, qn, cid).split("/")[4]
 
 
 class TestMpd(unittest.TestCase):
@@ -65,9 +75,9 @@ class TestMpd(unittest.TestCase):
         self.assertIn('<AdaptationSet id="1" contentType="video"', mpd)
         self.assertIn('<AdaptationSet id="2" contentType="video"', mpd)
         self.assertIn('<AdaptationSet id="3" contentType="audio"', mpd)
-        self.assertIn("<BaseURL>/proxy/dash/BV1xx411c7xx/0/video/80/7</BaseURL>", mpd)
-        self.assertIn("<BaseURL>/proxy/dash/BV1xx411c7xx/0/video/80/12</BaseURL>", mpd)
-        self.assertIn("<BaseURL>/proxy/dash/BV1xx411c7xx/0/audio/30280/0</BaseURL>", mpd)
+        self.assertIn(f"<BaseURL>{sign_dash_track_url('BV1xx411c7xx', 0, 'video', 80, 7)}</BaseURL>", mpd)
+        self.assertIn(f"<BaseURL>{sign_dash_track_url('BV1xx411c7xx', 0, 'video', 80, 12)}</BaseURL>", mpd)
+        self.assertIn(f"<BaseURL>{sign_dash_track_url('BV1xx411c7xx', 0, 'audio', 30280, 0)}</BaseURL>", mpd)
         self.assertIn('<Initialization range="0-999"/>', mpd)
         self.assertIn('<Initialization range="0-1024"/>', mpd)
         self.assertIn('<Initialization range="0-800"/>', mpd)
@@ -229,36 +239,37 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
         from miku.app import app
 
         load_mock = AsyncMock()
+        sig = _track_sig("BV1xx411c7xx", 0, "video", 80, 7)
         with patch.object(dash_stream, "_load_dash_data", load_mock):
             # 1. Missing Range header (crawler scraping BaseURL from MPD)
-            async with app.test_request_context("/proxy/dash/BV1xx411c7xx/0/video/80/7"):
-                resp = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7)
+            async with app.test_request_context(sign_dash_track_url("BV1xx411c7xx", 0, "video", 80, 7)):
+                resp = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7, sig=sig)
                 self.assertEqual(resp.status_code, 416)
                 self.assertEqual(resp.headers.get("Accept-Ranges"), "bytes")
 
             # 2. Open-ended Range: bytes=0-
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7xx/0/video/80/7",
+                sign_dash_track_url("BV1xx411c7xx", 0, "video", 80, 7),
                 headers={"Range": "bytes=0-"},
             ):
-                resp = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7)
+                resp = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7, sig=sig)
                 self.assertEqual(resp.status_code, 416)
 
             # 3. Oversized Range (> DASH_MAX_FRAGMENT_BYTES)
             too_big = dash_stream.DASH_MAX_FRAGMENT_BYTES + 100
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7xx/0/video/80/7",
+                sign_dash_track_url("BV1xx411c7xx", 0, "video", 80, 7),
                 headers={"Range": f"bytes=0-{too_big}"},
             ):
-                resp = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7)
+                resp = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7, sig=sig)
                 self.assertEqual(resp.status_code, 416)
 
             # 4. Inverted Range (end < start)
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7xx/0/video/80/7",
+                sign_dash_track_url("BV1xx411c7xx", 0, "video", 80, 7),
                 headers={"Range": "bytes=500-100"},
             ):
-                resp = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7)
+                resp = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7, sig=sig)
                 self.assertEqual(resp.status_code, 416)
 
         load_mock.assert_not_awaited()
@@ -271,18 +282,20 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
 
         load_mock = AsyncMock()
         with patch.object(dash_stream, "_load_dash_data", load_mock):
+            bad_sig = _track_sig("not_a_valid_vid", 0, "video", 80, 7)
             async with app.test_request_context(
-                "/proxy/dash/not_a_valid_vid/0/video/80/7",
+                sign_dash_track_url("not_a_valid_vid", 0, "video", 80, 7),
                 headers={"Range": "bytes=0-999"},
             ):
-                resp = await dash_stream.proxy_dash("not_a_valid_vid", 0, "video", 80, 7)
+                resp = await dash_stream.proxy_dash("not_a_valid_vid", 0, "video", 80, 7, sig=bad_sig)
                 self.assertEqual(resp.status_code, 400)
 
+            neg_idx_sig = _track_sig("BV1xx411c7xx", -1, "video", 80, 7)
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7xx/-1/video/80/7",
+                sign_dash_track_url("BV1xx411c7xx", -1, "video", 80, 7),
                 headers={"Range": "bytes=0-999"},
             ):
-                resp = await dash_stream.proxy_dash("BV1xx411c7xx", -1, "video", 80, 7)
+                resp = await dash_stream.proxy_dash("BV1xx411c7xx", -1, "video", 80, 7, sig=neg_idx_sig)
                 self.assertEqual(resp.status_code, 400)
 
         load_mock.assert_not_awaited()
@@ -342,35 +355,36 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
             patch.object(dash_stream.dash_concurrency, "max_per_ip", 2),
         ):
             # Open 2 in-flight streams from the same IP
+            sig80 = _track_sig("BV1xx411c7xx", 0, "video", 80, 7)
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7xx/0/video/80/7",
+                sign_dash_track_url("BV1xx411c7xx", 0, "video", 80, 7),
                 headers={"Range": "bytes=0-99", "X-Real-IP": "203.0.113.9"},
             ):
-                resp1 = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7)
+                resp1 = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7, sig=sig80)
                 self.assertEqual(resp1.status_code, 206)
 
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7xx/0/video/64/7",
+                sign_dash_track_url("BV1xx411c7xx", 0, "video", 80, 7),
                 headers={"Range": "bytes=0-99", "X-Real-IP": "203.0.113.9"},
             ):
-                resp2 = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7)
+                resp2 = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7, sig=sig80)
                 self.assertEqual(resp2.status_code, 206)
 
             # 3rd concurrent stream from the same IP is rejected with 429
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7xx/0/video/32/7",
+                sign_dash_track_url("BV1xx411c7xx", 0, "video", 80, 7),
                 headers={"Range": "bytes=0-99", "X-Real-IP": "203.0.113.9"},
             ):
-                resp3 = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7)
+                resp3 = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7, sig=sig80)
                 self.assertEqual(resp3.status_code, 429)
                 self.assertEqual(resp3.headers.get("Retry-After"), "1")
 
             # Another IP can still stream normally
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7xx/0/video/80/7",
+                sign_dash_track_url("BV1xx411c7xx", 0, "video", 80, 7),
                 headers={"Range": "bytes=0-99", "X-Real-IP": "198.51.100.7"},
             ):
-                resp_other = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7)
+                resp_other = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7, sig=sig80)
                 self.assertEqual(resp_other.status_code, 206)
 
             # Consume resp1 to completion -> frees 1 slot for 203.0.113.9
@@ -380,10 +394,10 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(len(data1), 100)
 
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7xx/0/video/32/7",
+                sign_dash_track_url("BV1xx411c7xx", 0, "video", 80, 7),
                 headers={"Range": "bytes=100-199", "X-Real-IP": "203.0.113.9"},
             ):
-                resp4 = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7)
+                resp4 = await dash_stream.proxy_dash("BV1xx411c7xx", 0, "video", 80, 7, sig=sig80)
                 self.assertEqual(resp4.status_code, 206)
 
             # Clean up remaining streams
@@ -421,25 +435,52 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
             patch.object(dash_mpd, "_refresh_dash_data", refresh_mock),
         ):
             # Invalid vid rejected with 400
-            async with app.test_request_context("/video/dash/bad_vid/0/manifest.mpd"):
-                resp_bad = await dash_mpd.video_dash_manifest_view("bad_vid", 0)
+            bad_sig = _manifest_sig("bad_vid", 0)
+            async with app.test_request_context(sign_dash_manifest_url("bad_vid", 0)):
+                resp_bad = await dash_mpd.video_dash_manifest_view("bad_vid", 0, sig=bad_sig)
                 self.assertEqual(resp_bad.status_code, 400)
             load_mock.assert_not_awaited()
             refresh_mock.assert_not_awaited()
 
             # First ?fresh=1 triggers _refresh_dash_data
-            async with app.test_request_context("/video/dash/BV1xx411c7xx/0/manifest.mpd?fresh=1"):
-                resp1 = await dash_mpd.video_dash_manifest_view("BV1xx411c7xx", 0)
+            good_sig = _manifest_sig("BV1xx411c7xx", 0)
+            signed_fresh_url = f"{sign_dash_manifest_url('BV1xx411c7xx', 0)}?fresh=1"
+            async with app.test_request_context(signed_fresh_url):
+                resp1 = await dash_mpd.video_dash_manifest_view("BV1xx411c7xx", 0, sig=good_sig)
                 self.assertEqual(resp1.status_code, 200)
             self.assertEqual(refresh_mock.await_count, 1)
             self.assertEqual(load_mock.await_count, 0)
 
             # Immediate repeat ?fresh=1 within cooldown uses cached _load_dash_data instead of re-busting
-            async with app.test_request_context("/video/dash/BV1xx411c7xx/0/manifest.mpd?fresh=1"):
-                resp2 = await dash_mpd.video_dash_manifest_view("BV1xx411c7xx", 0)
+            async with app.test_request_context(signed_fresh_url):
+                resp2 = await dash_mpd.video_dash_manifest_view("BV1xx411c7xx", 0, sig=good_sig)
                 self.assertEqual(resp2.status_code, 200)
             self.assertEqual(refresh_mock.await_count, 1)
             self.assertEqual(load_mock.await_count, 1)
+
+    async def test_unsigned_and_tampered_dash_routes_return_403(self):
+        from unittest.mock import AsyncMock, patch
+
+        import miku.dash.stream as dash_stream
+        from miku.app import app
+
+        load_mock = AsyncMock(return_value=None)
+        client = app.test_client()
+        with (
+            patch.object(dash_mpd, "_load_dash_data", load_mock),
+            patch.object(dash_stream, "_load_dash_data", load_mock),
+        ):
+            for path in (
+                "/video/dash/BV1xx411c7mD/0/manifest.mpd",
+                "/video/dash/BV1xx411c7mD/0/manifest.mpd?fresh=1",
+                "/video/dash/s/0000000000000000/BV1xx411c7mD/0/manifest.mpd",
+                "/proxy/dash/BV1xx411c7mD/0/video/80/7",
+                "/proxy/dash/s/0000000000000000/BV1xx411c7mD/0/video/80/7",
+                sign_dash_track_url("BV1xx411c7mD", 0, "video", 80, 7).replace("/video/80/7", "/video/64/7"),
+            ):
+                resp = await client.get(path)
+                self.assertEqual(resp.status_code, 403, path)
+        load_mock.assert_not_awaited()
 
 
 if __name__ == "__main__":

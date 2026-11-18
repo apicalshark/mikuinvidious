@@ -8,6 +8,7 @@ from quart import Response, request
 
 from miku.api import audio, comment
 from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
+from miku.core.singleflight import SingleflightGroup
 from miku.state import (
     app,
     appcred,
@@ -18,6 +19,9 @@ from miku.state import (
     render_template_with_theme,
 )
 
+_audio_sf = SingleflightGroup()
+_audiolist_sf = SingleflightGroup()
+
 
 @app.route("/audio/<auid>")
 @rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("audio"))
@@ -27,27 +31,6 @@ async def audio_view(auid):
     if not (1 <= len(auid_str) <= 20 and auid_str.isascii() and auid_str.isdecimal()):
         return Response("Invalid audio ID format", status=400)
     auid_int = int(auid_str)
-
-    async def get_audio_url():
-        try:
-            exists = await appredis.exists(f"mikuinv_{auid}_{0}_0")
-        except Exception:
-            exists = False
-        if not exists:
-            try:
-                asrc = await a.get_download_url()
-            except Exception:
-                return
-            url = None
-            if "cdns" in asrc and asrc["cdns"]:
-                url = asrc["cdns"][0]
-            elif "url" in asrc:
-                url = asrc["url"]
-            if url:
-                try:
-                    await appredis.setex(f"mikuinv_{auid}_{0}_0", 1800, url)
-                except Exception:
-                    pass
 
     cache_ttl = cache_minutes("audio_minutes") * 60
     cache_key = f"audio:data:{auid}"
@@ -60,7 +43,6 @@ async def audio_view(auid):
             ainfo = data["ainfo"]
             cache_hit = True
     if cache_hit:
-        # Info comes from cache; comments stay live so they never go stale.
         try:
             acomments = await comment.get_comments(
                 auid_int, comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE
@@ -68,17 +50,52 @@ async def audio_view(auid):
         except Exception:
             pass
     else:
-        a = audio.Audio(auid_int, credential=appcred)
-        results = await asyncio.gather(
-            a.get_info(),
-            comment.get_comments(auid_int, comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE),
-            get_audio_url(),
-            return_exceptions=True,
-        )
-        ainfo = results[0] if isinstance(results[0], dict) else {}
-        acomments = results[1] if isinstance(results[1], dict) else {"page": {"count": 0}, "replies": []}
-        if cache_ttl > 0 and isinstance(ainfo, dict) and ainfo:
-            await cache_set(cache_key, {"ainfo": ainfo}, cache_ttl)
+
+        async def _load_audio():
+            if cache_ttl > 0:
+                cached = await cache_get(cache_key, cache_ttl)
+                if isinstance(cached, dict) and isinstance(cached.get("ainfo"), dict) and cached.get("ainfo"):
+                    return cached["ainfo"], True
+            a = audio.Audio(auid_int, credential=appcred)
+
+            async def get_audio_url():
+                try:
+                    exists = await appredis.exists(f"mikuinv_{auid}_{0}_0")
+                except Exception:
+                    exists = False
+                if not exists:
+                    try:
+                        asrc = await a.get_download_url()
+                    except Exception:
+                        return
+                    url = None
+                    if "cdns" in asrc and asrc["cdns"]:
+                        url = asrc["cdns"][0]
+                    elif "url" in asrc:
+                        url = asrc["url"]
+                    if url:
+                        try:
+                            await appredis.setex(f"mikuinv_{auid}_{0}_0", 1800, url)
+                        except Exception:
+                            pass
+
+            results = await asyncio.gather(
+                a.get_info(),
+                get_audio_url(),
+                return_exceptions=True,
+            )
+            loaded_info = results[0] if isinstance(results[0], dict) else {}
+            if cache_ttl > 0 and isinstance(loaded_info, dict) and loaded_info:
+                await cache_set(cache_key, {"ainfo": loaded_info}, cache_ttl)
+            return loaded_info, False
+
+        ainfo, cache_hit = await _audio_sf.do(str(auid), _load_audio)
+        try:
+            acomments = await comment.get_comments(
+                auid_int, comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE
+            )
+        except Exception:
+            pass
     vinfo = {
         "title": ainfo.get("title", auid),
         "pic": ainfo.get("cover", ""),
@@ -150,7 +167,6 @@ async def audio_list_view(amid, idx=0):
         if idx >= len(songs):
             return await render_template_with_theme("error.html", status="Playlist empty", desc="No songs found"), 404
         current_song = songs[idx]
-        # Track info comes from cache; comments stay live so they never go stale.
         try:
             acomments = await comment.get_comments(
                 current_song["id"], comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE
@@ -159,50 +175,79 @@ async def audio_list_view(amid, idx=0):
             pass
         auid = f"au{current_song['id']}"
     else:
-        al = audio.AudioList(amid_int, credential=appcred)
-        songs_res = await al.get_song_list()
-        songs = songs_res.get("data", [])
-        if not songs or idx >= len(songs):
+
+        async def _load_audiolist():
+            if cache_ttl > 0:
+                cached = await cache_get(cache_key, cache_ttl)
+                cached_list = cached.get("songs") if isinstance(cached, dict) else None
+                if (
+                    isinstance(cached, dict)
+                    and isinstance(cached_list, list)
+                    and cached_list
+                    and all(isinstance(s, dict) and "id" in s for s in cached_list)
+                    and isinstance(cached.get("ainfo"), dict)
+                    and cached.get("ainfo")
+                    and isinstance(cached.get("list_info"), dict)
+                ):
+                    return cached_list, cached["ainfo"], cached["list_info"], False, True
+            al = audio.AudioList(amid_int, credential=appcred)
+            songs_res = await al.get_song_list()
+            loaded_songs = songs_res.get("data", [])
+            if not loaded_songs or idx >= len(loaded_songs):
+                return [], {}, {}, True, False
+            current_song = loaded_songs[idx]
+            a = audio.Audio(current_song["id"], credential=appcred)
+
+            async def get_audio_url():
+                try:
+                    exists = await appredis.exists(f"mikuinv_{amid}_{idx}_0")
+                except Exception:
+                    exists = False
+                if not exists:
+                    try:
+                        asrc = await a.get_download_url()
+                    except Exception:
+                        return
+                    url = None
+                    if "cdns" in asrc and asrc["cdns"]:
+                        url = asrc["cdns"][0]
+                    elif "url" in asrc:
+                        url = asrc["url"]
+                    if url:
+                        try:
+                            await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, url)
+                        except Exception:
+                            pass
+
+            results = await asyncio.gather(
+                a.get_info(),
+                al.get_info(),
+                get_audio_url(),
+                return_exceptions=True,
+            )
+            loaded_ainfo, loaded_list_info = (
+                results[0] if isinstance(results[0], dict) else {},
+                results[1] if isinstance(results[1], dict) else {},
+            )
+            if cache_ttl > 0 and loaded_songs and isinstance(loaded_ainfo, dict) and loaded_ainfo:
+                await cache_set(
+                    cache_key,
+                    {"songs": loaded_songs, "ainfo": loaded_ainfo, "list_info": loaded_list_info},
+                    cache_ttl,
+                )
+            return loaded_songs, loaded_ainfo, loaded_list_info, False, False
+
+        songs, ainfo, list_info, not_found, cache_hit = await _audiolist_sf.do(f"{amid}:{idx}", _load_audiolist)
+        if not_found:
             return await render_template_with_theme("error.html", status="Playlist empty", desc="No songs found"), 404
         current_song = songs[idx]
         auid = f"au{current_song['id']}"
-        a = audio.Audio(current_song["id"], credential=appcred)
-
-        async def get_audio_url():
-            try:
-                exists = await appredis.exists(f"mikuinv_{amid}_{idx}_0")
-            except Exception:
-                exists = False
-            if not exists:
-                try:
-                    asrc = await a.get_download_url()
-                except Exception:
-                    return
-                url = None
-                if "cdns" in asrc and asrc["cdns"]:
-                    url = asrc["cdns"][0]
-                elif "url" in asrc:
-                    url = asrc["url"]
-                if url:
-                    try:
-                        await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, url)
-                    except Exception:
-                        pass
-
-        results = await asyncio.gather(
-            a.get_info(),
-            al.get_info(),
-            comment.get_comments(current_song["id"], comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE),
-            get_audio_url(),
-            return_exceptions=True,
-        )
-        ainfo, list_info = (
-            results[0] if isinstance(results[0], dict) else {},
-            results[1] if isinstance(results[1], dict) else {},
-        )
-        acomments = results[2] if isinstance(results[2], dict) else {"page": {"count": 0}, "replies": []}
-        if cache_ttl > 0 and songs and isinstance(ainfo, dict) and ainfo:
-            await cache_set(cache_key, {"songs": songs, "ainfo": ainfo, "list_info": list_info}, cache_ttl)
+        try:
+            acomments = await comment.get_comments(
+                current_song["id"], comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE
+            )
+        except Exception:
+            pass
     vinfo = {
         "title": ainfo.get("title", auid),
         "pic": ainfo.get("cover", ""),

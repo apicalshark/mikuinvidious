@@ -322,6 +322,8 @@ class Video:
             "wbi": True,
         }
         data = await self._request_playurl(api, params, "get_subtitle_meta")
+        if is_gaia_risk_response(data):
+            raise ResponseCodeException(-352, "Gaia risk control blocked subtitle lookup")
         if not isinstance(data, dict):
             return []
         return (data.get("subtitle") or {}).get("subtitles") or []
@@ -338,6 +340,7 @@ class Video:
             if page_index is None:
                 raise ArgsException("Provide at least one of page_index and cid.")
             cid = await self._get_cid_by_index(page_index)
+        self._danmaku_upstream_error = False
         client = await get_bili_client()
         anon_cookies = await _get_anonymous_cookies()
         cookie_str = _build_cookie_header(anon_cookies, self.credential.get_cookies(), {"opus-goback": "1"})
@@ -363,6 +366,9 @@ class Video:
         text = decompressed.decode("utf-8", errors="replace")
         stripped = text.lstrip().lower()
         if resp.status_code != 200 or stripped.startswith("<!doctype") or stripped.startswith("<html"):
+            self._danmaku_upstream_error = (
+                resp.status_code != 404 or stripped.startswith("<!doctype") or stripped.startswith("<html")
+            )
             return ""
         return text
 

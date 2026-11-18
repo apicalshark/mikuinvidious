@@ -10,6 +10,7 @@ from quart import Response, request
 
 from miku.core.ip_slots import PerIpSlotLimiter
 from miku.core.rate_limit import get_client_ip, rate_limit
+from miku.core.url_signing import verify_dash_track_sig
 from miku.dash.common import (
     _CONTENT_RANGE_RE,
     _SAME_MIRROR_MAX_RESUMES,
@@ -910,10 +911,11 @@ class _DashConcurrencyLimiter(PerIpSlotLimiter):
 dash_concurrency = _DashConcurrencyLimiter()
 
 
+@dash_proxy_bp.route("/proxy/dash/s/<sig>/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
 @dash_proxy_bp.route("/proxy/dash/<vid>/<int:idx>/<media_type>/<int:qn>/<int:cid>")
 @rate_limit(limit=600, window=60, key_func=_dash_ip_key)
 @rate_limit(limit=100, window=60, key_func=_dash_frag_key)
-async def proxy_dash(vid, idx, media_type, qn, cid):
+async def proxy_dash(vid, idx, media_type, qn, cid, sig=None):
     """Range-capable DASH track proxy through the WARP SOCKS5 tunnel.
 
     Resolves the track URL from the cached dash JSON, validates it, and proxies
@@ -927,6 +929,8 @@ async def proxy_dash(vid, idx, media_type, qn, cid):
     sometimes stall on one edge while siblings serve in milliseconds — the
     sick-mirror memory routes the next fragment straight to a healthy one.
     """
+    if not verify_dash_track_sig(sig, vid, idx, media_type, qn, cid):
+        return Response("Forbidden", status=403)
     started = time.monotonic()
     host = "-"
     conn = None

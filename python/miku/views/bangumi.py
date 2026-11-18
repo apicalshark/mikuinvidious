@@ -14,9 +14,11 @@ import miku.state as shared
 from miku.api import bangumi
 from miku.api.bvid import av2bv
 from miku.core.rate_limit import RATE_LIMITS, get_client_ip, rate_limit
+from miku.core.singleflight import SingleflightGroup
 from miku.media.nyaa import search_nyaa
 
 bangumi_bp = Blueprint("bangumi", __name__, url_prefix="/bangumi")
+_bangumi_sf = SingleflightGroup()
 
 # Load filter configuration
 params_path = Path(bangumi.__file__).parent / "data" / "bangumi_index_params.json"
@@ -109,49 +111,66 @@ async def bangumi_view(ssid):
             nyaa_enabled=shared.appconf["site"]["nyaa_bangumi"],
         )
         return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
-    b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
-    try:
-        # Fetch metadata and episode list directly
-        async with asyncio.timeout(10.0):
-            meta_data = await b.get_meta()
-        if not meta_data:
-            raise Exception("Bilibili returned no valid bangumi metadata")
 
-        meta = meta_data.get("media", {})
-        raw_eps = []
-
+    async def _load_bangumi():
+        if cache_ttl > 0:
+            cached = await shared.cache_get(cache_key, cache_ttl)
+            if (
+                isinstance(cached, dict)
+                and isinstance(cached.get("meta"), dict)
+                and cached.get("meta")
+                and isinstance(cached.get("episodes"), list)
+            ):
+                return cached["meta"], cached["episodes"], True, None
+        b = bangumi.Bangumi(ssid=ssid, credential=shared.appcred)
         try:
-            eps_data = await b.get_episode_list()
-            if eps_data:
-                # Iterate over all possible episode locations (standard, collections, extras)
-                raw_eps = eps_data.get("main_section", {}).get("episodes", [])
-                if not raw_eps:
-                    for section in eps_data.get("section", []):
-                        raw_eps.extend(section.get("episodes", []))
-        except Exception as e_eps:
-            print(f"[Bangumi] Warning: Could not fetch episodes for ssid {ssid}: {e_eps}")
+            async with asyncio.timeout(10.0):
+                meta_data = await b.get_meta()
+            if not meta_data:
+                raise Exception("Bilibili returned no valid bangumi metadata")
 
-        if not raw_eps and meta:
-            raw_eps = meta.get("episodes", [])
+            loaded_meta = meta_data.get("media", {})
+            raw_eps = []
 
-        if not raw_eps and not meta:
-            raise Exception("Bilibili returned empty bangumi data; the content may be removed or region-restricted.")
+            try:
+                eps_data = await b.get_episode_list()
+                if eps_data:
+                    raw_eps = eps_data.get("main_section", {}).get("episodes", [])
+                    if not raw_eps:
+                        for section in eps_data.get("section", []):
+                            raw_eps.extend(section.get("episodes", []))
+            except Exception as e_eps:
+                print(f"[Bangumi] Warning: Could not fetch episodes for ssid {ssid}: {e_eps}")
 
-        episodes = []
-        for ep_item in raw_eps:
-            episodes.append(
-                {
-                    "title": ep_item.get("title"),
-                    "long_title": ep_item.get("long_title"),
-                    "bvid": ep_item.get("bvid") or (av2bv(ep_item.get("aid")) if ep_item.get("aid") else None),
-                    "aid": ep_item.get("aid"),
-                    "ep_id": ep_item.get("id"),
-                }
-            )
-    except Exception as e:
-        # Detail stays server-side (str(e) can embed raw upstream bodies);
-        # users get a generic message.
-        print(f"[Bangumi] Error fetching ssid {ssid}: {e}")
+            if not raw_eps and loaded_meta:
+                raw_eps = loaded_meta.get("episodes", [])
+
+            if not raw_eps and not loaded_meta:
+                raise Exception(
+                    "Bilibili returned empty bangumi data; the content may be removed or region-restricted."
+                )
+
+            loaded_eps = []
+            for ep_item in raw_eps:
+                loaded_eps.append(
+                    {
+                        "title": ep_item.get("title"),
+                        "long_title": ep_item.get("long_title"),
+                        "bvid": ep_item.get("bvid") or (av2bv(ep_item.get("aid")) if ep_item.get("aid") else None),
+                        "aid": ep_item.get("aid"),
+                        "ep_id": ep_item.get("id"),
+                    }
+                )
+        except Exception as e:
+            print(f"[Bangumi] Error fetching ssid {ssid}: {e}")
+            return None, None, False, e
+
+        if cache_ttl > 0 and isinstance(loaded_meta, dict) and loaded_meta:
+            await shared.cache_set(cache_key, {"meta": loaded_meta, "episodes": loaded_eps}, cache_ttl)
+        return loaded_meta, loaded_eps, False, None
+
+    meta, episodes, cache_hit, err = await _bangumi_sf.do(str(ssid), _load_bangumi)
+    if err is not None:
         return await shared.render_template_with_theme(
             "error.html",
             status="Bangumi load failed",
@@ -159,12 +178,6 @@ async def bangumi_view(ssid):
             suggest="This content is usually unavailable in your region or has been removed by Bilibili. Please try again later.",
         )
 
-    # Only cache healthy season payloads; region-blocked/removed titles
-    # (empty meta) are served live and never stuck in cache.
-    if cache_ttl > 0 and isinstance(meta, dict) and meta:
-        await shared.cache_set(cache_key, {"meta": meta, "episodes": episodes}, cache_ttl)
-
-    # Return the base page; Nyaa search moved to the frontend API
     html = await shared.render_template_with_theme(
         "bangumi_view.html",
         meta=meta,
@@ -172,6 +185,8 @@ async def bangumi_view(ssid):
         ssid=ssid,
         nyaa_enabled=shared.appconf["site"]["nyaa_bangumi"],
     )
+    if cache_ttl > 0 and cache_hit:
+        return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
     if cache_ttl > 0:
         return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
     return html

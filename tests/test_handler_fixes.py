@@ -10,6 +10,7 @@ import miku.media.proxy as proxy
 from miku.api.live import LiveDanmaku
 from miku.app import app
 from miku.core.csrf import CSRF_TOKEN_KEY
+from miku.core.url_signing import sign_pic_target
 from miku.dash.download_job import create_download_job
 from miku.state import Network, appconf, detect_theme
 
@@ -57,7 +58,7 @@ class TestProxyRedirectSecurity(unittest.IsolatedAsyncioTestCase):
         transport = httpx.MockTransport(mock_handler)
         mock_client = httpx.AsyncClient(transport=transport)
         with patch.object(Network, "get_image_client", AsyncMock(return_value=mock_client)):
-            resp = await proxy.render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/face/test.jpg")
+            resp = await proxy.render_proxy_pic(sign_pic_target("i0.hdslb.com/bfs/face/test.jpg"))
             self.assertEqual(resp.status_code, 403)
             body = await resp.get_data()
             self.assertIn(b"Forbidden", body)
@@ -78,7 +79,7 @@ class TestProxyRedirectSecurity(unittest.IsolatedAsyncioTestCase):
             patch.object(Network, "get_image_client", AsyncMock(return_value=mock_client)),
             patch.object(proxy, "is_safe_proxy_url", AsyncMock(return_value=True)),
         ):
-            resp = await proxy.render_proxy_pic("/proxy/pic/i0.hdslb.com/bfs/face/loop.jpg")
+            resp = await proxy.render_proxy_pic(sign_pic_target("i0.hdslb.com/bfs/face/loop.jpg"))
             self.assertEqual(resp.status_code, 403)
             body = await resp.get_data()
             self.assertIn(b"Too many redirects", body)

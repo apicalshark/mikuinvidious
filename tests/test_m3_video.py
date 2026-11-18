@@ -22,6 +22,8 @@ class TestM3Video(unittest.TestCase):
         self.env.filters["format_desc"] = lambda s: s
         self.env.filters["reply_content"] = lambda s: s
         self.env.filters["secdur"] = lambda s: str(s)
+        self.env.filters["danmaku_url"] = lambda s: f"/res/danmaku/s/test/{s}"
+        self.env.filters["subtitle_url"] = lambda s: f"/res/subtitle/s/test/{s}"
 
     def test_video_template_syntax_and_structure(self):
         html = VIDEO_HTML.read_text(encoding="utf-8")

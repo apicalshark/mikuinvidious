@@ -9,6 +9,7 @@ from xml.sax.saxutils import escape
 from quart import Response, request
 
 from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
+from miku.core.url_signing import sign_dash_track_url, verify_dash_manifest_sig
 from miku.dash.common import _is_valid_vid
 from miku.dash.fetch import _load_dash_data, _normalize_track_urls, _refresh_dash_data
 from miku.state import app
@@ -56,8 +57,6 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
 
     total_reps = 0
     as_id = 1
-    safe_vid = _xml_text(vid)
-    safe_idx = _xml_text(idx)
 
     # --- Video adaptation sets (one per codec) ---
     videos = _normalize_track_urls(dash.get("video", []))
@@ -88,7 +87,7 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
                     f'      <Representation id="video_{_xml_attr(qn)}_{_xml_attr(cid)}" codecs="{_xml_attr(track_codecs)}" bandwidth="{_xml_attr(bandwidth)}" width="{_xml_attr(width)}" height="{_xml_attr(height)}" frameRate="{_xml_attr(frame_rate)}">'
                 )
                 rep_lines.append(
-                    f"        <BaseURL>/proxy/dash/{safe_vid}/{safe_idx}/video/{_xml_text(qn)}/{_xml_text(cid)}</BaseURL>"
+                    f"        <BaseURL>{_xml_text(sign_dash_track_url(vid, idx, 'video', qn, cid))}</BaseURL>"
                 )
                 rep_lines.append(f'        <SegmentBase indexRange="{_xml_attr(index_range)}" indexRangeExact="true">')
                 rep_lines.append(f'          <Initialization range="{_xml_attr(init_range)}"/>')
@@ -133,9 +132,7 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
             rep_lines.append(
                 f'      <Representation id="audio_{_xml_attr(qn)}_{_xml_attr(cid)}" codecs="{_xml_attr(codecs)}" bandwidth="{_xml_attr(bandwidth)}">'
             )
-            rep_lines.append(
-                f"        <BaseURL>/proxy/dash/{safe_vid}/{safe_idx}/audio/{_xml_text(qn)}/{_xml_text(cid)}</BaseURL>"
-            )
+            rep_lines.append(f"        <BaseURL>{_xml_text(sign_dash_track_url(vid, idx, 'audio', qn, cid))}</BaseURL>")
             rep_lines.append(f'        <SegmentBase indexRange="{_xml_attr(index_range)}" indexRangeExact="true">')
             rep_lines.append(f'          <Initialization range="{_xml_attr(init_range)}"/>')
             rep_lines.append("        </SegmentBase>")
@@ -175,9 +172,10 @@ _manifest_new_refreshing: set[str] = set()
 _manifest_next_sweep = 0.0
 
 
+@app.route("/video/dash/s/<sig>/<vid>/<int:idx>/manifest.mpd")
 @app.route("/video/dash/<vid>/<int:idx>/manifest.mpd")
 @rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("dash_manifest"))
-async def video_dash_manifest_view(vid, idx):
+async def video_dash_manifest_view(vid, idx, sig=None):
     """Serve the isoff-on-demand MPD manifest for a video part.
 
     ``?fresh=1`` drops the cached playurl first so the manifest is built
@@ -186,6 +184,8 @@ async def video_dash_manifest_view(vid, idx):
     Throttled per video by ``_DASH_MANIFEST_FRESH_COOLDOWN`` so repeated
     ``?fresh=1`` hits cannot stampede the upstream playurl API.
     """
+    if not verify_dash_manifest_sig(sig, vid, idx):
+        return Response("Forbidden", status=403)
     if not _is_valid_vid(vid) or idx < 0:
         return Response("Bad Request", status=400)
     dash_data = None

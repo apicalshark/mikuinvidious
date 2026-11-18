@@ -202,7 +202,7 @@ graph TD
 - **`miku/views/audio.py`**: Audio song playback, playlists, and audio player templates.
 - **`miku/ui/filters.py`**: Jinja2 presentation filters for human-readable timestamps, byte sizes, and duration formatting.
 - **`miku/media/transformers.py`**: Data normalization layer standardizing upstream API responses for template consumption.
-- **`miku/media/res.py`**: Serves dynamic auxiliary assets like Danmaku XML and server-side redirects.
+- **`miku/media/res.py`**: Serves HMAC-signed auxiliary assets (danmaku XML and WebVTT subtitles) with singleflight coalescing and bounded negative caching.
 
 ### Media Streaming & DASH Pipeline
 - **`miku.dash`**: Explicit, non-polluting re-export facade for DASH VOD and downloads.
@@ -212,7 +212,9 @@ graph TD
 - **`miku/dash/stream.py`**: HTTP Range track proxying, multi-mirror failover, watchdog, and upstream socket reuse (`_PlaybackKeepAlivePool`).
 - **`miku/dash/download_track.py`**: Segmented background track downloader with adaptive pacing ladders and ffmpeg muxing.
 - **`miku/dash/download_job.py`**: Download queue concurrency controller and status polling REST endpoints.
-- **`miku/media/proxy.py`**: Progressive media streaming (`/proxy/video/`) and image proxying (`/proxy/pic/`).
+- **`miku/media/proxy.py`**: Progressive media streaming (`/proxy/video/`) and HMAC-verified image proxying (`/proxy/pic/s/<sig>/...`) with bounded 404 negative caching, singleflight coalescing, and wave-grouped mirror retries over single-flight HTTP/2 connections.
+- **`miku/core/singleflight.py`**: Shared loop-scoped cancellation-safe `SingleflightGroup` and `BoundedNegativeCache` used across media proxies and view cold-cache paths.
+- **`miku/core/url_signing.py`**: Stateless HMAC-SHA256 URL signing and verification derived from `app.secret_key` for `/proxy/pic/`, `/res/danmaku/`, `/res/subtitle/`, `/video/dash/.../manifest.mpd`, and `/proxy/dash/`.
 - **`miku/media/image_cache.py`**: High-performance disk-based LRU image cache with automatic capacity pruning.
 - **`miku/media/stream.py`**: Raw TCP socket helpers with persistent `_TLS_CONTEXT` for low-latency streaming.
 - **`miku/media/live_manager.py`**: Persistent live stream connection buffering and heartbeat injection (stripped of dead ML code).

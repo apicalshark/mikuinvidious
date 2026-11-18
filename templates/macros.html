@@ -25,6 +25,7 @@
             <video slot="media"
                    id="player"
                    data-dash-url="{{ dash_url }}"
+                   data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"
                    poster="{{ vinfo['pic']|pic }}"
                    playsinline
                    crossorigin
@@ -33,13 +34,14 @@
                     <track kind="subtitles"
                            srclang="{{ sub['srclang'] }}"
                            label="{{ sub['label'] }}"
-                           src="/res/subtitle/{{ vid }}:{{ idx }}:{{ sub['lan'] }}" />
+                           src="{{ (vid ~ ':' ~ idx ~ ':' ~ sub['lan']) | subtitle_url }}" />
                 {% endfor %}
             </video>
         {% else %}
             <video slot="media"
                    id="player"
                    {% if supported_src %}src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}{{ supported_src[0]['ext'] if supported_src[0]['ext'] else '' }}"{% endif %}
+                   data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"
                    poster="{{ vinfo['pic']|pic }}"
                    playsinline
                    crossorigin
@@ -48,7 +50,7 @@
                     <track kind="subtitles"
                            srclang="{{ sub['srclang'] }}"
                            label="{{ sub['label'] }}"
-                           src="/res/subtitle/{{ vid }}:{{ idx }}:{{ sub['lan'] }}" />
+                           src="{{ (vid ~ ':' ~ idx ~ ':' ~ sub['lan']) | subtitle_url }}" />
                 {% endfor %}
             </video>
         {% endif %}

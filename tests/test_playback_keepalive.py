@@ -307,11 +307,15 @@ class ProxyDashUnstartedGeneratorTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         ):
+            from miku.core.url_signing import sign_dash_track_url
+
+            signed = sign_dash_track_url("BV1xx411c7mD", 0, "video", 80, 7)
+            sig = signed.split("/")[4]
             async with app.test_request_context(
-                "/proxy/dash/BV1xx411c7mD/0/video/80/7",
+                signed,
                 headers={"Range": "bytes=0-99"},
             ):
-                resp = await dash_stream.proxy_dash("BV1xx411c7mD", 0, "video", 80, 7)
+                resp = await dash_stream.proxy_dash("BV1xx411c7mD", 0, "video", 80, 7, sig=sig)
                 self.assertEqual(resp.status_code, 206)
                 self.assertNotEqual(dash_stream.dash_concurrency.active_by_ip, {})
                 del resp

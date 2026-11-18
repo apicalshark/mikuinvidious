@@ -6,8 +6,10 @@ import contextlib
 import re
 import uuid
 import weakref
-from urllib.parse import urljoin, urlparse, urlunparse
+from dataclasses import dataclass, field
+from urllib.parse import ParseResult, urljoin, urlparse, urlunparse
 
+import httpcore
 from quart import Blueprint, Response, has_request_context, request
 
 from miku import state as shared
@@ -15,6 +17,8 @@ from miku.api.live import ScreenResolution
 from miku.core.dns_cache import is_safe_public_url
 from miku.core.ip_slots import PerIpSlotLimiter
 from miku.core.rate_limit import RATE_LIMITS, get_client_ip, rate_limit
+from miku.core.singleflight import BoundedNegativeCache, SingleflightGroup
+from miku.core.url_signing import verify_signed_pic_subpath
 from miku.media.image_cache import image_cache
 from miku.media.live_manager import live_manager
 from miku.media.stream import CdnConnection, CdnProtocolError, CdnTimeoutError
@@ -165,6 +169,307 @@ _ALLOWED_IMAGE_TYPES = frozenset(
 )
 
 
+_NEGATIVE_CACHE_TTL_SECONDS = 60.0
+_NEGATIVE_CACHE_MAX_ENTRIES = 4096
+_DEFINITIVE_MISSING_STATUSES = frozenset({404, 410})
+_DEFINITIVE_CLIENT_STATUSES = frozenset({400, 413, 414, 451})
+_WAVE_COALESCE_SECONDS = 0.04
+_MAX_FALLBACK_WAVES = 2
+_FALLBACK_MIRROR_ORDER = (
+    "i2.biliimg.com",
+    "i1.hdslb.com",
+    "s2.hdslb.com",
+    "i2.hdslb.com",
+    "i0.hdslb.com",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _ImageResult:
+    status: int
+    body: bytes
+    content_type: str
+    cache_control: str | None = None
+    x_cache: str | None = None
+
+    def to_response(self, x_cache_override: str | None = None) -> Response:
+        resp = Response(self.body, status=self.status, content_type=self.content_type)
+        if self.cache_control:
+            resp.headers["Cache-Control"] = self.cache_control
+        x_cache = x_cache_override if x_cache_override is not None else self.x_cache
+        if x_cache:
+            resp.headers["X-Cache"] = x_cache
+        return resp
+
+
+@dataclass(slots=True)
+class _RetryItem:
+    original_url: str
+    parsed: ParseResult
+    headers: dict
+    client: object
+    tried_hosts: set[str]
+    future: asyncio.Future[_ImageResult]
+
+
+@dataclass(slots=True)
+class _WaveBucket:
+    items: list[_RetryItem] = field(default_factory=list)
+    timer: asyncio.TimerHandle | None = None
+    active_batches: int = 0
+
+
+def _has_ready_h2_connection(client, target_url: str) -> bool:
+    """Return True if the pool already has a warm connection (or no pool exists to guard)."""
+    pool = getattr(getattr(client, "_transport", None), "_pool", None)
+    if pool is None or not hasattr(pool, "_connections"):
+        return True
+
+    parsed = urlparse(target_url)
+    host = (parsed.hostname or "").lower()
+    if not host:
+        return True
+    scheme = parsed.scheme.lower() or "https"
+    port = parsed.port or (443 if scheme == "https" else 80)
+    origin = httpcore.Origin(scheme.encode("ascii"), host.encode("ascii"), port)
+
+    for conn in list(getattr(pool, "_connections", ())):
+        if not conn.can_handle_request(origin) or conn.is_closed():
+            continue
+        if hasattr(conn, "has_expired") and conn.has_expired():
+            continue
+        if hasattr(conn, "_connected") and not getattr(conn, "_connected", False):
+            continue
+        inner = getattr(conn, "_connection", None)
+        if inner is None:
+            continue
+        # If the origin negotiated HTTP/1.1, don't serialize requests behind one socket.
+        if not hasattr(inner, "_h2_state"):
+            return True
+        if conn.is_available():
+            return True
+    return False
+
+
+def _select_wave_assignments(items: list[_RetryItem]) -> dict[str, list[_RetryItem]]:
+    """Assign a unified mirror host for the wave batch, grouping outliers onto a shared fallback."""
+    remaining = list(items)
+    groups: dict[str, list[_RetryItem]] = {}
+    while remaining:
+        best_host = None
+        best_score = -1
+        for candidate in _FALLBACK_MIRROR_ORDER:
+            score = sum(1 for item in remaining if candidate not in item.tried_hosts)
+            if score > best_score:
+                best_score = score
+                best_host = candidate
+        if best_host is None or best_score <= 0:
+            for item in remaining:
+                if not item.future.done():
+                    item.future.set_result(_ImageResult(502, b"Upstream error", "text/plain; charset=utf-8"))
+            break
+        matched = [item for item in remaining if best_host not in item.tried_hosts]
+        remaining = [item for item in remaining if best_host in item.tried_hosts]
+        groups.setdefault(best_host, []).extend(matched)
+    return groups
+
+
+class _WaveRetryCoordinator:
+    """Groups retryable image failures into synchronized mirror waves over shared H2 connections."""
+
+    def __init__(
+        self,
+        loop: asyncio.AbstractEventLoop,
+        origin_locks: weakref.WeakKeyDictionary[object, dict[str, asyncio.Lock]],
+        window_seconds: float = _WAVE_COALESCE_SECONDS,
+        max_waves: int = _MAX_FALLBACK_WAVES,
+    ):
+        self.loop = loop
+        self._origin_locks = origin_locks
+        self.window_seconds = window_seconds
+        self.max_waves = max_waves
+        self.active_primary = 0
+        self._buckets: dict[int, _WaveBucket] = {}
+        self._wave_tasks: set[asyncio.Task] = set()
+        self._closed = False
+
+    def _bucket(self, wave_idx: int) -> _WaveBucket:
+        bucket = self._buckets.get(wave_idx)
+        if bucket is None:
+            bucket = _WaveBucket()
+            self._buckets[wave_idx] = bucket
+        return bucket
+
+    def _prev_round_active(self, wave_idx: int) -> int:
+        if wave_idx <= 1:
+            return self.active_primary
+        prev = self._buckets.get(wave_idx - 1)
+        if prev is None:
+            return 0
+        return len(prev.items) + prev.active_batches
+
+    def enter_primary(self) -> None:
+        self.active_primary += 1
+
+    def leave_primary(self) -> None:
+        if self.active_primary > 0:
+            self.active_primary -= 1
+        if self.active_primary == 0:
+            bucket = self._buckets.get(1)
+            if bucket is not None and bucket.items:
+                self._schedule_immediate_flush(1)
+
+    def submit(self, wave_idx: int, item: _RetryItem) -> None:
+        if self._closed:
+            if not item.future.done():
+                item.future.set_result(_ImageResult(502, b"Upstream error", "text/plain; charset=utf-8"))
+            return
+        if wave_idx > self.max_waves:
+            if not item.future.done():
+                item.future.set_result(_ImageResult(502, b"Upstream error", "text/plain; charset=utf-8"))
+            return
+
+        bucket = self._bucket(wave_idx)
+        bucket.items.append(item)
+
+        if self._prev_round_active(wave_idx) == 0:
+            self._schedule_immediate_flush(wave_idx)
+        elif bucket.timer is None:
+            bucket.timer = self.loop.call_later(self.window_seconds, self._flush_wave, wave_idx)
+
+    def _schedule_immediate_flush(self, wave_idx: int) -> None:
+        bucket = self._buckets.get(wave_idx)
+        if bucket is None or not bucket.items:
+            return
+        if bucket.timer is not None:
+            bucket.timer.cancel()
+            bucket.timer = None
+        # Defer to next tick so synchronous gather siblings can finish entering primary/submitting.
+        bucket.timer = self.loop.call_soon(self._flush_wave, wave_idx)
+
+    def _flush_wave(self, wave_idx: int) -> None:
+        bucket = self._buckets.get(wave_idx)
+        if bucket is None:
+            return
+        bucket.timer = None
+        if not bucket.items:
+            return
+        batch = [item for item in bucket.items if not item.future.done()]
+        bucket.items.clear()
+        if not batch:
+            return
+        task = self.loop.create_task(self._dispatch_wave(wave_idx, batch))
+        self._wave_tasks.add(task)
+        task.add_done_callback(self._wave_tasks.discard)
+
+    async def _attempt_item(self, wave_idx: int, item: _RetryItem, target_host: str) -> None:
+        if item.future.done():
+            return
+        candidate_url = urlunparse(item.parsed._replace(netloc=target_host))
+        item.tried_hosts.add(target_host)
+        has_more_mirrors = wave_idx < self.max_waves and any(
+            cdn not in item.tried_hosts for cdn in _FALLBACK_MIRROR_ORDER
+        )
+        result, should_retry = await _fetch_with_origin_guard(
+            item.client,
+            candidate_url,
+            item.original_url,
+            item.headers,
+            can_retry=has_more_mirrors,
+            origin_locks=self._origin_locks,
+        )
+        if not should_retry and result is not None:
+            if not item.future.done():
+                item.future.set_result(result)
+            return
+        if has_more_mirrors:
+            self.submit(wave_idx + 1, item)
+        elif not item.future.done():
+            item.future.set_result(_ImageResult(502, b"Upstream error", "text/plain; charset=utf-8"))
+
+    async def _dispatch_wave(self, wave_idx: int, batch: list[_RetryItem]) -> None:
+        bucket = self._bucket(wave_idx)
+        bucket.active_batches += 1
+        try:
+            groups = _select_wave_assignments(batch)
+            attempts = [
+                self._attempt_item(wave_idx, item, target_host)
+                for target_host, group_items in groups.items()
+                for item in group_items
+            ]
+            if attempts:
+                await asyncio.gather(*attempts, return_exceptions=False)
+        except asyncio.CancelledError:
+            for item in batch:
+                if not item.future.done():
+                    item.future.cancel()
+            raise
+        except Exception as exc:
+            for item in batch:
+                if not item.future.done():
+                    item.future.set_exception(exc)
+        finally:
+            bucket.active_batches -= 1
+            if bucket.active_batches == 0 and not bucket.items:
+                next_bucket = self._buckets.get(wave_idx + 1)
+                if next_bucket is not None and next_bucket.items:
+                    self._schedule_immediate_flush(wave_idx + 1)
+
+    async def close(self) -> None:
+        self._closed = True
+        for bucket in self._buckets.values():
+            if bucket.timer is not None:
+                bucket.timer.cancel()
+                bucket.timer = None
+            for item in bucket.items:
+                if not item.future.done():
+                    item.future.cancel()
+            bucket.items.clear()
+        tasks = list(self._wave_tasks)
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._wave_tasks.clear()
+
+
+@dataclass(slots=True)
+class _LoopImageState:
+    origin_locks: weakref.WeakKeyDictionary[object, dict[str, asyncio.Lock]]
+    coordinator: _WaveRetryCoordinator
+
+
+_negative_cache: BoundedNegativeCache[_ImageResult] = BoundedNegativeCache(
+    max_entries=_NEGATIVE_CACHE_MAX_ENTRIES,
+    ttl_seconds=_NEGATIVE_CACHE_TTL_SECONDS,
+)
+_pic_singleflight: SingleflightGroup[_ImageResult] = SingleflightGroup()
+_loop_states: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, _LoopImageState] = weakref.WeakKeyDictionary()
+
+
+def _get_loop_state() -> _LoopImageState:
+    loop = asyncio.get_running_loop()
+    state = _loop_states.get(loop)
+    if state is None:
+        origin_locks: weakref.WeakKeyDictionary[object, dict[str, asyncio.Lock]] = weakref.WeakKeyDictionary()
+        state = _LoopImageState(
+            origin_locks=origin_locks,
+            coordinator=_WaveRetryCoordinator(loop, origin_locks),
+        )
+        _loop_states[loop] = state
+    return state
+
+
+async def close_pic_proxy() -> None:
+    """Cancel and drain any pending wave retry tasks on application shutdown."""
+    running_loop = asyncio.get_running_loop()
+    state = _loop_states.pop(running_loop, None)
+    if state is not None:
+        await state.coordinator.close()
+    _pic_singleflight.clear()
+
+
 def _get_image_mirror_candidates(url: str) -> list[str]:
     """Return [original, fallback_1, fallback_2] for /bfs/ image URLs, else [url]."""
     parsed = urlparse(url)
@@ -180,6 +485,42 @@ async def is_safe_proxy_url(url: str) -> bool:
     return await is_safe_public_url(url, _ALLOWED_PROXY_DOMAINS, use_dns_cache=False)
 
 
+async def _fetch_with_origin_guard(
+    client,
+    target_url: str,
+    original_url: str,
+    headers: dict,
+    *,
+    can_retry: bool,
+    origin_locks: weakref.WeakKeyDictionary[object, dict[str, asyncio.Lock]],
+) -> tuple[_ImageResult | None, bool]:
+    """Fetch an image while serializing only cold-origin H2 handshake setup."""
+    parsed = urlparse(target_url)
+    origin_key = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+
+    handshake_lock: asyncio.Lock | None = None
+    if not _has_ready_h2_connection(client, target_url):
+        client_locks = origin_locks.get(client)
+        if client_locks is None:
+            client_locks = {}
+            with contextlib.suppress(TypeError):
+                origin_locks[client] = client_locks
+        handshake_lock = client_locks.get(origin_key)
+        if handshake_lock is None:
+            handshake_lock = asyncio.Lock()
+            client_locks[origin_key] = handshake_lock
+
+    async with image_limiter:
+        return await _fetch_image_once(
+            client,
+            target_url,
+            original_url,
+            headers,
+            can_retry=can_retry,
+            handshake_lock=handshake_lock,
+        )
+
+
 async def _fetch_image_once(
     client,
     target_url: str,
@@ -187,37 +528,74 @@ async def _fetch_image_once(
     headers: dict,
     *,
     can_retry: bool,
-) -> tuple[Response | None, bool]:
-    """Fetch an image from one mirror. Returns (response_or_none, should_retry)."""
+    handshake_lock: asyncio.Lock | None = None,
+) -> tuple[_ImageResult | None, bool]:
+    """Fetch an image from one mirror. Returns (result_or_none, should_retry)."""
     resp = None
     current_url = target_url
     redirect_count = 0
     MAX_REDIRECTS = 3
+    locked = False
     try:
+        if handshake_lock is not None:
+            await handshake_lock.acquire()
+            if _has_ready_h2_connection(client, target_url):
+                handshake_lock.release()
+            else:
+                locked = True
+
         while True:
             req = client.build_request("GET", current_url, headers=headers)
-            # Headers are validated before reading body
-            resp = await client.send(req, stream=True, follow_redirects=False)
+            # Headers are validated before reading body; release handshake_lock
+            # immediately once the initial connection/TLS/H2 handshake finishes.
+            try:
+                resp = await client.send(req, stream=True, follow_redirects=False)
+            finally:
+                if locked and handshake_lock is not None:
+                    handshake_lock.release()
+                    locked = False
 
             if resp.is_redirect and "location" in resp.headers:
                 if redirect_count >= MAX_REDIRECTS:
                     await resp.aclose()
-                    return Response("Forbidden: Too many redirects", status=403), False
+                    return _ImageResult(403, b"Forbidden: Too many redirects", "text/plain; charset=utf-8"), False
                 redirect_count += 1
                 loc = resp.headers["location"]
                 await resp.aclose()
                 next_url = urljoin(current_url, loc)
                 if not await is_safe_proxy_url(next_url):
                     print(f"[Proxy] Forbidden redirect destination: {next_url}")
-                    return Response("Forbidden: Invalid redirect target", status=403), False
+                    return _ImageResult(403, b"Forbidden: Invalid redirect target", "text/plain; charset=utf-8"), False
                 current_url = next_url
                 continue
             break
 
-        if resp.status_code != 200 and can_retry:
-            print(f"[Proxy] Image upstream returned {resp.status_code} from {current_url}, retrying alternate mirror")
+        if resp.status_code in _DEFINITIVE_MISSING_STATUSES:
+            status_code = resp.status_code
             await resp.aclose()
-            return None, True
+            neg_result = _ImageResult(
+                status=status_code,
+                body=b"Not Found" if status_code == 404 else b"Gone",
+                content_type="text/plain; charset=utf-8",
+                cache_control=f"public, max-age={int(_NEGATIVE_CACHE_TTL_SECONDS)}",
+                x_cache="MISS",
+            )
+            return _negative_cache.set(original_url, neg_result), False
+
+        if resp.status_code in _DEFINITIVE_CLIENT_STATUSES:
+            status_code = resp.status_code
+            await resp.aclose()
+            msg = b"Payload Too Large" if status_code == 413 else b"Bad Request"
+            return _ImageResult(status_code, msg, "text/plain; charset=utf-8"), False
+
+        if resp.status_code != 200:
+            status_code = resp.status_code
+            await resp.aclose()
+            if can_retry:
+                print(f"[Proxy] Image upstream returned {status_code} from {current_url}, retrying alternate mirror")
+                return None, True
+            final_status = 502 if status_code >= 500 else status_code
+            return _ImageResult(final_status, b"Upstream error", "text/plain; charset=utf-8"), False
 
         content_type = resp.headers.get("content-type", "").lower().split(";")[0].strip()
         # Bilibili's image CDN sometimes returns a bare extension
@@ -230,13 +608,13 @@ async def _fetch_image_once(
                 print(f"[Proxy] Invalid Content-Type ({content_type}) from {current_url}, retrying alternate mirror")
                 return None, True
             print(f"[Proxy] Invalid Content-Type for image: {content_type}")
-            return Response("Forbidden: Invalid content type", status=403), False
+            return _ImageResult(403, b"Forbidden: Invalid content type", "text/plain; charset=utf-8"), False
 
         # Reject oversized payloads early if declared
         cl_header = resp.headers.get("content-length")
         if cl_header and cl_header.isdigit() and int(cl_header) > MAX_IMAGE_SIZE:
             await resp.aclose()
-            return Response("Payload Too Large", status=413), False
+            return _ImageResult(413, b"Payload Too Large", "text/plain; charset=utf-8"), False
 
         # Read the image content into memory and immediately close the upstream
         # connection, returning it to the HTTPX connection pool while still inside
@@ -249,7 +627,7 @@ async def _fetch_image_once(
             async for chunk in resp.aiter_bytes(65536):
                 total_size += len(chunk)
                 if total_size > MAX_IMAGE_SIZE:
-                    return Response("Payload Too Large", status=413), False
+                    return _ImageResult(413, b"Payload Too Large", "text/plain; charset=utf-8"), False
                 chunks.append(chunk)
         finally:
             await resp.aclose()
@@ -257,18 +635,22 @@ async def _fetch_image_once(
         content = b"".join(chunks)
 
         # Store to disk cache under the original request URL key
-        if resp.status_code == 200:
-            await image_cache.set(original_url, content, content_type)
+        await image_cache.set(original_url, content, content_type)
 
-        proxy_resp = Response(
-            content,
-            status=resp.status_code,
-            content_type=content_type,
+        return (
+            _ImageResult(
+                status=200,
+                body=content,
+                content_type=content_type,
+                cache_control="public, max-age=86400",
+                x_cache="MISS",
+            ),
+            False,
         )
-        proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
-        proxy_resp.headers["X-Cache"] = "MISS"
-        return proxy_resp, False
     except Exception as e:
+        if locked and handshake_lock is not None:
+            handshake_lock.release()
+            locked = False
         if resp is not None:
             with contextlib.suppress(Exception):
                 await resp.aclose()
@@ -277,18 +659,96 @@ async def _fetch_image_once(
             print(f"[Proxy] Image fetch error from {current_url} ({err}), retrying alternate mirror")
             return None, True
         print(f"[Proxy] Error in render_proxy_pic for {original_url}: {err}")
-        return Response("Upstream error", status=502), False
+        return _ImageResult(502, b"Upstream error", "text/plain; charset=utf-8"), False
+
+
+async def _run_singleflight_fetch(url: str, state: _LoopImageState) -> _ImageResult:
+    cached = await image_cache.get(url)
+    if cached is not None:
+        content, content_type = cached
+        return _ImageResult(
+            status=200,
+            body=content,
+            content_type=content_type,
+            cache_control="public, max-age=86400",
+            x_cache="HIT",
+        )
+
+    neg = _negative_cache.get(url)
+    if neg is not None:
+        return _ImageResult(
+            status=neg.status,
+            body=neg.body,
+            content_type=neg.content_type,
+            cache_control=neg.cache_control,
+            x_cache="NEGATIVE-HIT",
+        )
+
+    headers = get_common_headers(appconf["bili"]).copy()
+    client = await Network.get_image_client()
+    parsed = urlparse(url)
+    primary_host = parsed.netloc.lower()
+    bfs_eligible = primary_host in _BFS_IMAGE_CDNS and parsed.path.startswith("/bfs/")
+
+    coordinator = state.coordinator
+    coordinator.enter_primary()
+    try:
+        result, should_retry = await _fetch_with_origin_guard(
+            client,
+            url,
+            url,
+            headers,
+            can_retry=bfs_eligible,
+            origin_locks=state.origin_locks,
+        )
+    finally:
+        coordinator.leave_primary()
+
+    if not should_retry and result is not None:
+        return result
+
+    if not bfs_eligible:
+        return _ImageResult(502, b"Upstream error", "text/plain; charset=utf-8")
+
+    retry_future = coordinator.loop.create_future()
+    item = _RetryItem(
+        original_url=url,
+        parsed=parsed,
+        headers=headers,
+        client=client,
+        tried_hosts={primary_host},
+        future=retry_future,
+    )
+    coordinator.submit(1, item)
+    try:
+        return await retry_future
+    except BaseException:
+        if not retry_future.done():
+            retry_future.cancel()
+        raise
 
 
 async def render_proxy_pic(req_path):
-    req_path = req_path[11:]
+    if not req_path.startswith("/proxy/pic/"):
+        return Response("Forbidden", status=403)
+    subpath = req_path[11:]
 
-    if ".." in req_path or req_path.startswith("/"):
+    if has_request_context():
+        qs = request.query_string.decode("latin-1") if request.query_string else ""
+    elif "?" in subpath:
+        subpath, qs = subpath.split("?", 1)
+    else:
+        qs = ""
+
+    verified_target = verify_signed_pic_subpath(subpath, qs)
+    if verified_target is None:
         return Response("Forbidden", status=403)
 
-    url = f"https://{req_path}"
-    if has_request_context() and request.query_string and "?" not in req_path:
-        qs = request.query_string.decode("latin-1")
+    if ".." in verified_target or verified_target.startswith("/"):
+        return Response("Forbidden", status=403)
+
+    url = f"https://{verified_target}"
+    if qs:
         url = f"{url}?{qs}"
     if any(ch in url for ch in ("\r", "\n", "\x00")):
         return Response("Forbidden", status=403)
@@ -305,30 +765,13 @@ async def render_proxy_pic(req_path):
         proxy_resp.headers["X-Cache"] = "HIT"
         return proxy_resp
 
-    async with image_limiter:
-        # Re-check cache in case another coroutine fetched it while waiting for semaphore
-        cached = await image_cache.get(url)
-        if cached is not None:
-            content, content_type = cached
-            proxy_resp = Response(content, status=200, content_type=content_type)
-            proxy_resp.headers["Cache-Control"] = "public, max-age=86400"
-            proxy_resp.headers["X-Cache"] = "HIT"
-            return proxy_resp
+    neg = _negative_cache.get(url)
+    if neg is not None:
+        return neg.to_response(x_cache_override="NEGATIVE-HIT")
 
-        headers = get_common_headers(appconf["bili"]).copy()
-        client = await Network.get_image_client()
-        candidates = _get_image_mirror_candidates(url)
-        for idx, candidate_url in enumerate(candidates):
-            proxy_resp, should_retry = await _fetch_image_once(
-                client,
-                candidate_url,
-                url,
-                headers,
-                can_retry=idx < len(candidates) - 1,
-            )
-            if not should_retry:
-                return proxy_resp
-        return Response("Upstream error", status=502)
+    state = _get_loop_state()
+    result = await _pic_singleflight.do(url, lambda: _run_singleflight_fetch(url, state))
+    return result.to_response()
 
 
 async def _image_rate_key(req) -> str:
@@ -344,6 +787,11 @@ async def _image_rate_key(req) -> str:
 @proxy_bp.route("/proxy/pic/<path:subpath>")
 @rate_limit(**RATE_LIMITS["loose"], key_func=_image_rate_key)
 async def proxy_pic(subpath):
+    raw_path = request.scope.get("raw_path")
+    if isinstance(raw_path, (bytes, bytearray)):
+        raw_str = raw_path.decode("latin-1")
+        if raw_str.startswith("/proxy/pic/"):
+            return await render_proxy_pic(raw_str)
     return await render_proxy_pic(f"/proxy/pic/{subpath}")
 
 

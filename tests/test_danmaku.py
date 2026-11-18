@@ -92,12 +92,15 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
         xml_payload = '<i><d p="1.5,1,25,16777215,1600000000">Cached Danmaku</d></i>'
         mock_get_xml = AsyncMock(return_value=xml_payload)
 
+        from miku.core.url_signing import sign_danmaku_url
+
         with (
             patch.object(res.appredis, "get", side_effect=fake_get),
             patch.object(res.appredis, "setex", side_effect=fake_setex),
             patch("miku.api.video.Video.get_danmaku_xml", mock_get_xml),
         ):
-            r1 = await self.client.get("/res/danmaku/BV1xx411c7mD:0")
+            dm_url = sign_danmaku_url("BV1xx411c7mD", 0)
+            r1 = await self.client.get(dm_url)
             self.assertEqual(r1.status_code, 200)
             data1 = await r1.get_json()
             self.assertEqual(len(data1), 1)
@@ -107,7 +110,7 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(ttls.get("miku_danmaku_xml_BV1xx411c7mD_0"), res.DANMAKU_CACHE_TTL)
 
             # Second request must hit Redis cache and NOT call upstream get_danmaku_xml
-            r2 = await self.client.get("/res/danmaku/BV1xx411c7mD:0")
+            r2 = await self.client.get(dm_url)
             self.assertEqual(r2.status_code, 200)
             data2 = await r2.get_json()
             self.assertEqual(data2, data1)
@@ -117,6 +120,7 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
         from unittest.mock import AsyncMock, patch
 
         import miku.media.res as res
+        from miku.core.url_signing import sign_danmaku_url
 
         mock_setex = AsyncMock()
         mock_get_xml = AsyncMock(return_value="<!DOCTYPE html><html><body>412 Precondition Failed</body></html>")
@@ -126,7 +130,7 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
             patch.object(res.appredis, "setex", mock_setex),
             patch("miku.api.video.Video.get_danmaku_xml", mock_get_xml),
         ):
-            r = await self.client.get("/res/danmaku/BV1xx411c7mD:0")
+            r = await self.client.get(sign_danmaku_url("BV1xx411c7mD", 0))
             self.assertEqual(r.status_code, 200)
             self.assertEqual(await r.get_json(), [])
             mock_setex.assert_not_awaited()
@@ -135,6 +139,7 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
         from unittest.mock import AsyncMock, MagicMock, patch
 
         import miku.media.res as res
+        from miku.core.url_signing import sign_danmaku_url
 
         mock_get = AsyncMock()
         mock_video_cls = MagicMock()
@@ -143,13 +148,13 @@ class TestDanmakuEndpointCaching(unittest.IsolatedAsyncioTestCase):
             patch.object(res.appredis, "get", mock_get),
             patch("miku.api.video.Video", mock_video_cls),
         ):
-            r = await self.client.get("/res/danmaku/invalid_vid_123")
+            r = await self.client.get(sign_danmaku_url("invalid_vid_123", 0))
             self.assertEqual(r.status_code, 200)
             self.assertEqual(await r.get_json(), [])
             mock_get.assert_not_awaited()
             mock_video_cls.assert_not_called()
 
-            r_neg = await self.client.get("/res/danmaku/BV1xx411c7mD:-1")
+            r_neg = await self.client.get(sign_danmaku_url("BV1xx411c7mD", -1))
             self.assertEqual(r_neg.status_code, 200)
             self.assertEqual(await r_neg.get_json(), [])
             mock_get.assert_not_awaited()
