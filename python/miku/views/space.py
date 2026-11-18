@@ -185,8 +185,8 @@ async def space_view(mid):
                 else:
                     load_failed = True
                 uvids = {}
-                if not isinstance(uinfo, dict) or not uinfo:
-                    uinfo = await _space_profile_sf.do(str(mid), lambda: _recover_space_profile(mid))
+            if not isinstance(uinfo, dict) or not uinfo:
+                uinfo = await _space_profile_sf.do(str(mid), lambda: _recover_space_profile(mid))
             if (not isinstance(uinfo, dict) or not uinfo) and use_cache:
                 suinfo, suvids, is_stale = await _read_space_data_stale(mid, cache_ttl, pn)
                 if is_stale and isinstance(suinfo, dict) and suinfo:

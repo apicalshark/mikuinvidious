@@ -325,6 +325,41 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(author_gate.calls, 1)
 
+    async def test_empty_space_profile_recovery_is_html_only_and_coalesced(self):
+        for missing in (None, {}):
+            with self.subTest(missing=missing):
+                gate = _SlowGate()
+
+                async def recover(mid, gate=gate):
+                    gate.calls += 1
+                    gate.started.set()
+                    await gate.release.wait()
+                    return {"mid": 123, "name": "Recovered"}
+
+                with (
+                    patch.object(views_space, "cache_minutes", return_value=0),
+                    patch.object(
+                        views_space,
+                        "_load_space_page1_shared",
+                        AsyncMock(return_value=(missing, {"list": {"vlist": []}}, False, False)),
+                    ),
+                    patch.object(views_space, "_recover_space_profile", side_effect=recover),
+                    patch.object(views_space, "render_template_with_theme", AsyncMock(return_value="ok")),
+                ):
+
+                    async def html():
+                        async with app.test_request_context("/space/123"):
+                            return await views_space.space_view("123")
+
+                    responses = await self._run_coalesced(
+                        [html() for _ in range(5)], gate, sf=views_space._space_profile_sf, sf_key="123"
+                    )
+                    self.assertTrue(all(r.status_code == 200 for r in responses))
+                    self.assertEqual(gate.calls, 1)
+                    async with app.test_request_context("/space/123/json"):
+                        await views_space.space_json_feed("123")
+                    self.assertEqual(gate.calls, 1)
+
     async def test_read_view_coalesces_scrapes_and_negative_caches_only_404(self):
         gate = _SlowGate()
         opus_html = (
@@ -572,7 +607,7 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 views_audio.comment, "get_comments", AsyncMock(return_value={"page": {"count": 0}, "replies": []})
             ),
             patch.object(views_audio.appredis, "exists", AsyncMock(return_value=True)),
-            patch.object(views_audio.appredis, "get", AsyncMock(return_value=b"999")),
+            patch.object(views_audio.appredis, "mget", AsyncMock(return_value=[b"url", b"999"])),
             patch.object(views_audio, "render_template_with_theme", AsyncMock(return_value="<html>al</html>")),
         ):
 
@@ -608,7 +643,7 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
         )
         new_track.get_download_url = AsyncMock(return_value={"cdns": ["https://example.com/song200.mp3"]})
         render_al_mock = AsyncMock(return_value="<html>new</html>")
-        setex_mock = AsyncMock()
+        pair_write = AsyncMock()
         with (
             patch.object(views_audio, "cache_minutes", return_value=10),
             patch.object(views_audio, "cache_get", AsyncMock(side_effect=[None, None, stale_song_cache])),
@@ -619,13 +654,19 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 views_audio.comment, "get_comments", AsyncMock(return_value={"page": {"count": 0}, "replies": []})
             ),
             patch.object(views_audio.appredis, "exists", AsyncMock(return_value=True)),
-            patch.object(views_audio.appredis, "get", AsyncMock(return_value=b"100")),
-            patch.object(views_audio.appredis, "setex", setex_mock),
+            patch.object(views_audio.appredis, "mget", AsyncMock(return_value=[b"old-url", b"100"])),
+            patch.object(views_audio.appredis, "eval", pair_write),
             patch.object(views_audio, "render_template_with_theme", render_al_mock),
         ):
             async with app.test_request_context("/audio_list/am22222"):
                 await views_audio.audio_list_view("am22222")
         self.assertEqual(render_al_mock.await_args.kwargs["vinfo"]["title"], "NewSong")
         self.assertEqual(new_track.get_download_url.await_count, 1)
-        setex_mock.assert_any_await("mikuinv_am22222_0_0", 1800, "https://example.com/song200.mp3")
-        setex_mock.assert_any_await("mikuinv_am22222_0_0_song", 1800, "200")
+        pair_write.assert_awaited_once_with(
+            views_audio._AUDIO_PAIR_SET,
+            2,
+            "mikuinv_am22222_0_0",
+            "mikuinv_am22222_0_0_song",
+            "https://example.com/song200.mp3",
+            "200",
+        )

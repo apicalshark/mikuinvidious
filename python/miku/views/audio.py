@@ -24,6 +24,25 @@ _audiolist_songs_sf = SingleflightGroup()
 _audiolist_sf = SingleflightGroup()
 
 
+_AUDIO_PAIR_SET = """
+if not redis.acl_check_cmd('EXPIRE', KEYS[1], 1800)
+    or not redis.acl_check_cmd('EXPIRE', KEYS[2], 1800) then
+    return redis.error_reply('Cache expiry permission denied')
+end
+redis.call('MSET', KEYS[1], ARGV[1], KEYS[2], ARGV[2])
+redis.call('EXPIRE', KEYS[1], 1800)
+redis.call('EXPIRE', KEYS[2], 1800)
+return 1
+"""
+_AUDIO_PAIR_DELETE = """
+if redis.call('GET', KEYS[1]) == ARGV[1]
+    and (redis.call('GET', KEYS[2]) or '') == ARGV[2] then
+    return redis.call('DEL', KEYS[1], KEYS[2])
+end
+return 0
+"""
+
+
 async def _fetch_audio_comments_safe(auid_int: int) -> dict:
     try:
         return await comment.get_comments(auid_int, comment.CommentResourceType.AUDIO, 1, comment.OrderType.LIKE)
@@ -222,10 +241,9 @@ async def audio_list_view(amid, idx=0):
                 exists = False
                 cached_song = None
                 try:
-                    exists = bool(await appredis.exists(proxy_key))
-                    if exists:
-                        raw_song = await appredis.get(song_key)
-                        cached_song = raw_song.decode() if isinstance(raw_song, bytes) else raw_song
+                    cached_url, raw_song = await appredis.mget(proxy_key, song_key)
+                    exists = cached_url is not None
+                    cached_song = raw_song.decode() if isinstance(raw_song, bytes) else raw_song
                 except Exception:
                     exists = False
                     cached_song = None
@@ -242,13 +260,12 @@ async def audio_list_view(amid, idx=0):
                     url = None
                 if url:
                     try:
-                        await appredis.setex(proxy_key, 1800, url)
-                        await appredis.setex(song_key, 1800, str(song_id))
+                        await appredis.eval(_AUDIO_PAIR_SET, 2, proxy_key, song_key, url, str(song_id))
                     except Exception:
                         pass
                 elif exists:
                     try:
-                        await appredis.delete(proxy_key, song_key)
+                        await appredis.eval(_AUDIO_PAIR_DELETE, 2, proxy_key, song_key, cached_url, raw_song or "")
                     except Exception:
                         pass
 
