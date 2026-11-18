@@ -364,7 +364,7 @@ class Video:
             except Exception:
                 decompressed = raw
         text = decompressed.decode("utf-8", errors="replace")
-        stripped = text.lstrip().lower()
+        stripped = text.lstrip("\ufeff").lstrip().lower()
         if resp.status_code != 200 or stripped.startswith("<!doctype") or stripped.startswith("<html"):
             self._danmaku_upstream_error = (
                 resp.status_code != 404 or stripped.startswith("<!doctype") or stripped.startswith("<html")

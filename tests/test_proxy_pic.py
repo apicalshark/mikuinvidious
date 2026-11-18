@@ -1233,17 +1233,29 @@ class TestProxyPicWaveRetryAndH2Coalescing(unittest.IsolatedAsyncioTestCase):
 
             _connection = type("FakeH2", (), {"_h2_state": object()})()
 
-        mounted = type("MountedT", (), {"_pool": type("P", (), {"_connections": [WarmConn()]})()})()
-        direct = type("DirectT", (), {"_pool": type("P", (), {"_connections": []})()})()
+        class FakePoolTransport(httpx.AsyncBaseTransport):
+            def __init__(self, connections):
+                self._pool = type("P", (), {"_connections": connections})()
 
-        class MountedClient:
-            def __init__(self):
-                self._transport = direct
+            async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                return httpx.Response(200)
 
-            def _transport_for_url(self, url):
-                return mounted
+        mounted_warm = FakePoolTransport([WarmConn()])
+        mounted_cold = FakePoolTransport([])
+        direct_warm = FakePoolTransport([WarmConn()])
+        direct_cold = FakePoolTransport([])
 
-        self.assertTrue(_has_ready_h2_connection(MountedClient(), "https://i0.hdslb.com/bfs/a.jpg"))
+        mounted_client = httpx.AsyncClient(transport=direct_cold, mounts={"all://": mounted_warm})
+        cold_mounted_client = httpx.AsyncClient(transport=direct_warm, mounts={"all://": mounted_cold})
+        direct_client = httpx.AsyncClient(transport=direct_warm)
+        try:
+            self.assertTrue(_has_ready_h2_connection(mounted_client, "https://i0.hdslb.com/bfs/a.jpg"))
+            self.assertFalse(_has_ready_h2_connection(cold_mounted_client, "https://i0.hdslb.com/bfs/a.jpg"))
+            self.assertTrue(_has_ready_h2_connection(direct_client, "https://i0.hdslb.com/bfs/a.jpg"))
+        finally:
+            await mounted_client.aclose()
+            await cold_mounted_client.aclose()
+            await direct_client.aclose()
 
         async def ok_handler(req: httpx.Request) -> httpx.Response:
             return httpx.Response(200)

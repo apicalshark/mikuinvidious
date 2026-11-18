@@ -403,7 +403,10 @@ class TestRes(unittest.IsolatedAsyncioTestCase):
         fake_client.get = AsyncMock(return_value=block_resp)
         fake_video = MagicMock()
         fake_video.get_subtitle_meta = AsyncMock(
-            return_value=[{"lan": "ko-KR", "subtitle_url": "//aisubtitle.hdslb.com/ko.json"}]
+            return_value=[
+                {"lan": "ko-KR", "subtitle_url": "//aisubtitle.hdslb.com/ko.json"},
+                {"lan": "es-ES", "subtitle_url": "//aisubtitle.hdslb.com/es.json"},
+            ]
         )
         with (
             patch.object(res.shared, "appcred", fake_cred),
@@ -415,6 +418,22 @@ class TestRes(unittest.IsolatedAsyncioTestCase):
             r_block = await test_client.get(sign_subtitle_vtt_url("BV1xx411c7mD", 0, "ko-KR"))
             self.assertEqual(r_block.status_code, 502)
             self.assertIsNone(res._subtitle_neg_cache.get("BV1xx411c7mD:0:ko-KR"))
+
+        bom_resp = MagicMock()
+        bom_resp.status_code = 404
+        bom_resp.headers = {"content-type": "application/octet-stream"}
+        bom_resp.content = b"\xef\xbb\xbf<!DOCTYPE html><html>blocked</html>"
+        fake_client.get = AsyncMock(return_value=bom_resp)
+        with (
+            patch.object(res.shared, "appcred", fake_cred),
+            patch.object(res.appredis, "get", AsyncMock(return_value=None)),
+            patch.object(res, "make_video", return_value=fake_video),
+            patch.object(res, "_is_safe_subtitle_url", AsyncMock(return_value=True)),
+            patch.object(res.shared.Network, "get_async_client", AsyncMock(return_value=fake_client)),
+        ):
+            r_bom = await test_client.get(sign_subtitle_vtt_url("BV1xx411c7mD", 0, "es-ES"))
+            self.assertEqual(r_bom.status_code, 502)
+            self.assertIsNone(res._subtitle_neg_cache.get("BV1xx411c7mD:0:es-ES"))
 
     async def test_res_rechecks_positive_cache_inside_singleflight(self):
         xml = '<i><d p="1.0,1,25,16777215,0,0,0,0">cached</d></i>'
@@ -434,6 +453,61 @@ class TestRes(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["text"], "cached")
         fake_video.get_danmaku_xml.assert_not_awaited()
+
+    async def test_danmaku_bom_html_404_not_neg_cached_and_corrupt_xml_falls_back(self):
+        import httpx
+        from miku.api import video as video_api
+
+        res._danmaku_neg_cache.clear()
+        calls = 0
+
+        def bom_404_handler(req):
+            nonlocal calls
+            calls += 1
+            return httpx.Response(404, content=b"\xef\xbb\xbf<!DOCTYPE html><html>blocked</html>")
+
+        bom_client = httpx.AsyncClient(transport=httpx.MockTransport(bom_404_handler))
+        test_client = app.test_client()
+        try:
+            with (
+                patch.object(res.appredis, "get", AsyncMock(return_value=None)),
+                patch.object(video_api, "get_bili_client", AsyncMock(return_value=bom_client)),
+                patch.object(video_api, "_get_anonymous_cookies", AsyncMock(return_value={})),
+                patch.object(video_api.Video, "_get_cid_by_index", AsyncMock(return_value=22334)),
+            ):
+                u = sign_danmaku_url("BV1xx411c7mD", 5)
+                r1 = await test_client.get(u)
+                r2 = await test_client.get(u)
+            self.assertEqual(r1.status_code, 200)
+            self.assertEqual(r2.status_code, 200)
+            self.assertEqual(calls, 2)
+            self.assertIsNone(res._danmaku_neg_cache.get("BV1xx411c7mD:5"))
+        finally:
+            await bom_client.aclose()
+
+        corrupt_xml = '<i><d p="not_a_float,1,25,16777215,0,0,0,0">bad</d></i>'
+        valid_xml = '<i><d p="2.0,1,25,16777215,0,0,0,0">fresh</d></i>'
+        fake_video = MagicMock()
+        fake_video.get_danmaku_xml = AsyncMock(side_effect=[valid_xml, corrupt_xml])
+        fake_video._danmaku_upstream_error = False
+        setex_mock = AsyncMock(return_value=True)
+        with (
+            patch.object(res.appredis, "get", AsyncMock(return_value=corrupt_xml.encode("utf-8"))),
+            patch.object(res.appredis, "setex", setex_mock),
+            patch.object(res, "make_video", return_value=fake_video),
+        ):
+            r_recovered = await test_client.get(sign_danmaku_url("BV1xx411c7mD", 6))
+            self.assertEqual(r_recovered.status_code, 200)
+            body = await r_recovered.get_json()
+            self.assertEqual(len(body), 1)
+            self.assertEqual(body[0]["text"], "fresh")
+            setex_mock.assert_awaited_once()
+
+            setex_mock.reset_mock()
+            r_bad_up = await test_client.get(sign_danmaku_url("BV1xx411c7mD", 7))
+            self.assertEqual(r_bad_up.status_code, 200)
+            self.assertEqual(await r_bad_up.get_json(), [])
+            setex_mock.assert_not_awaited()
 
 
 if __name__ == "__main__":

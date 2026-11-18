@@ -626,14 +626,34 @@ class DashPlayerManager {
       return false;
     }
     this._lastResignAt = Date.now();
+    const fallbackReconnect = () => {
+      if (this.destroyed) return;
+      if (wantFresh) {
+        try {
+          const u = new URL(this.mpdUrl, window.location.href);
+          u.searchParams.set("fresh", "1");
+          this.mpdUrl = u.pathname + u.search + u.hash;
+        } catch (e) {
+          /* keep un-modified manifest URL */
+        }
+      }
+      this.reconnect();
+    };
     fetch(window.location.href, { credentials: "same-origin" })
       .then((res) => (res.ok ? res.text() : ""))
       .then((html) => {
-        if (!html || this.destroyed) return;
+        if (this.destroyed) return;
+        if (!html) {
+          fallbackReconnect();
+          return;
+        }
         const doc = new DOMParser().parseFromString(html, "text/html");
         const wrapper = doc.querySelector("[data-dash-url]");
         const freshUrl = wrapper ? wrapper.getAttribute("data-dash-url") : "";
-        if (!freshUrl) return;
+        if (!freshUrl) {
+          fallbackReconnect();
+          return;
+        }
         window.dash_url = freshUrl;
         let targetUrl = freshUrl;
         if (wantFresh) {
@@ -648,7 +668,9 @@ class DashPlayerManager {
         this.mpdUrl = targetUrl;
         this.reconnect();
       })
-      .catch(() => {});
+      .catch(() => {
+        fallbackReconnect();
+      });
     return true;
   }
 

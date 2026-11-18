@@ -116,11 +116,7 @@ _article_sf = SingleflightGroup()
 _article_neg_cache = BoundedNegativeCache(ttl_seconds=60.0)
 
 
-async def _load_space_page1_shared(mid, route_ttl: int):
-    if route_ttl > 0:
-        cached_uinfo, cached_uvids = await _read_space_data(mid, route_ttl, 1)
-        if cached_uinfo is not None:
-            return cached_uinfo, cached_uvids, False, False, True
+async def _load_space_page1_shared(mid):
     u = user.User(mid, credential=appcred)
     uinfo_res, uvids_res = await asyncio.gather(u.get_user_info(), u.get_videos(pn=1, ps=30), return_exceptions=True)
     local_degraded = bool(getattr(u, "_degraded", False))
@@ -128,7 +124,13 @@ async def _load_space_page1_shared(mid, route_ttl: int):
     max_ttl = _max_space_ttl()
     if max_ttl > 0 and isinstance(uinfo_res, dict) and isinstance(uvids_res, dict):
         await _write_space_data(mid, uinfo_res, uvids_res, 1, max_ttl)
-    return uinfo_res, uvids_res, local_degraded, local_load_failed, False
+    retry_uinfo = None
+    if not isinstance(uinfo_res, dict) or not uinfo_res:
+        try:
+            retry_uinfo = await user.User(mid, credential=appcred).get_user_info()
+        except Exception:
+            retry_uinfo = None
+    return uinfo_res, uvids_res, local_degraded, local_load_failed, retry_uinfo
 
 
 def _space_html_response(html, *, use_cache, cache_hit, degraded, stale=False):
@@ -165,37 +167,33 @@ async def space_view(mid):
         cache_hit = uinfo is not None
     if not cache_hit:
         if pn == 1:
-            uinfo_res, uvids_res, degraded, load_failed, cache_hit = await _space_sf.do(
-                f"{mid}:1", lambda: _load_space_page1_shared(mid, cache_ttl)
+            uinfo_res, uvids_res, degraded, load_failed, retry_uinfo = await _space_sf.do(
+                f"{mid}:1", lambda: _load_space_page1_shared(mid)
             )
-            if not cache_hit:
-                uinfo = uinfo_res if isinstance(uinfo_res, dict) else None
-                uvids = uvids_res if isinstance(uvids_res, dict) else {}
-                exc = (
-                    uinfo_res
-                    if isinstance(uinfo_res, BaseException)
-                    else (uvids_res if isinstance(uvids_res, BaseException) else None)
-                )
-                if exc is not None:
-                    if is_risk_error(exc):
-                        degraded = True
-                    else:
-                        load_failed = True
-                    uvids = {}
-                    if not isinstance(uinfo, dict) or not uinfo:
-                        try:
-                            uinfo = await user.User(mid, credential=appcred).get_user_info()
-                        except Exception:
-                            uinfo = None
-                if (not isinstance(uinfo, dict) or not uinfo) and use_cache:
-                    suinfo, suvids, is_stale = await _read_space_data_stale(mid, cache_ttl, pn)
-                    if is_stale and isinstance(suinfo, dict) and suinfo:
-                        uinfo = suinfo
-                        uvids = suvids if isinstance(suvids, dict) else {}
-                        stale = True
-                        degraded = True
-            else:
-                uinfo, uvids = uinfo_res, uvids_res
+            uinfo = (
+                uinfo_res
+                if isinstance(uinfo_res, dict) and uinfo_res
+                else (retry_uinfo if isinstance(retry_uinfo, dict) else None)
+            )
+            uvids = uvids_res if isinstance(uvids_res, dict) else {}
+            exc = (
+                uinfo_res
+                if isinstance(uinfo_res, BaseException)
+                else (uvids_res if isinstance(uvids_res, BaseException) else None)
+            )
+            if exc is not None:
+                if is_risk_error(exc):
+                    degraded = True
+                else:
+                    load_failed = True
+                uvids = {}
+            if (not isinstance(uinfo, dict) or not uinfo) and use_cache:
+                suinfo, suvids, is_stale = await _read_space_data_stale(mid, cache_ttl, pn)
+                if is_stale and isinstance(suinfo, dict) and suinfo:
+                    uinfo = suinfo
+                    uvids = suvids if isinstance(suvids, dict) else {}
+                    stale = True
+                    degraded = True
         else:
 
             async def _load_space_page():
@@ -305,8 +303,8 @@ async def space_json_feed(mid):
         cache_hit = uinfo is not None
     if not cache_hit:
         try:
-            uinfo_res, uvids_res, degraded, _load_failed, cache_hit = await _space_sf.do(
-                f"{mid}:1", lambda: _load_space_page1_shared(mid, cache_ttl)
+            uinfo_res, uvids_res, degraded, _load_failed, _retry_uinfo = await _space_sf.do(
+                f"{mid}:1", lambda: _load_space_page1_shared(mid)
             )
             for res_val in (uinfo_res, uvids_res):
                 if isinstance(res_val, BaseException):

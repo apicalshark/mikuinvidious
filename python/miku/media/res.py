@@ -63,16 +63,19 @@ _subtitle_vtt_sf = SingleflightGroup()
 _subtitle_neg_cache = BoundedNegativeCache(ttl_seconds=60.0)
 
 
-async def _read_cached_danmaku(cache_key: str) -> str | None:
+def _looks_like_html_text(text: str) -> bool:
+    stripped = text.lstrip("\ufeff").lstrip().lower()
+    return stripped.startswith(("<!doctype", "<html"))
+
+
+async def _read_cached_danmaku_parsed(cache_key: str) -> list | None:
     try:
         cached_xml = await appredis.get(cache_key)
         if cached_xml:
             if isinstance(cached_xml, bytes):
                 cached_xml = cached_xml.decode("utf-8", errors="replace")
-            if isinstance(cached_xml, str):
-                stripped = cached_xml.lstrip().lower()
-                if not (stripped.startswith("<!doctype") or stripped.startswith("<html")):
-                    return cached_xml
+            if isinstance(cached_xml, str) and not _looks_like_html_text(cached_xml):
+                return parse_danmaku(cached_xml)
     except Exception:
         pass
     return None
@@ -95,14 +98,14 @@ async def _danmaku_res_impl(vid, idx=0):
         return jsonify([])
 
     cache_key = f"miku_danmaku_xml_{vid}_{idx}"
-    cached_xml = await _read_cached_danmaku(cache_key)
-    if cached_xml is not None:
-        return jsonify(parse_danmaku(cached_xml))
+    cached_parsed = await _read_cached_danmaku_parsed(cache_key)
+    if cached_parsed is not None:
+        return jsonify(cached_parsed)
 
-    async def _fetch_xml() -> str | None:
+    async def _fetch_danmaku() -> list:
         if _danmaku_neg_cache.get(sf_key) is not None:
-            return None
-        cached_inside = await _read_cached_danmaku(cache_key)
+            return []
+        cached_inside = await _read_cached_danmaku_parsed(cache_key)
         if cached_inside is not None:
             return cached_inside
         try:
@@ -112,24 +115,22 @@ async def _danmaku_res_impl(vid, idx=0):
             if not xml or not isinstance(xml, str):
                 if not upstream_error:
                     _danmaku_neg_cache.set(sf_key, True)
-                return None
-            stripped = xml.lstrip().lower()
-            if stripped.startswith("<!doctype") or stripped.startswith("<html"):
-                return None
-            if stripped.startswith("<"):
+                return []
+            if _looks_like_html_text(xml):
+                return []
+            parsed = parse_danmaku(xml)
+            if xml.lstrip("\ufeff").lstrip().startswith("<"):
                 try:
                     await appredis.setex(cache_key, DANMAKU_CACHE_TTL, xml)
                 except Exception:
                     pass
-            return xml
+            return parsed
         except Exception as e:
             print(f"Danmaku error for {vid}:{idx}: {e}")
-            return None
+            return []
 
-    xml = await _danmaku_sf.do(sf_key, _fetch_xml)
-    if not xml:
-        return jsonify([])
-    return jsonify(parse_danmaku(xml))
+    parsed_danmaku = await _danmaku_sf.do(sf_key, _fetch_danmaku)
+    return jsonify(parsed_danmaku)
 
 
 @app.route("/res/danmaku/s/<sig>/<vid>")
@@ -232,11 +233,10 @@ def _is_html_block_response(resp) -> bool:
             return True
     raw = getattr(resp, "content", b"")
     if isinstance(raw, (bytes, bytearray)):
-        head = bytes(raw[:256]).lstrip().lower()
+        head = bytes(raw[:256]).removeprefix(b"\xef\xbb\xbf").lstrip().lower()
         return head.startswith((b"<!doctype", b"<html"))
     if isinstance(raw, str):
-        head = raw[:256].lstrip().lower()
-        return head.startswith(("<!doctype", "<html"))
+        return _looks_like_html_text(raw[:256])
     return False
 
 

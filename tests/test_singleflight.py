@@ -133,31 +133,32 @@ class TestSingleflightGroup(unittest.IsolatedAsyncioTestCase):
 
         t = threading.Thread(target=run_other_loop)
         t.start()
-        self.assertTrue(other_ready.wait(timeout=2.0))
+        try:
+            self.assertTrue(other_ready.wait(timeout=2.0))
 
-        started = asyncio.Event()
-        cleaned = asyncio.Event()
+            started = asyncio.Event()
+            cleaned = asyncio.Event()
 
-        async def current_work():
-            started.set()
-            try:
-                await asyncio.sleep(5)
-            finally:
-                await asyncio.sleep(0.01)
-                cleaned.set()
+            async def current_work():
+                started.set()
+                try:
+                    await asyncio.sleep(5)
+                finally:
+                    await asyncio.sleep(0.01)
+                    cleaned.set()
 
-        waiter = asyncio.create_task(sf.do("shared", current_work))
-        await asyncio.wait_for(started.wait(), timeout=1.0)
-        waiter.cancel()
-        await asyncio.gather(waiter, return_exceptions=True)
+            waiter = asyncio.create_task(sf.do("shared", current_work))
+            await asyncio.wait_for(started.wait(), timeout=1.0)
+            waiter.cancel()
+            await asyncio.gather(waiter, return_exceptions=True)
 
-        self.assertFalse(cleaned.is_set())
-        await asyncio.wait_for(sf.drain_current_loop(), timeout=1.0)
-        self.assertTrue(cleaned.is_set())
-        self.assertEqual(len(sf._loops), 1)
-
-        other_release.set()
-        t.join(timeout=2.0)
+            self.assertFalse(cleaned.is_set())
+            await asyncio.wait_for(sf.drain_current_loop(), timeout=1.0)
+            self.assertTrue(cleaned.is_set())
+            self.assertEqual(len(sf._loops), 1)
+        finally:
+            other_release.set()
+            t.join(timeout=2.0)
         self.assertEqual(other_result, ["other-ok"])
 
 

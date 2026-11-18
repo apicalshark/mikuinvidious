@@ -205,7 +205,9 @@ async def audio_list_view(amid, idx=0):
                     isinstance(cached, dict)
                     and isinstance(cached_list, list)
                     and cached_list
+                    and idx < len(cached_list)
                     and all(isinstance(s, dict) and "id" in s for s in cached_list)
+                    and cached_list[idx].get("id") == song_id
                     and isinstance(cached.get("ainfo"), dict)
                     and cached.get("ainfo")
                     and isinstance(cached.get("list_info"), dict)
@@ -254,7 +256,7 @@ async def audio_list_view(amid, idx=0):
             return loaded_songs, loaded_ainfo, loaded_list_info, False
 
         track_res, acomments = await asyncio.gather(
-            _audiolist_sf.do(f"{amid}:{idx}", _load_audiolist),
+            _audiolist_sf.do(f"{amid}:{idx}:{song_id}", _load_audiolist),
             _fetch_audio_comments_safe(song_id),
             return_exceptions=True,
         )

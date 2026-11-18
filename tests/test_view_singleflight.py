@@ -23,7 +23,7 @@ class _SlowGate:
 
 
 class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
-    async def _run_coalesced(self, coros, gate: _SlowGate):
+    async def _run_coalesced(self, coros, gate: _SlowGate, *, sf=None, sf_key: str | None = None):
         with patch.dict(rate_limit.appconf["rate_limit"], {"enabled": False}):
             tasks = [asyncio.create_task(c) for c in coros]
             wait_started = asyncio.create_task(gate.started.wait())
@@ -35,6 +35,18 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 )
                 if wait_started not in done:
                     self.fail("Loader never reached gate.started before request tasks completed or timed out")
+                if sf is not None and sf_key is not None:
+                    loop = asyncio.get_running_loop()
+                    expected_waiters = len(tasks)
+
+                    async def _wait_followers():
+                        while True:
+                            entry = sf._loops.get(loop, {}).get(sf_key)
+                            if entry is not None and entry.waiters >= expected_waiters:
+                                return
+                            await asyncio.sleep(0)
+
+                    await asyncio.wait_for(_wait_followers(), timeout=2.0)
                 gate.release.set()
                 return await asyncio.wait_for(asyncio.gather(*tasks), timeout=2.0)
             except BaseException:
@@ -64,7 +76,9 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 async with app.test_request_context("/"):
                     return await views_home.home_view()
 
-            results = await self._run_coalesced([hit() for _ in range(5)], gate)
+            results = await self._run_coalesced(
+                [hit() for _ in range(5)], gate, sf=views_home._home_sf, sf_key="home:data"
+            )
 
         self.assertEqual(gate.calls, 1)
         for res in results:
@@ -107,7 +121,9 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 async with app.test_request_context("/video/BV1xx411c7mD"):
                     return await views_video.video_view("BV1xx411c7mD")
 
-            await self._run_coalesced([hit() for _ in range(5)], gate)
+            await self._run_coalesced(
+                [hit() for _ in range(5)], gate, sf=views_video._video_sf, sf_key="BV1xx411c7mD:0"
+            )
 
         self.assertEqual(gate.calls, 1)
 
@@ -214,9 +230,51 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 async with app.test_request_context("/space/12345/json"):
                     return await views_space.space_json_feed("12345")
 
-            await self._run_coalesced([hit_space(), hit_space(), hit_space_json()], space_gate)
+            await self._run_coalesced(
+                [hit_space(), hit_space(), hit_space_json()],
+                space_gate,
+                sf=views_space._space_sf,
+                sf_key="12345:1",
+            )
 
         self.assertEqual(space_gate.calls, 1)
+
+        retry_gate = _SlowGate()
+        retry_calls = 0
+
+        async def fail_then_recover_uinfo():
+            nonlocal retry_calls
+            retry_calls += 1
+            if retry_calls == 1:
+                retry_gate.calls += 1
+                retry_gate.started.set()
+                await retry_gate.release.wait()
+                raise RuntimeError("transient initial failure")
+            return {"mid": 54321, "name": "Recovered", "face": "https://i0.hdslb.com/r.jpg", "sign": ""}
+
+        retry_user = MagicMock()
+        retry_user._degraded = False
+        retry_user._videos_load_failed = False
+        retry_user.get_user_info = AsyncMock(side_effect=fail_then_recover_uinfo)
+        retry_user.get_videos = AsyncMock(return_value={"list": {"vlist": []}, "page": {"count": 0, "pn": 1, "ps": 30}})
+        with (
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space.user, "User", return_value=retry_user),
+            patch.object(views_space, "render_template_with_theme", AsyncMock(return_value="<html>recovered</html>")),
+        ):
+
+            async def hit_retry_space():
+                async with app.test_request_context("/space/54321"):
+                    return await views_space.space_view("54321")
+
+            await self._run_coalesced(
+                [hit_retry_space() for _ in range(5)],
+                retry_gate,
+                sf=views_space._space_sf,
+                sf_key="54321:1",
+            )
+
+        self.assertEqual(retry_calls, 2)
 
         author_gate = _SlowGate()
 
@@ -241,7 +299,9 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 async with app.test_request_context("/author/12345"):
                     return await views_space.author_view("12345")
 
-            await self._run_coalesced([hit_author() for _ in range(5)], author_gate)
+            await self._run_coalesced(
+                [hit_author() for _ in range(5)], author_gate, sf=views_space._author_sf, sf_key="12345:1"
+            )
 
         self.assertEqual(author_gate.calls, 1)
 
@@ -294,7 +354,9 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 async with app.test_request_context("/opus/987654321"):
                     return await views_space.read_view("987654321")
 
-            await self._run_coalesced([hit_opus() for _ in range(5)], gate)
+            await self._run_coalesced(
+                [hit_opus() for _ in range(5)], gate, sf=views_space._article_sf, sf_key="opus:987654321"
+            )
 
         self.assertEqual(gate.calls, 1)
 
@@ -416,7 +478,7 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 async with app.test_request_context("/bangumi/view/12345"):
                     return await views_bangumi.bangumi_view(12345)
 
-            await self._run_coalesced([hit() for _ in range(5)], gate)
+            await self._run_coalesced([hit() for _ in range(5)], gate, sf=views_bangumi._bangumi_sf, sf_key="12345")
 
         self.assertEqual(gate.calls, 1)
 
@@ -424,6 +486,7 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
         au_gate = _SlowGate()
         comment_started = asyncio.Event()
         comment_proceed = asyncio.Event()
+        expected_comments = {"page": {"count": 1}, "replies": [{"rpid": 1}]}
 
         async def fake_au_info():
             au_gate.calls += 1
@@ -436,27 +499,32 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
         async def fake_au_comments(*args, **kwargs):
             comment_started.set()
             await asyncio.wait_for(comment_proceed.wait(), timeout=1.0)
-            return {"page": {"count": 0}, "replies": []}
+            return expected_comments
 
         fake_au = MagicMock()
         fake_au.get_info = AsyncMock(side_effect=fake_au_info)
         fake_au.get_download_url = AsyncMock(return_value={"cdns": ["https://example.com/a.mp3"]})
+        render_au_mock = AsyncMock(return_value="<html>au</html>")
 
         with (
             patch.object(views_audio, "cache_minutes", return_value=0),
             patch.object(views_audio.audio, "Audio", return_value=fake_au),
             patch.object(views_audio.comment, "get_comments", side_effect=fake_au_comments),
             patch.object(views_audio.appredis, "exists", AsyncMock(return_value=True)),
-            patch.object(views_audio, "render_template_with_theme", AsyncMock(return_value="<html>au</html>")),
+            patch.object(views_audio, "render_template_with_theme", render_au_mock),
         ):
 
             async def hit_au():
                 async with app.test_request_context("/audio/au12345"):
                     return await views_audio.audio_view("au12345")
 
-            await self._run_coalesced([hit_au() for _ in range(5)], au_gate)
+            await self._run_coalesced([hit_au() for _ in range(5)], au_gate, sf=views_audio._audio_sf, sf_key="au12345")
 
+        self.assertTrue(comment_started.is_set())
         self.assertEqual(au_gate.calls, 1)
+        self.assertEqual(render_au_mock.await_count, 5)
+        self.assertEqual(render_au_mock.await_args.kwargs["vinfo"]["title"], "Song")
+        self.assertEqual(render_au_mock.await_args.kwargs["vcomments"], expected_comments)
 
         al_gate = _SlowGate()
 
@@ -491,6 +559,45 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 async with app.test_request_context("/audio_list/am12345"):
                     return await views_audio.audio_list_view("am12345")
 
-            await self._run_coalesced([hit_al() for _ in range(5)], al_gate)
+            await self._run_coalesced(
+                [hit_al() for _ in range(5)], al_gate, sf=views_audio._audiolist_songs_sf, sf_key="12345"
+            )
 
         self.assertEqual(al_gate.calls, 1)
+
+        stale_song_cache = {
+            "songs": [{"id": 100, "title": "Old", "duration": 10}],
+            "ainfo": {"title": "OldSong", "cover": "", "intro": "", "author": "OldAuthor", "mid": 1, "statistic": {}},
+            "list_info": {"title": "List"},
+        }
+        new_al = MagicMock()
+        new_al.get_song_list = AsyncMock(return_value={"data": [{"id": 200, "title": "New", "duration": 20}]})
+        new_al.get_info = AsyncMock(return_value={"title": "List"})
+        new_track = MagicMock()
+        new_track.get_info = AsyncMock(
+            return_value={
+                "title": "NewSong",
+                "cover": "",
+                "intro": "",
+                "author": "NewAuthor",
+                "mid": 2,
+                "statistic": {},
+            }
+        )
+        new_track.get_download_url = AsyncMock(return_value={"cdns": []})
+        render_al_mock = AsyncMock(return_value="<html>new</html>")
+        with (
+            patch.object(views_audio, "cache_minutes", return_value=10),
+            patch.object(views_audio, "cache_get", AsyncMock(side_effect=[None, None, stale_song_cache])),
+            patch.object(views_audio, "cache_set", AsyncMock()),
+            patch.object(views_audio.audio, "AudioList", return_value=new_al),
+            patch.object(views_audio.audio, "Audio", return_value=new_track),
+            patch.object(
+                views_audio.comment, "get_comments", AsyncMock(return_value={"page": {"count": 0}, "replies": []})
+            ),
+            patch.object(views_audio.appredis, "exists", AsyncMock(return_value=True)),
+            patch.object(views_audio, "render_template_with_theme", render_al_mock),
+        ):
+            async with app.test_request_context("/audio_list/am22222"):
+                await views_audio.audio_list_view("am22222")
+        self.assertEqual(render_al_mock.await_args.kwargs["vinfo"]["title"], "NewSong")

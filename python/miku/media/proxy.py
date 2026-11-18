@@ -233,16 +233,26 @@ class _WaveBucket:
 
 
 def _select_client_transport(client, target_url: str):
+    url_obj = httpx.URL(target_url)
     selector = getattr(client, "_transport_for_url", None)
     if callable(selector) and not inspect.iscoroutinefunction(selector):
         try:
-            selected = selector(httpx.URL(target_url))
+            selected = selector(url_obj)
             if inspect.iscoroutine(selected):
                 selected.close()
                 return getattr(client, "_transport", None)
-            return selected
+            if selected is not None:
+                return selected
         except Exception:
             pass
+    mounts = getattr(client, "_mounts", None)
+    if isinstance(mounts, dict):
+        for pattern, transport in mounts.items():
+            if transport is None:
+                continue
+            matches = getattr(pattern, "matches", None)
+            if pattern is None or not callable(matches) or matches(url_obj):
+                return transport
     return getattr(client, "_transport", None)
 
 
