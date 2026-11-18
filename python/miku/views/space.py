@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 import asyncio
+import copy
 import datetime
 import re
 import urllib.parse
@@ -16,6 +17,8 @@ from miku.api.exceptions import is_risk_error
 from miku.api.wbi import enc_wbi
 from miku.core.fingerprints import CHROME_UA, get_article_scrape_headers
 from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
+from miku.core.singleflight import BoundedNegativeCache, SingleflightGroup
+from miku.core.url_signing import resign_pic_url, resign_pic_urls_in_html
 from miku.media.extra import (
     article_to_any,
     article_to_html,
@@ -107,10 +110,29 @@ async def _write_space_data(mid, uinfo, uvids, pn=1, ttl=None):
     await cache_set(_space_data_key(mid, pn), {"uinfo": uinfo, "uvids": uvids}, ttl)
 
 
-async def _fetch_space_data(mid, pn=1, ps=30):
+_space_sf = SingleflightGroup()
+_space_profile_sf = SingleflightGroup()
+_author_sf = SingleflightGroup()
+_article_sf = SingleflightGroup()
+_article_neg_cache = BoundedNegativeCache(ttl_seconds=60.0)
+
+
+async def _load_space_page1_shared(mid):
     u = user.User(mid, credential=appcred)
-    uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=ps))
-    return uinfo, uvids, bool(getattr(u, "_degraded", False))
+    uinfo_res, uvids_res = await asyncio.gather(u.get_user_info(), u.get_videos(pn=1, ps=30), return_exceptions=True)
+    local_degraded = bool(getattr(u, "_degraded", False))
+    local_load_failed = bool(getattr(u, "_videos_load_failed", False))
+    max_ttl = _max_space_ttl()
+    if max_ttl > 0 and isinstance(uinfo_res, dict) and isinstance(uvids_res, dict):
+        await _write_space_data(mid, uinfo_res, uvids_res, 1, max_ttl)
+    return uinfo_res, uvids_res, local_degraded, local_load_failed
+
+
+async def _recover_space_profile(mid):
+    try:
+        return await user.User(mid, credential=appcred).get_user_info()
+    except Exception:
+        return None
 
 
 def _space_html_response(html, *, use_cache, cache_hit, degraded, stale=False):
@@ -139,47 +161,79 @@ async def space_view(mid):
     cache_hit = False
     degraded = False
     load_failed = False
+    stale = False
     uinfo = None
     uvids = {}
     if use_cache:
         uinfo, uvids = await _read_space_data(mid, cache_ttl, pn)
         cache_hit = uinfo is not None
     if not cache_hit:
-        u = user.User(mid, credential=appcred)
-        try:
-            # ps=30 on the page-1 path so the payload is a superset the JSON
-            # feed can also use; page-1 HTML is sliced back to 28 below.
-            uinfo, uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=30 if pn == 1 else 28))
-        except Exception as e:
-            # The user API is often risk-controlled / IP-blocked (412/-352) without the
-            # WARP proxy; re-run the core profile fetch alone in case only a sibling
-            # gather task failed. The video list is optional and falls back to empty.
-            # Only recognized risk-control errors mark the page degraded;
-            # anything else is a neutral load failure (see template).
-            if is_risk_error(e):
-                degraded = True
-            else:
-                load_failed = True
-            uvids = {}
+        if pn == 1:
+            uinfo_res, uvids_res, degraded, load_failed = await _space_sf.do(
+                f"{mid}:1", lambda: _load_space_page1_shared(mid)
+            )
+            uinfo = uinfo_res if isinstance(uinfo_res, dict) else None
+            uvids = uvids_res if isinstance(uvids_res, dict) else {}
+            exc = (
+                uinfo_res
+                if isinstance(uinfo_res, BaseException)
+                else (uvids_res if isinstance(uvids_res, BaseException) else None)
+            )
+            if exc is not None:
+                if is_risk_error(exc):
+                    degraded = True
+                else:
+                    load_failed = True
+                uvids = {}
             if not isinstance(uinfo, dict) or not uinfo:
+                uinfo = await _space_profile_sf.do(str(mid), lambda: _recover_space_profile(mid))
+            if (not isinstance(uinfo, dict) or not uinfo) and use_cache:
+                suinfo, suvids, is_stale = await _read_space_data_stale(mid, cache_ttl, pn)
+                if is_stale and isinstance(suinfo, dict) and suinfo:
+                    uinfo = suinfo
+                    uvids = suvids if isinstance(suvids, dict) else {}
+                    stale = True
+                    degraded = True
+        else:
+
+            async def _load_space_page():
+                if use_cache:
+                    cached_uinfo, cached_uvids = await _read_space_data(mid, cache_ttl, pn)
+                    if cached_uinfo is not None:
+                        return cached_uinfo, cached_uvids, True, False, False, False
+                u = user.User(mid, credential=appcred)
+                local_degraded = False
+                local_load_failed = False
+                local_uinfo = None
+                local_uvids = {}
                 try:
-                    uinfo = await u.get_user_info()
-                except Exception:
-                    uinfo = None
-        degraded = degraded or bool(getattr(u, "_degraded", False))
-        load_failed = load_failed or bool(getattr(u, "_videos_load_failed", False))
-        if use_cache:
-            # Page-1 key expiry covers the longest (space/json) policy so a
-            # divergent JSON TTL isn't cut short; deeper pages use their own.
-            await _write_space_data(mid, uinfo, uvids, pn, _max_space_ttl() if pn == 1 else cache_ttl)
-    stale = False
-    if (not isinstance(uinfo, dict) or not uinfo) and use_cache:
-        # Upstream profile fetch failed (often 412/-352 risk control without
-        # WARP): serve the last good payload instead of 500ing the space.
-        suinfo, suvids, is_stale = await _read_space_data_stale(mid, cache_ttl, pn)
-        if is_stale and isinstance(suinfo, dict) and suinfo:
-            uinfo, uvids, stale = suinfo, suvids if isinstance(suvids, dict) else {}, True
-            degraded = True
+                    local_uinfo, local_uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=28))
+                except Exception as e:
+                    if is_risk_error(e):
+                        local_degraded = True
+                    else:
+                        local_load_failed = True
+                    local_uvids = {}
+                    if not isinstance(local_uinfo, dict) or not local_uinfo:
+                        try:
+                            local_uinfo = await u.get_user_info()
+                        except Exception:
+                            local_uinfo = None
+                local_degraded = local_degraded or bool(getattr(u, "_degraded", False))
+                local_load_failed = local_load_failed or bool(getattr(u, "_videos_load_failed", False))
+                if use_cache:
+                    await _write_space_data(mid, local_uinfo, local_uvids, pn, cache_ttl)
+                local_stale = False
+                if (not isinstance(local_uinfo, dict) or not local_uinfo) and use_cache:
+                    suinfo, suvids, is_stale = await _read_space_data_stale(mid, cache_ttl, pn)
+                    if is_stale and isinstance(suinfo, dict) and suinfo:
+                        local_uinfo = suinfo
+                        local_uvids = suvids if isinstance(suvids, dict) else {}
+                        local_stale = True
+                        local_degraded = True
+                return local_uinfo, local_uvids, False, local_degraded, local_load_failed, local_stale
+
+            uinfo, uvids, cache_hit, degraded, load_failed, stale = await _space_sf.do(f"{mid}:{pn}", _load_space_page)
     if not isinstance(uinfo, dict) or not uinfo:
         return await render_template_with_theme(
             "error.html",
@@ -189,6 +243,8 @@ async def space_view(mid):
         ), 500
     if not isinstance(uvids, dict):
         uvids = {}
+    else:
+        uvids = copy.deepcopy(uvids)
     uvids.setdefault("list", {}).setdefault("vlist", [])
     uvids.setdefault("page", {"count": 0, "pn": pn, "ps": 28})
     # Coerce numeric page fields to int so the template's arithmetic/comparisons
@@ -247,7 +303,13 @@ async def space_json_feed(mid):
         cache_hit = uinfo is not None
     if not cache_hit:
         try:
-            uinfo, uvids, degraded = await _fetch_space_data(mid, pn=1, ps=30)
+            uinfo_res, uvids_res, degraded, _load_failed = await _space_sf.do(
+                f"{mid}:1", lambda: _load_space_page1_shared(mid)
+            )
+            for res_val in (uinfo_res, uvids_res):
+                if isinstance(res_val, BaseException):
+                    raise res_val
+            uinfo, uvids = uinfo_res, uvids_res
         except Exception as e:
             print(f"[Space] Error fetching space data for {mid}: {e}")
             return Response(
@@ -257,14 +319,12 @@ async def space_json_feed(mid):
             )
     else:
         degraded = False
-        if not isinstance(uinfo, dict) or not isinstance(uvids, dict):
-            return Response(
-                orjson.dumps({"error": "Unexpected response format from Bilibili API"}),
-                status=502,
-                content_type="application/json",
-            )
-        if cache_ttl > 0:
-            await _write_space_data(mid, uinfo, uvids)
+    if not isinstance(uinfo, dict) or not isinstance(uvids, dict):
+        return Response(
+            orjson.dumps({"error": "Unexpected response format from Bilibili API"}),
+            status=502,
+            content_type="application/json",
+        )
 
     site_url = appconf["site"]["site_url"]
     feed_url = f"{site_url}/space/{mid}/json"
@@ -396,23 +456,33 @@ async def author_view(mid):
             if not cache_hit:
                 uinfo = uarticles = None
     if not cache_hit:
-        u = user.User(mid, credential=appcred)
-        opus_coro = u.get_opus_articles() if pn <= 5 else asyncio.sleep(0, result=None)
-        uinfo, uarticles, first_opus = await asyncio.gather(
-            u.get_user_info(),
-            u.get_articles(pn=pn, ps=20),
-            opus_coro,
-            return_exceptions=True,
-        )
-        if isinstance(uinfo, BaseException):
-            raise uinfo
-        if isinstance(uarticles, BaseException):
-            raise uarticles
-        article_ttl = cache_minutes("article_minutes") * 60
-        await _enrich_author_articles_with_opus(u, uarticles, pn, first_opus, article_ttl)
-        # Only cache a healthy payload; never stick a broken profile.
-        if use_cache and isinstance(uinfo, dict) and uinfo and isinstance(uarticles, dict):
-            await cache_set(cache_key, {"uinfo": uinfo, "uarticles": uarticles}, cache_ttl)
+
+        async def _load_author():
+            if use_cache:
+                cached = await cache_get(cache_key, cache_ttl)
+                if isinstance(cached, dict):
+                    cuinfo, cuarticles = cached.get("uinfo"), cached.get("uarticles")
+                    if isinstance(cuinfo, dict) and bool(cuinfo) and isinstance(cuarticles, dict):
+                        return cuinfo, cuarticles, True
+            u = user.User(mid, credential=appcred)
+            opus_coro = u.get_opus_articles() if pn <= 5 else asyncio.sleep(0, result=None)
+            loaded_uinfo, loaded_uarticles, first_opus = await asyncio.gather(
+                u.get_user_info(),
+                u.get_articles(pn=pn, ps=20),
+                opus_coro,
+                return_exceptions=True,
+            )
+            if isinstance(loaded_uinfo, BaseException):
+                raise loaded_uinfo
+            if isinstance(loaded_uarticles, BaseException):
+                raise loaded_uarticles
+            article_ttl = cache_minutes("article_minutes") * 60
+            await _enrich_author_articles_with_opus(u, loaded_uarticles, pn, first_opus, article_ttl)
+            if use_cache and isinstance(loaded_uinfo, dict) and loaded_uinfo and isinstance(loaded_uarticles, dict):
+                await cache_set(cache_key, {"uinfo": loaded_uinfo, "uarticles": loaded_uarticles}, cache_ttl)
+            return loaded_uinfo, loaded_uarticles, False
+
+        uinfo, uarticles, cache_hit = await _author_sf.do(f"{mid}:{pn}", _load_author)
     html = await render_template_with_theme("author.html", uinfo=uinfo, uarts=uarticles)
     if use_cache:
         return Response(
@@ -491,110 +561,66 @@ async def _resolve_cv_opus_id(client, cvid: str, cookie_header: str) -> str | No
     return None
 
 
-@app.route("/opus/<cid>/", endpoint="opus_view_slash")
-@app.route("/opus/<cid>", endpoint="opus_view")
-@app.route("/read/mobile/<cid>/", endpoint="read_mobile_view_slash")
-@app.route("/read/mobile/<cid>", endpoint="read_mobile_view")
-@app.route("/read/<cid>/")
-@app.route("/read/<cid>")
-@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("article"))
-async def read_view(cid):
-    is_opus = request.path.lower().startswith("/opus/")
-    if is_opus:
-        if not cid.isdigit():
-            return await render_template_with_theme(
-                "error.html",
-                status="Article not found",
-                desc="Invalid opus ID",
-                suggest="Please check the opus URL and try again.",
-            ), 404
-        cvid = cid
-        url = f"https://www.bilibili.com/opus/{cvid}"
-    else:
-        norm_cid = cid.lower()
-        if norm_cid.startswith("cv"):
-            cvid = norm_cid[2:]
-        elif request.path.lower().startswith("/read/mobile/") and norm_cid.isdigit():
-            cvid = norm_cid
-        else:
-            cvid = ""
-        if not cvid.isdigit():
-            return await render_template_with_theme(
-                "error.html",
-                status="Article not found",
-                desc="Invalid article ID",
-                suggest="Please check the article URL and try again.",
-            ), 404
-        url = f"https://www.bilibili.com/read/cv{cvid}/"
+async def _get_mapped_opus_id(opus_map_key: str, cache_ttl: int) -> str | None:
+    if cache_ttl <= 0:
+        return None
+    cached_opus = await cache_get(opus_map_key, cache_ttl)
+    mapped_opus = cached_opus.get("opus_id") if isinstance(cached_opus, dict) else None
+    if isinstance(mapped_opus, str) and mapped_opus.isdigit():
+        return mapped_opus
+    return None
+
+
+async def _read_cached_article(cache_key: str, cache_ttl: int, resolved_opus_id: str | None) -> dict | None:
+    if cache_ttl <= 0:
+        return None
+    data = await cache_get(cache_key, cache_ttl)
+    if (
+        isinstance(data, dict)
+        and isinstance(data.get("arinfo"), dict)
+        and data.get("arinfo")
+        and isinstance(data.get("content"), str)
+        and data.get("content")
+        and "Failed to parse article content" not in data.get("content")
+    ):
+        return {
+            "arinfo": data["arinfo"],
+            "content": data["content"],
+            "resolved_opus_id": resolved_opus_id,
+            "cache_hit": True,
+        }
+    return None
+
+
+async def _scrape_article_outcome(
+    cid: str,
+    cvid: str,
+    url: str,
+    is_opus: bool,
+    want_format: str | None,
+    use_cache: bool,
+    cache_ttl: int,
+    cache_key: str,
+    opus_map_key: str,
+    scrape_headers: dict,
+) -> dict:
     resolved_opus_id = cvid if is_opus else None
-    scrape_headers = dict(get_article_scrape_headers(appconf.get("bili")))
-    scrape_headers["User-Agent"] = CHROME_UA
-    scrape_headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-    scrape_headers["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.8"
-    cookie_parts = {}
-    try:
-        anon = await _get_anonymous_cookies()
-        if isinstance(anon, dict):
-            cookie_parts.update({k: v for k, v in anon.items() if v})
-    except Exception:
-        pass
-    if getattr(appcred, "buvid3", None):
-        cookie_parts["buvid3"] = appcred.buvid3
-    if not cookie_parts.get("buvid3"):
-        cookie_parts["buvid3"] = f"{str(uuid.uuid4()).upper()}infoc"
-    scrape_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookie_parts.items())
-
-    # Optional pandoc export (any supported format).
-    want_format = (
-        request.args.get("format")
-        if (
-            appconf["render"]["use_pandoc"]
-            and request.args.get("format") in appconf["render"]["article_allowed_formats"]
-        )
-        else None
-    )
-
-    cache_ttl = cache_minutes("article_minutes") * 60
-    # File exports (?format=) bypass the cache; the HTML flavor is part of
-    # the key so /read/cv.. and /opus/.. never share entries.
-    use_cache = want_format is None and cache_ttl > 0
-    cache_key = f"read:data:v2:{cid}:{'opus' if is_opus else 'cv'}"
-    opus_map_key = f"cv:opus:{cvid}"
-    if not is_opus and cache_ttl > 0:
-        cached_opus = await cache_get(opus_map_key, cache_ttl)
-        mapped_opus = cached_opus.get("opus_id") if isinstance(cached_opus, dict) else None
-        if isinstance(mapped_opus, str) and mapped_opus.isdigit():
+    neg_key = f"{'opus' if is_opus else 'cv'}:{cvid}"
+    if not is_opus:
+        mapped_opus = await _get_mapped_opus_id(opus_map_key, cache_ttl)
+        if mapped_opus is not None:
             if want_format is None:
-                return redirect(url_for("opus_view", cid=mapped_opus))
+                return {"redirect_opus_id": mapped_opus}
             resolved_opus_id = mapped_opus
             url = f"https://www.bilibili.com/opus/{mapped_opus}"
+
+    if want_format is None and _article_neg_cache.get(neg_key) is not None:
+        return {"error_status": 404}
+
     if use_cache:
-        data = await cache_get(cache_key, cache_ttl)
-        if (
-            isinstance(data, dict)
-            and isinstance(data.get("arinfo"), dict)
-            and data.get("arinfo")
-            and isinstance(data.get("content"), str)
-            and data.get("content")
-            and "Failed to parse article content" not in data.get("content")
-        ):
-            vcomments, comment_oid, comment_type, comments_closed = await _fetch_article_comments(
-                data["arinfo"], cvid, is_opus
-            )
-            opus_id_out = data["arinfo"].get("opus_id") or resolved_opus_id
-            html = await render_template_with_theme(
-                "read.html",
-                cid=cid,
-                arinfo=data["arinfo"],
-                article_content=data["content"],
-                is_opus=is_opus,
-                opus_id=opus_id_out,
-                vcomments=vcomments,
-                comment_oid=comment_oid,
-                comment_type=comment_type,
-                comments_closed=comments_closed,
-            )
-            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
+        cached = await _read_cached_article(cache_key, cache_ttl, resolved_opus_id)
+        if cached is not None:
+            return cached
 
     arinfo = None
     text = None
@@ -612,13 +638,10 @@ async def read_view(cid):
             if cache_ttl > 0:
                 await cache_set(opus_map_key, {"opus_id": dyn_id}, cache_ttl)
             if want_format is None:
-                return redirect(url_for("opus_view", cid=dyn_id))
+                return {"redirect_opus_id": dyn_id}
             resolved_opus_id = dyn_id
             url = f"https://www.bilibili.com/opus/{dyn_id}"
 
-    # The public read/opus page is intermittently served with the content module
-    # stripped (anti-bot) from datacenter IPs, even though HTTP 200 with title.
-    # Retry the scrape until the article body actually parses (or give up).
     for attempt in range(max_attempts):
         attempts_made = attempt + 1
         try:
@@ -653,7 +676,7 @@ async def read_view(cid):
                         if cache_ttl > 0:
                             await cache_set(opus_map_key, {"opus_id": resolved_opus_id}, cache_ttl)
                         if want_format is None:
-                            return redirect(url_for("opus_view", cid=resolved_opus_id))
+                            return {"redirect_opus_id": resolved_opus_id}
                 break
             last_error = "Content module missing or unparseable"
             print(
@@ -666,7 +689,7 @@ async def read_view(cid):
                     if cache_ttl > 0:
                         await cache_set(opus_map_key, {"opus_id": dyn_id}, cache_ttl)
                     if want_format is None:
-                        return redirect(url_for("opus_view", cid=dyn_id))
+                        return {"redirect_opus_id": dyn_id}
                     resolved_opus_id = dyn_id
                     url = f"https://www.bilibili.com/opus/{dyn_id}"
                     opus_req = await client.send(
@@ -716,17 +739,14 @@ async def read_view(cid):
             f"[Article] Failed to fetch article {cid} ({url}) after {attempts_made} attempt(s) "
             f"(last_status={last_status}, last_error={last_error})"
         )
-        return await render_template_with_theme(
-            "error.html",
-            status="Article not found" if last_status == 404 else "Server error",
-            desc="Backend server sent an invalid response",
-            suggest="The article you requested most likely does not exist. Please check your request."
-            if last_status == 404
-            else None,
-        ), (404 if last_status == 404 else 502)
+        if last_status == 404:
+            if want_format is None:
+                _article_neg_cache.set(neg_key, 404)
+            return {"error_status": 404}
+        return {"error_status": 502}
 
     if want_format is not None:
-        return await article_to_any(text, want_format)
+        return {"export_text": text}
 
     try:
         if arinfo is None:
@@ -762,8 +782,6 @@ async def read_view(cid):
                 pass
         if resolved_opus_id and isinstance(arinfo, dict):
             arinfo["opus_id"] = resolved_opus_id
-        # Only cache fully parsed articles; stripped anti-bot bodies are
-        # retried live next time instead of sticking.
         if (
             use_cache
             and isinstance(arinfo, dict)
@@ -773,30 +791,164 @@ async def read_view(cid):
             and "Failed to parse article content" not in content
         ):
             await cache_set(cache_key, {"arinfo": arinfo, "content": content}, cache_ttl)
-        vcomments, comment_oid, comment_type, comments_closed = await _fetch_article_comments(arinfo, cvid, is_opus)
-        html = await render_template_with_theme(
-            "read.html",
-            cid=cid,
-            arinfo=arinfo,
-            article_content=content,
-            is_opus=is_opus,
-            opus_id=resolved_opus_id,
-            vcomments=vcomments,
-            comment_oid=comment_oid,
-            comment_type=comment_type,
-            comments_closed=comments_closed,
-        )
-        if use_cache:
-            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
-        return html
+        return {
+            "arinfo": arinfo,
+            "content": content,
+            "resolved_opus_id": resolved_opus_id,
+            "cache_hit": False,
+        }
     except Exception as e:
         import traceback
 
         traceback.print_exc()
         print(f"[Article] Error processing {cid}: {e}")
+        return {"error_status": 404, "parse_error": True}
+
+
+@app.route("/opus/<cid>/", endpoint="opus_view_slash")
+@app.route("/opus/<cid>", endpoint="opus_view")
+@app.route("/read/mobile/<cid>/", endpoint="read_mobile_view_slash")
+@app.route("/read/mobile/<cid>", endpoint="read_mobile_view")
+@app.route("/read/<cid>/")
+@app.route("/read/<cid>")
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("article"))
+async def read_view(cid):
+    is_opus = request.path.lower().startswith("/opus/")
+    if is_opus:
+        if not cid.isdigit():
+            return await render_template_with_theme(
+                "error.html",
+                status="Article not found",
+                desc="Invalid opus ID",
+                suggest="Please check the opus URL and try again.",
+            ), 404
+        cvid = cid
+        url = f"https://www.bilibili.com/opus/{cvid}"
+    else:
+        norm_cid = cid.lower()
+        if norm_cid.startswith("cv"):
+            cvid = norm_cid[2:]
+        elif request.path.lower().startswith("/read/mobile/") and norm_cid.isdigit():
+            cvid = norm_cid
+        else:
+            cvid = ""
+        if not cvid.isdigit():
+            return await render_template_with_theme(
+                "error.html",
+                status="Article not found",
+                desc="Invalid article ID",
+                suggest="Please check the article URL and try again.",
+            ), 404
+        url = f"https://www.bilibili.com/read/cv{cvid}/"
+    neg_key = f"{'opus' if is_opus else 'cv'}:{cvid}"
+    want_format = (
+        request.args.get("format")
+        if (
+            appconf["render"]["use_pandoc"]
+            and request.args.get("format") in appconf["render"]["article_allowed_formats"]
+        )
+        else None
+    )
+    cache_ttl = cache_minutes("article_minutes") * 60
+    use_cache = want_format is None and cache_ttl > 0
+    cache_key = f"read:data:v2:{cid}:{'opus' if is_opus else 'cv'}"
+    opus_map_key = f"cv:opus:{cvid}"
+    resolved_opus_id = cvid if is_opus else None
+
+    if not is_opus and want_format is None:
+        mapped_opus = await _get_mapped_opus_id(opus_map_key, cache_ttl)
+        if mapped_opus is not None:
+            return redirect(url_for("opus_view", cid=mapped_opus))
+
+    if want_format is None and _article_neg_cache.get(neg_key) is not None:
         return await render_template_with_theme(
             "error.html",
             status="Article not found",
-            desc="Article does not exist or parse error",
+            desc="Backend server sent an invalid response",
             suggest="The article you requested most likely does not exist. Please check your request.",
         ), 404
+
+    outcome = await _read_cached_article(cache_key, cache_ttl, resolved_opus_id) if use_cache else None
+    if outcome is None:
+        scrape_headers = dict(get_article_scrape_headers(appconf.get("bili")))
+        scrape_headers["User-Agent"] = CHROME_UA
+        scrape_headers["Accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+        scrape_headers["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.8"
+        cookie_parts = {}
+        try:
+            anon = await _get_anonymous_cookies()
+            if isinstance(anon, dict):
+                cookie_parts.update({k: v for k, v in anon.items() if v})
+        except Exception:
+            pass
+        if getattr(appcred, "buvid3", None):
+            cookie_parts["buvid3"] = appcred.buvid3
+        if not cookie_parts.get("buvid3"):
+            cookie_parts["buvid3"] = f"{str(uuid.uuid4()).upper()}infoc"
+        scrape_headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in cookie_parts.items())
+
+        async def _run_scrape():
+            return await _scrape_article_outcome(
+                cid,
+                cvid,
+                url,
+                is_opus,
+                want_format,
+                use_cache,
+                cache_ttl,
+                cache_key,
+                opus_map_key,
+                scrape_headers,
+            )
+
+        outcome = await _article_sf.do(neg_key, _run_scrape) if want_format is None else await _run_scrape()
+
+    if "redirect_opus_id" in outcome:
+        return redirect(url_for("opus_view", cid=outcome["redirect_opus_id"]))
+    if "export_text" in outcome:
+        return await article_to_any(outcome["export_text"], want_format)
+    if "error_status" in outcome:
+        err_status = outcome["error_status"]
+        if outcome.get("parse_error"):
+            return await render_template_with_theme(
+                "error.html",
+                status="Article not found",
+                desc="Article does not exist or parse error",
+                suggest="The article you requested most likely does not exist. Please check your request.",
+            ), 404
+        return await render_template_with_theme(
+            "error.html",
+            status="Article not found" if err_status == 404 else "Server error",
+            desc="Backend server sent an invalid response",
+            suggest="The article you requested most likely does not exist. Please check your request."
+            if err_status == 404
+            else None,
+        ), err_status
+
+    arinfo_out = dict(outcome["arinfo"])
+    article_html = outcome["content"]
+    cache_hit = outcome.get("cache_hit", False)
+    if cache_hit:
+        if isinstance(arinfo_out.get("covers"), list):
+            arinfo_out["covers"] = [resign_pic_url(c) if isinstance(c, str) else c for c in arinfo_out["covers"]]
+        article_html = resign_pic_urls_in_html(article_html)
+    resolved_opus_id = outcome.get("resolved_opus_id")
+    opus_id_out = (arinfo_out.get("opus_id") or resolved_opus_id) if cache_hit else resolved_opus_id
+    vcomments, comment_oid, comment_type, comments_closed = await _fetch_article_comments(arinfo_out, cvid, is_opus)
+    html = await render_template_with_theme(
+        "read.html",
+        cid=cid,
+        arinfo=arinfo_out,
+        article_content=article_html,
+        is_opus=is_opus,
+        opus_id=opus_id_out,
+        vcomments=vcomments,
+        comment_oid=comment_oid,
+        comment_type=comment_type,
+        comments_closed=comments_closed,
+    )
+    if cache_hit:
+        return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
+    if use_cache:
+        return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
+    return html

@@ -10,6 +10,7 @@ import miku.views as views
 import miku.views.space as views_space
 from miku.api import user
 from miku.api.exceptions import ResponseCodeException
+from miku.core.url_signing import sign_pic_target
 from miku.state import Network, app, render_template_with_theme
 
 
@@ -158,6 +159,12 @@ class PaginationVisibilityTests(unittest.IsolatedAsyncioTestCase):
 
 
 class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        views_space._article_neg_cache.clear()
+        p = patch.object(views_space, "_get_anonymous_cookies", AsyncMock(return_value={"buvid3": "TEST-BUVID3"}))
+        p.start()
+        self.addCleanup(p.stop)
+
     async def test_read_view_logs_on_status_failure(self):
         mock_resp = AsyncMock()
         mock_resp.status_code = 412
@@ -423,7 +430,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("#4FD3D1", render.await_args.kwargs["article_content"])
         self.assertEqual(
             render.await_args.kwargs["arinfo"]["covers"],
-            ["/proxy/pic/i0.hdslb.com/bfs/article/banner/top.png"],
+            [sign_pic_target("i0.hdslb.com/bfs/article/banner/top.png")],
         )
         self.assertEqual(render.await_args.kwargs["arinfo"]["stats"]["view"], 5392)
 

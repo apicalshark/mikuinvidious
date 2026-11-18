@@ -76,6 +76,7 @@ class CacheWrites(unittest.IsolatedAsyncioTestCase):
     async def test_danmaku_only_caches_xml_like_body(self):
         import miku.media.res as res
         from miku.app import app
+        from miku.core.url_signing import sign_danmaku_url
 
         get_xml = AsyncMock(side_effect=["  upstream error", "  <i></i>"])
         cache_write = AsyncMock()
@@ -85,9 +86,10 @@ class CacheWrites(unittest.IsolatedAsyncioTestCase):
             patch.object(res.video.Video, "get_danmaku_xml", get_xml),
         ):
             client = app.test_client()
-            await client.get("/res/danmaku/BV1xx411c7mD")
+            dm_url = sign_danmaku_url("BV1xx411c7mD", 0)
+            await client.get(dm_url)
             cache_write.assert_not_awaited()
-            await client.get("/res/danmaku/BV1xx411c7mD")
+            await client.get(dm_url)
             cache_write.assert_awaited_once_with("miku_danmaku_xml_BV1xx411c7mD_0", res.DANMAKU_CACHE_TTL, "  <i></i>")
 
     async def test_nyaa_caches_only_present_results(self):

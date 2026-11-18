@@ -10,6 +10,7 @@ upstream HTML, JS, URL, or tracking param may reach the client.
 
 import unittest
 
+from miku.core.url_signing import sign_pic_target
 from miku.media.transformers import _proxied_emote_src, render_reply_content
 
 DOGE = "https://i0.hdslb.com/bfs/emote/3087d273a78ccaff4bb1e9972e2ba2a7583c9f11.png"
@@ -33,18 +34,18 @@ class ProxiedEmoteSrcTests(unittest.TestCase):
     def test_allows_hdslb_host(self):
         self.assertEqual(
             _proxied_emote_src(DOGE),
-            "/proxy/pic/i0.hdslb.com/bfs/emote/3087d273a78ccaff4bb1e9972e2ba2a7583c9f11.png",
+            sign_pic_target("i0.hdslb.com/bfs/emote/3087d273a78ccaff4bb1e9972e2ba2a7583c9f11.png"),
         )
 
     def test_allows_protocol_relative(self):
         self.assertEqual(
             _proxied_emote_src("//i0.hdslb.com/bfs/emote/a.png"),
-            "/proxy/pic/i0.hdslb.com/bfs/emote/a.png",
+            sign_pic_target("i0.hdslb.com/bfs/emote/a.png"),
         )
 
     def test_strips_tracking_query_and_fragment(self):
         src = _proxied_emote_src(DOGE + "?token=secret&uid=1#frag")
-        self.assertEqual(src, "/proxy/pic/i0.hdslb.com/bfs/emote/3087d273a78ccaff4bb1e9972e2ba2a7583c9f11.png")
+        self.assertEqual(src, sign_pic_target("i0.hdslb.com/bfs/emote/3087d273a78ccaff4bb1e9972e2ba2a7583c9f11.png"))
         self.assertNotIn("?", src or "")
         self.assertNotIn("secret", src or "")
 
@@ -75,7 +76,9 @@ class RenderReplyContentTests(unittest.TestCase):
 
     def test_size1_emote_proxied_inline(self):
         out = render_reply_content(content("hi [doge]", {"[doge]": doge_entry()}))
-        self.assertIn('src="/proxy/pic/i0.hdslb.com/bfs/emote/', out)
+        self.assertIn(
+            f'src="{sign_pic_target("i0.hdslb.com/bfs/emote/3087d273a78ccaff4bb1e9972e2ba2a7583c9f11.png")}"', out
+        )
         self.assertIn('alt="[doge]"', out)
         self.assertIn("1.4em", out)
         self.assertIn("display:inline-block", out)  # beats Tailwind preflight img{display:block}
@@ -101,10 +104,10 @@ class RenderReplyContentTests(unittest.TestCase):
             webp_url="https://i0.hdslb.com/bfs/emote/w.webp",
         )
         out = render_reply_content(content("[e]", {"[e]": entry}))
-        self.assertIn("/proxy/pic/i0.hdslb.com/bfs/emote/w.webp", out)
+        self.assertIn(sign_pic_target("i0.hdslb.com/bfs/emote/w.webp"), out)
         entry.pop("webp_url")
         out = render_reply_content(content("[e]", {"[e]": entry}))
-        self.assertIn("/proxy/pic/i0.hdslb.com/bfs/emote/g.gif", out)
+        self.assertIn(sign_pic_target("i0.hdslb.com/bfs/emote/g.gif"), out)
 
     def test_unknown_token_stays_text(self):
         out = render_reply_content(content("a [nope] b", {}))
@@ -116,6 +119,13 @@ class RenderReplyContentTests(unittest.TestCase):
         out = render_reply_content(content("x [evil]", {"[evil]": doge_entry(url="https://evil.example/x.png")}))
         self.assertNotIn("<img", out)
         self.assertIn("[evil]", out)
+
+    def test_emote_src_is_html_escaped(self):
+        out = render_reply_content(
+            content("[e]", {"[e]": doge_entry(url="https://i0.hdslb.com/bfs/emote/a&copy=1.png")})
+        )
+        signed = sign_pic_target("i0.hdslb.com/bfs/emote/a&copy=1.png")
+        self.assertIn(f'src="{signed.replace("&", "&amp;")}"', out)
 
     def test_xss_in_message_with_emote(self):
         out = render_reply_content(content('"><img src=x onerror=alert(1)> [doge]', {"[doge]": doge_entry()}))

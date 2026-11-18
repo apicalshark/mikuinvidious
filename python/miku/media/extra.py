@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 from miku.api.bvid import av2bv, bv2av  # noqa: F401
 from miku.api.client import Api
 from miku.core.fingerprints import FIXED_CHROME_UA
+from miku.core.url_signing import sign_pic_target
 from miku.services.credential import get_web_api_cookies
 from miku.state import Network
 from miku.ui.sanitizer import (
@@ -79,7 +80,7 @@ def _proxied_pic_url(raw_url):
     proxied = parts.hostname + (parts.path or "/")
     if parts.query:
         proxied += "?" + parts.query
-    return "/proxy/pic/" + proxied
+    return sign_pic_target(proxied)
 
 
 def merge_opus_modules_info(arinfo, modules):

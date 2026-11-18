@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 import httpx
+from miku.core.url_signing import sign_pic_target
 from miku.media.image_cache import ImageCache
 from miku.media.proxy import render_proxy_pic
 
@@ -238,7 +239,7 @@ class TestProxyPicDiskCacheIntegration(unittest.IsolatedAsyncioTestCase):
             patch("miku.media.proxy.image_cache", custom_cache),
             patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=mock_client)),
         ):
-            url_path = "/proxy/pic/i0.hdslb.com/bfs/archive/hit_test.jpg"
+            url_path = sign_pic_target("i0.hdslb.com/bfs/archive/hit_test.jpg")
 
             # 1. First request: Cache MISS -> fetches from upstream
             resp1 = await render_proxy_pic(url_path)

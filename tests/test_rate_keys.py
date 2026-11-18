@@ -10,12 +10,13 @@ class RateKeys(unittest.IsolatedAsyncioTestCase):
     async def test_dynamic_routes_share_family_budgets_and_isolate_clients(self):
         import miku.core.rate_limit as rate_limit
         from miku.app import app
+        from miku.core.url_signing import sign_danmaku_url, sign_dash_manifest_url
 
         limiter = MagicMock()
         limiter.is_allowed = AsyncMock(return_value=(False, {"remaining": 0, "reset": 1, "limit": 10}))
         cases = [
             (["/proxy/download/BV1xx411c7mD/0/80", "/proxy/download/BV1xx411c7mD/1/64"], 10),
-            (["/res/danmaku/BV1xx411c7mD", "/res/danmaku/BV1xx411c7mD:2"], 60),
+            ([sign_danmaku_url("BV1xx411c7mD", 0), sign_danmaku_url("BV1xx411c7mD", 2)], 60),
             (["/video_listen/BV1xx411c7mD", "/video_listen/BV1xx411c7mD:2/"], 60),
             (["/read/cv1", "/opus/2"], 60),
             (["/space/1", "/space/2/"], 60),
@@ -24,7 +25,7 @@ class RateKeys(unittest.IsolatedAsyncioTestCase):
             (["/audio/au1", "/audio/au2"], 60),
             (["/audio_list/am1", "/audio_list/am2:1"], 60),
             (["/vv/1", "/vv/2/"], 60),
-            (["/video/dash/BV1xx411c7mD/0/manifest.mpd", "/video/dash/BV1xx411c7mD/1/manifest.mpd"], 60),
+            ([sign_dash_manifest_url("BV1xx411c7mD", 0), sign_dash_manifest_url("BV1xx411c7mD", 1)], 60),
         ]
         with (
             patch.dict(rate_limit.appconf["rate_limit"], {"enabled": True}),

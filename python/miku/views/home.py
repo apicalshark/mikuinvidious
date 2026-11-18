@@ -12,6 +12,7 @@ from miku.api import ResponseCodeException, homepage, search, video, video_zone
 from miku.api.exceptions import NetworkException, is_risk_error
 from miku.core.csrf import csrf_protect
 from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
+from miku.core.singleflight import SingleflightGroup
 from miku.media.b23_resolver import extract_b23_or_bili_url, resolve_b23_target
 from miku.state import (
     app,
@@ -23,6 +24,8 @@ from miku.state import (
     cache_set,
     render_template_with_theme,
 )
+
+_home_sf = SingleflightGroup()
 
 
 @app.route("/licenses")
@@ -42,25 +45,31 @@ async def home_view():
             api_res = data["payload"]
             cache_hit = True
     if not cache_hit:
-        try:
-            api_res = await homepage.get_videos()
-        except Exception:
-            # Upstream blip: serve the last good feed (stale) instead of
-            # 500ing the front page; re-raise only when nothing survived.
+
+        async def _load_home():
             if cache_ttl > 0:
-                stale_data, is_stale = await cache_get_stale("home:data", cache_ttl)
-                if is_stale and isinstance(stale_data, dict) and isinstance(stale_data.get("payload"), (dict, list)):
-                    api_res = stale_data["payload"]
-                    cache_hit = "STALE"
-            if cache_hit != "STALE":
+                cached = await cache_get("home:data", cache_ttl)
+                if isinstance(cached, dict) and isinstance(cached.get("payload"), (dict, list)):
+                    return cached["payload"], True
+            try:
+                res = await homepage.get_videos()
+            except Exception:
+                if cache_ttl > 0:
+                    stale_data, is_stale = await cache_get_stale("home:data", cache_ttl)
+                    if (
+                        is_stale
+                        and isinstance(stale_data, dict)
+                        and isinstance(stale_data.get("payload"), (dict, list))
+                    ):
+                        return stale_data["payload"], "STALE"
                 raise
-        # Only cache a healthy feed; an empty homepage is almost certainly a
-        # transient upstream blip, not a real empty front page. Stale-served
-        # payloads are never re-cached (that would refresh fetched_at).
-        if cache_hit != "STALE" and cache_ttl > 0 and isinstance(api_res, (dict, list)):
-            raw_probe = api_res.get("item") if isinstance(api_res, dict) else api_res
-            if isinstance(raw_probe, list) and raw_probe:
-                await cache_set("home:data", {"payload": api_res}, cache_ttl)
+            if cache_ttl > 0 and isinstance(res, (dict, list)):
+                raw_probe = res.get("item") if isinstance(res, dict) else res
+                if isinstance(raw_probe, list) and raw_probe:
+                    await cache_set("home:data", {"payload": res}, cache_ttl)
+            return res, False
+
+        api_res, cache_hit = await _home_sf.do("home:data", _load_home)
     processed_videos = []
     raw_list = []
     if isinstance(api_res, dict) and "item" in api_res:

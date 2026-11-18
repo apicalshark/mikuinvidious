@@ -6,6 +6,11 @@ from datetime import datetime, timedelta
 from markupsafe import Markup
 
 import miku.media.transformers as transformers
+from miku.core.url_signing import (
+    build_signed_pic_url,
+    sign_danmaku_url,
+    sign_subtitle_vtt_url,
+)
 from miku.state import app
 
 
@@ -45,13 +50,37 @@ def __jinja2_filter_secdur(delta_t):
 # Convert a url of a photo asset to MikuInvidious proxy url.
 @app.template_filter("pic")
 def __jinja2_filter_pic(url):
-    if not url:
+    return build_signed_pic_url(url)
+
+
+@app.template_filter("danmaku_url")
+def __jinja2_filter_danmaku_url(target):
+    if not target or not isinstance(target, str):
         return ""
-    if "://" in url:
-        return "/proxy/pic/" + url.split("://", 1)[1]
-    if url.startswith("//"):
-        return "/proxy/pic/" + url[2:]
-    return "/proxy/pic/" + url
+    if ":" in target:
+        vid, raw_idx = target.split(":", 1)
+        try:
+            idx = int(raw_idx)
+        except ValueError:
+            idx = 0
+    else:
+        vid, idx = target, 0
+    return sign_danmaku_url(vid, idx)
+
+
+@app.template_filter("subtitle_url")
+def __jinja2_filter_subtitle_url(target):
+    if not target or not isinstance(target, str):
+        return ""
+    parts = target.split(":", 2)
+    if len(parts) != 3:
+        return ""
+    vid, raw_idx, lan = parts
+    try:
+        idx = int(raw_idx)
+    except ValueError:
+        return ""
+    return sign_subtitle_vtt_url(vid, idx, lan)
 
 
 # Safely format descriptions with paragraphs and breaks.

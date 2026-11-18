@@ -3,6 +3,7 @@
 
 import unittest
 
+from miku.core.url_signing import sign_pic_target
 from miku.media.transformers import (
     _proxied_emote_src,
     _render_reply_content_py,
@@ -40,7 +41,7 @@ class TestText(unittest.TestCase):
             },
         }
         rendered = render_reply_content(content_dict)
-        self.assertIn("/proxy/pic/i0.hdslb.com/bfs/emote/doge.png", rendered)
+        self.assertIn(sign_pic_target("i0.hdslb.com/bfs/emote/doge.png"), rendered)
         self.assertIn('alt="[doge]"', rendered)
         self.assertIn("&lt;script&gt;bad()&lt;/script&gt;", rendered)
         self.assertNotIn("<script>", rendered)
@@ -62,7 +63,7 @@ class TestText(unittest.TestCase):
             with self.subTest(suffix=suffix):
                 emote = {"[doge]": {"url": "https://i0.hdslb.com/bfs/emote/doge%20a.png" + suffix}}
                 expected = _render_reply_content_py("[doge]", emote)
-                self.assertIn("/proxy/pic/i0.hdslb.com/bfs/emote/doge%20a.png", expected)
+                self.assertIn(sign_pic_target("i0.hdslb.com/bfs/emote/doge%20a.png"), expected)
 
     def test_falls_back_from_falsy_emote_urls(self):
         for value in (None, "", False, 0, [], {}):
@@ -71,7 +72,7 @@ class TestText(unittest.TestCase):
                     entry = {"webp_url": value, "gif_url": value, fallback_key: "https://i0.hdslb.com/doge.png"}
                     emote = {"[doge]": entry}
                     expected = _render_reply_content_py("[doge]", emote)
-                    self.assertIn("/proxy/pic/i0.hdslb.com/doge.png", expected)
+                    self.assertIn(sign_pic_target("i0.hdslb.com/doge.png"), expected)
 
     def test_does_not_skip_truthy_non_string_url(self):
         emote = {"[doge]": {"webp_url": True, "url": "https://i0.hdslb.com/doge.png"}}

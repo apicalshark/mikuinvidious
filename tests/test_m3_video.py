@@ -22,6 +22,8 @@ class TestM3Video(unittest.TestCase):
         self.env.filters["format_desc"] = lambda s: s
         self.env.filters["reply_content"] = lambda s: s
         self.env.filters["secdur"] = lambda s: str(s)
+        self.env.filters["danmaku_url"] = lambda s: f"/res/danmaku/s/test/{s}"
+        self.env.filters["subtitle_url"] = lambda s: f"/res/subtitle/s/test/{s}"
 
     def test_video_template_syntax_and_structure(self):
         html = VIDEO_HTML.read_text(encoding="utf-8")
@@ -83,6 +85,21 @@ class TestM3Video(unittest.TestCase):
         self.assertIn("Test Video Title", rendered)
         self.assertIn("Test Creator", rendered)
         self.assertIn('title="Likes"', rendered)
+
+        player_tpl = self.env.get_template("themes/modern/components/player_part.html")
+        rendered_signed = player_tpl.render(
+            vid="BV1test",
+            vinfo=context["vinfo"],
+            idx=2,
+            supported_src=[],
+            is_live=False,
+            is_dash=True,
+            dash_url="/video/dash/s/test/BV1test/2/manifest.mpd",
+            subtitles=[{"lan": "zh-CN", "srclang": "zh-CN", "label": "Chinese", "auto_generated": False}],
+            paywall=False,
+        )
+        self.assertIn('data-danmaku-url="/res/danmaku/s/test/BV1test:2"', rendered_signed)
+        self.assertIn('src="/res/subtitle/s/test/BV1test:2:zh-CN"', rendered_signed)
 
 
 class TestOwnerMeta(unittest.IsolatedAsyncioTestCase):

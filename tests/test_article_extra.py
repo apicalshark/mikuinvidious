@@ -8,6 +8,7 @@ import warnings
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import miku.media.extra as extra
+from miku.core.url_signing import sign_pic_target
 
 
 class TestArticleExtra(unittest.IsolatedAsyncioTestCase):
@@ -180,14 +181,14 @@ class TestArticleExtra(unittest.IsolatedAsyncioTestCase):
         self.assertIn('<strong><span style="color:#4FD3D1">Colorful Bold</span></strong>', rendered)
         self.assertIn('style="text-align:center"', rendered.replace(" ", ""))
         self.assertIn("<p><br>", rendered)
-        self.assertIn('src="/proxy/pic/i0.hdslb.com/bfs/article/poster.jpg"', rendered)
+        self.assertIn(f'src="{sign_pic_target("i0.hdslb.com/bfs/article/poster.jpg")}"', rendered)
         self.assertIn('width="500"', rendered)
         self.assertIn('class="mx-auto rounded-xl"', rendered)
-        self.assertIn('src="/proxy/pic/i0.hdslb.com/bfs/article/divider.png"', rendered)
+        self.assertIn(f'src="{sign_pic_target("i0.hdslb.com/bfs/article/divider.png")}"', rendered)
         self.assertIn('width="124"', rendered)
         self.assertIn('class="mx-auto"', rendered)
 
-        self.assertEqual(info["covers"], ["/proxy/pic/i0.hdslb.com/bfs/article/cover.png"])
+        self.assertEqual(info["covers"], [sign_pic_target("i0.hdslb.com/bfs/article/cover.png")])
         self.assertEqual(info["tags"], ["Miku", "LIVE"])
         self.assertEqual(
             info["copyright"],
@@ -220,7 +221,7 @@ class TestArticleExtra(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(arinfo["title"], "Legacy Title")
         self.assertEqual(arinfo["stats"]["view"], 99)
-        self.assertEqual(arinfo["covers"], ["/proxy/pic/i0.hdslb.com/bfs/article/banner.jpg"])
+        self.assertEqual(arinfo["covers"], [sign_pic_target("i0.hdslb.com/bfs/article/banner.jpg")])
 
     async def test_article_to_any_pandoc_timeout_terminates_and_returns_empty(self):
         fake_proc = MagicMock()

@@ -20,6 +20,7 @@ import miku.dash.stream as dash_stream
 import miku.views as views
 import miku.views.video as views_video
 from miku.app import app
+from miku.core.url_signing import sign_dash_manifest_url
 
 
 class ManifestRefresh(unittest.IsolatedAsyncioTestCase):
@@ -33,8 +34,10 @@ class ManifestRefresh(unittest.IsolatedAsyncioTestCase):
         refresh = AsyncMock(side_effect=[None, {"ok": True}, {"ok": True}])
 
         async def call(vid):
-            async with app.test_request_context(f"/video/dash/{vid}/0/manifest.mpd?fresh=1"):
-                return await dash_mpd.video_dash_manifest_view(vid, 0)
+            signed = sign_dash_manifest_url(vid, 0)
+            sig = signed.split("/")[4]
+            async with app.test_request_context(f"{signed}?fresh=1"):
+                return await dash_mpd.video_dash_manifest_view(vid, 0, sig=sig)
 
         try:
             with (
@@ -78,8 +81,10 @@ class ManifestRefresh(unittest.IsolatedAsyncioTestCase):
             return {"ok": True}
 
         async def call(vid):
+            signed = sign_dash_manifest_url(vid, 0)
+            sig = signed.split("/")[4]
             async with app.test_request_context("/?fresh=1"):
-                return await dash_mpd.video_dash_manifest_view(vid, 0)
+                return await dash_mpd.video_dash_manifest_view(vid, 0, sig=sig)
 
         try:
             with (
@@ -90,7 +95,19 @@ class ManifestRefresh(unittest.IsolatedAsyncioTestCase):
                 patch.object(dash_mpd, "generate_vod_mpd", return_value="mpd"),
             ):
                 task = asyncio.create_task(call("BV1xx411c7mD"))
-                await started.wait()
+                wait_started = asyncio.create_task(started.wait())
+                done, pending = await asyncio.wait(
+                    {task, wait_started},
+                    timeout=2.0,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if wait_started not in done:
+                    gate.set()
+                    for p in pending:
+                        p.cancel()
+                    await asyncio.gather(*pending, return_exceptions=True)
+                    result_info = task.result() if task.done() and not task.cancelled() else "timeout"
+                    self.fail(f"Signed request exited before starting refresh: {result_info}")
                 await call("BV1xx411c7xx")
                 await call("BV1xx411c7mD")
                 self.assertEqual(fetch.await_count, 1)
@@ -160,7 +177,8 @@ class AdditionalBoundaries(unittest.IsolatedAsyncioTestCase):
         ):
             for _ in range(10):
                 async with app.test_request_context("/?fresh=1"):
-                    await dash_mpd.video_dash_manifest_view("BV1xx411c7xx", 0)
+                    sig = sign_dash_manifest_url("BV1xx411c7xx", 0).split("/")[4]
+                    await dash_mpd.video_dash_manifest_view("BV1xx411c7xx", 0, sig=sig)
             self.assertEqual(fresh.scans, 1)
             refresh.assert_not_awaited()
 

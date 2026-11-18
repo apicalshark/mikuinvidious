@@ -70,7 +70,7 @@ npm run build:i18n
 - `python/main.py`: Granian ASGI production launcher (`miku.app:app`, 1 worker).
 - `python/miku/app.py`: Quart app initialization, error handlers, and blueprint registration.
 - `python/miku/state.py`: Shared singleton runtime state (`appredis`, HTTPX client, template renderer).
-- `python/miku/core/`: Config (`config.py`), app factory (`app.py`), CSRF (`csrf.py`), rate limiting (`rate_limit.py`), DNS cache (`dns_cache.py`), fingerprints (`fingerprints.py`), IP slots (`ip_slots.py`), and secrets encryption (`secrets_encryption.py`).
+- `python/miku/core/`: Config (`config.py`), app factory (`app.py`), CSRF (`csrf.py`), rate limiting (`rate_limit.py`), DNS cache (`dns_cache.py`), fingerprints (`fingerprints.py`), IP slots (`ip_slots.py`), secrets encryption (`secrets_encryption.py`), singleflight/negative cache (`singleflight.py`), and HMAC URL signing (`url_signing.py`).
 - `python/miku/services/`: Cache (`cache.py`), concurrency (`concurrency.py`), credentials (`credential.py`), network (`network.py`), Redis (`redis.py`), and ticket lifecycle (`ticket.py`).
 - `python/miku/views/`: View blueprints (`home.py`, `video.py`, `space.py`, `bangumi.py`, `live.py`, `audio.py`) re-exported via `miku.views`.
 - `python/miku/dash/`: DASH streaming & download engine re-exported via `miku.dash`:

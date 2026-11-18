@@ -11,6 +11,8 @@ from quart import Response, g, request
 from miku.api import comment, user, video
 from miku.api.bvid import av2bv
 from miku.core.rate_limit import RATE_LIMITS, get_client_ip, ip_family_key, rate_limit
+from miku.core.singleflight import SingleflightGroup
+from miku.core.url_signing import sign_dash_manifest_url
 from miku.dash.common import _is_valid_vid
 from miku.media.extra import video_get_src_for_qn
 from miku.state import (
@@ -26,6 +28,7 @@ from miku.state import (
 )
 
 _background_tasks = set()
+_video_sf = SingleflightGroup()
 
 
 async def _fetch_owner_meta(vinfo: dict) -> dict:
@@ -343,7 +346,7 @@ async def api_component_player(vid, idx):
 
     paywall = bool((dash_data or {}).get("paywall"))
     is_dash = has_valid_dash_tracks(dash_data)
-    dash_url = f"/video/dash/{vid}/{idx}/manifest.mpd" if is_dash else ""
+    dash_url = sign_dash_manifest_url(vid, idx) if is_dash else ""
     dash_video_tracks = ((dash_data or {}).get("dash") or {}).get("video") or []
     dash_tracks_by_quality = {}
     for track in dash_video_tracks:
@@ -542,106 +545,132 @@ async def video_view(vid, idx=0):
     except Exception:
         pass
 
-    cache_ttl = cache_minutes("video_minutes") * 60
-    cache_key = f"video:data:{vid}:{idx}"
-    if cache_ttl > 0:
-        data = await cache_get(cache_key, cache_ttl)
-        if (
+    def _is_valid_video_cache(data) -> bool:
+        return (
             isinstance(data, dict)
             and isinstance(data.get("vinfo"), dict)
-            and (data["vinfo"].get("bvid") or data["vinfo"].get("title"))
+            and bool(data["vinfo"].get("bvid") or data["vinfo"].get("title"))
             and isinstance(data.get("vtags"), list)
             and isinstance(data.get("vrelated"), list)
             and isinstance(data.get("vset"), list)
-            and data.get("vset")
-        ):
-            vinfo, vtags, vrelated, vset = (
-                data["vinfo"],
-                data["vtags"],
-                data["vrelated"],
-                data["vset"],
-            )
-            owner_info = await _fetch_owner_meta(vinfo)
-            html = await render_template_with_theme(
-                "video.html",
-                vid=vid,
-                vinfo=vinfo,
-                owner_info=owner_info,
-                vcomments={"page": {"count": 0}, "replies": []},
-                vrelated=vrelated[:15],
-                keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
-                vtags=vtags,
-                supported_src=[],
-                ato=ato,
-                idx=idx,
-                vset=vset,
-            )
-            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
+            and bool(data.get("vset"))
+        )
 
-    # LIGHTWEIGHT FETCH ONLY
-    async def safe_api(fn, *args, timeout=4.0):
-        try:
-            async with asyncio.timeout(timeout):
-                return await fn(*args)
-        except Exception:
-            return None
+    cache_ttl = cache_minutes("video_minutes") * 60
+    cache_key = f"video:data:{vid}:{idx}"
 
-    tasks = [
-        safe_api(v.get_info, timeout=4.0),
-        safe_api(v.get_tags, idx, timeout=2.0),
-        safe_api(v.get_related, timeout=5.0),
-        safe_api(v.get_pages, timeout=4.0),
-    ]
-
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # Check that core data was fetched successfully
-    if isinstance(results[0], BaseException) or not isinstance(results[0], dict):
-        err_msg = str(results[0]) if results[0] else "Bilibili returned empty data (possibly region-restricted)"
-        print(f"[Video] Error fetching info for {vid}: {err_msg}")
+    async def _load_video():
         if cache_ttl > 0:
-            # Upstream detail fetch failed — including risk-control fake-404s
-            # ("啥都木有" on PGC BVs from datacenter IPs). Serve the last good
-            # payload, marked STALE, instead of erroring.
-            stale_data, is_stale = await cache_get_stale(cache_key, cache_ttl)
-            if (
-                is_stale
-                and isinstance(stale_data, dict)
-                and isinstance(stale_data.get("vinfo"), dict)
-                and (stale_data["vinfo"].get("bvid") or stale_data["vinfo"].get("title"))
-                and isinstance(stale_data.get("vtags"), list)
-                and isinstance(stale_data.get("vrelated"), list)
-                and isinstance(stale_data.get("vset"), list)
-                and stale_data.get("vset")
-            ):
-                vinfo, vtags, vrelated, vset = (
-                    stale_data["vinfo"],
-                    stale_data["vtags"],
-                    stale_data["vrelated"],
-                    stale_data["vset"],
+            cached = await cache_get(cache_key, cache_ttl)
+            if _is_valid_video_cache(cached):
+                return {
+                    "vinfo": cached["vinfo"],
+                    "vtags": cached["vtags"],
+                    "vrelated": cached["vrelated"],
+                    "vset": cached["vset"],
+                    "cache_hit": True,
+                    "stale": False,
+                }
+
+        async def fetch_info_timeout(timeout=4.0):
+            async with asyncio.timeout(timeout):
+                return await v.get_info()
+
+        async def safe_api(fn, *args, timeout=4.0):
+            try:
+                async with asyncio.timeout(timeout):
+                    return await fn(*args)
+            except Exception:
+                return None
+
+        tasks = [
+            fetch_info_timeout(timeout=4.0),
+            safe_api(v.get_tags, idx, timeout=2.0),
+            safe_api(v.get_related, timeout=5.0),
+            safe_api(v.get_pages, timeout=4.0),
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        if isinstance(results[0], BaseException) or not isinstance(results[0], dict):
+            err_msg = (
+                (str(results[0]) or type(results[0]).__name__)
+                if results[0]
+                else "Bilibili returned empty data (possibly region-restricted)"
+            )
+            print(f"[Video] Error fetching info for {vid}: {err_msg}")
+            if cache_ttl > 0:
+                stale_data, is_stale = await cache_get_stale(cache_key, cache_ttl)
+                if _is_valid_video_cache(stale_data):
+                    return {
+                        "vinfo": stale_data["vinfo"],
+                        "vtags": stale_data["vtags"],
+                        "vrelated": stale_data["vrelated"],
+                        "vset": stale_data["vset"],
+                        "cache_hit": not is_stale,
+                        "stale": is_stale,
+                    }
+            return {"error": err_msg}
+
+        loaded_vinfo = results[0]
+        tags_ok = isinstance(results[1], list)
+        related_ok = isinstance(results[2], list)
+        pages_ok = isinstance(results[3], list) and bool(results[3])
+        loaded_vtags = results[1] if tags_ok else []
+        loaded_vrelated = results[2] if related_ok else []
+        loaded_vset = results[3] if pages_ok else [{"page": 1, "part": vid}]
+
+        if (
+            cache_ttl > 0
+            and isinstance(loaded_vinfo, dict)
+            and (loaded_vinfo.get("bvid") or loaded_vinfo.get("title"))
+            and tags_ok
+            and related_ok
+            and pages_ok
+        ):
+            await cache_set(
+                cache_key,
+                {"vinfo": loaded_vinfo, "vtags": loaded_vtags, "vrelated": loaded_vrelated, "vset": loaded_vset},
+                cache_ttl,
+            )
+
+        async def precache_dash():
+            try:
+                from miku.dash import (
+                    fetch_durl_supported_src,
+                    has_valid_dash_tracks,
+                    video_get_dash_for_qn,
                 )
-                owner_info = await _fetch_owner_meta(vinfo)
-                html = await render_template_with_theme(
-                    "video.html",
-                    vid=vid,
-                    vinfo=vinfo,
-                    owner_info=owner_info,
-                    vcomments={"page": {"count": 0}, "replies": []},
-                    vrelated=vrelated[:15],
-                    keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
-                    vtags=vtags,
-                    supported_src=[],
-                    ato=ato,
-                    idx=idx,
-                    vset=vset,
-                )
-                return Response(
-                    html,
-                    status=200,
-                    content_type="text/html",
-                    headers={"X-Cache": "STALE", "X-Degraded": "risk-control"},
-                )
-        # Show a friendly message for 404 / "啥都木有" (empty-result) responses
+
+                async with asyncio.timeout(8.0):
+                    data = await video_get_dash_for_qn(v, idx)
+                if has_valid_dash_tracks(data):
+                    await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
+                elif data and data.get("durl"):
+                    try:
+                        async with asyncio.timeout(25.0):
+                            await fetch_durl_supported_src(v, vid, idx, play_data=data)
+                    except Exception as e:
+                        print(f"[Video] Pre-cache durl fallback failed for {vid}: {e}")
+            except Exception as e:
+                print(f"[Video] Pre-cache playurl failed for {vid}: {e}")
+
+        task = asyncio.create_task(precache_dash())
+        _background_tasks.add(task)
+        task.add_done_callback(_background_tasks.discard)
+
+        return {
+            "vinfo": loaded_vinfo,
+            "vtags": loaded_vtags,
+            "vrelated": loaded_vrelated,
+            "vset": loaded_vset,
+            "cache_hit": False,
+            "stale": False,
+        }
+
+    outcome = await _video_sf.do(f"{vid}:{idx}", _load_video)
+    if "error" in outcome:
+        err_msg = outcome["error"]
         if "啥都木有" in err_msg or "-404" in err_msg:
             return await render_template_with_theme(
                 "error.html",
@@ -656,49 +685,14 @@ async def video_view(vid, idx=0):
             suggest="Please try refreshing the page, or check the server network connection.",
         ), 500
 
-    vinfo = results[0]  # results[0] is guaranteed to be valid vinfo data at this point
-    vtags = results[1] if isinstance(results[1], list) else []
-    vrelated = results[2] if isinstance(results[2], list) else []
-    vset = results[3] if isinstance(results[3], list) else [{"page": 1, "part": vid}]
-
-    # Cache on healthy detail; tags/related/pages may fall back to empty
-    # (those sections degrade gracefully, unlike a missing vinfo).
-    if cache_ttl > 0 and isinstance(vinfo, dict) and (vinfo.get("bvid") or vinfo.get("title")):
-        await cache_set(
-            cache_key,
-            {"vinfo": vinfo, "vtags": vtags, "vrelated": vrelated, "vset": vset},
-            cache_ttl,
-        )
-
-    # Pre-cache play info (DASH, or durl fallback); proxying is always on.
-    async def precache_dash():
-        try:
-            from miku.dash import (
-                fetch_durl_supported_src,
-                has_valid_dash_tracks,
-                video_get_dash_for_qn,
-            )
-
-            async with asyncio.timeout(8.0):
-                data = await video_get_dash_for_qn(v, idx)
-            if has_valid_dash_tracks(data):
-                await appredis.setex(f"miku_dash_{vid}_{idx}", 1800, orjson.dumps(data))
-            elif data and data.get("durl"):
-                try:
-                    async with asyncio.timeout(25.0):
-                        await fetch_durl_supported_src(v, vid, idx, play_data=data)
-                except Exception as e:
-                    print(f"[Video] Pre-cache durl fallback failed for {vid}: {e}")
-        except Exception as e:
-            print(f"[Video] Pre-cache playurl failed for {vid}: {e}")
-
-    task = asyncio.create_task(precache_dash())
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
-
+    vinfo, vtags, vrelated, vset = (
+        outcome["vinfo"],
+        outcome["vtags"],
+        outcome["vrelated"],
+        outcome["vset"],
+    )
     vcomments = {"page": {"count": 0}, "replies": []}
     supported_src = []
-
     owner_info = await _fetch_owner_meta(vinfo)
     html = await render_template_with_theme(
         "video.html",
@@ -707,13 +701,25 @@ async def video_view(vid, idx=0):
         owner_info=owner_info,
         vcomments=vcomments,
         vrelated=vrelated[:15],
-        keywords=",".join(x.get("tag_name", "") for x in vtags),
+        keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
         vtags=vtags,
         supported_src=supported_src,
         ato=ato,
         idx=idx,
         vset=vset,
     )
+    if outcome["stale"]:
+        return Response(
+            html,
+            status=200,
+            content_type="text/html",
+            headers={"X-Cache": "STALE", "X-Degraded": "risk-control"},
+        )
     if cache_ttl > 0:
-        return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
+        return Response(
+            html,
+            status=200,
+            content_type="text/html",
+            headers={"X-Cache": "HIT" if outcome["cache_hit"] else "MISS"},
+        )
     return html

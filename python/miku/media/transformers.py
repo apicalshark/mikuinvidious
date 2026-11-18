@@ -299,7 +299,9 @@ def _proxied_emote_src(raw_url):
         return None
     if ".." in path.split("/"):
         return None
-    return "/proxy/pic/" + host + path
+    from miku.core.url_signing import sign_pic_target
+
+    return sign_pic_target(host + path)
 
 
 def _render_reply_content_py(message, emote):
@@ -317,8 +319,9 @@ def _render_reply_content_py(message, emote):
         except TypeError, ValueError:
             size = 1
         style = _REPLY_EMOTE_SIZE2_STYLE if size == 2 else _REPLY_EMOTE_SIZE1_STYLE
+        escaped_src = html.escape(src, quote=True)
         alt = html.escape(token, quote=True)
-        return f'<img src="{src}" alt="{alt}" loading="lazy" style="{style}">'
+        return f'<img src="{escaped_src}" alt="{alt}" loading="lazy" style="{style}">'
 
     # Match tokens against the RAW message: substituting on the escaped
     # string would double-escape fallback tokens and miss emote keys
