@@ -37,6 +37,16 @@ def _xml_text(val) -> str:
     return escape(str(val))
 
 
+def _coerce_nonneg_int(val) -> int | None:
+    if val is None or isinstance(val, bool):
+        return None
+    try:
+        num = int(val)
+    except TypeError, ValueError:
+        return None
+    return num if num >= 0 else None
+
+
 def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     """Generate an ``isoff-on-demand`` MPD for dash.js playback."""
     if not dash_data or not isinstance(dash_data, dict):
@@ -61,21 +71,24 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     # --- Video adaptation sets (one per codec) ---
     videos = _normalize_track_urls(dash.get("video", []))
     if videos:
-        codec_groups: OrderedDict[int, list] = OrderedDict()
+        codec_groups: OrderedDict[int, list[tuple[int, int, dict]]] = OrderedDict()
         for video_track in videos:
-            codecid = video_track.get("codecid", 0)
-            codec_groups.setdefault(codecid, []).append(video_track)
+            if not isinstance(video_track, dict):
+                continue
+            qn = _coerce_nonneg_int(video_track.get("id"))
+            codecid = _coerce_nonneg_int(video_track.get("codecid", 0))
+            if qn is None or qn <= 0 or codecid is None:
+                continue
+            codec_groups.setdefault(codecid, []).append((qn, codecid, video_track))
         for _codecid, tracks in codec_groups.items():
-            codecs_str = tracks[0].get("codecs") or "avc1.64001F"
+            codecs_str = tracks[0][2].get("codecs") or "avc1.64001F"
             rep_lines: list[str] = []
-            for video_track in tracks:
-                qn = video_track.get("id")
-                cid = video_track.get("codecid", 0)
+            for qn, cid, video_track in tracks:
                 bandwidth = video_track.get("bandwidth", 0)
                 width = video_track.get("width", 0)
                 height = video_track.get("height", 0)
                 frame_rate = video_track.get("frameRate") or video_track.get("frame_rate") or "24"
-                if qn is None or not isinstance(video_track.get("SegmentBase"), dict):
+                if not isinstance(video_track.get("SegmentBase"), dict):
                     continue
                 sb = video_track["SegmentBase"]
                 init_range = _sb_initialization_range(sb)
@@ -118,11 +131,13 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
         )
         rep_lines = []
         for audio_track in audios:
-            qn = audio_track.get("id")
-            cid = audio_track.get("codecid", 0)
+            if not isinstance(audio_track, dict):
+                continue
+            qn = _coerce_nonneg_int(audio_track.get("id"))
+            cid = _coerce_nonneg_int(audio_track.get("codecid", 0))
             bandwidth = audio_track.get("bandwidth", 0)
             codecs = audio_track.get("codecs") or "mp4a.40.2"
-            if qn is None or not isinstance(audio_track.get("SegmentBase"), dict):
+            if qn is None or qn <= 0 or cid is None or not isinstance(audio_track.get("SegmentBase"), dict):
                 continue
             sb = audio_track["SegmentBase"]
             init_range = _sb_initialization_range(sb)
@@ -172,20 +187,8 @@ _manifest_new_refreshing: set[str] = set()
 _manifest_next_sweep = 0.0
 
 
-@app.route("/video/dash/s/<sig>/<vid>/<int:idx>/manifest.mpd")
-@app.route("/video/dash/<vid>/<int:idx>/manifest.mpd")
 @rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("dash_manifest"))
-async def video_dash_manifest_view(vid, idx, sig=None):
-    """Serve the isoff-on-demand MPD manifest for a video part.
-
-    ``?fresh=1`` drops the cached playurl first so the manifest is built
-    from freshly re-fetched CDN URLs — the player recovery path for expired
-    signatures (backend half of the official player's ``prefetchPlayUrl``).
-    Throttled per video by ``_DASH_MANIFEST_FRESH_COOLDOWN`` so repeated
-    ``?fresh=1`` hits cannot stampede the upstream playurl API.
-    """
-    if not verify_dash_manifest_sig(sig, vid, idx):
-        return Response("Forbidden", status=403)
+async def _video_dash_manifest_impl(vid, idx):
     if not _is_valid_vid(vid) or idx < 0:
         return Response("Bad Request", status=400)
     dash_data = None
@@ -233,3 +236,19 @@ async def video_dash_manifest_view(vid, idx, sig=None):
     if not mpd_content:
         return Response("Not Found", status=404)
     return Response(mpd_content, content_type="application/dash+xml")
+
+
+@app.route("/video/dash/s/<sig>/<vid>/<int:idx>/manifest.mpd")
+@app.route("/video/dash/<vid>/<int:idx>/manifest.mpd")
+async def video_dash_manifest_view(vid, idx, sig=None):
+    """Serve the isoff-on-demand MPD manifest for a video part.
+
+    ``?fresh=1`` drops the cached playurl first so the manifest is built
+    from freshly re-fetched CDN URLs — the player recovery path for expired
+    signatures (backend half of the official player's ``prefetchPlayUrl``).
+    Throttled per video by ``_DASH_MANIFEST_FRESH_COOLDOWN`` so repeated
+    ``?fresh=1`` hits cannot stampede the upstream playurl API.
+    """
+    if not verify_dash_manifest_sig(sig, vid, idx):
+        return Response("Forbidden", status=403)
+    return await _video_dash_manifest_impl(vid, idx)

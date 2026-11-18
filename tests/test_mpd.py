@@ -459,15 +459,22 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(load_mock.await_count, 1)
 
     async def test_unsigned_and_tampered_dash_routes_return_403(self):
-        from unittest.mock import AsyncMock, patch
+        from unittest.mock import AsyncMock, MagicMock, patch
 
+        import miku.core.rate_limit as rate_limit
         import miku.dash.stream as dash_stream
         from miku.app import app
 
         load_mock = AsyncMock(return_value=None)
+        refresh_mock = AsyncMock(return_value=None)
+        limiter = MagicMock()
+        limiter.is_allowed = AsyncMock(return_value=(False, {"remaining": 0, "reset": 1, "limit": 10}))
         client = app.test_client()
         with (
+            patch.dict(rate_limit.appconf["rate_limit"], {"enabled": True}),
+            patch.object(rate_limit, "get_rate_limiter", return_value=limiter),
             patch.object(dash_mpd, "_load_dash_data", load_mock),
+            patch.object(dash_mpd, "_refresh_dash_data", refresh_mock),
             patch.object(dash_stream, "_load_dash_data", load_mock),
         ):
             for path in (
@@ -481,6 +488,52 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
                 resp = await client.get(path)
                 self.assertEqual(resp.status_code, 403, path)
         load_mock.assert_not_awaited()
+        refresh_mock.assert_not_awaited()
+        limiter.is_allowed.assert_not_awaited()
+
+    def test_invalid_track_numeric_fields_skipped_without_failing_siblings(self):
+        dash_data = {
+            "dash": {
+                "duration": 60,
+                "minBufferTime": 1.5,
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": None,
+                        "bandwidth": 1500000,
+                        "SegmentBase": {"Initialization": "0-999", "indexRange": "1000-1500"},
+                    },
+                    {
+                        "id": 64,
+                        "codecid": 7,
+                        "bandwidth": 900000,
+                        "codecs": "avc1.64001F",
+                        "SegmentBase": {"Initialization": "0-888", "indexRange": "889-1200"},
+                    },
+                ],
+                "audio": [
+                    {
+                        "id": 30280,
+                        "codecid": None,
+                        "bandwidth": 320000,
+                        "SegmentBase": {"Initialization": "0-700", "indexRange": "701-1000"},
+                    },
+                    {
+                        "id": 30232,
+                        "codecid": 0,
+                        "bandwidth": 128000,
+                        "codecs": "mp4a.40.2",
+                        "SegmentBase": {"Initialization": "0-600", "indexRange": "601-900"},
+                    },
+                ],
+            }
+        }
+        mpd = generate_vod_mpd("BV1xx411c7xx", 0, dash_data)
+        self.assertIsNotNone(mpd)
+        self.assertIn(sign_dash_track_url("BV1xx411c7xx", 0, "video", 64, 7), mpd)
+        self.assertIn(sign_dash_track_url("BV1xx411c7xx", 0, "audio", 30232, 0), mpd)
+        self.assertNotIn("video_80_", mpd)
+        self.assertNotIn("audio_30280_", mpd)
 
 
 if __name__ == "__main__":

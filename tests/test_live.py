@@ -698,6 +698,7 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
         from unittest.mock import AsyncMock, patch
 
         import miku.core.rate_limit as rate_limit
+        from miku.core.url_signing import sign_danmaku_url
         from miku.state import appconf
 
         fake_limiter = AsyncMock()
@@ -712,7 +713,7 @@ class TestEndpointAntiAbuseHardening(unittest.IsolatedAsyncioTestCase):
             for path in (
                 "/live/4366430",
                 "/live",
-                "/res/danmaku/BV1xx411c7mD",
+                sign_danmaku_url("BV1xx411c7mD", 0),
                 "/video_listen/BV1xx411c7mD",
                 "/space/12345",
                 "/space/12345/json",

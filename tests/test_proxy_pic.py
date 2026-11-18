@@ -813,8 +813,8 @@ class TestProxyPicWaveRetryAndH2Coalescing(unittest.IsolatedAsyncioTestCase):
             await client.aclose()
 
     async def test_isolated_single_failure_flushes_without_coalesce_delay(self):
-        """A single failing image with no peer requests flushes Wave 1 immediately (<20ms overhead)."""
-        import time
+        """A single failing image with no peer requests flushes Wave 1 without scheduling a coalesce timer."""
+        from miku.media.proxy import _get_loop_state
 
         async def handler(req: httpx.Request) -> httpx.Response:
             if req.url.host == "i0.hdslb.com":
@@ -822,19 +822,30 @@ class TestProxyPicWaveRetryAndH2Coalescing(unittest.IsolatedAsyncioTestCase):
             return httpx.Response(200, headers={"Content-Type": "image/jpeg"}, content=b"OK")
 
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        loop = asyncio.get_running_loop()
+        orig_call_later = loop.call_later
+        delayed_calls = []
+
+        def spy_call_later(delay, callback, *args, **kwargs):
+            delayed_calls.append(delay)
+            return orig_call_later(delay, callback, *args, **kwargs)
+
         try:
+            _get_loop_state()
             with (
+                patch.object(loop, "call_later", side_effect=spy_call_later),
                 patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
                 patch("miku.media.proxy.image_cache.get", new=AsyncMock(return_value=None)),
                 patch("miku.media.proxy.image_cache.set", new=AsyncMock()),
                 patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
             ):
-                t0 = time.monotonic()
-                resp = await render_proxy_pic(sign_pic_target("i0.hdslb.com/bfs/archive/single_fast.jpg"))
-                elapsed = time.monotonic() - t0
+                resp = await asyncio.wait_for(
+                    render_proxy_pic(sign_pic_target("i0.hdslb.com/bfs/archive/single_fast.jpg")),
+                    timeout=2.0,
+                )
 
             self.assertEqual(resp.status_code, 200)
-            self.assertLess(elapsed, 0.025)
+            self.assertEqual(delayed_calls, [])
         finally:
             await client.aclose()
 
@@ -989,9 +1000,14 @@ class TestProxyPicWaveRetryAndH2Coalescing(unittest.IsolatedAsyncioTestCase):
                 ]
                 for t in targets:
                     signed = sign_pic_target(t)
-                    resp = await test_client.get(signed)
+                    path_only = signed.split("?", 1)[0]
+                    resp = await test_client.get(signed, scope_base={"raw_path": path_only.encode("ascii")})
                     self.assertEqual(resp.status_code, 200, f"Failed for {signed}")
                     self.assertEqual(await resp.get_data(), b"ENC_OK")
+
+                plus_signed = sign_pic_target("i0.hdslb.com/bfs/archive/a+b.jpg")
+                resp_fallback = await test_client.get(plus_signed, scope_base={"raw_path": None})
+                self.assertEqual(resp_fallback.status_code, 200)
         finally:
             await client.aclose()
 
@@ -1000,7 +1016,8 @@ class TestProxyPicWaveRetryAndH2Coalescing(unittest.IsolatedAsyncioTestCase):
             [
                 "https://i0.hdslb.com/bfs/emote/doge%20a.png",
                 "https://i0.hdslb.com/bfs/archive/%E4%B8%AD%E6%96%87.jpg?w=320&h=180",
-                "https://i0.hdslb.com/bfs/archive/a+b%3Fc.jpg?x=1",
+                "https://i0.hdslb.com/bfs/archive/a%2Bb%3Fc.jpg?x=1",
+                "https://i0.hdslb.com/bfs/archive/a+b.jpg",
             ],
         )
 
@@ -1182,14 +1199,180 @@ class TestProxyPicWaveRetryAndH2Coalescing(unittest.IsolatedAsyncioTestCase):
             await client.aclose()
 
     async def test_close_pic_proxy_allows_new_coordinator_on_same_loop(self):
-        from miku.media.proxy import _get_loop_state, close_pic_proxy
+        from miku.media.proxy import _get_loop_state, _loop_states, close_pic_proxy
 
+        closed_loop = asyncio.new_event_loop()
         old_state = _get_loop_state()
+        _loop_states[closed_loop] = old_state
+        closed_loop.close()
+
+        pruned_state = _get_loop_state()
+        self.assertNotIn(closed_loop, _loop_states)
         await close_pic_proxy()
         new_state = _get_loop_state()
-        self.assertIsNot(new_state, old_state)
+        self.assertIsNot(new_state, pruned_state)
         self.assertFalse(new_state.coordinator._closed)
         await close_pic_proxy()
+
+    async def test_mounted_socks_transport_detected_as_warm_and_invalid_port_502(self):
+        import httpcore
+        from miku.media.proxy import _has_ready_h2_connection
+
+        class WarmConn:
+            def can_handle_request(self, origin):
+                return origin == httpcore.Origin(b"https", b"i0.hdslb.com", 443)
+
+            def is_closed(self):
+                return False
+
+            def is_available(self):
+                return True
+
+            def has_expired(self):
+                return False
+
+            _connection = type("FakeH2", (), {"_h2_state": object()})()
+
+        mounted = type("MountedT", (), {"_pool": type("P", (), {"_connections": [WarmConn()]})()})()
+        direct = type("DirectT", (), {"_pool": type("P", (), {"_connections": []})()})()
+
+        class MountedClient:
+            def __init__(self):
+                self._transport = direct
+
+            def _transport_for_url(self, url):
+                return mounted
+
+        self.assertTrue(_has_ready_h2_connection(MountedClient(), "https://i0.hdslb.com/bfs/a.jpg"))
+
+        async def ok_handler(req: httpx.Request) -> httpx.Response:
+            return httpx.Response(200)
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(ok_handler))
+        try:
+            with (
+                patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+                patch("miku.media.proxy.image_cache.get", new=AsyncMock(return_value=None)),
+                patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
+            ):
+                bad_port_url = sign_pic_target("i0.hdslb.com:badport/bfs/a.jpg")
+                resp = await render_proxy_pic(bad_port_url)
+            self.assertEqual(resp.status_code, 502)
+        finally:
+            await client.aclose()
+
+    async def test_cold_origin_waiters_do_not_starve_warm_origin_permits(self):
+        import httpcore
+        import miku.media.proxy as proxy_mod
+
+        cold_headers_gate = asyncio.Event()
+        cold_started = asyncio.Event()
+
+        class FakeConn:
+            def __init__(self, origin, connected=False):
+                self._origin = origin
+                self._connected = connected
+                self._connection = type("FakeH2", (), {"_h2_state": object()})() if connected else None
+
+            def can_handle_request(self, origin):
+                return origin == self._origin
+
+            def is_available(self):
+                return self._connected
+
+            def is_closed(self):
+                return False
+
+            def has_expired(self):
+                return False
+
+        class FakePool:
+            def __init__(self):
+                warm_origin = httpcore.Origin(b"https", b"i1.hdslb.com", 443)
+                self._connections = [FakeConn(warm_origin, connected=True)]
+
+            async def handle(self, req: httpx.Request) -> httpx.Response:
+                if req.url.host == "i0.hdslb.com":
+                    cold_started.set()
+                    await cold_headers_gate.wait()
+                    return httpx.Response(200, headers={"Content-Type": "image/jpeg"}, content=b"COLD")
+                return httpx.Response(200, headers={"Content-Type": "image/jpeg"}, content=b"WARM")
+
+        pool = FakePool()
+
+        class FakeTransport(httpx.AsyncBaseTransport):
+            def __init__(self, p):
+                self._pool = p
+
+            async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+                return await self._pool.handle(request)
+
+        client = httpx.AsyncClient(transport=FakeTransport(pool))
+        tight_limiter = asyncio.Semaphore(2)
+        try:
+            with (
+                patch.object(proxy_mod, "image_limiter", tight_limiter),
+                patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+                patch("miku.media.proxy.image_cache.get", new=AsyncMock(return_value=None)),
+                patch("miku.media.proxy.image_cache.set", new=AsyncMock()),
+                patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
+            ):
+                cold_tasks = [
+                    asyncio.create_task(render_proxy_pic(sign_pic_target(f"i0.hdslb.com/bfs/cold_{i}.jpg")))
+                    for i in range(6)
+                ]
+                await asyncio.wait_for(cold_started.wait(), timeout=1.0)
+                warm_resp = await asyncio.wait_for(
+                    render_proxy_pic(sign_pic_target("i1.hdslb.com/bfs/warm.jpg")),
+                    timeout=1.0,
+                )
+                self.assertEqual(warm_resp.status_code, 200)
+                cold_headers_gate.set()
+                await asyncio.wait_for(asyncio.gather(*cold_tasks), timeout=2.0)
+        finally:
+            cold_headers_gate.set()
+            await client.aclose()
+
+    async def test_unsigned_proxy_pic_rejected_before_rate_limiter_and_neg_ttl_decays(self):
+        from unittest.mock import MagicMock
+
+        import miku.core.rate_limit as rate_limit
+        import miku.media.proxy as proxy_mod
+        from miku.app import app
+
+        proxy_mod._negative_cache.clear()
+        limiter = MagicMock()
+        limiter.is_allowed = AsyncMock(return_value=(False, {"remaining": 0, "reset": 1, "limit": 10}))
+        test_client = app.test_client()
+        with (
+            patch.dict(rate_limit.appconf["rate_limit"], {"enabled": True}),
+            patch.object(rate_limit, "get_rate_limiter", return_value=limiter),
+        ):
+            r = await test_client.get("/proxy/pic/i0.hdslb.com/bfs/a.jpg")
+            self.assertEqual(r.status_code, 403)
+        limiter.is_allowed.assert_not_awaited()
+
+        def handler_404(req: httpx.Request) -> httpx.Response:
+            return httpx.Response(404, content=b"missing")
+
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler_404))
+        now = [1000.0]
+        try:
+            with (
+                patch("miku.media.proxy.time.monotonic", side_effect=lambda: now[0]),
+                patch("miku.core.singleflight.time.monotonic", side_effect=lambda: now[0]),
+                patch("miku.media.proxy.is_safe_proxy_url", new=AsyncMock(return_value=True)),
+                patch("miku.media.proxy.image_cache.get", new=AsyncMock(return_value=None)),
+                patch("miku.state.Network.get_image_client", new=AsyncMock(return_value=client)),
+            ):
+                u = sign_pic_target("i0.hdslb.com/bfs/ttl_decay.jpg")
+                r1 = await render_proxy_pic(u)
+                self.assertEqual(r1.headers.get("Cache-Control"), "public, max-age=60")
+                now[0] = 1045.0
+                r2 = await render_proxy_pic(u)
+                self.assertEqual(r2.headers.get("Cache-Control"), "public, max-age=15")
+        finally:
+            await client.aclose()
 
 
 if __name__ == "__main__":

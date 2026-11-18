@@ -135,6 +135,28 @@ class TestUrlSigning(unittest.TestCase):
         self.assertEqual(dm_filter("BV1xx411c7mD"), sign_danmaku_url("BV1xx411c7mD", 0))
         self.assertEqual(sub_filter("BV1xx411c7mD:0:zh-CN"), sign_subtitle_vtt_url("BV1xx411c7mD", 0, "zh-CN"))
 
+    def test_pic_signing_edge_cases(self):
+        non_ascii_sig = "é" * 22
+        self.assertFalse(verify_danmaku_sig(non_ascii_sig, "BV1xx411c7mD", 0))
+        self.assertIsNone(verify_signed_pic_subpath(f"s/{non_ascii_sig}/i0.hdslb.com/bfs/a.jpg"))
+
+        ref_signed = build_signed_pic_url("i0.hdslb.com/bfs/a.jpg?ref=https://www.bilibili.com")
+        ref_path, ref_qs = ref_signed.split("?", 1)
+        self.assertEqual(verify_signed_pic_subpath(ref_path[len("/proxy/pic/") :], ref_qs), "i0.hdslb.com/bfs/a.jpg")
+        self.assertEqual(ref_qs, "ref=https://www.bilibili.com")
+
+        quote_signed = sign_pic_target("i0.hdslb.com/bfs/a.jpg?caption=it's&ok=1")
+        quote_path, quote_qs = quote_signed.split("?", 1)
+        self.assertEqual(quote_qs, "caption=it%27s&ok=1")
+        self.assertEqual(
+            verify_signed_pic_subpath(quote_path[len("/proxy/pic/") :], "caption=it%27s&ok=1"),
+            "i0.hdslb.com/bfs/a.jpg",
+        )
+
+        slash_signed = sign_pic_target("i0.hdslb.com/bfs/a/b.jpg")
+        slash_sig = slash_signed.split("/")[4]
+        self.assertIsNone(verify_signed_pic_subpath(f"s/{slash_sig}/i0.hdslb.com/bfs/a%2Fb.jpg"))
+
 
 class TestSpaceArticleCacheResign(unittest.IsolatedAsyncioTestCase):
     async def test_read_view_resigns_cached_article_images_after_key_rotation(self):
@@ -162,6 +184,7 @@ class TestSpaceArticleCacheResign(unittest.IsolatedAsyncioTestCase):
             with (
                 patch("miku.views.space.cache_minutes", return_value=30),
                 patch("miku.views.space.cache_get", new=AsyncMock(return_value=cached_payload)),
+                patch("miku.views.space._get_anonymous_cookies", new=AsyncMock(return_value={})),
                 patch("miku.views.space.render_template_with_theme", new=AsyncMock(side_effect=fake_render)),
                 patch("miku.views.space._fetch_article_comments", new=AsyncMock(return_value=({}, "123", 12, False))),
             ):

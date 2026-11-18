@@ -17,7 +17,7 @@ from miku.api.bvid import _av2bv_py, _bv2av_py, av2bv, bv2av
 
 from .client import HEADERS, Api, _build_cookie_header, _get_anonymous_cookies, get_bili_client
 from .credential import Credential
-from .exceptions import ArgsException, ResponseCodeException
+from .exceptions import ApiException, ArgsException, ResponseCodeException
 
 __all__ = ["Video", "make_video", "_av2bv_py", "_bv2av_py", "av2bv", "bv2av"]
 
@@ -325,7 +325,7 @@ class Video:
         if is_gaia_risk_response(data):
             raise ResponseCodeException(-352, "Gaia risk control blocked subtitle lookup")
         if not isinstance(data, dict):
-            return []
+            raise ApiException("Empty or invalid subtitle metadata response")
         return (data.get("subtitle") or {}).get("subtitles") or []
 
     async def get_danmaku_xml(self, page_index=None, cid=None) -> str:

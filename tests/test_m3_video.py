@@ -86,6 +86,21 @@ class TestM3Video(unittest.TestCase):
         self.assertIn("Test Creator", rendered)
         self.assertIn('title="Likes"', rendered)
 
+        player_tpl = self.env.get_template("themes/modern/components/player_part.html")
+        rendered_signed = player_tpl.render(
+            vid="BV1test",
+            vinfo=context["vinfo"],
+            idx=2,
+            supported_src=[],
+            is_live=False,
+            is_dash=True,
+            dash_url="/video/dash/s/test/BV1test/2/manifest.mpd",
+            subtitles=[{"lan": "zh-CN", "srclang": "zh-CN", "label": "Chinese", "auto_generated": False}],
+            paywall=False,
+        )
+        self.assertIn('data-danmaku-url="/res/danmaku/s/test/BV1test:2"', rendered_signed)
+        self.assertIn('src="/res/subtitle/s/test/BV1test:2:zh-CN"', rendered_signed)
+
 
 class TestOwnerMeta(unittest.IsolatedAsyncioTestCase):
     async def test_fetch_owner_meta_normalizes_missing_level_info_to_dict(self):

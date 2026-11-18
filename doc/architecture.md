@@ -201,7 +201,7 @@ graph TD
 - **`miku/views/audio.py`**: Audio song playback, playlists, and audio player templates.
 - **`miku/ui/filters.py`**: Jinja2 presentation filters for human-readable timestamps, byte sizes, and duration formatting.
 - **`miku/media/transformers.py`**: Data normalization layer standardizing upstream API responses for template consumption.
-- **`miku/media/res.py`**: Serves HMAC-signed auxiliary assets (danmaku XML and WebVTT subtitles) with singleflight coalescing and bounded negative caching.
+- **`miku/media/res.py`**: Serves HMAC-signed auxiliary assets (danmaku parsed from upstream XML into JSON, and WebVTT subtitles) with singleflight coalescing and bounded negative caching.
 
 ### Media Streaming & DASH Pipeline
 

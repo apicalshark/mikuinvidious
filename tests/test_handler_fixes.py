@@ -47,21 +47,34 @@ class TestThemeSecurity(unittest.IsolatedAsyncioTestCase):
 class TestProxyRedirectSecurity(unittest.IsolatedAsyncioTestCase):
     async def test_redirect_to_loopback_blocked(self):
         """Verify that image proxy redirects to loopback addresses are blocked with 403."""
+        import socket
+
+        seen_hosts = []
 
         def mock_handler(request: httpx.Request):
+            seen_hosts.append(request.url.host)
             if request.url.host.endswith((".hdslb.com", ".biliimg.com")):
                 return httpx.Response(302, headers={"Location": "http://127.0.0.1:8080/internal.png"})
             elif request.url.host == "127.0.0.1":
                 return httpx.Response(200, headers={"Content-Type": "image/png"}, content=b"\x89PNGfake")
             return httpx.Response(404)
 
+        def fake_getaddrinfo(host, port, *args, **kwargs):
+            if host == "i0.hdslb.com":
+                return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 0))]
+
         transport = httpx.MockTransport(mock_handler)
         mock_client = httpx.AsyncClient(transport=transport)
-        with patch.object(Network, "get_image_client", AsyncMock(return_value=mock_client)):
+        with (
+            patch.object(Network, "get_image_client", AsyncMock(return_value=mock_client)),
+            patch("miku.core.dns_cache.socket.getaddrinfo", side_effect=fake_getaddrinfo),
+        ):
             resp = await proxy.render_proxy_pic(sign_pic_target("i0.hdslb.com/bfs/face/test.jpg"))
             self.assertEqual(resp.status_code, 403)
             body = await resp.get_data()
-            self.assertIn(b"Forbidden", body)
+            self.assertIn(b"Invalid redirect target", body)
+        self.assertEqual(seen_hosts, ["i0.hdslb.com"])
         await mock_client.aclose()
 
     async def test_redirect_exceeding_max_hops_blocked(self):

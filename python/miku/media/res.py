@@ -63,15 +63,23 @@ _subtitle_vtt_sf = SingleflightGroup()
 _subtitle_neg_cache = BoundedNegativeCache(ttl_seconds=60.0)
 
 
-@app.route("/res/danmaku/s/<sig>/<vid>")
-@app.route("/res/danmaku/s/<sig>/<vid>:<idx>")
-@app.route("/res/danmaku/<vid>")
-@app.route("/res/danmaku/<vid>:<idx>")
-@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("danmaku"))
-async def danmaku_res(vid, idx=0, sig=None):
-    if not verify_danmaku_sig(sig, vid, idx):
-        return Response("Forbidden", status=403)
+async def _read_cached_danmaku(cache_key: str) -> str | None:
+    try:
+        cached_xml = await appredis.get(cache_key)
+        if cached_xml:
+            if isinstance(cached_xml, bytes):
+                cached_xml = cached_xml.decode("utf-8", errors="replace")
+            if isinstance(cached_xml, str):
+                stripped = cached_xml.lstrip().lower()
+                if not (stripped.startswith("<!doctype") or stripped.startswith("<html")):
+                    return cached_xml
+    except Exception:
+        pass
+    return None
 
+
+@rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("danmaku"))
+async def _danmaku_res_impl(vid, idx=0):
     if vid.isdigit() or not _is_valid_vid(vid):
         return jsonify([])
 
@@ -87,21 +95,16 @@ async def danmaku_res(vid, idx=0, sig=None):
         return jsonify([])
 
     cache_key = f"miku_danmaku_xml_{vid}_{idx}"
-    try:
-        cached_xml = await appredis.get(cache_key)
-        if cached_xml:
-            if isinstance(cached_xml, bytes):
-                cached_xml = cached_xml.decode("utf-8", errors="replace")
-            if isinstance(cached_xml, str):
-                stripped = cached_xml.lstrip().lower()
-                if not (stripped.startswith("<!doctype") or stripped.startswith("<html")):
-                    return jsonify(parse_danmaku(cached_xml))
-    except Exception:
-        pass
+    cached_xml = await _read_cached_danmaku(cache_key)
+    if cached_xml is not None:
+        return jsonify(parse_danmaku(cached_xml))
 
     async def _fetch_xml() -> str | None:
         if _danmaku_neg_cache.get(sf_key) is not None:
             return None
+        cached_inside = await _read_cached_danmaku(cache_key)
+        if cached_inside is not None:
+            return cached_inside
         try:
             v = make_video(vid, shared.appcred)
             xml = await v.get_danmaku_xml(idx)
@@ -127,6 +130,16 @@ async def danmaku_res(vid, idx=0, sig=None):
     if not xml:
         return jsonify([])
     return jsonify(parse_danmaku(xml))
+
+
+@app.route("/res/danmaku/s/<sig>/<vid>")
+@app.route("/res/danmaku/s/<sig>/<vid>:<idx>")
+@app.route("/res/danmaku/<vid>")
+@app.route("/res/danmaku/<vid>:<idx>")
+async def danmaku_res(vid, idx=0, sig=None):
+    if not verify_danmaku_sig(sig, vid, idx):
+        return Response("Forbidden", status=403)
+    return await _danmaku_res_impl(vid, idx)
 
 
 def bcc_to_vtt(bcc: dict) -> str:
@@ -187,15 +200,48 @@ def _subtitle_entries(subs: list) -> list:
     return out
 
 
-@app.route("/res/subtitle/s/<sig>/<vid>")
-@app.route("/res/subtitle/s/<sig>/<vid>:<idx>")
-@app.route("/res/subtitle/<vid>")
-@app.route("/res/subtitle/<vid>:<idx>")
+async def _read_cached_sublist(key: str) -> list | None:
+    try:
+        cached = await appredis.get(key)
+        if cached:
+            from miku.state import safe_json_loads
+
+            data = safe_json_loads(cached)
+            if isinstance(data, list):
+                return data
+    except Exception:
+        pass
+    return None
+
+
+async def _read_cached_vtt(key: str):
+    try:
+        cached = await appredis.get(key)
+        if cached:
+            return cached
+    except Exception:
+        pass
+    return None
+
+
+def _is_html_block_response(resp) -> bool:
+    headers = getattr(resp, "headers", None)
+    if headers is not None and hasattr(headers, "get"):
+        ctype = headers.get("content-type", "")
+        if isinstance(ctype, str) and "html" in ctype.lower():
+            return True
+    raw = getattr(resp, "content", b"")
+    if isinstance(raw, (bytes, bytearray)):
+        head = bytes(raw[:256]).lstrip().lower()
+        return head.startswith((b"<!doctype", b"<html"))
+    if isinstance(raw, str):
+        head = raw[:256].lstrip().lower()
+        return head.startswith(("<!doctype", "<html"))
+    return False
+
+
 @rate_limit(**RATE_LIMITS["normal"])
-async def subtitle_list_res(vid, idx=0, sig=None):
-    """List available subtitles for a video part (login-gated like PipePipe)."""
-    if not verify_subtitle_list_sig(sig, vid, idx):
-        return Response("Forbidden", status=403)
+async def _subtitle_list_res_impl(vid, idx=0):
     cred = shared.appcred
     if vid.isdigit() or not (cred and cred.sessdata):
         return jsonify([])
@@ -209,18 +255,14 @@ async def subtitle_list_res(vid, idx=0, sig=None):
         return jsonify([])
 
     key = f"miku_sublist_{vid}_{idx_int}"
-    try:
-        cached = await appredis.get(key)
-        if cached:
-            from miku.state import safe_json_loads
-
-            data = safe_json_loads(cached)
-            if isinstance(data, list):
-                return jsonify(data)
-    except Exception:
-        pass
+    cached = await _read_cached_sublist(key)
+    if cached is not None:
+        return jsonify(cached)
 
     async def _fetch_entries() -> list[dict]:
+        cached_inside = await _read_cached_sublist(key)
+        if cached_inside is not None:
+            return cached_inside
         try:
             v = make_video(vid, cred)
             subs = await v.get_subtitle_meta(page_index=idx_int)
@@ -237,13 +279,19 @@ async def subtitle_list_res(vid, idx=0, sig=None):
     return jsonify(entries)
 
 
-@app.route("/res/subtitle/s/<sig>/<vid>:<idx>:<lan>")
-@app.route("/res/subtitle/<vid>:<idx>:<lan>")
-@rate_limit(**RATE_LIMITS["normal"])
-async def subtitle_vtt_res(vid, idx, lan, sig=None):
-    """Serve one subtitle track as WebVTT (cached; login-gated)."""
-    if not verify_subtitle_vtt_sig(sig, vid, idx, lan):
+@app.route("/res/subtitle/s/<sig>/<vid>")
+@app.route("/res/subtitle/s/<sig>/<vid>:<idx>")
+@app.route("/res/subtitle/<vid>")
+@app.route("/res/subtitle/<vid>:<idx>")
+async def subtitle_list_res(vid, idx=0, sig=None):
+    """List available subtitles for a video part (login-gated like PipePipe)."""
+    if not verify_subtitle_list_sig(sig, vid, idx):
         return Response("Forbidden", status=403)
+    return await _subtitle_list_res_impl(vid, idx)
+
+
+@rate_limit(**RATE_LIMITS["normal"])
+async def _subtitle_vtt_res_impl(vid, idx, lan):
     cred = shared.appcred
     if vid.isdigit() or not (cred and cred.sessdata):
         return Response("Not Found", status=404)
@@ -261,16 +309,16 @@ async def subtitle_vtt_res(vid, idx, lan, sig=None):
         return Response("Not Found", status=404)
 
     key = f"miku_sub_{vid}_{idx_int}_{lan}"
-    try:
-        cached = await appredis.get(key)
-        if cached:
-            return Response(cached, status=200, content_type="text/vtt; charset=utf-8")
-    except Exception:
-        pass
+    cached = await _read_cached_vtt(key)
+    if cached:
+        return Response(cached, status=200, content_type="text/vtt; charset=utf-8")
 
-    async def _fetch_vtt() -> tuple[int, str]:
+    async def _fetch_vtt() -> tuple[int, str | bytes]:
         if _subtitle_neg_cache.get(neg_key) is not None:
             return 404, ""
+        cached_inside = await _read_cached_vtt(key)
+        if cached_inside:
+            return 200, cached_inside
         try:
             v = make_video(vid, cred)
             subs = await v.get_subtitle_meta(page_index=idx_int)
@@ -297,6 +345,8 @@ async def subtitle_vtt_res(vid, idx, lan, sig=None):
                 follow_redirects=False,
             )
             if resp.status_code in (404, 410):
+                if _is_html_block_response(resp):
+                    return 502, ""
                 _subtitle_neg_cache.set(neg_key, 404)
                 return 404, ""
             if resp.status_code != 200:
@@ -316,3 +366,12 @@ async def subtitle_vtt_res(vid, idx, lan, sig=None):
     if status == 404:
         return Response("Not Found", status=404)
     return Response("Upstream error", status=502)
+
+
+@app.route("/res/subtitle/s/<sig>/<vid>:<idx>:<lan>")
+@app.route("/res/subtitle/<vid>:<idx>:<lan>")
+async def subtitle_vtt_res(vid, idx, lan, sig=None):
+    """Serve one subtitle track as WebVTT (cached; login-gated)."""
+    if not verify_subtitle_vtt_sig(sig, vid, idx, lan):
+        return Response("Forbidden", status=403)
+    return await _subtitle_vtt_res_impl(vid, idx, lan)

@@ -120,6 +120,13 @@ class RenderReplyContentTests(unittest.TestCase):
         self.assertNotIn("<img", out)
         self.assertIn("[evil]", out)
 
+    def test_emote_src_is_html_escaped(self):
+        out = render_reply_content(
+            content("[e]", {"[e]": doge_entry(url="https://i0.hdslb.com/bfs/emote/a&copy=1.png")})
+        )
+        signed = sign_pic_target("i0.hdslb.com/bfs/emote/a&copy=1.png")
+        self.assertIn(f'src="{signed.replace("&", "&amp;")}"', out)
+
     def test_xss_in_message_with_emote(self):
         out = render_reply_content(content('"><img src=x onerror=alert(1)> [doge]', {"[doge]": doge_entry()}))
         self.assertIn("&quot;&gt;", out)

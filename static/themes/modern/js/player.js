@@ -469,6 +469,7 @@ class DashPlayerManager {
     this._segErrStreak = 0;
     this._lastSegErrPos = 0;
     this._lastFreshMpdAt = 0;
+    this._lastResignAt = 0;
   }
 
   init() {
@@ -556,6 +557,9 @@ class DashPlayerManager {
         if (this._segErrStreak >= 3 && this._freshReconnectAllowed()) {
           this._segErrStreak = 0;
           this._lastFreshMpdAt = Date.now();
+          if (resp.status === 403 && this._resignMpdUrlAndReconnect(true)) {
+            return;
+          }
           try {
             const u = new URL(this.mpdUrl, window.location.href);
             u.searchParams.set("fresh", "1");
@@ -569,6 +573,13 @@ class DashPlayerManager {
           this.reconnect();
         }
         return;
+      }
+      const errResp = err.data && err.data.response;
+      if (errResp && errResp.status === 403) {
+        const wantFresh = String(this.mpdUrl || "").includes("fresh=1");
+        if (this._resignMpdUrlAndReconnect(wantFresh)) {
+          return;
+        }
       }
       console.warn("[DashManager] DASH error:", err.code, err.message);
       this.reconnect();
@@ -608,6 +619,37 @@ class DashPlayerManager {
     // not expiry-shaped — keep ABR-only behavior instead of hammering the
     // playurl endpoint (risk-control exposure).
     return !this._lastFreshMpdAt || Date.now() - this._lastFreshMpdAt > 10 * 60 * 1000;
+  }
+
+  _resignMpdUrlAndReconnect(wantFresh = false) {
+    if (this._lastResignAt && Date.now() - this._lastResignAt < 30 * 1000) {
+      return false;
+    }
+    this._lastResignAt = Date.now();
+    fetch(window.location.href, { credentials: "same-origin" })
+      .then((res) => (res.ok ? res.text() : ""))
+      .then((html) => {
+        if (!html || this.destroyed) return;
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        const wrapper = doc.querySelector("[data-dash-url]");
+        const freshUrl = wrapper ? wrapper.getAttribute("data-dash-url") : "";
+        if (!freshUrl) return;
+        window.dash_url = freshUrl;
+        let targetUrl = freshUrl;
+        if (wantFresh) {
+          try {
+            const u = new URL(freshUrl, window.location.href);
+            u.searchParams.set("fresh", "1");
+            targetUrl = u.pathname + u.search + u.hash;
+          } catch (e) {
+            /* keep un-modified signed URL */
+          }
+        }
+        this.mpdUrl = targetUrl;
+        this.reconnect();
+      })
+      .catch(() => {});
+    return true;
   }
 
   reconnect() {

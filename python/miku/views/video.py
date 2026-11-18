@@ -545,54 +545,24 @@ async def video_view(vid, idx=0):
     except Exception:
         pass
 
-    cache_ttl = cache_minutes("video_minutes") * 60
-    cache_key = f"video:data:{vid}:{idx}"
-    if cache_ttl > 0:
-        data = await cache_get(cache_key, cache_ttl)
-        if (
+    def _is_valid_video_cache(data) -> bool:
+        return (
             isinstance(data, dict)
             and isinstance(data.get("vinfo"), dict)
-            and (data["vinfo"].get("bvid") or data["vinfo"].get("title"))
+            and bool(data["vinfo"].get("bvid") or data["vinfo"].get("title"))
             and isinstance(data.get("vtags"), list)
             and isinstance(data.get("vrelated"), list)
             and isinstance(data.get("vset"), list)
-            and data.get("vset")
-        ):
-            vinfo, vtags, vrelated, vset = (
-                data["vinfo"],
-                data["vtags"],
-                data["vrelated"],
-                data["vset"],
-            )
-            owner_info = await _fetch_owner_meta(vinfo)
-            html = await render_template_with_theme(
-                "video.html",
-                vid=vid,
-                vinfo=vinfo,
-                owner_info=owner_info,
-                vcomments={"page": {"count": 0}, "replies": []},
-                vrelated=vrelated[:15],
-                keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
-                vtags=vtags,
-                supported_src=[],
-                ato=ato,
-                idx=idx,
-                vset=vset,
-            )
-            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
+            and bool(data.get("vset"))
+        )
+
+    cache_ttl = cache_minutes("video_minutes") * 60
+    cache_key = f"video:data:{vid}:{idx}"
 
     async def _load_video():
         if cache_ttl > 0:
             cached = await cache_get(cache_key, cache_ttl)
-            if (
-                isinstance(cached, dict)
-                and isinstance(cached.get("vinfo"), dict)
-                and (cached["vinfo"].get("bvid") or cached["vinfo"].get("title"))
-                and isinstance(cached.get("vtags"), list)
-                and isinstance(cached.get("vrelated"), list)
-                and isinstance(cached.get("vset"), list)
-                and cached.get("vset")
-            ):
+            if _is_valid_video_cache(cached):
                 return {
                     "vinfo": cached["vinfo"],
                     "vtags": cached["vtags"],
@@ -602,6 +572,10 @@ async def video_view(vid, idx=0):
                     "stale": False,
                 }
 
+        async def fetch_info_timeout(timeout=4.0):
+            async with asyncio.timeout(timeout):
+                return await v.get_info()
+
         async def safe_api(fn, *args, timeout=4.0):
             try:
                 async with asyncio.timeout(timeout):
@@ -610,7 +584,7 @@ async def video_view(vid, idx=0):
                 return None
 
         tasks = [
-            safe_api(v.get_info, timeout=4.0),
+            fetch_info_timeout(timeout=4.0),
             safe_api(v.get_tags, idx, timeout=2.0),
             safe_api(v.get_related, timeout=5.0),
             safe_api(v.get_pages, timeout=4.0),
@@ -619,36 +593,41 @@ async def video_view(vid, idx=0):
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         if isinstance(results[0], BaseException) or not isinstance(results[0], dict):
-            err_msg = str(results[0]) if results[0] else "Bilibili returned empty data (possibly region-restricted)"
+            err_msg = (
+                (str(results[0]) or type(results[0]).__name__)
+                if results[0]
+                else "Bilibili returned empty data (possibly region-restricted)"
+            )
             print(f"[Video] Error fetching info for {vid}: {err_msg}")
             if cache_ttl > 0:
                 stale_data, is_stale = await cache_get_stale(cache_key, cache_ttl)
-                if (
-                    is_stale
-                    and isinstance(stale_data, dict)
-                    and isinstance(stale_data.get("vinfo"), dict)
-                    and (stale_data["vinfo"].get("bvid") or stale_data["vinfo"].get("title"))
-                    and isinstance(stale_data.get("vtags"), list)
-                    and isinstance(stale_data.get("vrelated"), list)
-                    and isinstance(stale_data.get("vset"), list)
-                    and stale_data.get("vset")
-                ):
+                if _is_valid_video_cache(stale_data):
                     return {
                         "vinfo": stale_data["vinfo"],
                         "vtags": stale_data["vtags"],
                         "vrelated": stale_data["vrelated"],
                         "vset": stale_data["vset"],
-                        "cache_hit": False,
-                        "stale": True,
+                        "cache_hit": not is_stale,
+                        "stale": is_stale,
                     }
             return {"error": err_msg}
 
         loaded_vinfo = results[0]
-        loaded_vtags = results[1] if isinstance(results[1], list) else []
-        loaded_vrelated = results[2] if isinstance(results[2], list) else []
-        loaded_vset = results[3] if isinstance(results[3], list) else [{"page": 1, "part": vid}]
+        tags_ok = isinstance(results[1], list)
+        related_ok = isinstance(results[2], list)
+        pages_ok = isinstance(results[3], list) and bool(results[3])
+        loaded_vtags = results[1] if tags_ok else []
+        loaded_vrelated = results[2] if related_ok else []
+        loaded_vset = results[3] if pages_ok else [{"page": 1, "part": vid}]
 
-        if cache_ttl > 0 and isinstance(loaded_vinfo, dict) and (loaded_vinfo.get("bvid") or loaded_vinfo.get("title")):
+        if (
+            cache_ttl > 0
+            and isinstance(loaded_vinfo, dict)
+            and (loaded_vinfo.get("bvid") or loaded_vinfo.get("title"))
+            and tags_ok
+            and related_ok
+            and pages_ok
+        ):
             await cache_set(
                 cache_key,
                 {"vinfo": loaded_vinfo, "vtags": loaded_vtags, "vrelated": loaded_vrelated, "vset": loaded_vset},

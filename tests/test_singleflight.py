@@ -98,6 +98,68 @@ class TestSingleflightGroup(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await sf.do("k3", ok), 42)
         self.assertEqual(calls, 2)
 
+    async def test_do_accepts_completed_future_factory(self):
+        sf = SingleflightGroup()
+        loop = asyncio.get_running_loop()
+        fut = loop.create_future()
+        fut.set_result("from-future")
+        self.assertEqual(await sf.do("fut", lambda: fut), "from-future")
+
+    async def test_clear_preserves_other_live_loops_and_drain_awaits_cancelled_cleanup(self):
+        import threading
+
+        sf = SingleflightGroup()
+        other_ready = threading.Event()
+        other_release = threading.Event()
+        other_result: list[str] = []
+
+        def run_other_loop():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            async def inner():
+                async def slow():
+                    other_ready.set()
+                    while not other_release.is_set():
+                        await asyncio.sleep(0.01)
+                    return "other-ok"
+
+                other_result.append(await sf.do("shared", slow))
+
+            try:
+                loop.run_until_complete(inner())
+            finally:
+                loop.close()
+
+        t = threading.Thread(target=run_other_loop)
+        t.start()
+        self.assertTrue(other_ready.wait(timeout=2.0))
+
+        started = asyncio.Event()
+        cleaned = asyncio.Event()
+
+        async def current_work():
+            started.set()
+            try:
+                await asyncio.sleep(5)
+            finally:
+                await asyncio.sleep(0.01)
+                cleaned.set()
+
+        waiter = asyncio.create_task(sf.do("shared", current_work))
+        await asyncio.wait_for(started.wait(), timeout=1.0)
+        waiter.cancel()
+        await asyncio.gather(waiter, return_exceptions=True)
+
+        self.assertFalse(cleaned.is_set())
+        await asyncio.wait_for(sf.drain_current_loop(), timeout=1.0)
+        self.assertTrue(cleaned.is_set())
+        self.assertEqual(len(sf._loops), 1)
+
+        other_release.set()
+        t.join(timeout=2.0)
+        self.assertEqual(other_result, ["other-ok"])
+
 
 class TestBoundedNegativeCache(unittest.TestCase):
     def test_lru_eviction_and_ttl_expiry(self):

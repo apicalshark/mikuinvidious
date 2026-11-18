@@ -9,14 +9,17 @@ import hashlib
 import hmac
 import html as html_lib
 import re
-from urllib.parse import quote, unquote
+from urllib.parse import quote
 
 _SIGNING_CONTEXT = b"miku-url-signing-v1"
 _SIG_BYTES = 16
 _SIG_LEN = 22
+_SIG_RE = re.compile(rf"^[A-Za-z0-9_-]{{{_SIG_LEN}}}$")
+_SCHEME_PREFIX_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
 _PIC_SIGNED_PREFIX = "/proxy/pic/s/"
 _PIC_RAW_PREFIX = "/proxy/pic/"
 _SAFE_PATH_CHARS = "/%:@!$&'()*+,;=-._~"
+_SAFE_QUERY_CHARS = "/?:@!$&()*+,;=-._~%"
 
 _HTML_PIC_RE = re.compile(r'(["\'])/proxy/pic/(?:s/[A-Za-z0-9_-]{22}/)?([^"\'\s<>]+)\1')
 
@@ -47,20 +50,26 @@ def _compute_sig(namespace: str, payload: str) -> str:
 
 
 def _verify_sig(sig: str | None, namespace: str, payload: str) -> bool:
-    if not sig or not isinstance(sig, str) or len(sig) != _SIG_LEN:
+    if not isinstance(sig, str) or not _SIG_RE.fullmatch(sig):
         return False
     return hmac.compare_digest(sig, _compute_sig(namespace, payload))
 
 
-def _canonicalize_pic_target(target: str, query_string: str | None = None) -> tuple[str, str, str]:
+def _canonicalize_pic_target(
+    target: str,
+    query_string: str | None = None,
+    *,
+    encode_query: bool = False,
+) -> tuple[str, str, str]:
     if query_string is None and "?" in target:
         path_part, qs = target.split("?", 1)
     else:
         path_part, qs = target, (query_string or "")
 
     encoded_path = quote(path_part, safe=_SAFE_PATH_CHARS)
-    hmac_input = f"{unquote(encoded_path)}\x00{qs}"
-    return encoded_path, qs, hmac_input
+    final_qs = quote(qs, safe=_SAFE_QUERY_CHARS) if (encode_query and qs) else qs
+    hmac_input = f"{encoded_path}\x00{final_qs}"
+    return encoded_path, final_qs, hmac_input
 
 
 def sign_pic_target(target: str) -> str:
@@ -68,7 +77,7 @@ def sign_pic_target(target: str) -> str:
     cleaned = target.lstrip("/")
     if not cleaned:
         return ""
-    encoded_path, qs, hmac_input = _canonicalize_pic_target(cleaned)
+    encoded_path, qs, hmac_input = _canonicalize_pic_target(cleaned, encode_query=True)
     signed = f"{_PIC_SIGNED_PREFIX}{_compute_sig('pic', hmac_input)}/{encoded_path}"
     return f"{signed}?{qs}" if qs else signed
 
@@ -78,8 +87,9 @@ def build_signed_pic_url(raw_url: str) -> str:
     if not raw_url:
         return ""
     cleaned = raw_url.split("#", 1)[0]
-    if "://" in cleaned:
-        target = cleaned.split("://", 1)[1]
+    scheme_match = _SCHEME_PREFIX_RE.match(cleaned)
+    if scheme_match:
+        target = cleaned[scheme_match.end() :]
     elif cleaned.startswith("//"):
         target = cleaned[2:]
     else:

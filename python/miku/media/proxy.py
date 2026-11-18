@@ -3,13 +3,18 @@
 
 import asyncio
 import contextlib
+import inspect
+import math
 import re
+import time
 import uuid
 import weakref
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from urllib.parse import ParseResult, urljoin, urlparse, urlunparse
 
 import httpcore
+import httpx
 from quart import Blueprint, Response, has_request_context, request
 
 from miku import state as shared
@@ -191,10 +196,18 @@ class _ImageResult:
     content_type: str
     cache_control: str | None = None
     x_cache: str | None = None
+    neg_expires_at: float | None = None
 
     def to_response(self, x_cache_override: str | None = None) -> Response:
         resp = Response(self.body, status=self.status, content_type=self.content_type)
-        if self.cache_control:
+        if self.neg_expires_at is not None:
+            remaining = math.ceil(self.neg_expires_at - time.monotonic())
+            ttl_cap = int(_NEGATIVE_CACHE_TTL_SECONDS)
+            if remaining > 0:
+                resp.headers["Cache-Control"] = f"public, max-age={min(ttl_cap, remaining)}"
+            else:
+                resp.headers["Cache-Control"] = "no-store"
+        elif self.cache_control:
             resp.headers["Cache-Control"] = self.cache_control
         x_cache = x_cache_override if x_cache_override is not None else self.x_cache
         if x_cache:
@@ -219,9 +232,23 @@ class _WaveBucket:
     active_batches: int = 0
 
 
+def _select_client_transport(client, target_url: str):
+    selector = getattr(client, "_transport_for_url", None)
+    if callable(selector) and not inspect.iscoroutinefunction(selector):
+        try:
+            selected = selector(httpx.URL(target_url))
+            if inspect.iscoroutine(selected):
+                selected.close()
+                return getattr(client, "_transport", None)
+            return selected
+        except Exception:
+            pass
+    return getattr(client, "_transport", None)
+
+
 def _has_ready_h2_connection(client, target_url: str) -> bool:
     """Return True if the pool already has a warm connection (or no pool exists to guard)."""
-    pool = getattr(getattr(client, "_transport", None), "_pool", None)
+    pool = getattr(_select_client_transport(client, target_url), "_pool", None)
     if pool is None or not hasattr(pool, "_connections"):
         return True
 
@@ -230,7 +257,10 @@ def _has_ready_h2_connection(client, target_url: str) -> bool:
     if not host:
         return True
     scheme = parsed.scheme.lower() or "https"
-    port = parsed.port or (443 if scheme == "https" else 80)
+    try:
+        port = parsed.port or (443 if scheme == "https" else 80)
+    except ValueError:
+        return True
     origin = httpcore.Origin(scheme.encode("ascii"), host.encode("ascii"), port)
 
     for conn in list(getattr(pool, "_connections", ())):
@@ -449,6 +479,8 @@ _loop_states: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, _LoopImageSta
 
 
 def _get_loop_state() -> _LoopImageState:
+    for lp in [k for k in list(_loop_states) if k.is_closed()]:
+        _loop_states.pop(lp, None)
     loop = asyncio.get_running_loop()
     state = _loop_states.get(loop)
     if state is None:
@@ -467,7 +499,7 @@ async def close_pic_proxy() -> None:
     state = _loop_states.pop(running_loop, None)
     if state is not None:
         await state.coordinator.close()
-    _pic_singleflight.clear()
+    await _pic_singleflight.drain_current_loop()
 
 
 def _get_image_mirror_candidates(url: str) -> list[str]:
@@ -496,6 +528,11 @@ async def _fetch_with_origin_guard(
 ) -> tuple[_ImageResult | None, bool]:
     """Fetch an image while serializing only cold-origin H2 handshake setup."""
     parsed = urlparse(target_url)
+    try:
+        _ = parsed.port
+    except ValueError:
+        return _ImageResult(502, b"Upstream error", "text/plain; charset=utf-8"), False
+
     origin_key = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
 
     handshake_lock: asyncio.Lock | None = None
@@ -510,15 +547,33 @@ async def _fetch_with_origin_guard(
             handshake_lock = asyncio.Lock()
             client_locks[origin_key] = handshake_lock
 
-    async with image_limiter:
-        return await _fetch_image_once(
-            client,
-            target_url,
-            original_url,
-            headers,
-            can_retry=can_retry,
-            handshake_lock=handshake_lock,
-        )
+    locked = False
+
+    def release_handshake() -> None:
+        nonlocal locked
+        if locked and handshake_lock is not None:
+            locked = False
+            handshake_lock.release()
+
+    if handshake_lock is not None:
+        await handshake_lock.acquire()
+        if _has_ready_h2_connection(client, target_url):
+            handshake_lock.release()
+        else:
+            locked = True
+
+    try:
+        async with image_limiter:
+            return await _fetch_image_once(
+                client,
+                target_url,
+                original_url,
+                headers,
+                can_retry=can_retry,
+                release_handshake=release_handshake if locked else None,
+            )
+    finally:
+        release_handshake()
 
 
 async def _fetch_image_once(
@@ -528,22 +583,14 @@ async def _fetch_image_once(
     headers: dict,
     *,
     can_retry: bool,
-    handshake_lock: asyncio.Lock | None = None,
+    release_handshake: Callable[[], None] | None = None,
 ) -> tuple[_ImageResult | None, bool]:
     """Fetch an image from one mirror. Returns (result_or_none, should_retry)."""
     resp = None
     current_url = target_url
     redirect_count = 0
     MAX_REDIRECTS = 3
-    locked = False
     try:
-        if handshake_lock is not None:
-            await handshake_lock.acquire()
-            if _has_ready_h2_connection(client, target_url):
-                handshake_lock.release()
-            else:
-                locked = True
-
         while True:
             req = client.build_request("GET", current_url, headers=headers)
             # Headers are validated before reading body; release handshake_lock
@@ -551,9 +598,9 @@ async def _fetch_image_once(
             try:
                 resp = await client.send(req, stream=True, follow_redirects=False)
             finally:
-                if locked and handshake_lock is not None:
-                    handshake_lock.release()
-                    locked = False
+                if release_handshake is not None:
+                    release_handshake()
+                    release_handshake = None
 
             if resp.is_redirect and "location" in resp.headers:
                 if redirect_count >= MAX_REDIRECTS:
@@ -577,8 +624,8 @@ async def _fetch_image_once(
                 status=status_code,
                 body=b"Not Found" if status_code == 404 else b"Gone",
                 content_type="text/plain; charset=utf-8",
-                cache_control=f"public, max-age={int(_NEGATIVE_CACHE_TTL_SECONDS)}",
                 x_cache="MISS",
+                neg_expires_at=time.monotonic() + _NEGATIVE_CACHE_TTL_SECONDS,
             )
             return _negative_cache.set(original_url, neg_result), False
 
@@ -648,9 +695,9 @@ async def _fetch_image_once(
             False,
         )
     except Exception as e:
-        if locked and handshake_lock is not None:
-            handshake_lock.release()
-            locked = False
+        if release_handshake is not None:
+            release_handshake()
+            release_handshake = None
         if resp is not None:
             with contextlib.suppress(Exception):
                 await resp.aclose()
@@ -682,6 +729,7 @@ async def _run_singleflight_fetch(url: str, state: _LoopImageState) -> _ImageRes
             content_type=neg.content_type,
             cache_control=neg.cache_control,
             x_cache="NEGATIVE-HIT",
+            neg_expires_at=neg.neg_expires_at,
         )
 
     headers = get_common_headers(appconf["bili"]).copy()
@@ -728,9 +776,9 @@ async def _run_singleflight_fetch(url: str, state: _LoopImageState) -> _ImageRes
         raise
 
 
-async def render_proxy_pic(req_path):
+def _verify_pic_request_url(req_path: str) -> str | None:
     if not req_path.startswith("/proxy/pic/"):
-        return Response("Forbidden", status=403)
+        return None
     subpath = req_path[11:]
 
     if has_request_context():
@@ -742,17 +790,20 @@ async def render_proxy_pic(req_path):
 
     verified_target = verify_signed_pic_subpath(subpath, qs)
     if verified_target is None:
-        return Response("Forbidden", status=403)
+        return None
 
     if ".." in verified_target or verified_target.startswith("/"):
-        return Response("Forbidden", status=403)
+        return None
 
     url = f"https://{verified_target}"
     if qs:
         url = f"{url}?{qs}"
     if any(ch in url for ch in ("\r", "\n", "\x00")):
-        return Response("Forbidden", status=403)
+        return None
+    return url
 
+
+async def _serve_verified_pic(url: str):
     if not await is_safe_proxy_url(url):
         return Response("Forbidden", status=403)
 
@@ -774,6 +825,13 @@ async def render_proxy_pic(req_path):
     return result.to_response()
 
 
+async def render_proxy_pic(req_path):
+    url = _verify_pic_request_url(req_path)
+    if url is None:
+        return Response("Forbidden", status=403)
+    return await _serve_verified_pic(url)
+
+
 async def _image_rate_key(req) -> str:
     """One image bucket per client IP.
 
@@ -784,15 +842,21 @@ async def _image_rate_key(req) -> str:
     return f"{get_client_ip(req)}:image"
 
 
-@proxy_bp.route("/proxy/pic/<path:subpath>")
 @rate_limit(**RATE_LIMITS["loose"], key_func=_image_rate_key)
+async def _serve_verified_pic_limited(url: str):
+    return await _serve_verified_pic(url)
+
+
+@proxy_bp.route("/proxy/pic/<path:subpath>")
 async def proxy_pic(subpath):
     raw_path = request.scope.get("raw_path")
-    if isinstance(raw_path, (bytes, bytearray)):
-        raw_str = raw_path.decode("latin-1")
-        if raw_str.startswith("/proxy/pic/"):
-            return await render_proxy_pic(raw_str)
-    return await render_proxy_pic(f"/proxy/pic/{subpath}")
+    req_path = raw_path.decode("latin-1") if isinstance(raw_path, (bytes, bytearray)) else ""
+    if not req_path.startswith("/proxy/pic/"):
+        req_path = f"/proxy/pic/{subpath}"
+    url = _verify_pic_request_url(req_path)
+    if url is None:
+        return Response("Forbidden", status=403)
+    return await _serve_verified_pic_limited(url)
 
 
 async def _proxy_ip_key(req) -> str:

@@ -210,10 +210,27 @@ class TestRes(unittest.IsolatedAsyncioTestCase):
         ):
             vtt_url = sign_subtitle_vtt_url("BV1xx411c7mD", 0, "zh-CN")
             tasks = [asyncio.create_task(test_client.get(vtt_url)) for _ in range(4)]
-            await asyncio.wait_for(started.wait(), timeout=1.0)
-            await asyncio.sleep(0.01)
-            proceed.set()
-            resps = await asyncio.gather(*tasks)
+            try:
+                await asyncio.wait_for(started.wait(), timeout=2.0)
+                loop = asyncio.get_running_loop()
+                sf_key = "BV1xx411c7mD:0:zh-CN"
+
+                async def wait_all_waiters():
+                    while True:
+                        entry = res._subtitle_vtt_sf._loops.get(loop, {}).get(sf_key)
+                        if entry is not None and entry.waiters >= 4:
+                            return
+                        await asyncio.sleep(0)
+
+                await asyncio.wait_for(wait_all_waiters(), timeout=2.0)
+                proceed.set()
+                resps = await asyncio.wait_for(asyncio.gather(*tasks), timeout=2.0)
+            except BaseException:
+                proceed.set()
+                for t in tasks:
+                    t.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                raise
 
         self.assertEqual(meta_calls, 1)
         for r in resps:
@@ -331,6 +348,92 @@ class TestRes(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(r_vtt_1.status_code, 502)
         self.assertEqual(r_vtt_2.status_code, 502)
         self.assertEqual(calls, 3)
+
+    async def test_unsigned_res_routes_reject_before_rate_limiter(self):
+        import miku.core.rate_limit as rate_limit
+
+        limiter = MagicMock()
+        limiter.is_allowed = AsyncMock(return_value=(False, {"remaining": 0, "reset": 1, "limit": 10}))
+        test_client = app.test_client()
+        with (
+            patch.dict(rate_limit.appconf["rate_limit"], {"enabled": True}),
+            patch.object(rate_limit, "get_rate_limiter", return_value=limiter),
+        ):
+            for path in (
+                "/res/danmaku/BV1xx411c7mD",
+                "/res/danmaku/s/0000000000000000/BV1xx411c7mD:0",
+                "/res/subtitle/BV1xx411c7mD",
+                "/res/subtitle/s/0000000000000000/BV1xx411c7mD:0",
+                "/res/subtitle/BV1xx411c7mD:0:zh-CN",
+                "/res/subtitle/s/0000000000000000/BV1xx411c7mD:0:zh-CN",
+            ):
+                r = await test_client.get(path)
+                self.assertEqual(r.status_code, 403, path)
+        limiter.is_allowed.assert_not_awaited()
+
+    async def test_empty_subtitle_meta_and_html_404_block_page_not_negative_cached(self):
+        from types import SimpleNamespace
+
+        from miku.api import video as video_api
+
+        res._subtitle_neg_cache.clear()
+        fake_cred = SimpleNamespace(sessdata="fake-sessdata")
+        test_client = app.test_client()
+        setex_mock = AsyncMock()
+        with (
+            patch.object(res.shared, "appcred", fake_cred),
+            patch.object(res.appredis, "get", AsyncMock(return_value=None)),
+            patch.object(res.appredis, "setex", setex_mock),
+            patch.object(video_api.Video, "_get_cid_by_index", AsyncMock(return_value=12345)),
+            patch.object(video_api.Video, "_request_playurl", AsyncMock(return_value=None)),
+        ):
+            vtt_empty = sign_subtitle_vtt_url("BV1xx411c7mD", 0, "ja-JP")
+            r1 = await test_client.get(vtt_empty)
+            self.assertEqual(r1.status_code, 502)
+            self.assertIsNone(res._subtitle_neg_cache.get("BV1xx411c7mD:0:ja-JP"))
+            r_list = await test_client.get(sign_subtitle_list_url("BV1xx411c7mD", 0))
+            self.assertEqual(r_list.status_code, 200)
+            setex_mock.assert_not_awaited()
+
+        block_resp = MagicMock()
+        block_resp.status_code = 404
+        block_resp.headers = {"content-type": "text/html; charset=utf-8"}
+        block_resp.content = b"<html><body>blocked</body></html>"
+        fake_client = MagicMock()
+        fake_client.get = AsyncMock(return_value=block_resp)
+        fake_video = MagicMock()
+        fake_video.get_subtitle_meta = AsyncMock(
+            return_value=[{"lan": "ko-KR", "subtitle_url": "//aisubtitle.hdslb.com/ko.json"}]
+        )
+        with (
+            patch.object(res.shared, "appcred", fake_cred),
+            patch.object(res.appredis, "get", AsyncMock(return_value=None)),
+            patch.object(res, "make_video", return_value=fake_video),
+            patch.object(res, "_is_safe_subtitle_url", AsyncMock(return_value=True)),
+            patch.object(res.shared.Network, "get_async_client", AsyncMock(return_value=fake_client)),
+        ):
+            r_block = await test_client.get(sign_subtitle_vtt_url("BV1xx411c7mD", 0, "ko-KR"))
+            self.assertEqual(r_block.status_code, 502)
+            self.assertIsNone(res._subtitle_neg_cache.get("BV1xx411c7mD:0:ko-KR"))
+
+    async def test_res_rechecks_positive_cache_inside_singleflight(self):
+        xml = '<i><d p="1.0,1,25,16777215,0,0,0,0">cached</d></i>'
+        reads = [None, xml.encode("utf-8")]
+        fake_video = MagicMock()
+        fake_video.get_danmaku_xml = AsyncMock(return_value="")
+        with (
+            patch.object(res.appredis, "get", AsyncMock(side_effect=reads)),
+            patch.object(res, "make_video", return_value=fake_video),
+        ):
+            u = sign_danmaku_url("BV1xx411c7mD", 4)
+            sig = u.split("/")[4]
+            async with app.test_request_context(u):
+                resp = await res.danmaku_res("BV1xx411c7mD", 4, sig=sig)
+        self.assertEqual(resp.status_code, 200)
+        data = await resp.get_json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["text"], "cached")
+        fake_video.get_danmaku_xml.assert_not_awaited()
 
 
 if __name__ == "__main__":
