@@ -1,7 +1,3 @@
-<!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:be41861ff6654c7d055a85ad3ad2b34c8d8d7f972ae7d1561d6ece986c179e3b -->
-
 # MikuInvidious Architecture & System Design
 
 MikuInvidious is an asynchronous, privacy-first web frontend and media proxy for Bilibili, implemented in Python 3.15+ using Quart, Granian, Caddy, Redis, and optional Cloudflare WARP.
@@ -169,6 +165,7 @@ graph TD
 ## 3. Comprehensive Module Inventory (`python/`)
 
 ### Industrial Core Package (`python/miku/`)
+
 - **`miku.core.app`**: Standardized application factory (`create_app()`) configuring Quart, template/static paths, JSON providers, timeout ceilings, and session security.
 - **`miku.core.config`**: Decoupled TOML configuration loader supporting environment variable overrides, version extraction, and dynamic config paths.
 - **`miku.services.redis`**: Fast-fail Redis connection pool factory enforcing a strict 1.0s socket timeout and 0 automatic retries to prevent event loop exhaustion.
@@ -182,6 +179,7 @@ graph TD
 - **`miku.api.bvid`**: Modern PipePipe BV/AV conversion algorithm.
 
 ### Application Core & Configuration
+
 - **`miku/app.py`**: Initializes the Quart application instance and registers middleware, blueprints, and error handlers.
 - **`python/main.py`**: Granian ASGI production launcher pinned to 1 worker for in-memory download consistency.
 - **`miku/state.py`**: Shared singleton runtime state (`appredis`, HTTPX client, template renderer).
@@ -193,6 +191,7 @@ graph TD
 - **`miku/ui/i18n.py` & `miku/ui/i18n_strings.py`**: Internationalization engine providing locale resolution and translation catalog bindings.
 
 ### Views & Presentation Layer
+
 - **`miku.views`**: Non-wildcard re-export facade with PEP 562 dynamic attribute resolution.
 - **`miku/views/home.py`**: Index feed, search endpoints, zone categories, history, licenses, and `/convert` B23 resolution.
 - **`miku/views/video.py`**: Video metadata rendering, multi-part page lists, related content, and inline player components.
@@ -205,6 +204,7 @@ graph TD
 - **`miku/media/res.py`**: Serves HMAC-signed auxiliary assets (danmaku XML and WebVTT subtitles) with singleflight coalescing and bounded negative caching.
 
 ### Media Streaming & DASH Pipeline
+
 - **`miku.dash`**: Explicit, non-polluting re-export facade for DASH VOD and downloads.
 - **`miku/dash/common.py`**: Core data structures, playback mirror health tracking, and range-shy cache.
 - **`miku/dash/fetch.py`**: Fetches playurls, caches normalized tracks in Redis, and manages dual-layer in-memory fallback.
@@ -225,6 +225,7 @@ graph TD
 - **`miku/media/refresher.py`**: Upstream credential and web ticket refresh maintenance.
 
 ### Local API Wrapper (`python/miku/api/`)
+
 - **`miku.api.client`**: Core HTTP client implementing singleflight-guarded cookies, `bili_ticket` generation, auto-cookies, and Gaia risk mitigation.
 - **`miku/api/credential.py`**: Credential state container (`SESSDATA`, `bili_jct`, `buvid3`, `buvid4`, `dedeuserid`).
 - **`miku/api/video.py`**: Video metadata, tags, cid resolution, playurls (DASH + progressive), and subtitles.
@@ -237,7 +238,3 @@ graph TD
 - **`miku/api/article.py` & `miku/api/opus.py`**: Text articles and dynamic opus posts.
 - **`miku/api/homepage.py` & `miku/api/video_zone.py`**: Trending home feeds and sub-channel feeds.
 - **`miku/api/exceptions.py`**: Structured upstream exception hierarchy.
-
-
-
-<!-- /coderabbit-ai-generated:v1 -->
