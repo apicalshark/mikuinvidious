@@ -250,6 +250,7 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 retry_gate.started.set()
                 await retry_gate.release.wait()
                 raise RuntimeError("transient initial failure")
+            await asyncio.sleep(0)
             return {"mid": 54321, "name": "Recovered", "face": "https://i0.hdslb.com/r.jpg", "sign": ""}
 
         retry_user = MagicMock()
@@ -267,7 +268,7 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 async with app.test_request_context("/space/54321"):
                     return await views_space.space_view("54321")
 
-            await self._run_coalesced(
+            retry_responses = await self._run_coalesced(
                 [hit_retry_space() for _ in range(5)],
                 retry_gate,
                 sf=views_space._space_sf,
@@ -275,6 +276,25 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(retry_calls, 2)
+        self.assertTrue(all(r.status_code == 200 for r in retry_responses))
+
+        json_fail_user = MagicMock()
+        json_fail_user._degraded = False
+        json_fail_user._videos_load_failed = False
+        json_fail_user.get_user_info = AsyncMock(side_effect=RuntimeError("profile unavailable"))
+        json_fail_user.get_videos = AsyncMock(
+            return_value={"list": {"vlist": []}, "page": {"count": 0, "pn": 1, "ps": 30}}
+        )
+        with (
+            patch.dict(rate_limit.appconf["rate_limit"], {"enabled": False}),
+            patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space.user, "User", return_value=json_fail_user),
+        ):
+            async with app.test_request_context("/space/98765/json"):
+                json_fail_resp = await views_space.space_json_feed("98765")
+
+        self.assertEqual(json_fail_resp.status_code, 502)
+        self.assertEqual(json_fail_user.get_user_info.await_count, 1)
 
         author_gate = _SlowGate()
 
@@ -552,6 +572,7 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 views_audio.comment, "get_comments", AsyncMock(return_value={"page": {"count": 0}, "replies": []})
             ),
             patch.object(views_audio.appredis, "exists", AsyncMock(return_value=True)),
+            patch.object(views_audio.appredis, "get", AsyncMock(return_value=b"999")),
             patch.object(views_audio, "render_template_with_theme", AsyncMock(return_value="<html>al</html>")),
         ):
 
@@ -564,6 +585,7 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(al_gate.calls, 1)
+        self.assertEqual(fake_track.get_download_url.await_count, 0)
 
         stale_song_cache = {
             "songs": [{"id": 100, "title": "Old", "duration": 10}],
@@ -584,8 +606,9 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 "statistic": {},
             }
         )
-        new_track.get_download_url = AsyncMock(return_value={"cdns": []})
+        new_track.get_download_url = AsyncMock(return_value={"cdns": ["https://example.com/song200.mp3"]})
         render_al_mock = AsyncMock(return_value="<html>new</html>")
+        setex_mock = AsyncMock()
         with (
             patch.object(views_audio, "cache_minutes", return_value=10),
             patch.object(views_audio, "cache_get", AsyncMock(side_effect=[None, None, stale_song_cache])),
@@ -596,8 +619,13 @@ class TestViewSingleflight(unittest.IsolatedAsyncioTestCase):
                 views_audio.comment, "get_comments", AsyncMock(return_value={"page": {"count": 0}, "replies": []})
             ),
             patch.object(views_audio.appredis, "exists", AsyncMock(return_value=True)),
+            patch.object(views_audio.appredis, "get", AsyncMock(return_value=b"100")),
+            patch.object(views_audio.appredis, "setex", setex_mock),
             patch.object(views_audio, "render_template_with_theme", render_al_mock),
         ):
             async with app.test_request_context("/audio_list/am22222"):
                 await views_audio.audio_list_view("am22222")
         self.assertEqual(render_al_mock.await_args.kwargs["vinfo"]["title"], "NewSong")
+        self.assertEqual(new_track.get_download_url.await_count, 1)
+        setex_mock.assert_any_await("mikuinv_am22222_0_0", 1800, "https://example.com/song200.mp3")
+        setex_mock.assert_any_await("mikuinv_am22222_0_0_song", 1800, "200")

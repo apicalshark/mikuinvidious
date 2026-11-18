@@ -217,25 +217,40 @@ async def audio_list_view(amid, idx=0):
             a = audio.Audio(song_id, credential=appcred)
 
             async def get_audio_url():
+                proxy_key = f"mikuinv_{amid}_{idx}_0"
+                song_key = f"mikuinv_{amid}_{idx}_0_song"
+                exists = False
+                cached_song = None
                 try:
-                    exists = await appredis.exists(f"mikuinv_{amid}_{idx}_0")
+                    exists = bool(await appredis.exists(proxy_key))
+                    if exists:
+                        raw_song = await appredis.get(song_key)
+                        cached_song = raw_song.decode() if isinstance(raw_song, bytes) else raw_song
                 except Exception:
                     exists = False
-                if not exists:
-                    try:
-                        asrc = await a.get_download_url()
-                    except Exception:
-                        return
-                    url = None
+                    cached_song = None
+                if exists and cached_song == str(song_id):
+                    return
+                url = None
+                try:
+                    asrc = await a.get_download_url()
                     if "cdns" in asrc and asrc["cdns"]:
                         url = asrc["cdns"][0]
                     elif "url" in asrc:
                         url = asrc["url"]
-                    if url:
-                        try:
-                            await appredis.setex(f"mikuinv_{amid}_{idx}_0", 1800, url)
-                        except Exception:
-                            pass
+                except Exception:
+                    url = None
+                if url:
+                    try:
+                        await appredis.setex(proxy_key, 1800, url)
+                        await appredis.setex(song_key, 1800, str(song_id))
+                    except Exception:
+                        pass
+                elif exists:
+                    try:
+                        await appredis.delete(proxy_key, song_key)
+                    except Exception:
+                        pass
 
             results = await asyncio.gather(
                 a.get_info(),
