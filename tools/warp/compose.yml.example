@@ -53,14 +53,14 @@ services:
       - warp_data:/etc/wireguard
 
   # Optional: skip this service if the app uses SOCKS5 directly.
-  microwarp-http:
-    image: gogost/gost:latest
-    container_name: microwarp_http
-    restart: always
-    network_mode: host
-    command: "-L=http://127.0.0.1:1081 -F=socks5://127.0.0.1:1080"
-    depends_on:
-      - microwarp
+  # microwarp-http:
+  #   image: gogost/gost:latest
+  #   container_name: microwarp_http
+  #   restart: always
+  #   network_mode: host
+  #   command: "-L=http://127.0.0.1:1081 -F=socks5://127.0.0.1:1080"
+  #   depends_on:
+  #     - microwarp
 
 volumes:
   warp_data:
