@@ -101,8 +101,7 @@ def main() -> None:
     values = generate_secrets(include_master_key=args.include_master_key)
     if args.write is None:
         print(
-            "Generated secrets for keys: "
-            f"{', '.join(values.keys())}. "
+            "Generated deployment secrets. "
             "Use --write [PATH] to store them in an env file with 0600 permissions."
         )
         return
