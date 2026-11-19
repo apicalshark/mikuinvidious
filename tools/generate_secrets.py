@@ -110,7 +110,7 @@ def main() -> None:
     target = Path(args.write)
     written, skipped = write_env_file(target, values, force=args.force)
     if written:
-        print(f"Written to {target} (mode 0600): {', '.join(written)}")
+        print(f"Written secrets to {target} (mode 0600).")
     if skipped:
         print(f"Preserved existing keys (use --force to rotate): {', '.join(skipped)}")
 
