@@ -3,63 +3,81 @@
     servers {
         protocols h1 h2
     }
+
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 30MiB
+            roll_keep 5
+        }
+        format json
+    }
+
+    email your@email
+    acme_ca URL
+    acme_eab {
+        key_id ID
+        mac_key MAC_KEY
+    }
 }
 
-PROD_DOMAIN {
-    tls YOURMAIL@MAIL.MAIL {
-        ca CERT_PROVIDER_URL
-        eab xxxxx yyyyyyyy
+yourdomain {
+    tls {
         curves x25519mlkem768 x25519 secp256r1
         key_type p384
     }
 
-    # Set root for static files
-    root * /usr/share/caddy
+    log {
+        output file /var/log/caddy/access.log {
+            roll_size 30MiB
+            roll_keep 5
+        }
+        format json
+    }
 
     request_body {
         max_size 1MB
     }
 
-    log {
-        output stdout
-        format json
-    }
-
+    root * /usr/share/caddy
     header -Server
     header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 
-    # Serve static files directly via Caddy (bypasses Anubis and Python)
     handle /static/* {
-        header X-Content-Type-Options "nosniff"
-        header X-Frame-Options "DENY"
-        header Referrer-Policy "strict-origin-when-cross-origin"
-        header Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
-        header Cross-Origin-Resource-Policy "same-origin"
-        header Cache-Control "public, max-age=86400"
-        file_server
+    	header X-Content-Type-Options "nosniff"
+    	header X-Frame-Options "DENY"
+    	header Referrer-Policy "strict-origin-when-cross-origin"
+    	header Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+    	header Cross-Origin-Resource-Policy "same-origin"
+    	header Cache-Control "public, max-age=86400"
+    	reverse_proxy app:8080 {
+        	header_up Host {host}
+        	header_up X-Real-IP {remote_host}
+        	header_up X-Forwarded-For {remote_host}
+        	header_up X-Forwarded-Proto {scheme}
+    	}
     }
 
-    handle /site.webmanifest {
-        root * /usr/share/caddy/static
-        header Content-Type "application/manifest+json"
-        header X-Content-Type-Options "nosniff"
-        header X-Frame-Options "DENY"
-        header Referrer-Policy "strict-origin-when-cross-origin"
-        header Cross-Origin-Resource-Policy "same-origin"
-        header Cache-Control "public, max-age=86400"
-        file_server
+	handle /site.webmanifest {
+    	header Content-Type "application/manifest+json"
+    	header X-Content-Type-Options "nosniff"
+    	header X-Frame-Options "DENY"
+    	header Referrer-Policy "strict-origin-when-cross-origin"
+    	header Cross-Origin-Resource-Policy "same-origin"
+    	header Cache-Control "public, max-age=86400"
+    	reverse_proxy app:8080 {
+        	header_up Host {host}
+        	header_up X-Real-IP {remote_host}
+        	header_up X-Forwarded-For {remote_host}
+        	header_up X-Forwarded-Proto {scheme}
+    	}
     }
 
-    # Compress everything EXCEPT media streams (zstd preferred, gzip fallback)
     @notProxy not path /proxy/*
     encode @notProxy zstd gzip
 
-    # Image proxy route: Protected by Anubis PoW challenge.
-    # Behind Anubis, Python serves cached images from local disk (X-Cache: HIT, < 1ms).
-    # Browsers and edge caches retain images for 24h via Cache-Control.
     handle /proxy/pic/* {
         header X-Content-Type-Options "nosniff"
-        reverse_proxy anubis:PORT {
+        reverse_proxy anubis:8923 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}
@@ -67,9 +85,8 @@ PROD_DOMAIN {
         }
     }
 
-    # Route everything else through Anubis for bot mitigation
     handle {
-        reverse_proxy anubis:PORT {
+        reverse_proxy anubis:8923 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
             header_up X-Forwarded-For {remote_host}

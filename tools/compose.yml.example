@@ -1,0 +1,179 @@
+services:
+  app:
+    image: ghcr.io/apicalshark/mikuinvidious:latest
+    pull_policy: always
+    container_name: miku_app
+    restart: always
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    environment:
+      - SITE_NAME=MikuInvidious
+      - SITE_URL=https://mikuinv.apicalshark.dedyn.io
+      - HTTP_PROXY=socks5://microwarp:1080
+      - HTTPS_PROXY=socks5://microwarp:1080
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - QUART_SECRET_KEY=${QUART_SECRET_KEY}
+      - SERVER_PORT=8080
+      - PYTHONUNBUFFERED=1
+      - SITE_MODIFIED_SOURCE_CODE_URL=https://github.com/apicalshark/mikuinvidious
+      - USE_CRED=false
+      - TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24
+      - LIVE_PREFER_HLS=false
+      - SPACE_CACHE_MINUTES=30
+      - SPACE_JSON_CACHE_MINUTES=30
+      - NYAA_BANGUMI=false
+      - RATE_LIMIT_ENABLED=true
+      - MAX_DOWNLOAD_SIZE_MB=250
+      - MAX_DOWNLOAD_DISK_MB=768
+      # Bilibili Credentials (Optional)
+      - SESSDATA=
+      - BILI_JCT=
+      - BUVID3=
+      - BUVID4=
+      - DEDEUSERID=
+    volumes:
+      - img_cache:/app/data/img_cache
+      - dl_tmp:/tmp
+    depends_on:
+      - redis
+    networks:
+      - miku_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  anubis:
+    image: ghcr.io/techarohq/anubis:latest
+    container_name: miku_anubis
+    restart: always
+    pull_policy: always
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 96m
+    environment:
+      - BIND=:8923
+      - TARGET=http://app:8080
+      - TARGET_HOST=yourdomain.com
+      - COOKIE_EXPIRATION_TIME=1h
+      - COOKIE_DYNAMIC_DOMAIN=true
+      - POLICY_FNAME=/data/cfg/botPolicy.yaml
+    volumes:
+      - ./botPolicy.yaml:/data/cfg/botPolicy.yaml:ro
+      - ./data/geoip:/var/lib/GeoIP:ro
+      - ./vpsh_asns.yaml:/data/cfg/vpsh_asns.yaml:ro
+    depends_on:
+      - app
+    networks:
+      - miku_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:alpine
+    container_name: miku_caddy
+    restart: always
+    read_only: true
+    tmpfs:
+      - /tmp:size=16M
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 128m
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /var/log/caddy:/var/log/caddy
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - anubis
+    networks:
+      - miku_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  redis:
+    image: redis:alpine
+    container_name: miku_redis
+    restart: always
+    user: "999:999"
+    read_only: true
+    tmpfs:
+      - /data:size=16M
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 96m
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - allkeys-lru
+    networks:
+      - miku_net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  microwarp:
+    image: ghcr.io/ccbkkb/microwarp:latest
+    container_name: microwarp
+    restart: always
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+    environment:
+      - ALLOW_NO_AUTH=1
+    volumes:
+      - warp_data:/etc/wireguard
+    networks:
+      - miku_net
+
+networks:
+  miku_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  caddy_data:
+  caddy_config:
+  img_cache:
+  dl_tmp:
+  warp_data:
