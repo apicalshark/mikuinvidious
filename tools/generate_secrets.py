@@ -112,7 +112,7 @@ def main() -> None:
     if written:
         print(f"Written secrets to {target} (mode 0600).")
     if skipped:
-        print(f"Preserved existing keys (use --force to rotate): {', '.join(skipped)}")
+        print(f"Preserved {len(skipped)} existing key(s) (use --force to rotate).")
 
 
 if __name__ == "__main__":
