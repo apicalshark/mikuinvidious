@@ -878,5 +878,67 @@ class TestLiveStreamLoop(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(q2.get_nowait())
 
 
+class TestLiveHlsProxy(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        from miku.app import app
+
+        self.client = app.test_client()
+
+    def test_is_live_hls_url_classification(self):
+        from miku.media.proxy import _is_live_hls_url
+
+        self.assertTrue(_is_live_hls_url("https://d1--ov-gotcha207.bilivideo.com/live-bvc/123/index.m3u8?sign=abc"))
+        self.assertTrue(
+            _is_live_hls_url("https://api.live.bilibili.com/xlive/play-interface/v1/index/getMasterUrl?room_id=1")
+        )
+        self.assertTrue(_is_live_hls_url("https://d1--ov-gotcha207.bilivideo.com/live-bvc/123/master?expires=123"))
+        self.assertFalse(_is_live_hls_url("https://d1--ov-gotcha207.bilivideo.com/live-bvc/123/live_123.flv?sign=abc"))
+        self.assertFalse(_is_live_hls_url("https://d1--ov-gotcha207.bilivideo.com/live-bvc/master/live_123.flv"))
+
+    async def test_live_hls_master_url_bypasses_flv_live_manager(self):
+        import miku.media.proxy as media_proxy
+        from miku.media.stream import CdnResponse
+
+        manifest = b"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nhttps://d1--ov-gotcha207.bilivideo.com/a/index.m3u8\n"
+
+        class _FakeConn:
+            async def iter_chunks(self):
+                yield manifest
+
+            async def close(self):
+                pass
+
+        resp_headers = CdnResponse()
+        resp_headers.status_code = 200
+        resp_headers.headers = {
+            "content-type": "application/vnd.apple.mpegurl",
+            "cache-control": "max-age=300",
+        }
+
+        master_url = "https://api.live.bilibili.com/xlive/play-interface/v1/index/getMasterUrl?cid=22747736"
+        live_sub_mock = AsyncMock()
+
+        with (
+            patch.object(media_proxy.appredis, "get", new=AsyncMock(return_value=master_url.encode())),
+            patch.object(media_proxy, "is_safe_proxy_url", new=AsyncMock(return_value=True)),
+            patch.object(media_proxy.TicketManager, "get_ticket", new=AsyncMock(return_value="t")),
+            patch.object(media_proxy.live_manager, "subscribe", live_sub_mock),
+            patch.object(
+                media_proxy,
+                "_establish_cdn_connection",
+                new=AsyncMock(return_value=(_FakeConn(), resp_headers)),
+            ),
+        ):
+            resp = await self.client.get("/proxy/live/22747736_10000")
+            body = await resp.get_data()
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(body, manifest)
+        self.assertEqual(resp.headers.get("Content-Type"), "application/vnd.apple.mpegurl")
+        self.assertEqual(resp.headers.get("Cache-Control"), "no-store")
+        self.assertIsNone(resp.headers.get("X-Miku-Proxy"))
+        live_sub_mock.assert_not_awaited()
+
+
 if __name__ == "__main__":
     unittest.main()

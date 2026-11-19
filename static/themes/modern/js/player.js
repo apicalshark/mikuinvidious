@@ -1482,17 +1482,32 @@ function setupLivePlayer(video, list, label) {
   }
 
   if (isHls) {
+    const hlsUrl = `${liveUrl}${liveUrl.includes("?") ? "&" : "?"}format=hls`;
     if (typeof Hls !== "undefined" && Hls.isSupported()) {
       const hls = new Hls({
         enableWorker: false,
         lowLatencyMode: false,
+        progressive: true,
+        fetchSetup: (context, initParams) => {
+          if (
+            context.type === "manifest" ||
+            context.type === "level" ||
+            context.type === "audioTrack" ||
+            context.type === "subtitleTrack"
+          ) {
+            initParams.cache = "no-store";
+          }
+          return new Request(context.url, initParams);
+        },
+        contentSteeringController: null,
+        liveDurationInfinity: true,
         backBufferLength: 60,
         maxBufferLength: 30,
         maxMaxBufferLength: 60,
-        liveSyncDuration: 4,
-        liveMaxLatencyDuration: 8,
+        liveSyncDuration: 3,
+        liveMaxLatencyDuration: 6,
       });
-      hls.loadSource(liveUrl);
+      hls.loadSource(hlsUrl);
       hls.attachMedia(video);
       window.hls = hls;
 
@@ -1527,7 +1542,7 @@ function setupLivePlayer(video, list, label) {
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = liveUrl;
+      video.src = hlsUrl;
       video.addEventListener("loadedmetadata", () => {
         video.play().catch(() => {});
       });
@@ -1574,12 +1589,38 @@ function updateVodHlsQualityMenu(hls, list, label) {
   });
 }
 
+function formatHlsLiveLevelLabel(level) {
+  const parts = [];
+  if (level.height) parts.push(`${level.height}p`);
+  const display = level.attrs && level.attrs["BILI-DISPLAY"];
+  if (display) {
+    parts.push(display);
+  } else if (level.bitrate) {
+    parts.push(`${(level.bitrate / 1e6).toFixed(1)}M`);
+  }
+  const rawPathway =
+    level.pathwayId ||
+    (level.attrs && level.attrs["PATHWAY-ID"]) ||
+    (Array.isArray(level.url) ? level.url[0] : level.url) ||
+    "";
+  let pathwayLabel = "";
+  if (rawPathway) {
+    try {
+      const host = new URL(rawPathway).hostname;
+      pathwayLabel = host.split(".")[0] || host;
+    } catch {
+      pathwayLabel = rawPathway;
+    }
+  }
+  const base = parts.join(" ") || `${level.height || 0}p`;
+  return pathwayLabel ? `${base} · ${pathwayLabel}` : base;
+}
+
 function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
   if (!list || !window.supported_src) return;
   list.innerHTML = "";
 
   if (isHls && hls) {
-    // HLS Quality Logic
     const autoBtn = createOption(
       I18n.t("Auto"),
       -1,
@@ -1592,20 +1633,23 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
     if (hls.currentLevel === -1) autoBtn.classList.add("active");
     list.appendChild(autoBtn);
 
-    hls.levels.forEach((level, index) => {
-      const name = `${level.height}p`;
-      const btn = createOption(
-        name,
-        index,
-        () => {
-          hls.currentLevel = index;
-          if (label) label.innerText = name;
-        },
-        list
-      );
-      if (hls.currentLevel === index) btn.classList.add("active");
-      list.appendChild(btn);
-    });
+    hls.levels
+      .map((level, index) => ({ level, index }))
+      .reverse()
+      .forEach(({ level, index }) => {
+        const name = formatHlsLiveLevelLabel(level);
+        const btn = createOption(
+          name,
+          index,
+          () => {
+            hls.currentLevel = index;
+            if (label) label.innerText = name;
+          },
+          list
+        );
+        if (hls.currentLevel === index) btn.classList.add("active");
+        list.appendChild(btn);
+      });
   } else {
     // FLV / Manual Quality Switch Logic
     const firstSrc = window.supported_src[0];

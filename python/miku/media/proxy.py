@@ -951,6 +951,15 @@ async def _first_live_quality_url(room_id: str):
     return None
 
 
+def _is_live_hls_url(url: str) -> bool:
+    path = urlparse(url).path.lower()
+    if ".m3u8" in path:
+        return True
+    if ".flv" in path:
+        return False
+    return "master" in path or "hls" in path
+
+
 @proxy_bp.route("/proxy/<path:subpath>")
 @rate_limit(limit=300, window=60, key_func=_proxy_ip_key)
 @rate_limit(**RATE_LIMITS["proxy"])
@@ -1019,8 +1028,9 @@ async def proxy_main(subpath):
             if k.lower() in ["range", "if-range", "x-playback-session-id"]:
                 headers[k.lower()] = v
 
-        # SPECIAL HANDLING FOR LIVE FLV (Muxing/Multiplexing via LiveManager)
-        if is_live and ".m3u8" not in url:
+        is_hls_live = is_live and (_is_live_hls_url(url) or request.args.get("format") == "hls")
+
+        if is_live and not is_hls_live:
             live_slot = live_stream_slots.try_acquire(get_client_ip(request))
             if live_slot is None:
                 return _too_many_streams()
@@ -1256,8 +1266,9 @@ async def proxy_main(subpath):
                     )
 
                 if is_live:
-                    if ".m3u8" in url:
-                        proxy_resp.headers["Content-Type"] = "application/x-mpegURL"
+                    if is_hls_live:
+                        proxy_resp.headers["Content-Type"] = "application/vnd.apple.mpegurl"
+                        proxy_resp.headers["Cache-Control"] = "no-store"
                     else:
                         proxy_resp.headers["Content-Type"] = "video/x-flv"
 
@@ -1274,6 +1285,8 @@ async def proxy_main(subpath):
                         "cache-control",
                     ]:
                         if is_live and k in ["content-type", "connection"]:
+                            continue
+                        if is_hls_live and k == "cache-control":
                             continue
                         proxy_resp.headers[k] = v
 
