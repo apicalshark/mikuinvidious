@@ -5,7 +5,7 @@ bots:
   - import: (data)/bots/ai-catchall.yaml
 
   # Optional: dynamically synced VPS ASN snippet from tools/update_vps_asns.sh
-  - import: /data/cfg/vpsh_asns.yaml
+  #- import: /data/cfg/vpsh_asns.yaml
 
   # Infra paths: monitors can't solve PoW, never challenge them
   - name: allow-infra-paths
