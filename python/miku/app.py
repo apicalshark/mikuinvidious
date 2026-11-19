@@ -19,7 +19,7 @@ import miku.views as views  # noqa: F401
 from miku.api import exceptions
 from miku.core.config import downloads_allowed
 from miku.core.csrf import csrf_protect, inject_csrf_token
-from miku.core.rate_limit import RATE_LIMITS, add_rate_limit_headers, rate_limit
+from miku.core.rate_limit import RATE_LIMITS, add_rate_limit_headers, get_client_ip, rate_limit
 from miku.dash import dash_proxy_bp
 from miku.media.b23_resolver import resolve_b23_target
 from miku.media.proxy import proxy_bp
@@ -49,8 +49,11 @@ async def monitor_fd():
 
 @app.before_serving
 async def start_background_tasks():
+    from miku.dash.download_job import cleanup_orphaned_download_dirs
+
     loop = asyncio.get_running_loop()
     loop.set_task_factory(asyncio.eager_task_factory)
+    await cleanup_orphaned_download_dirs()
     if appconf["server"]["monitor_fd"]:
         app.add_background_task(monitor_fd)
 
@@ -145,6 +148,7 @@ async def add_security_headers(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     # L3: the app sits behind Caddy (plain HTTP app:8080), so
     # request.is_secure is always false in production. Honor the
     # X-Forwarded-Proto header like the hist_id cookie already does.
@@ -172,8 +176,10 @@ async def add_security_headers(response):
                 "img-src 'self' data:; "
                 "media-src 'self' blob:; "
                 "font-src 'self' data:; "
-                "connect-src 'self' wss: https:; "
+                "connect-src 'self' blob:; "
                 "worker-src 'self' blob:; "
+                "object-src 'none'; "
+                "frame-ancestors 'none'; "
                 "base-uri 'self'; "
                 "form-action 'self';"
             )
@@ -291,7 +297,7 @@ async def dl_redirect():
         from miku.dash import DownloadCapacityError, create_download_job
 
         try:
-            job_id = await create_download_job(bvid, int(cvid), int(qual))
+            job_id = await create_download_job(bvid, int(cvid), int(qual), client_ip=get_client_ip(request))
         except DownloadCapacityError as exc:
             return jsonify({"error": str(exc)}), 429
         except RuntimeError as exc:

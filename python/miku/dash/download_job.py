@@ -9,12 +9,13 @@ import time
 import uuid
 from collections import deque
 
-from quart import Response, jsonify, redirect
+from quart import Response, jsonify, redirect, request
+from quart.wrappers.response import IterableBody
 
 from miku import state as shared
 from miku.core.config import downloads_allowed
 from miku.core.csrf import csrf_protect
-from miku.core.rate_limit import RATE_LIMITS, ip_family_key, rate_limit
+from miku.core.rate_limit import RATE_LIMITS, get_client_ip, ip_family_key, rate_limit
 from miku.dash.common import (
     _DOWNLOAD_CANCELLED,
     _FREE_DOWNLOAD_MAX_QN,
@@ -116,56 +117,59 @@ async def proxy_download(vid, idx, qual):
     if not vurls or not aurls:
         return Response("Forbidden: Invalid proxy target", status=403)
 
-    proxy_url = Network.get_proxy()
-    headers = await _build_dash_cdn_headers()
+    client_ip = get_client_ip(request)
+    if not await _try_acquire_legacy_ip_admission(client_ip):
+        return Response("Too many active downloads from this address; please try again later", status=429)
 
-    tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="miku_dl_")
-    vpath = os.path.join(tmpdir, "video.m4s")
-    apath = os.path.join(tmpdir, "audio.m4s")
-    outpath = os.path.join(tmpdir, "out.mp4")
+    tmpdir = None
     response_owns_cleanup = False
-    try:
-        vsize = await _peek_content_length(vurls, headers, proxy_url)
-        asize = await _peek_content_length(aurls, headers, proxy_url)
-    except RuntimeError as exc:
-        await asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True)
-        return Response(str(exc), status=413)
-
-    try:
-        v_qn = int(video.get("id") or 0)
-    except TypeError, ValueError:
-        v_qn = 0
-    try:
-        a_qn = int(audio.get("id") or 0)
-    except TypeError, ValueError:
-        a_qn = 0
-
-    async def _refresh_legacy_track_urls(media_type: str, qn: int):
-        fresh = await _refresh_dash_data(vid, idx)
-        if not has_valid_dash_tracks(fresh):
-            return None
-        pick = _pick_download_tracks(fresh, max_qn)
-        track = pick[0] if media_type == "video" else pick[1]
-        if track is None:
-            return None
-        try:
-            if int(track.get("id") or -1) != qn:
-                return None
-        except TypeError, ValueError:
-            return None
-        urls = _dash_candidate_urls(track)
-        checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls))
-        urls = [u for u, ok in zip(urls, checks, strict=False) if ok]
-        return urls or None
-
-    async def _refresh_legacy_video_urls():
-        return await _refresh_legacy_track_urls("video", v_qn)
-
-    async def _refresh_legacy_audio_urls():
-        return await _refresh_legacy_track_urls("audio", a_qn)
-
     cancel_event = asyncio.Event()
     try:
+        proxy_url = Network.get_proxy()
+        headers = await _build_dash_cdn_headers()
+        tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="miku_dl_")
+        vpath = os.path.join(tmpdir, "video.m4s")
+        apath = os.path.join(tmpdir, "audio.m4s")
+        outpath = os.path.join(tmpdir, "out.mp4")
+        try:
+            vsize = await _peek_content_length(vurls, headers, proxy_url)
+            asize = await _peek_content_length(aurls, headers, proxy_url)
+        except RuntimeError as exc:
+            return Response(str(exc), status=413)
+
+        try:
+            v_qn = int(video.get("id") or 0)
+        except TypeError, ValueError:
+            v_qn = 0
+        try:
+            a_qn = int(audio.get("id") or 0)
+        except TypeError, ValueError:
+            a_qn = 0
+
+        async def _refresh_legacy_track_urls(media_type: str, qn: int):
+            fresh = await _refresh_dash_data(vid, idx)
+            if not has_valid_dash_tracks(fresh):
+                return None
+            pick = _pick_download_tracks(fresh, max_qn)
+            track = pick[0] if media_type == "video" else pick[1]
+            if track is None:
+                return None
+            try:
+                if int(track.get("id") or -1) != qn:
+                    return None
+            except TypeError, ValueError:
+                return None
+            urls = _dash_candidate_urls(track)
+            checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in urls))
+            urls = [u for u, ok in zip(urls, checks, strict=False) if ok]
+            return urls or None
+
+        async def _refresh_legacy_video_urls():
+            return await _refresh_legacy_track_urls("video", v_qn)
+
+        async def _refresh_legacy_audio_urls():
+            return await _refresh_legacy_track_urls("audio", a_qn)
+
         async with _job_slots:
             vn, an = await asyncio.gather(
                 _download_track_file(
@@ -227,7 +231,8 @@ async def proxy_download(vid, idx, qual):
         print(f"[DashProxy] proxy_download error: {exc}")
         return Response("Upstream error", status=502)
     finally:
-        if not response_owns_cleanup:
+        _release_legacy_ip_admission(client_ip)
+        if tmpdir and not response_owns_cleanup:
             await asyncio.shield(asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True))
         # NOTE: no manual _job_slots.release() — the `async with` above
         # already released it; a manual release would corrupt the semaphore.
@@ -253,6 +258,8 @@ _JOB_SLOTS = 3
 # Bound active workers (running or queued) so overload is rejected before a
 # task is registered. Completed jobs retained for download do not count.
 _MAX_ACTIVE_JOBS = _JOB_SLOTS * 4
+_MAX_ACTIVE_JOBS_PER_IP = 2
+_DEFAULT_MAX_DOWNLOAD_DISK_MB = 4096
 # Finished files stay available for re-download (retry link) this long.
 _JOB_READY_TTL = 15 * 60
 # Error/cancelled job records are swept after this long.
@@ -264,6 +271,14 @@ _JOB_STALL_TIMEOUT = 30 * 60
 #                                                 \-> error / cancelled
 
 
+def _max_download_disk_bytes() -> int:
+    try:
+        mb = int((appconf.get("site") or {}).get("max_download_disk_mb", _DEFAULT_MAX_DOWNLOAD_DISK_MB))
+    except TypeError, ValueError:
+        mb = _DEFAULT_MAX_DOWNLOAD_DISK_MB
+    return max(mb, 1) * 1024 * 1024
+
+
 class DownloadCapacityError(RuntimeError):
     """Raised when the server-wide active download queue is full."""
 
@@ -271,15 +286,18 @@ class DownloadCapacityError(RuntimeError):
 class _DownloadJob:
     """Mutable per-download state. Only touched from the single event loop."""
 
-    def __init__(self, vid: str, idx: int, qual: int):
+    def __init__(self, vid: str, idx: int, qual: int, client_ip: str | None = None):
         self.job_id = uuid.uuid4().hex
         self.vid = vid
         self.idx = idx
         self.qual = qual
+        self.client_ip = client_ip
         self.actual_qn = None  # quality actually being fetched (fallback of qual)
         self.state = "queued"
         self.total_bytes = 0
         self.done_bytes = 0
+        self.disk_bytes = 0
+        self.active_streams = 0
         self.speed_bps = 0.0
         self.status_note = None  # transient user-facing note (e.g. retry backoff)
         self.filename = _safe_download_filename(vid, idx, qual)
@@ -346,15 +364,88 @@ class _DownloadJob:
 
 
 _download_jobs: dict[str, _DownloadJob] = {}
+_legacy_ip_active: dict[str, int] = {}
 _jobs_lock = asyncio.Lock()
 _job_slots = asyncio.Semaphore(_JOB_SLOTS)
+
+
+def _active_downloads_for_ip_locked(client_ip: str) -> int:
+    job_count = sum(
+        job.client_ip == client_ip
+        for job in _download_jobs.values()
+        if job.state not in ("ready", "error", "cancelled")
+    )
+    return job_count + _legacy_ip_active.get(client_ip, 0)
+
+
+async def _try_acquire_legacy_ip_admission(client_ip: str | None) -> bool:
+    if not client_ip:
+        return True
+    async with _jobs_lock:
+        if _active_downloads_for_ip_locked(client_ip) >= _MAX_ACTIVE_JOBS_PER_IP:
+            return False
+        _legacy_ip_active[client_ip] = _legacy_ip_active.get(client_ip, 0) + 1
+        return True
+
+
+def _release_legacy_ip_admission(client_ip: str | None) -> None:
+    if not client_ip:
+        return
+    remaining = _legacy_ip_active.get(client_ip, 0) - 1
+    if remaining > 0:
+        _legacy_ip_active[client_ip] = remaining
+    else:
+        _legacy_ip_active.pop(client_ip, None)
 
 
 def _remove_job_tmpdir(job: _DownloadJob):
     tmpdir = job.tmpdir
     job.tmpdir = None
+    job.disk_bytes = 0
     if tmpdir:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _cleanup_orphaned_download_dirs_sync(active_tmpdirs: set[str]) -> int:
+    tmp_root = tempfile.gettempdir()
+    removed = 0
+    try:
+        entries = list(os.scandir(tmp_root))
+    except OSError:
+        return 0
+    for entry in entries:
+        if not entry.name.startswith("miku_dl_"):
+            continue
+        if not entry.is_dir(follow_symlinks=False):
+            continue
+        resolved = os.path.abspath(entry.path)
+        if resolved in active_tmpdirs:
+            continue
+        shutil.rmtree(entry.path, ignore_errors=True)
+        removed += 1
+    return removed
+
+
+async def cleanup_orphaned_download_dirs() -> int:
+    async with _jobs_lock:
+        active_tmpdirs = {os.path.abspath(j.tmpdir) for j in _download_jobs.values() if j.tmpdir}
+    removed = await asyncio.to_thread(_cleanup_orphaned_download_dirs_sync, active_tmpdirs)
+    if removed:
+        print(f"[DashProxy] cleaned up {removed} orphaned download temp dir(s)")
+    return removed
+
+
+def _job_ready_disk_bytes(job: _DownloadJob) -> int:
+    if job.disk_bytes > 0:
+        return job.disk_bytes
+    if job.outpath:
+        try:
+            size = os.path.getsize(job.outpath)
+            job.disk_bytes = size
+            return size
+        except OSError:
+            return 0
+    return 0
 
 
 async def _sweep_jobs():
@@ -363,7 +454,7 @@ async def _sweep_jobs():
     async with _jobs_lock:
         for jid, job in list(_download_jobs.items()):
             age = now - job.updated_at
-            if job.state == "ready" and age > _JOB_READY_TTL:
+            if job.state == "ready" and age > _JOB_READY_TTL and job.active_streams == 0:
                 _remove_job_tmpdir(job)
                 del _download_jobs[jid]
             elif job.state in ("error", "cancelled") and age > _JOB_END_TTL:
@@ -378,11 +469,29 @@ async def _sweep_jobs():
         # Hard registry cap: drop oldest terminal jobs first.
         if len(_download_jobs) > 100:
             terminal = sorted(
-                ((j.updated_at, jid) for jid, j in _download_jobs.items() if j.state in ("ready", "error", "cancelled"))
+                (
+                    (j.updated_at, jid)
+                    for jid, j in _download_jobs.items()
+                    if j.state in ("ready", "error", "cancelled") and j.active_streams == 0
+                )
             )
             for _, jid in terminal[: len(_download_jobs) - 100]:
                 _remove_job_tmpdir(_download_jobs[jid])
                 del _download_jobs[jid]
+
+        disk_budget = _max_download_disk_bytes()
+        ready_jobs = sorted(
+            ((j.updated_at, jid, _job_ready_disk_bytes(j)) for jid, j in _download_jobs.items() if j.state == "ready")
+        )
+        total_disk = sum(size for _, _, size in ready_jobs)
+        for _, jid, size in ready_jobs:
+            if total_disk <= disk_budget:
+                break
+            if _download_jobs[jid].active_streams > 0:
+                continue
+            _remove_job_tmpdir(_download_jobs[jid])
+            del _download_jobs[jid]
+            total_disk -= size
 
 
 async def _get_job(job_id: str) -> _DownloadJob | None:
@@ -392,7 +501,7 @@ async def _get_job(job_id: str) -> _DownloadJob | None:
         return _download_jobs.get(job_id)
 
 
-async def create_download_job(vid: str, idx: int, qual: int) -> str:
+async def create_download_job(vid: str, idx: int, qual: int, client_ip: str | None = None) -> str:
     """Register a download job and launch its background worker. Returns job_id."""
     if not downloads_allowed(appconf):
         raise RuntimeError("Downloads are disabled on this instance")
@@ -400,10 +509,12 @@ async def create_download_job(vid: str, idx: int, qual: int) -> str:
         raise RuntimeError("invalid video ID")
     await _sweep_jobs()
     async with _jobs_lock:
-        active_jobs = sum(job.state not in ("ready", "error", "cancelled") for job in _download_jobs.values())
-        if active_jobs >= _MAX_ACTIVE_JOBS:
+        active_list = [job for job in _download_jobs.values() if job.state not in ("ready", "error", "cancelled")]
+        if len(active_list) >= _MAX_ACTIVE_JOBS:
             raise DownloadCapacityError("Download queue is full; please try again later")
-        job = _DownloadJob(vid, idx, qual)
+        if client_ip and _active_downloads_for_ip_locked(client_ip) >= _MAX_ACTIVE_JOBS_PER_IP:
+            raise DownloadCapacityError("Too many active downloads from this address; please try again later")
+        job = _DownloadJob(vid, idx, qual, client_ip=client_ip)
         job.task = asyncio.ensure_future(_run_download_job(job))
         _download_jobs[job.job_id] = job
     return job.job_id
@@ -742,10 +853,21 @@ async def _run_download_job(job: _DownloadJob):
         job.throw_if_cancelled()
         if not job.outpath or not os.path.exists(job.outpath):
             raise RuntimeError("finished file missing")
+        try:
+            job.disk_bytes = await asyncio.to_thread(os.path.getsize, job.outpath)
+        except OSError:
+            job.disk_bytes = 0
+        job.throw_if_cancelled()
+        disk_budget = _max_download_disk_bytes()
+        if job.disk_bytes > disk_budget:
+            raise RuntimeError(
+                f"Download exceeds disk quota ({job.disk_bytes // (1024 * 1024)} MB > {disk_budget // (1024 * 1024)} MB)"
+            )
         job.state = "ready"
         job.set_note(None)
         job.speed_bps = 0.0
         job.touch()
+        await _sweep_jobs()
         print(f"[DashProxy] download job {job.job_id} ready: {job.filename}")
     except _JobCancelled:
         job.state = "cancelled"
@@ -780,21 +902,52 @@ async def download_status(job_id):
 async def download_file(job_id):
     """Stream the finished file as an attachment. Kept until TTL for retries."""
     await _sweep_jobs()
-    job = await _get_job(job_id)
-    if job is None:
+    if not job_id or len(job_id) > 64:
         return jsonify({"error": "job not found or expired"}), 404
-    if job.state != "ready":
-        return jsonify(job.to_status()), 409
-    outpath = job.outpath
-    if not outpath or not os.path.exists(outpath):
-        return jsonify({"error": "file no longer available"}), 410
+    async with _jobs_lock:
+        job = _download_jobs.get(job_id)
+        if job is None:
+            return jsonify({"error": "job not found or expired"}), 404
+        if job.state != "ready":
+            return jsonify(job.to_status()), 409
+        outpath = job.outpath
+        if not outpath:
+            return jsonify({"error": "file no longer available"}), 410
+        job.active_streams += 1
+
+    f = None
     try:
         size = await asyncio.to_thread(os.path.getsize, outpath)
+        f = await asyncio.to_thread(open, outpath, "rb")
     except OSError:
+        if f is not None:
+            await asyncio.to_thread(f.close)
+        job.active_streams = max(0, job.active_streams - 1)
         return jsonify({"error": "file no longer available"}), 410
+    except BaseException:
+        if f is not None:
+            try:
+                f.close()
+            except OSError:
+                pass
+        job.active_streams = max(0, job.active_streams - 1)
+        raise
+
+    released = False
+    delivery_task = asyncio.current_task()
+
+    def cleanup(_task=None):
+        nonlocal released
+        if released:
+            return
+        released = True
+        delivery_task.remove_done_callback(cleanup)
+        try:
+            f.close()
+        finally:
+            job.active_streams = max(0, job.active_streams - 1)
 
     async def generate():
-        f = await asyncio.to_thread(open, outpath, "rb")
         try:
             while True:
                 chunk = await asyncio.to_thread(f.read, 512 * 1024)
@@ -802,10 +955,19 @@ async def download_file(job_id):
                     break
                 yield chunk
         finally:
-            await asyncio.to_thread(f.close)
+            cleanup()
+
+    class DownloadBody(IterableBody):
+        async def __aexit__(self, exc_type, exc_value, tb):
+            try:
+                await super().__aexit__(exc_type, exc_value, tb)
+            finally:
+                cleanup()
+
+    delivery_task.add_done_callback(cleanup)
 
     ext = ".flv" if outpath.lower().endswith(".flv") else ".mp4"
-    resp = Response(generate())
+    resp = Response(DownloadBody(generate()))
     resp.headers["Content-Type"] = "video/x-flv" if ext == ".flv" else "video/mp4"
     resp.headers["Content-Length"] = str(size)
     safe_name = _safe_download_filename(job.vid, job.idx, job.actual_qn or job.qual, ext=ext)
@@ -819,6 +981,7 @@ async def shutdown_download_jobs() -> None:
     async with _jobs_lock:
         jobs = list(_download_jobs.values())
         _download_jobs.clear()
+        _legacy_ip_active.clear()
     tasks = []
     for job in jobs:
         if job.state not in ("ready", "error", "cancelled"):

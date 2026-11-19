@@ -19,6 +19,7 @@ site_allow_download = true
 # fit within this limit or the job is rejected with an error telling the user
 # this instance's limit. Raise it if your server has disk space to spare.
 max_download_size_mb = 1024
+max_download_disk_mb = 4096
 
 # This will allow (potentially unsafe) error responses to be showed directly on site.
 # Useful for debugging backend issues.
@@ -165,7 +166,7 @@ port = 6379
 # password = ''
 
 [rate_limit]
-enabled = false
+enabled = true
 # Comma-separated IPs/CIDRs whose X-Forwarded-For headers are trusted.
 # Defaults to '127.0.0.1/8,::1/128' (loopback only). When running behind
 # Caddy/Nginx in Docker, include the proxy container subnet (compose.yml
