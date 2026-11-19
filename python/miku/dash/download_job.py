@@ -10,6 +10,7 @@ import uuid
 from collections import deque
 
 from quart import Response, jsonify, redirect, request
+from quart.wrappers.response import IterableBody
 
 from miku import state as shared
 from miku.core.config import downloads_allowed
@@ -120,13 +121,12 @@ async def proxy_download(vid, idx, qual):
     if not await _try_acquire_legacy_ip_admission(client_ip):
         return Response("Too many active downloads from this address; please try again later", status=429)
 
-    proxy_url = Network.get_proxy()
-    headers = await _build_dash_cdn_headers()
-
     tmpdir = None
     response_owns_cleanup = False
     cancel_event = asyncio.Event()
     try:
+        proxy_url = Network.get_proxy()
+        headers = await _build_dash_cdn_headers()
         tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="miku_dl_")
         vpath = os.path.join(tmpdir, "video.m4s")
         apath = os.path.join(tmpdir, "audio.m4s")
@@ -933,6 +933,20 @@ async def download_file(job_id):
         job.active_streams = max(0, job.active_streams - 1)
         raise
 
+    released = False
+    delivery_task = asyncio.current_task()
+
+    def cleanup(_task=None):
+        nonlocal released
+        if released:
+            return
+        released = True
+        delivery_task.remove_done_callback(cleanup)
+        try:
+            f.close()
+        finally:
+            job.active_streams = max(0, job.active_streams - 1)
+
     async def generate():
         try:
             while True:
@@ -941,13 +955,19 @@ async def download_file(job_id):
                     break
                 yield chunk
         finally:
+            cleanup()
+
+    class DownloadBody(IterableBody):
+        async def __aexit__(self, exc_type, exc_value, tb):
             try:
-                await asyncio.shield(asyncio.to_thread(f.close))
+                await super().__aexit__(exc_type, exc_value, tb)
             finally:
-                job.active_streams = max(0, job.active_streams - 1)
+                cleanup()
+
+    delivery_task.add_done_callback(cleanup)
 
     ext = ".flv" if outpath.lower().endswith(".flv") else ".mp4"
-    resp = Response(generate())
+    resp = Response(DownloadBody(generate()))
     resp.headers["Content-Type"] = "video/x-flv" if ext == ".flv" else "video/mp4"
     resp.headers["Content-Length"] = str(size)
     safe_name = _safe_download_filename(job.vid, job.idx, job.actual_qn or job.qual, ext=ext)

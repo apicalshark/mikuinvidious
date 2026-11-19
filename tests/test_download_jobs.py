@@ -465,6 +465,62 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
 
+    async def test_download_file_delivery_cleanup_is_idempotent(self):
+        for started in (False, True):
+            with self.subTest(started=started), tempfile.TemporaryDirectory() as tmpdir:
+                job = download_job._DownloadJob("BV1xx411c7mD", 0, 80)
+                job.state = "ready"
+                job.outpath = os.path.join(tmpdir, "out.mp4")
+                with open(job.outpath, "wb") as f:
+                    f.write(b"media")
+                download_job._download_jobs[job.job_id] = job
+                ready = asyncio.Event()
+                response = None
+
+                async def deliver(job=job, started=started, ready=ready):
+                    nonlocal response
+                    async with app.test_request_context(f"/download/file/{job.job_id}"):
+                        response = await download_job.download_file(job.job_id)
+                    if started:
+                        async with response.response as body:
+                            self.assertEqual(await anext(aiter(body)), b"media")
+                            ready.set()
+                            await asyncio.Future()
+                    else:
+                        ready.set()
+                        await asyncio.Future()
+
+                with patch.dict(shared.appconf["rate_limit"], {"enabled": False}):
+                    task = asyncio.create_task(deliver())
+                    await asyncio.wait_for(ready.wait(), 5)
+                    self.assertEqual(job.active_streams, 1)
+                    job.active_streams += 1
+                    task.cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await task
+                    self.assertEqual(job.active_streams, 1)
+                    await response.response.__aexit__(None, None, None)
+                    await response.response.__aexit__(None, None, None)
+                    self.assertEqual(job.active_streams, 1)
+
+    async def test_legacy_admission_released_when_header_initialization_cancelled(self):
+        ip = "198.51.100.78"
+        track = {"id": 80, "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/track.m4s"}
+        with (
+            patch.dict(shared.appconf["rate_limit"], {"enabled": False}),
+            patch.object(download_job, "downloads_allowed", return_value=True),
+            patch.object(download_job, "get_client_ip", return_value=ip),
+            patch.object(download_job, "_load_dash_data", AsyncMock(return_value={})),
+            patch.object(download_job, "has_valid_dash_tracks", return_value=True),
+            patch.object(download_job, "_pick_download_tracks", return_value=(track, track)),
+            patch.object(download_job, "_is_safe_dash_url_async", AsyncMock(return_value=True)),
+            patch.object(download_job, "_build_dash_cdn_headers", AsyncMock(side_effect=asyncio.CancelledError)),
+        ):
+            async with app.test_request_context("/proxy/download/BV1xx411c7mD/0/80"):
+                with self.assertRaises(asyncio.CancelledError):
+                    await download_job.proxy_download("BV1xx411c7mD", 0, 80)
+        self.assertNotIn(ip, download_job._legacy_ip_active)
+
     async def test_legacy_and_background_downloads_share_per_ip_limit(self):
         ip = "198.51.100.77"
         try:
