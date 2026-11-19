@@ -939,6 +939,52 @@ class TestLiveHlsProxy(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(resp.headers.get("X-Miku-Proxy"))
         live_sub_mock.assert_not_awaited()
 
+    async def test_live_hls_master_redirect_targets_are_validated(self):
+        import miku.media.proxy as media_proxy
+        from miku.media.stream import CdnResponse
+
+        master_url = "https://api.live.bilibili.com/xlive/play-interface/v1/index/getMasterUrl?cid=22747736"
+        cases = [
+            ("https://d1.bilivideo.com/index.m3u8", True, 0),
+            ("/index.m3u8", True, 0),
+            ("https://127.0.0.1/index.m3u8", False, 403),
+            ("https://evil.example/index.m3u8", False, 403),
+            ("https://[malformed", False, 403),
+            (None, False, 502),
+        ]
+        for status in (301, 302, 303, 307, 308):
+            for location, safe, error in cases:
+                with self.subTest(status=status, location=location):
+                    conn = AsyncMock()
+                    upstream = CdnResponse()
+                    upstream.status_code = status
+                    upstream.headers = {"location": location} if location is not None else {}
+                    guard = AsyncMock(side_effect=[True, safe])
+                    with (
+                        patch.object(media_proxy.appredis, "get", new=AsyncMock(return_value=master_url.encode())),
+                        patch.object(media_proxy, "is_safe_proxy_url", guard),
+                        patch.object(media_proxy.TicketManager, "get_ticket", new=AsyncMock(return_value="t")),
+                        patch.object(media_proxy.live_manager, "subscribe", new=AsyncMock()) as subscribe,
+                        patch.object(
+                            media_proxy,
+                            "_establish_cdn_connection",
+                            new=AsyncMock(return_value=(conn, upstream)),
+                        ),
+                    ):
+                        resp = await self.client.get("/proxy/live/22747736_10000")
+                        await resp.get_data()
+                    self.assertEqual(resp.status_code, error or status)
+                    if safe:
+                        target = (
+                            location if location.startswith("https://") else "https://api.live.bilibili.com/index.m3u8"
+                        )
+                        self.assertEqual(resp.headers["Location"], target)
+                        self.assertEqual(guard.await_args_list[-1].args, (target,))
+                    else:
+                        self.assertIsNone(resp.headers.get("Location"))
+                    conn.close.assert_awaited_once()
+                    subscribe.assert_not_awaited()
+
 
 if __name__ == "__main__":
     unittest.main()

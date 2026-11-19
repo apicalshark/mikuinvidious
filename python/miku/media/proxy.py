@@ -1208,6 +1208,26 @@ async def proxy_main(subpath):
                             print(f"[Proxy] All quality fallbacks failed for {vid}_{vidx}")
                             return Response("Upstream returned 403 and no fallback available", status=502)
 
+                if is_hls_live and resp_headers.status_code in (301, 302, 303, 307, 308):
+                    await conn.close()
+                    location = resp_headers.headers.get("location")
+                    if not location:
+                        return Response("Upstream redirect missing Location", status=502)
+                    try:
+                        target_url = urljoin(url, location)
+                    except ValueError:
+                        return Response("Forbidden: Invalid redirect target", status=403)
+                    if not await is_safe_proxy_url(target_url):
+                        return Response("Forbidden: Invalid redirect target", status=403)
+                    return Response(
+                        status=resp_headers.status_code,
+                        headers={
+                            "Location": target_url,
+                            "Access-Control-Allow-Origin": "*",
+                            "Cache-Control": "no-store",
+                        },
+                    )
+
                 gen_started = False
 
                 async def generate():

@@ -663,9 +663,10 @@ class DashAudioOptimizationTests(unittest.IsolatedAsyncioTestCase):
             dash_common.appconf,
             {
                 "dash": {
-                    "cdn_region": "none",
+                    "cdn_region": "overseas",
                     "custom_cdn_mirrors": [
                         "https://cn-sh-ct-01-01.bilivideo.com/ignored",
+                        "https://[malformed",
                         "evil.example.com",
                         "127.0.0.1",
                         "upos-sz-mirror08h.bilivideo.com",
@@ -674,8 +675,25 @@ class DashAudioOptimizationTests(unittest.IsolatedAsyncioTestCase):
             },
         ):
             tier1, tier2 = dash_common._get_dash_cdn_tiers()
-            self.assertEqual(tier1, ("cn-sh-ct-01-01.bilivideo.com", "upos-sz-mirror08h.bilivideo.com"))
-            self.assertEqual(tier2, ())
+            self.assertEqual(tier1[:2], ("cn-sh-ct-01-01.bilivideo.com", "upos-sz-mirror08h.bilivideo.com"))
+            self.assertIn("upos-sz-mirroraliov.bilivideo.com", tier1)
+            self.assertNotIn("evil.example.com", tier1)
+            self.assertNotIn("evil.example.com", tier2)
+
+    def test_none_disables_custom_mirror_synthesis(self):
+        with (
+            patch.dict(
+                dash_common.appconf,
+                {"dash": {"cdn_region": "none", "custom_cdn_mirrors": ["upos-sz-mirror08h.bilivideo.com"]}},
+            ),
+            patch.object(dash_common, "_validated_custom_cdn_mirrors") as validate,
+        ):
+            self.assertEqual(dash_common._get_dash_cdn_tiers(), ((), ()))
+            self.assertEqual(
+                dash_common._synthesize_dash_mirrors("https://upos-sz-mirrorali.bilivideo.com/a.m4s"),
+                ([], []),
+            )
+            validate.assert_not_called()
 
     def test_order_urls_by_health_demotes_slow_ewma_mirrors(self):
         dash_common._mirror_health.clear()

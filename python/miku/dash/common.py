@@ -289,7 +289,10 @@ def _validated_custom_cdn_mirrors(raw) -> tuple[str, ...]:
         if not candidate:
             continue
         if "://" in candidate:
-            candidate = (urlparse(candidate).hostname or "").lower()
+            try:
+                candidate = (urlparse(candidate).hostname or "").lower()
+            except ValueError:
+                continue
         else:
             candidate = candidate.split("/", 1)[0].split(":", 1)[0]
         if not candidate or candidate in seen:
@@ -305,6 +308,8 @@ def _get_dash_cdn_tiers() -> tuple[tuple[str, ...], tuple[str, ...]]:
     dash_conf = appconf.get("dash") if isinstance(appconf, dict) else None
     dash_conf = dash_conf if isinstance(dash_conf, dict) else {}
     region = _normalize_cdn_region(dash_conf.get("cdn_region"))
+    if region == "none":
+        return (), ()
     preset_t1, preset_t2 = _DASH_CDN_PRESETS[region]
     custom = _validated_custom_cdn_mirrors(dash_conf.get("custom_cdn_mirrors"))
     if not custom:
