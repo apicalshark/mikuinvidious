@@ -27,8 +27,9 @@
 #     - SOCKS_USER=...
 #     - SOCKS_PASS=...
 # drop ALLOW_NO_AUTH, and point clients at socks5://user:pass@host:1080.
-# NOTE: "1080:1080" below binds all host interfaces; in no-auth mode prefer
-# "127.0.0.1:1080:1080" so the open proxy is not exposed to the LAN.
+# Bound to 127.0.0.1 by default so the unauthenticated proxy is never exposed
+# to the public internet or LAN. If Docker containers reach it via host-gateway,
+# bind to the Docker bridge IP (e.g. 172.30.0.1:1080:1080) or enable SOCKS auth.
 
 services:
   microwarp:
@@ -36,7 +37,7 @@ services:
     container_name: microwarp
     restart: always
     ports:
-      - "1080:1080"
+      - "127.0.0.1:1080:1080"
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -53,7 +54,7 @@ services:
     container_name: microwarp_http
     restart: always
     network_mode: host
-    command: "-L=http://:1081 -F=socks5://127.0.0.1:1080"
+    command: "-L=http://127.0.0.1:1081 -F=socks5://127.0.0.1:1080"
     depends_on:
       - microwarp
 

@@ -14,14 +14,14 @@ TMP_FILE="${OUTPUT_FILE}.tmp.$$"
 
 echo "[*] Fetching VPS ASN list from ${URL}..."
 
-python3 - << EOF
+URL="${URL}" TMP_FILE="${TMP_FILE}" OUTPUT_FILE="${OUTPUT_FILE}" python3 - << 'EOF'
 import sys
 import urllib.request
 import os
 
-url = "${URL}"
-tmp_file = "${TMP_FILE}"
-out_file = "${OUTPUT_FILE}"
+url = os.environ["URL"]
+tmp_file = os.environ["TMP_FILE"]
+out_file = os.environ["OUTPUT_FILE"]
 
 WARP_EXCLUDE = {13335, 209242}
 

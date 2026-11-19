@@ -9,7 +9,7 @@ bots:
 
   # Infra paths: monitors can't solve PoW, never challenge them
   - name: allow-infra-paths
-    path_regex: ^/(\.well-known/.*|favicon\.ico|robots\.txt)$
+    path_regex: ^/(\.well-known/acme-challenge/.*|favicon\.ico|robots\.txt)$
     action: ALLOW
 
   # HTTP method restrictions: MikuInvidious only accepts GET, HEAD, and POST
@@ -24,7 +24,7 @@ bots:
 
   # Web probe paths: drop admin panel, CMS, and debug endpoint probes instantly
   - name: drop-probe-paths
-    path_regex: (?i)^/(wp-admin|wp-login|xmlrpc\.php|phpmyadmin|actuator|console|cgi-bin|autodiscover|\.aws|id_rsa|telescope)
+    path_regex: (?i)^/(wp-admin|wp-login|xmlrpc\.php|phpmyadmin|actuator|console|cgi-bin|autodiscover|\.aws|id_rsa|telescope|artex-probe|debug/pprof|swagger|graphql|metrics|server-status|phpinfo)
     action: DENY
 
   # Honeypot: drop automated crawlers that blindly follow hidden link traps
@@ -236,10 +236,10 @@ bots:
   #   action: ALLOW
   #   remote_addresses: ["91.242.162.0/24"]
 
-  # Under load, make new sessions prove themselves harder (tune to ~2x cores)
+  # Under load, make new sessions prove themselves harder (tune to ~2x cores; 2.0 suits 1 vCPU)
   - name: high-load-shed
     action: WEIGH
-    expression: 'load_1m >= 8.0'
+    expression: 'load_1m >= 2.0'
     weight:
       adjust: 20
 
@@ -298,7 +298,7 @@ thresholds:
 # store:
 #   backend: valkey
 #   parameters:
-#     URL: "redis://redis:6379/1"
+#     URL: "redis://:YOUR_REDIS_PASSWORD@redis:6379/1"
 
 # Metrics (bind localhost only, debug routes leak process details):
 # metrics:

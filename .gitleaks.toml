@@ -1,0 +1,19 @@
+title = "MikuInvidious gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Vendored frontend bundles containing standard public UUIDs (e.g. W3C ClearKey)"
+paths = [
+  '''^static/vjs/''',
+]
+
+[[allowlists]]
+description = "Public Bilibili WBI fallback keys and unit test fixtures"
+regexTarget = "line"
+regexes = [
+  '''_FALLBACK_WBI_(IMG|SUB)_KEY\s*=\s*"[0-9a-f]{32}"''',
+  '''self\.(img|sub)_key\s*=\s*"[0-9a-f]{32}"''',
+  '''"miku_live_123_250"''',
+]

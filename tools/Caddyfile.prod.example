@@ -15,21 +15,37 @@ PROD_DOMAIN {
 
     # Set root for static files
     root * /usr/share/caddy
+
+    request_body {
+        max_size 1MB
+    }
+
+    log {
+        output stdout
+        format json
+    }
+
+    header -Server
     header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
 
     # Serve static files directly via Caddy (bypasses Anubis and Python)
     handle /static/* {
         header X-Content-Type-Options "nosniff"
-	header X-Frame-Options "DENY"
-	header Referrer-Policy "strict-origin-when-cross-origin"
-	header Cache-Control "public, max-age=86400"
-	file_server
+        header X-Frame-Options "DENY"
+        header Referrer-Policy "strict-origin-when-cross-origin"
+        header Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
+        header Cross-Origin-Resource-Policy "same-origin"
+        header Cache-Control "public, max-age=86400"
+        file_server
     }
 
     handle /site.webmanifest {
         root * /usr/share/caddy/static
         header Content-Type "application/manifest+json"
         header X-Content-Type-Options "nosniff"
+        header X-Frame-Options "DENY"
+        header Referrer-Policy "strict-origin-when-cross-origin"
+        header Cross-Origin-Resource-Policy "same-origin"
         header Cache-Control "public, max-age=86400"
         file_server
     }
