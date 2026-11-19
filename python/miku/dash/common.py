@@ -147,42 +147,75 @@ def _is_mcdn_url(url: str) -> bool:
 
 
 # Probed Bilibili DASH playback CDNs (2026-11-15, Range 0-262143 on signed .m4s):
-# Tier 1 — Fast overseas / HK Equinix mirrors (~100-600ms, 3.4-20.1 Mbps):
-#   upos-sz-mirroraliov.bilivideo.com  -> Alibaba overseas (104ms, 20.1 Mbps)
-#   cn-hk-eq-01-03.bilivideo.com       -> HK Equinix BCache (282ms, 7.4 Mbps)
-#   cn-hk-eq-01-05.bilivideo.com       -> HK Equinix BCache (277ms, 7.6 Mbps)
-#   cn-hk-eq-01-01.bilivideo.com       -> HK Equinix BCache (608ms, 3.4 Mbps)
-#   upos-sz-mirrorcosov.bilivideo.com  -> Tencent overseas (354ms, 5.9 Mbps; 514 on some 4K/HDR)
-_TIER1_DASH_CDNS = (
-    "upos-sz-mirroraliov.bilivideo.com",
+_HK_TW_DASH_CDNS = (
     "cn-hk-eq-01-03.bilivideo.com",
     "cn-hk-eq-01-05.bilivideo.com",
     "cn-hk-eq-01-01.bilivideo.com",
-    "upos-sz-mirrorcosov.bilivideo.com",
 )
 
-# Tier 2 — Mainland mirrors (slower from overseas; last-resort failover behind Tier 1):
-#   upos-sz-mirrorali.bilivideo.com    -> Mainland Alibaba (2139ms, 1.0 Mbps)
-#   upos-sz-mirroralib.bilivideo.com   -> Mainland Alibaba (794ms, 2.6 Mbps)
-#   upos-sz-mirrorali02.bilivideo.com  -> Mainland Alibaba (7611ms, 0.3 Mbps)
-#   upos-sz-mirrorbos.bilivideo.com    -> Baidu BOS (2628ms, 0.8 Mbps)
-#   upos-tf-all-tx.bilivideo.com       -> Tencent (3006ms, 0.7 Mbps)
-#   upos-sz-mirrorcos.bilivideo.com    -> Tencent COS IPv6 (2790ms, 0.8 Mbps)
-#   upos-sz-mirrorhw.bilivideo.com     -> Huawei mainland (1773ms; often 959 in TW)
-_TIER2_DASH_CDNS = (
+_OVERSEAS_DIRECT_DASH_CDNS = (
+    "upos-sz-mirroraliov.bilivideo.com",
+    "upos-sz-mirrorcosov.bilivideo.com",
+    "upos-sz-mirror08h.bilivideo.com",
+)
+
+_OVERSEAS_GLOBAL_DASH_CDNS = (
+    *_OVERSEAS_DIRECT_DASH_CDNS,
+    "upos-hz-mirrorakam.akamaized.net",
+)
+
+_MAINLAND_DASH_CDNS = (
     "upos-sz-mirrorali.bilivideo.com",
     "upos-sz-mirroralib.bilivideo.com",
     "upos-sz-mirrorali02.bilivideo.com",
     "upos-sz-mirrorbos.bilivideo.com",
-    "upos-tf-all-tx.bilivideo.com",
     "upos-sz-mirrorcos.bilivideo.com",
     "upos-sz-mirrorhw.bilivideo.com",
 )
+
+_TIER1_DASH_CDNS = (
+    "upos-sz-mirroraliov.bilivideo.com",
+    *_HK_TW_DASH_CDNS,
+    "upos-sz-mirrorcosov.bilivideo.com",
+    "upos-sz-mirror08h.bilivideo.com",
+)
+
+_TIER2_DASH_CDNS = _MAINLAND_DASH_CDNS
 _TIER2_DASH_CDN_SET = frozenset(_TIER2_DASH_CDNS)
 
-# Known NXDOMAIN in TW/overseas — never synthesized; kept only if playurl returns them.
-#   upos-sz-mirrorhwov.bilivideo.com   -> NXDOMAIN
-#   upos-hz-mirroraliov.bilivideo.com  -> NXDOMAIN
+_DASH_CDN_PRESETS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    "overseas_hk_tw": (
+        (*_TIER1_DASH_CDNS, "upos-hz-mirrorakam.akamaized.net"),
+        _MAINLAND_DASH_CDNS,
+    ),
+    "overseas": (
+        _OVERSEAS_GLOBAL_DASH_CDNS,
+        (*_HK_TW_DASH_CDNS, *_MAINLAND_DASH_CDNS),
+    ),
+    "hk_tw": (
+        (*_HK_TW_DASH_CDNS, "upos-sz-mirroraliov.bilivideo.com", "upos-sz-mirrorcosov.bilivideo.com"),
+        _MAINLAND_DASH_CDNS,
+    ),
+    "mainland": (
+        _MAINLAND_DASH_CDNS,
+        (*_HK_TW_DASH_CDNS, *_OVERSEAS_GLOBAL_DASH_CDNS),
+    ),
+    "auto": (
+        (*_TIER1_DASH_CDNS, "upos-hz-mirrorakam.akamaized.net", *_MAINLAND_DASH_CDNS[:3]),
+        _MAINLAND_DASH_CDNS[3:],
+    ),
+    "none": ((), ()),
+}
+
+_DASH_CDN_REGION_ALIASES: dict[str, str] = {
+    "oversea_hk_tw": "overseas_hk_tw",
+    "overseas+hk_tw": "overseas_hk_tw",
+    "oversea+hk_tw": "overseas_hk_tw",
+    "oversea": "overseas",
+    "cn": "mainland",
+    "off": "none",
+}
+
 _DEAD_DASH_CDN_SET = frozenset(
     {
         "upos-sz-mirrorhwov.bilivideo.com",
@@ -235,8 +268,61 @@ def _note_host_locked(url: str):
             del _host_locked_os[k]
 
 
+def _normalize_cdn_region(raw: str | None) -> str:
+    key = (raw or "").strip().lower().replace("-", "_").replace(" ", "")
+    key = _DASH_CDN_REGION_ALIASES.get(key, key)
+    return key if key in _DASH_CDN_PRESETS else "overseas_hk_tw"
+
+
+def _validated_custom_cdn_mirrors(raw) -> tuple[str, ...]:
+    if not raw:
+        return ()
+    items = raw.split(",") if isinstance(raw, str) else raw
+    if not isinstance(items, (list, tuple, set)):
+        return ()
+    hosts: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        if not isinstance(item, str):
+            continue
+        candidate = item.strip().lower()
+        if not candidate:
+            continue
+        if "://" in candidate:
+            try:
+                candidate = (urlparse(candidate).hostname or "").lower()
+            except ValueError:
+                continue
+        else:
+            candidate = candidate.split("/", 1)[0].split(":", 1)[0]
+        if not candidate or candidate in seen:
+            continue
+        if is_allowed_url_host(f"https://{candidate}/", _ALLOWED_DASH_DOMAINS) is None:
+            continue
+        seen.add(candidate)
+        hosts.append(candidate)
+    return tuple(hosts)
+
+
+def _get_dash_cdn_tiers() -> tuple[tuple[str, ...], tuple[str, ...]]:
+    dash_conf = appconf.get("dash") if isinstance(appconf, dict) else None
+    dash_conf = dash_conf if isinstance(dash_conf, dict) else {}
+    region = _normalize_cdn_region(dash_conf.get("cdn_region"))
+    if region == "none":
+        return (), ()
+    preset_t1, preset_t2 = _DASH_CDN_PRESETS[region]
+    custom = _validated_custom_cdn_mirrors(dash_conf.get("custom_cdn_mirrors"))
+    if not custom:
+        return preset_t1, preset_t2
+    custom_set = frozenset(custom)
+    tier1 = (*custom, *(h for h in preset_t1 if h not in custom_set))
+    tier2 = tuple(h for h in preset_t2 if h not in custom_set)
+    return tier1, tier2
+
+
 def _is_tier2_dash_url(url: str) -> bool:
-    return (urlparse(url).hostname or "").lower() in _TIER2_DASH_CDN_SET
+    _, tier2 = _get_dash_cdn_tiers()
+    return (urlparse(url).hostname or "").lower() in tier2
 
 
 def _is_dead_dash_url(url: str) -> bool:
@@ -251,8 +337,9 @@ def _synthesize_dash_mirrors(url: str) -> tuple[list[str], list[str]]:
     host = (parsed.hostname or "").lower()
     if not (host.endswith(".bilivideo.com") or host.endswith(".bilivideo.cn")):
         return [], []
-    tier1 = [urlunparse(parsed._replace(netloc=cdn)) for cdn in _TIER1_DASH_CDNS if cdn != host]
-    tier2 = [urlunparse(parsed._replace(netloc=cdn)) for cdn in _TIER2_DASH_CDNS if cdn != host]
+    tier1_hosts, tier2_hosts = _get_dash_cdn_tiers()
+    tier1 = [urlunparse(parsed._replace(netloc=cdn)) for cdn in tier1_hosts if cdn != host]
+    tier2 = [urlunparse(parsed._replace(netloc=cdn)) for cdn in tier2_hosts if cdn != host]
     return tier1, tier2
 
 
@@ -628,12 +715,35 @@ def _mirror_is_sick(host: str | None) -> bool:
     return time.monotonic() < entry[1]
 
 
+_MIRROR_EWMA_DEMOTE_FLOOR_BPS = 512 * 1024
+_MIRROR_EWMA_SLOW_RATIO = 0.5
+
+
+def _mirror_ewma_bps(host: str) -> float:
+    entry = _mirror_health.get(host)
+    return float(entry[3]) if entry is not None else 0.0
+
+
 def _order_urls_by_health(urls: list) -> list:
-    """Healthy mirrors first (original order), mirrors in cooldown last (earliest expiry first)."""
+    """Healthy mirrors first (demoting measured slow edges), sick mirrors last (earliest expiry first)."""
     healthy, sick = [], []
     for u in urls:
         (sick if _mirror_is_sick(urlparse(u).hostname or "") else healthy).append(u)
     sick.sort(key=lambda u: _mirror_cooldown_until(urlparse(u).hostname or ""))
+    if len(healthy) > 1:
+        ewmas = [_mirror_ewma_bps(urlparse(u).hostname or "") for u in healthy]
+        best_bps = max(ewmas, default=0.0)
+        if best_bps >= _MIRROR_EWMA_DEMOTE_FLOOR_BPS:
+            threshold = best_bps * _MIRROR_EWMA_SLOW_RATIO
+            fast_or_unknown, slow_healthy = [], []
+            for u, bps in zip(healthy, ewmas, strict=True):
+                if 0.0 < bps < threshold:
+                    slow_healthy.append((bps, u))
+                else:
+                    fast_or_unknown.append(u)
+            if slow_healthy:
+                slow_healthy.sort(key=lambda pair: pair[0], reverse=True)
+                healthy = fast_or_unknown + [u for _, u in slow_healthy]
     return healthy + sick
 
 

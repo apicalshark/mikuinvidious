@@ -58,6 +58,16 @@ Live stream format policies.
 
 ---
 
+## `[dash]`
+DASH CDN mirror synthesis and regional selection.
+
+| Key | Environment Variable | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `cdn_region` | `DASH_CDN_REGION` | `overseas_hk_tw` | Regional mirror preset for DASH host-rewriting: `overseas_hk_tw` (overseas + HK/TW Tier 1), `overseas` (EU/US global Tier 1), `hk_tw` (HK/TW Tier 1), `mainland` (Mainland China Tier 1), `auto` (broad pool ranked by passive EWMA throughput), or `none` (disable synthesis). |
+| `custom_cdn_mirrors` | `DASH_CUSTOM_CDN_MIRRORS` | `[]` | Optional list of allowed Bilibili CDN hostnames prepended to Tier 1 (TOML array in `config.toml`, comma-separated string in env). Non-allowlisted domains are ignored. |
+
+---
+
 ## `[credential]`
 Authentication credentials for accessing higher video resolutions (e.g., 1080p+), paid content, or reducing datacenter IP risk-control gating.
 

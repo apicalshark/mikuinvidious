@@ -86,6 +86,12 @@ def get_default_config() -> dict[str, Any]:
         "live": {
             "prefer_hls": os.environ.get("LIVE_PREFER_HLS", "false").lower() == "true",
         },
+        "dash": {
+            "cdn_region": os.environ.get("DASH_CDN_REGION", "overseas_hk_tw"),
+            "custom_cdn_mirrors": [
+                h.strip() for h in os.environ.get("DASH_CUSTOM_CDN_MIRRORS", "").split(",") if h.strip()
+            ],
+        },
         "credential": {
             "use_cred": os.environ.get("USE_CRED", "false").lower() == "true",
             "sessdata": os.environ.get("SESSDATA"),
