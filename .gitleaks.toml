@@ -11,6 +11,7 @@ paths = [
 
 [[allowlists]]
 description = "Public Bilibili WBI fallback keys and unit test fixtures (anchored secret values only)"
+condition = "AND"
 paths = [
   '''(^|/)python/miku/api/client\.py$''',
   '''(^|/)tests/test_wbi\.py$''',
