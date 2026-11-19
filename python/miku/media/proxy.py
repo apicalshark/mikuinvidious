@@ -1044,9 +1044,18 @@ async def _rewrite_hls_playlist(playlist_text: str, base_url: str) -> str:
     return "\n".join(rewritten) + "\n"
 
 
+async def _live_hls_ip_key(req) -> str:
+    return f"{get_client_ip(req)}:live_hls"
+
+
+async def _live_hls_target_key(req) -> str:
+    sig = req.args.get("sig") or ""
+    return f"{get_client_ip(req)}:live_hls:{sig[:16]}"
+
+
 @proxy_bp.route("/proxy/live_hls")
-@rate_limit(limit=300, window=60, key_func=_proxy_ip_key)
-@rate_limit(**RATE_LIMITS["proxy"])
+@rate_limit(limit=600, window=60, key_func=_live_hls_ip_key)
+@rate_limit(limit=120, window=60, key_func=_live_hls_target_key)
 async def proxy_live_hls():
     sig = request.args.get("sig")
     target_url = request.args.get("u")
