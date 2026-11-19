@@ -6,7 +6,7 @@ useDefault = true
 [[allowlists]]
 description = "Vendored frontend bundles containing standard public UUIDs (e.g. W3C ClearKey)"
 paths = [
-  '''^static/vjs/''',
+  '''(^|/)static/vjs/''',
 ]
 
 [[allowlists]]
