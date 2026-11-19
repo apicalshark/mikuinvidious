@@ -23,7 +23,7 @@ from miku.core.dns_cache import is_safe_public_url
 from miku.core.ip_slots import PerIpSlotLimiter
 from miku.core.rate_limit import RATE_LIMITS, get_client_ip, rate_limit
 from miku.core.singleflight import BoundedNegativeCache, SingleflightGroup
-from miku.core.url_signing import verify_signed_pic_subpath
+from miku.core.url_signing import sign_live_hls_url, verify_live_hls_url, verify_signed_pic_subpath
 from miku.media.image_cache import image_cache
 from miku.media.live_manager import live_manager
 from miku.media.stream import CdnConnection, CdnProtocolError, CdnTimeoutError
@@ -960,6 +960,226 @@ def _is_live_hls_url(url: str) -> bool:
     return "master" in path or "hls" in path
 
 
+_MAX_HLS_PLAYLIST_BYTES = 2 * 1024 * 1024
+_HLS_URI_ATTR_RE = re.compile(r'URI="([^"]+)"')
+
+
+def _is_hls_playlist_response(final_url: str, resp_headers) -> bool:
+    if ".m3u8" in urlparse(final_url).path.lower():
+        return True
+    ct = (resp_headers.headers.get("content-type") or "").lower()
+    return "mpegurl" in ct
+
+
+async def _follow_hls_redirects(conn, resp_headers, current_url: str, headers: dict[str, str], proxy_url: str | None):
+    for _ in range(5):
+        if resp_headers.status_code not in (301, 302, 303, 307, 308):
+            return conn, resp_headers, current_url, None
+        await conn.close()
+        location = resp_headers.headers.get("location")
+        if not location:
+            return None, None, current_url, Response("Upstream redirect missing Location", status=502)
+        try:
+            target_url = urljoin(current_url, location)
+        except ValueError:
+            return None, None, current_url, Response("Forbidden: Invalid redirect target", status=403)
+        if not await is_safe_proxy_url(target_url):
+            return None, None, current_url, Response("Forbidden: Invalid redirect target", status=403)
+        next_conn, next_headers = await _cdn_handshake(target_url, headers, proxy_url, "hls redirect")
+        if next_conn is None:
+            return None, None, target_url, Response("Upstream error", status=502)
+        conn, resp_headers, current_url = next_conn, next_headers, target_url
+    await conn.close()
+    return None, None, current_url, Response("Forbidden: Too many redirects", status=403)
+
+
+async def _read_hls_playlist(conn) -> str:
+    buf = bytearray()
+    async for chunk in conn.iter_chunks():
+        buf.extend(chunk)
+        if len(buf) > _MAX_HLS_PLAYLIST_BYTES:
+            raise ValueError("HLS playlist too large")
+    return buf.decode("utf-8", errors="replace")
+
+
+async def _rewrite_hls_playlist(playlist_text: str, base_url: str) -> str:
+    rewritten: list[str] = []
+    for raw_line in playlist_text.splitlines():
+        line = raw_line.rstrip("\r")
+        stripped = line.strip()
+        if not stripped:
+            rewritten.append(line)
+            continue
+        if stripped.startswith("#"):
+            if 'URI="' in line:
+                parts: list[str] = []
+                last_end = 0
+                for match in _HLS_URI_ATTR_RE.finditer(line):
+                    parts.append(line[last_end : match.start(1)])
+                    raw_uri = match.group(1)
+                    try:
+                        abs_uri = urljoin(base_url, raw_uri)
+                    except ValueError:
+                        parts.append(raw_uri)
+                    else:
+                        if await is_safe_proxy_url(abs_uri):
+                            parts.append(sign_live_hls_url(abs_uri))
+                        else:
+                            parts.append(raw_uri)
+                    last_end = match.end(1)
+                parts.append(line[last_end:])
+                line = "".join(parts)
+            rewritten.append(line)
+            continue
+
+        try:
+            abs_uri = urljoin(base_url, stripped)
+        except ValueError:
+            rewritten.append(line)
+            continue
+        if await is_safe_proxy_url(abs_uri):
+            rewritten.append(sign_live_hls_url(abs_uri))
+        else:
+            rewritten.append(line)
+    return "\n".join(rewritten) + "\n"
+
+
+@proxy_bp.route("/proxy/live_hls")
+@rate_limit(limit=300, window=60, key_func=_proxy_ip_key)
+@rate_limit(**RATE_LIMITS["proxy"])
+async def proxy_live_hls():
+    sig = request.args.get("sig")
+    target_url = request.args.get("u")
+    if not verify_live_hls_url(sig, target_url):
+        return Response("Forbidden: Invalid signature", status=403)
+    if not await is_safe_proxy_url(target_url):
+        return Response("Forbidden: Invalid proxy target", status=403)
+
+    slot = direct_stream_slots.try_acquire(get_client_ip(request))
+    if slot is None:
+        return _too_many_streams()
+    handed_off = False
+    try:
+        headers = get_common_headers(appconf["bili"]).copy()
+        ticket = await TicketManager.get_ticket()
+        headers["session_id"] = TicketManager._generate_session_id()
+        headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+        apply_cdn_cred_headers(headers, shared.appcred, ticket)
+
+        for k, v in request.headers.items():
+            if k.lower() in ["range", "if-range", "x-playback-session-id"]:
+                headers[k.lower()] = v
+
+        proxy_url = Network.get_proxy()
+        conn, resp_headers = await _establish_cdn_connection(target_url, headers, proxy_url)
+        if conn is None:
+            return Response("Upstream error", status=502)
+
+        try:
+            if resp_headers.status_code in [403, 412, 514]:
+                await conn.close()
+                ticket = await TicketManager.get_ticket(force_refresh=True)
+                if ticket:
+                    headers["x-bili-ticket"] = ticket
+                else:
+                    headers.pop("x-bili-ticket", None)
+                headers["session_id"] = TicketManager._generate_session_id()
+                headers["x-bili-trace-id"] = TicketManager._generate_trace_id()
+                conn, resp_headers = await _cdn_handshake(target_url, headers, proxy_url, "live-hls ticket retry")
+                if conn is None:
+                    return Response("Upstream error", status=502)
+
+            if resp_headers.status_code in (301, 302, 303, 307, 308):
+                conn, resp_headers, target_url, err_resp = await _follow_hls_redirects(
+                    conn, resp_headers, target_url, headers, proxy_url
+                )
+                if err_resp is not None:
+                    return err_resp
+
+            if resp_headers.status_code == 200 and _is_hls_playlist_response(target_url, resp_headers):
+                try:
+                    playlist_text = await _read_hls_playlist(conn)
+                except ValueError:
+                    return Response("Upstream playlist too large", status=502)
+                finally:
+                    await conn.close()
+                rewritten = await _rewrite_hls_playlist(playlist_text, target_url)
+                return Response(
+                    rewritten,
+                    status=200,
+                    headers={
+                        "Content-Type": "application/vnd.apple.mpegurl",
+                        "Cache-Control": "no-store",
+                        "Access-Control-Allow-Origin": "*",
+                    },
+                )
+
+            gen_started = False
+
+            async def generate():
+                nonlocal gen_started
+                gen_started = True
+                try:
+                    async for chunk in conn.iter_chunks():
+                        yield chunk
+                except asyncio.CancelledError, GeneratorExit:
+                    raise
+                except CdnProtocolError, CdnTimeoutError, TimeoutError, OSError:
+                    cl = resp_headers.headers.get("content-length")
+                    has_content_length = False
+                    if cl is not None and str(cl).strip():
+                        try:
+                            has_content_length = int(str(cl).strip()) >= 0
+                        except ValueError:
+                            has_content_length = False
+                    if not has_content_length:
+                        raise
+                    return
+                finally:
+                    await conn.close()
+                    slot.release()
+
+            gen = generate()
+            loop = asyncio.get_running_loop()
+
+            def _on_gen_discard(c=conn, s=slot, lp=loop):
+                s.release()
+                if not gen_started:
+                    _schedule_discarded_conn_close(lp, c)
+
+            weakref.finalize(gen, _on_gen_discard)
+            handed_off = True
+            proxy_resp = Response(gen, status=resp_headers.status_code)
+            proxy_resp.headers["Access-Control-Allow-Origin"] = "*"
+            proxy_resp.headers["X-Accel-Buffering"] = "no"
+            for k, v in resp_headers.headers.items():
+                if k.lower() in UPSTREAM_RESPONSE_BLACKLIST:
+                    continue
+                if k.lower() in [
+                    "content-type",
+                    "content-length",
+                    "content-range",
+                    "accept-ranges",
+                    "cache-control",
+                ]:
+                    proxy_resp.headers[k] = v
+            if resp_headers.status_code in (200, 206):
+                current_ct = proxy_resp.headers.get("Content-Type", "").lower()
+                if not current_ct or "application/octet-stream" in current_ct:
+                    path_lower = urlparse(target_url).path.lower()
+                    if path_lower.endswith((".m4s", ".mp4")):
+                        proxy_resp.headers["Content-Type"] = "video/mp4"
+                    elif path_lower.endswith(".ts"):
+                        proxy_resp.headers["Content-Type"] = "video/mp2t"
+            return proxy_resp
+        except Exception:
+            await conn.close()
+            return Response("Upstream error", status=502)
+    finally:
+        if not handed_off:
+            slot.release()
+
+
 @proxy_bp.route("/proxy/<path:subpath>")
 @rate_limit(limit=300, window=60, key_func=_proxy_ip_key)
 @rate_limit(**RATE_LIMITS["proxy"])
@@ -1208,25 +1428,30 @@ async def proxy_main(subpath):
                             print(f"[Proxy] All quality fallbacks failed for {vid}_{vidx}")
                             return Response("Upstream returned 403 and no fallback available", status=502)
 
-                if is_hls_live and resp_headers.status_code in (301, 302, 303, 307, 308):
-                    await conn.close()
-                    location = resp_headers.headers.get("location")
-                    if not location:
-                        return Response("Upstream redirect missing Location", status=502)
-                    try:
-                        target_url = urljoin(url, location)
-                    except ValueError:
-                        return Response("Forbidden: Invalid redirect target", status=403)
-                    if not await is_safe_proxy_url(target_url):
-                        return Response("Forbidden: Invalid redirect target", status=403)
-                    return Response(
-                        status=resp_headers.status_code,
-                        headers={
-                            "Location": target_url,
-                            "Access-Control-Allow-Origin": "*",
-                            "Cache-Control": "no-store",
-                        },
-                    )
+                if is_hls_live:
+                    if resp_headers.status_code in (301, 302, 303, 307, 308):
+                        conn, resp_headers, url, err_resp = await _follow_hls_redirects(
+                            conn, resp_headers, url, headers, proxy_url
+                        )
+                        if err_resp is not None:
+                            return err_resp
+                    if resp_headers.status_code == 200 and _is_hls_playlist_response(url, resp_headers):
+                        try:
+                            playlist_text = await _read_hls_playlist(conn)
+                        except ValueError:
+                            return Response("Upstream playlist too large", status=502)
+                        finally:
+                            await conn.close()
+                        rewritten = await _rewrite_hls_playlist(playlist_text, url)
+                        return Response(
+                            rewritten,
+                            status=200,
+                            headers={
+                                "Content-Type": "application/vnd.apple.mpegurl",
+                                "Cache-Control": "no-store",
+                                "Access-Control-Allow-Origin": "*",
+                            },
+                        )
 
                 gen_started = False
 

@@ -218,3 +218,14 @@ def verify_dash_track_sig(sig: str | None, vid: str, idx: int, media_type: str, 
     except TypeError, ValueError:
         return False
     return _verify_sig(sig, "dash", payload)
+
+
+def sign_live_hls_url(url: str) -> str:
+    sig = _compute_sig("live_hls", url)
+    return f"/proxy/live_hls?sig={sig}&u={quote(url, safe='')}"
+
+
+def verify_live_hls_url(sig: str | None, url: str | None) -> bool:
+    if not url:
+        return False
+    return _verify_sig(sig, "live_hls", url)

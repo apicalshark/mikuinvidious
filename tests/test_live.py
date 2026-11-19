@@ -897,9 +897,12 @@ class TestLiveHlsProxy(unittest.IsolatedAsyncioTestCase):
 
     async def test_live_hls_master_url_bypasses_flv_live_manager(self):
         import miku.media.proxy as media_proxy
+        from miku.core.url_signing import sign_live_hls_url
         from miku.media.stream import CdnResponse
 
-        manifest = b"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\nhttps://d1--ov-gotcha207.bilivideo.com/a/index.m3u8\n"
+        cdn_playlist_url = "https://d1--ov-gotcha207.bilivideo.com/a/index.m3u8"
+        manifest = f"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\n{cdn_playlist_url}\n".encode()
+        expected = f"#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000\n{sign_live_hls_url(cdn_playlist_url)}\n".encode()
 
         class _FakeConn:
             async def iter_chunks(self):
@@ -933,7 +936,7 @@ class TestLiveHlsProxy(unittest.IsolatedAsyncioTestCase):
             body = await resp.get_data()
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(body, manifest)
+        self.assertEqual(body, expected)
         self.assertEqual(resp.headers.get("Content-Type"), "application/vnd.apple.mpegurl")
         self.assertEqual(resp.headers.get("Cache-Control"), "no-store")
         self.assertIsNone(resp.headers.get("X-Miku-Proxy"))
@@ -944,22 +947,36 @@ class TestLiveHlsProxy(unittest.IsolatedAsyncioTestCase):
         from miku.media.stream import CdnResponse
 
         master_url = "https://api.live.bilibili.com/xlive/play-interface/v1/index/getMasterUrl?cid=22747736"
+
+        class _FakePlaylistConn:
+            def __init__(self):
+                self.close = AsyncMock()
+
+            async def iter_chunks(self):
+                yield b"#EXTM3U\n#EXTINF:1.0,\nseg1.m4s\n"
+
         cases = [
-            ("https://d1.bilivideo.com/index.m3u8", True, 0),
-            ("/index.m3u8", True, 0),
+            ("https://d1.bilivideo.com/index.m3u8", True, 200),
+            ("/index.m3u8", True, 200),
             ("https://127.0.0.1/index.m3u8", False, 403),
             ("https://evil.example/index.m3u8", False, 403),
             ("https://[malformed", False, 403),
             (None, False, 502),
         ]
         for status in (301, 302, 303, 307, 308):
-            for location, safe, error in cases:
+            for location, safe, expected_status in cases:
                 with self.subTest(status=status, location=location):
                     conn = AsyncMock()
                     upstream = CdnResponse()
                     upstream.status_code = status
                     upstream.headers = {"location": location} if location is not None else {}
-                    guard = AsyncMock(side_effect=[True, safe])
+
+                    final_conn = _FakePlaylistConn()
+                    final_headers = CdnResponse()
+                    final_headers.status_code = 200
+                    final_headers.headers = {"content-type": "application/vnd.apple.mpegurl"}
+
+                    guard = AsyncMock(side_effect=[True, safe, safe])
                     with (
                         patch.object(media_proxy.appredis, "get", new=AsyncMock(return_value=master_url.encode())),
                         patch.object(media_proxy, "is_safe_proxy_url", guard),
@@ -970,18 +987,23 @@ class TestLiveHlsProxy(unittest.IsolatedAsyncioTestCase):
                             "_establish_cdn_connection",
                             new=AsyncMock(return_value=(conn, upstream)),
                         ),
+                        patch.object(
+                            media_proxy,
+                            "_cdn_handshake",
+                            new=AsyncMock(return_value=(final_conn, final_headers)),
+                        ),
                     ):
                         resp = await self.client.get("/proxy/live/22747736_10000")
-                        await resp.get_data()
-                    self.assertEqual(resp.status_code, error or status)
+                        body = await resp.get_data(as_text=True)
+                    self.assertEqual(resp.status_code, expected_status)
+                    self.assertIsNone(resp.headers.get("Location"))
                     if safe:
                         target = (
                             location if location.startswith("https://") else "https://api.live.bilibili.com/index.m3u8"
                         )
-                        self.assertEqual(resp.headers["Location"], target)
-                        self.assertEqual(guard.await_args_list[-1].args, (target,))
-                    else:
-                        self.assertIsNone(resp.headers.get("Location"))
+                        self.assertIn(target, [call.args[0] for call in guard.await_args_list])
+                        self.assertIn("/proxy/live_hls?sig=", body)
+                        final_conn.close.assert_awaited_once()
                     conn.close.assert_awaited_once()
                     subscribe.assert_not_awaited()
 
