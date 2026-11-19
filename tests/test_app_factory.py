@@ -62,6 +62,59 @@ class TestSecurityHeaders(unittest.IsolatedAsyncioTestCase):
         self.assertIn("object-src 'none'", csp)
         self.assertIn("frame-ancestors 'none'", csp)
 
+    async def test_chunked_multipart_exceeding_max_content_length_returns_413(self):
+        from quart import request
+
+        conf = get_default_config()
+        conf["quart"] = {"MAX_CONTENT_LENGTH": 256}
+        app = create_app(conf)
+
+        @app.route("/upload", methods=["POST"])
+        async def upload():
+            await request.form
+            return "ok"
+
+        boundary = "----mikuBoundary"
+        payload = (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="file"; filename="big.bin"\r\n'
+            f"Content-Type: application/octet-stream\r\n\r\n" + ("A" * 1024) + f"\r\n--{boundary}--\r\n"
+        ).encode()
+
+        chunks = [payload[i : i + 128] for i in range(0, len(payload), 128)]
+        sent: list[dict] = []
+
+        async def receive():
+            if chunks:
+                body = chunks.pop(0)
+                return {"type": "http.request", "body": body, "more_body": bool(chunks)}
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        scope = {
+            "type": "http",
+            "asgi": {"version": "3.0"},
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/upload",
+            "raw_path": b"/upload",
+            "query_string": b"",
+            "headers": [
+                (b"host", b"localhost"),
+                (b"content-type", f"multipart/form-data; boundary={boundary}".encode()),
+                (b"transfer-encoding", b"chunked"),
+            ],
+            "client": ("127.0.0.1", 12345),
+            "server": ("localhost", 80),
+        }
+
+        await app.asgi_app(scope, receive, send)
+        start = next(m for m in sent if m["type"] == "http.response.start")
+        self.assertEqual(start["status"], 413)
+
 
 if __name__ == "__main__":
     unittest.main()

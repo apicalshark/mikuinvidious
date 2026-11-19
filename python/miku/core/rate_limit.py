@@ -115,6 +115,14 @@ class RateLimiter:
     def _fallback_is_allowed(self, key: str, limit: int, window: int) -> tuple[bool, dict]:
         now_f = time.time()
         now = int(now_f)
+        if limit <= 0:
+            reset_time = now + window
+            return False, {
+                "remaining": 0,
+                "reset": reset_time,
+                "limit": limit,
+                "retry_after": max(window, 1),
+            }
         cutoff = now_f - window
         bucket = self._fallback_buckets.get(key)
         if bucket is None:

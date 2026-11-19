@@ -292,6 +292,7 @@ class _DownloadJob:
         self.total_bytes = 0
         self.done_bytes = 0
         self.disk_bytes = 0
+        self.active_streams = 0
         self.speed_bps = 0.0
         self.status_note = None  # transient user-facing note (e.g. retry backoff)
         self.filename = _safe_download_filename(vid, idx, qual)
@@ -370,6 +371,35 @@ def _remove_job_tmpdir(job: _DownloadJob):
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
+def _cleanup_orphaned_download_dirs_sync(active_tmpdirs: set[str]) -> int:
+    tmp_root = tempfile.gettempdir()
+    removed = 0
+    try:
+        entries = list(os.scandir(tmp_root))
+    except OSError:
+        return 0
+    for entry in entries:
+        if not entry.name.startswith("miku_dl_"):
+            continue
+        if not entry.is_dir(follow_symlinks=False):
+            continue
+        resolved = os.path.abspath(entry.path)
+        if resolved in active_tmpdirs:
+            continue
+        shutil.rmtree(entry.path, ignore_errors=True)
+        removed += 1
+    return removed
+
+
+async def cleanup_orphaned_download_dirs() -> int:
+    async with _jobs_lock:
+        active_tmpdirs = {os.path.abspath(j.tmpdir) for j in _download_jobs.values() if j.tmpdir}
+    removed = await asyncio.to_thread(_cleanup_orphaned_download_dirs_sync, active_tmpdirs)
+    if removed:
+        print(f"[DashProxy] cleaned up {removed} orphaned download temp dir(s)")
+    return removed
+
+
 def _job_ready_disk_bytes(job: _DownloadJob) -> int:
     if job.disk_bytes > 0:
         return job.disk_bytes
@@ -389,7 +419,7 @@ async def _sweep_jobs():
     async with _jobs_lock:
         for jid, job in list(_download_jobs.items()):
             age = now - job.updated_at
-            if job.state == "ready" and age > _JOB_READY_TTL:
+            if job.state == "ready" and age > _JOB_READY_TTL and job.active_streams == 0:
                 _remove_job_tmpdir(job)
                 del _download_jobs[jid]
             elif job.state in ("error", "cancelled") and age > _JOB_END_TTL:
@@ -404,7 +434,11 @@ async def _sweep_jobs():
         # Hard registry cap: drop oldest terminal jobs first.
         if len(_download_jobs) > 100:
             terminal = sorted(
-                ((j.updated_at, jid) for jid, j in _download_jobs.items() if j.state in ("ready", "error", "cancelled"))
+                (
+                    (j.updated_at, jid)
+                    for jid, j in _download_jobs.items()
+                    if j.state in ("ready", "error", "cancelled") and j.active_streams == 0
+                )
             )
             for _, jid in terminal[: len(_download_jobs) - 100]:
                 _remove_job_tmpdir(_download_jobs[jid])
@@ -418,6 +452,8 @@ async def _sweep_jobs():
         for _, jid, size in ready_jobs:
             if total_disk <= disk_budget:
                 break
+            if _download_jobs[jid].active_streams > 0:
+                continue
             _remove_job_tmpdir(_download_jobs[jid])
             del _download_jobs[jid]
             total_disk -= size
@@ -788,6 +824,12 @@ async def _run_download_job(job: _DownloadJob):
             job.disk_bytes = await asyncio.to_thread(os.path.getsize, job.outpath)
         except OSError:
             job.disk_bytes = 0
+        job.throw_if_cancelled()
+        disk_budget = _max_download_disk_bytes()
+        if job.disk_bytes > disk_budget:
+            raise RuntimeError(
+                f"Download exceeds disk quota ({job.disk_bytes // (1024 * 1024)} MB > {disk_budget // (1024 * 1024)} MB)"
+            )
         job.state = "ready"
         job.set_note(None)
         job.speed_bps = 0.0
@@ -827,21 +869,28 @@ async def download_status(job_id):
 async def download_file(job_id):
     """Stream the finished file as an attachment. Kept until TTL for retries."""
     await _sweep_jobs()
-    job = await _get_job(job_id)
-    if job is None:
+    if not job_id or len(job_id) > 64:
         return jsonify({"error": "job not found or expired"}), 404
-    if job.state != "ready":
-        return jsonify(job.to_status()), 409
-    outpath = job.outpath
-    if not outpath or not os.path.exists(outpath):
-        return jsonify({"error": "file no longer available"}), 410
+    async with _jobs_lock:
+        job = _download_jobs.get(job_id)
+        if job is None:
+            return jsonify({"error": "job not found or expired"}), 404
+        if job.state != "ready":
+            return jsonify(job.to_status()), 409
+        outpath = job.outpath
+        if not outpath:
+            return jsonify({"error": "file no longer available"}), 410
+        job.active_streams += 1
+
     try:
         size = await asyncio.to_thread(os.path.getsize, outpath)
+        f = await asyncio.to_thread(open, outpath, "rb")
     except OSError:
+        async with _jobs_lock:
+            job.active_streams = max(0, job.active_streams - 1)
         return jsonify({"error": "file no longer available"}), 410
 
     async def generate():
-        f = await asyncio.to_thread(open, outpath, "rb")
         try:
             while True:
                 chunk = await asyncio.to_thread(f.read, 512 * 1024)
@@ -850,6 +899,8 @@ async def download_file(job_id):
                 yield chunk
         finally:
             await asyncio.to_thread(f.close)
+            async with _jobs_lock:
+                job.active_streams = max(0, job.active_streams - 1)
 
     ext = ".flv" if outpath.lower().endswith(".flv") else ".mp4"
     resp = Response(generate())

@@ -49,8 +49,11 @@ async def monitor_fd():
 
 @app.before_serving
 async def start_background_tasks():
+    from miku.dash.download_job import cleanup_orphaned_download_dirs
+
     loop = asyncio.get_running_loop()
     loop.set_task_factory(asyncio.eager_task_factory)
+    await cleanup_orphaned_download_dirs()
     if appconf["server"]["monitor_fd"]:
         app.add_background_task(monitor_fd)
 

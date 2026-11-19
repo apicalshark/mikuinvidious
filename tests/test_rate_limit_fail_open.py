@@ -65,3 +65,16 @@ class TestRateLimitFailOpen(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await limiter.get_current_usage("127.0.0.1:/test", window=60), 0)
         await limiter.is_allowed("127.0.0.1:/test", limit=5, window=60)
         self.assertEqual(await limiter.get_current_usage("127.0.0.1:/test", window=60), 1)
+
+    async def test_non_positive_limit_does_not_grow_fallback_store(self):
+        mock_redis = MagicMock()
+        mock_pipe = MagicMock()
+        mock_pipe.execute = AsyncMock(side_effect=ConnectionError("Redis down"))
+        mock_redis.pipeline.return_value = mock_pipe
+
+        limiter = RateLimiter(mock_redis, fallback_max_keys=2)
+        for i in range(5):
+            allowed, info = await limiter.is_allowed(f"10.0.0.{i}:/test", limit=0, window=60)
+            self.assertFalse(allowed)
+            self.assertEqual(info["remaining"], 0)
+        self.assertEqual(len(limiter._fallback_buckets), 0)
