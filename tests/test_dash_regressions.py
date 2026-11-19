@@ -625,6 +625,80 @@ class DashAudioOptimizationTests(unittest.IsolatedAsyncioTestCase):
         finally:
             dash_common._mirror_health.clear()
 
+    def test_cdn_region_presets_and_aliases(self):
+        from urllib.parse import urlparse
+
+        from miku.dash.stream import _dash_candidate_urls
+
+        dash_common._host_locked_os.clear()
+        track = {"base_url": "https://upos-sz-mirrorali.bilivideo.com/upgcxcode/1/2/3.m4s", "backup_url": []}
+
+        with patch.dict(dash_common.appconf, {"dash": {"cdn_region": "oversea+hk_tw", "custom_cdn_mirrors": []}}):
+            hosts = [urlparse(u).hostname for u in _dash_candidate_urls(track)]
+            self.assertIn("upos-sz-mirroraliov.bilivideo.com", hosts[:7])
+            self.assertIn("cn-hk-eq-01-03.bilivideo.com", hosts[:7])
+            self.assertIn("upos-hz-mirrorakam.akamaized.net", hosts)
+            self.assertGreater(
+                hosts.index("upos-sz-mirrorali.bilivideo.com"), hosts.index("upos-hz-mirrorakam.akamaized.net")
+            )
+
+        with patch.dict(dash_common.appconf, {"dash": {"cdn_region": "overseas", "custom_cdn_mirrors": []}}):
+            hosts = [urlparse(u).hostname for u in _dash_candidate_urls(track)]
+            akam_idx = hosts.index("upos-hz-mirrorakam.akamaized.net")
+            self.assertIn("upos-sz-mirroraliov.bilivideo.com", hosts[:akam_idx])
+            self.assertGreater(hosts.index("cn-hk-eq-01-03.bilivideo.com"), akam_idx)
+
+        with patch.dict(dash_common.appconf, {"dash": {"cdn_region": "mainland", "custom_cdn_mirrors": []}}):
+            hosts = [urlparse(u).hostname for u in _dash_candidate_urls(track)]
+            ali_idx = hosts.index("upos-sz-mirrorali.bilivideo.com")
+            self.assertLess(ali_idx, hosts.index("upos-sz-mirroraliov.bilivideo.com"))
+            self.assertLess(ali_idx, hosts.index("cn-hk-eq-01-03.bilivideo.com"))
+
+        with patch.dict(dash_common.appconf, {"dash": {"cdn_region": "none", "custom_cdn_mirrors": []}}):
+            hosts = [urlparse(u).hostname for u in _dash_candidate_urls(track)]
+            self.assertEqual(hosts, ["upos-sz-mirrorali.bilivideo.com"])
+
+    def test_custom_cdn_mirrors_prepended_and_allowlist_enforced(self):
+        with patch.dict(
+            dash_common.appconf,
+            {
+                "dash": {
+                    "cdn_region": "none",
+                    "custom_cdn_mirrors": [
+                        "https://cn-sh-ct-01-01.bilivideo.com/ignored",
+                        "evil.example.com",
+                        "127.0.0.1",
+                        "upos-sz-mirror08h.bilivideo.com",
+                    ],
+                }
+            },
+        ):
+            tier1, tier2 = dash_common._get_dash_cdn_tiers()
+            self.assertEqual(tier1, ("cn-sh-ct-01-01.bilivideo.com", "upos-sz-mirror08h.bilivideo.com"))
+            self.assertEqual(tier2, ())
+
+    def test_order_urls_by_health_demotes_slow_ewma_mirrors(self):
+        dash_common._mirror_health.clear()
+        slow_url = "https://cn-hk-eq-01-01.bilivideo.com/x.m4s"
+        fast_a = "https://upos-sz-mirroraliov.bilivideo.com/x.m4s"
+        fast_b = "https://upos-sz-mirrorcosov.bilivideo.com/x.m4s"
+        unknown_url = "https://upos-sz-mirror08h.bilivideo.com/x.m4s"
+        sick_url = "https://upos-sz-mirrorali.bilivideo.com/x.m4s"
+        try:
+            dash_common._note_mirror_ok("cn-hk-eq-01-01.bilivideo.com", bytes_served=200 * 1024, elapsed_sec=1.0)
+            dash_common._note_mirror_ok(
+                "upos-sz-mirroraliov.bilivideo.com", bytes_served=4 * 1024 * 1024, elapsed_sec=1.0
+            )
+            dash_common._note_mirror_ok(
+                "upos-sz-mirrorcosov.bilivideo.com", bytes_served=3 * 1024 * 1024, elapsed_sec=1.0
+            )
+            dash_common._note_mirror_bad("upos-sz-mirrorali.bilivideo.com")
+
+            ordered = dash_common._order_urls_by_health([slow_url, fast_b, unknown_url, sick_url, fast_a])
+            self.assertEqual(ordered, [fast_b, unknown_url, fast_a, slow_url, sick_url])
+        finally:
+            dash_common._mirror_health.clear()
+
     async def test_peek_content_length_sends_range_zero_and_parses_content_range(self):
         sent_headers = {}
 

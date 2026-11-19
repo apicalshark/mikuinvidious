@@ -105,6 +105,20 @@ app_key = 'android64'
 ip_region = 'CN'
 legal_region = 'CN'
 
+[dash]
+# DASH CDN mirror synthesis preset (also DASH_CDN_REGION env):
+#    - 'overseas_hk_tw': Overseas global + HK/TW mirrors in Tier 1, mainland in Tier 2 (default)
+#    - 'overseas': Global overseas mirrors in Tier 1 (best for EU/US instances)
+#    - 'hk_tw': HK Equinix + Alibaba/Tencent overseas in Tier 1 (best for HK/TW/MO)
+#    - 'mainland': Mainland China mirrors in Tier 1, HK/overseas in Tier 2
+#    - 'auto': Broad global + mainland Tier 1 pool ranked by passive EWMA throughput
+#    - 'none': Disable mirror synthesis; use only URLs returned by Bilibili playurl
+cdn_region = 'overseas_hk_tw'
+
+# Optional custom Bilibili CDN hostnames prepended to Tier 1 (also DASH_CUSTOM_CDN_MIRRORS env, comma-separated).
+# Only allowed Bilibili CDN domains (e.g. *.bilivideo.com, *.akamaized.net) are accepted.
+# custom_cdn_mirrors = ['upos-sz-mirroraliov.bilivideo.com']
+
 [display]
 # The default theme for new visitors. Currently only 'modern' is officially supported.
 default_theme = 'modern'
