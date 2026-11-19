@@ -100,8 +100,11 @@ def main() -> None:
 
     values = generate_secrets(include_master_key=args.include_master_key)
     if args.write is None:
-        for key, secret in values.items():
-            print(f"{key}={secret}")
+        print(
+            "Generated secrets for keys: "
+            f"{', '.join(values.keys())}. "
+            "Use --write [PATH] to store them in an env file with 0600 permissions."
+        )
         return
 
     target = Path(args.write)
