@@ -13,7 +13,7 @@ services:
     mem_limit: 512m
     environment:
       - SITE_NAME=MikuInvidious
-      - SITE_URL=https://mikuinv.apicalshark.dedyn.io
+      - SITE_URL=
       - HTTP_PROXY=socks5://microwarp:1080
       - HTTPS_PROXY=socks5://microwarp:1080
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -71,7 +71,7 @@ services:
     volumes:
       - ./botPolicy.yaml:/data/cfg/botPolicy.yaml:ro
       - ./data/geoip:/var/lib/GeoIP:ro
-      - ./vpsh_asns.yaml:/data/cfg/vpsh_asns.yaml:ro
+      # - ./vpsh_asns.yaml:/data/cfg/vpsh_asns.yaml:ro
     depends_on:
       - app
     networks:
