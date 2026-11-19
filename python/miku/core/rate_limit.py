@@ -255,7 +255,9 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
             if key_func:
                 key = await key_func(request)
             else:
-                key = f"{get_client_ip(request)}:{request.path}"
+                rule = getattr(request, "url_rule", None)
+                route_key = rule.rule if rule is not None else request.path
+                key = f"{get_client_ip(request)}:{route_key}"
 
             try:
                 limiter = get_rate_limiter()

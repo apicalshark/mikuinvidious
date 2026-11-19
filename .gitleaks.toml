@@ -10,10 +10,15 @@ paths = [
 ]
 
 [[allowlists]]
-description = "Public Bilibili WBI fallback keys and unit test fixtures"
-regexTarget = "line"
+description = "Public Bilibili WBI fallback keys and unit test fixtures (anchored secret values only)"
+paths = [
+  '''(^|/)python/miku/api/client\.py$''',
+  '''(^|/)tests/test_wbi\.py$''',
+  '''(^|/)tests/test_cache_writes\.py$''',
+]
+regexTarget = "secret"
 regexes = [
-  '''_FALLBACK_WBI_(IMG|SUB)_KEY\s*=\s*"[0-9a-f]{32}"''',
-  '''self\.(img|sub)_key\s*=\s*"[0-9a-f]{32}"''',
-  '''"miku_live_123_250"''',
+  '''^(5a6f002d0bb14fc9848fc64157648ad4|0503a77b29d7409d9548fb44fe9daa1a|4a1d4479a1ea4146bc7552eea71c28e9|fa5812e23a204d10b332dc24d992432d)$''',
+  '''^(7cd084481368485c8e428b3d1f3db9ed|411145e16d424f39af363d595240d7e3)$''',
+  '''^miku_live_123_250$''',
 ]

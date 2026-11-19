@@ -78,3 +78,35 @@ class TestRateLimitFailOpen(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(allowed)
             self.assertEqual(info["remaining"], 0)
         self.assertEqual(len(limiter._fallback_buckets), 0)
+
+    async def test_default_key_uses_route_template_instead_of_expanded_path(self):
+        from unittest.mock import patch
+
+        from miku.core import rate_limit as rl
+        from quart import Quart
+
+        app = Quart(__name__)
+
+        @app.route("/item/<item_id>")
+        @rl.rate_limit(limit=2, window=60)
+        async def get_item(item_id):
+            return item_id
+
+        mock_redis = MagicMock()
+        mock_pipe = MagicMock()
+        mock_pipe.execute = AsyncMock(side_effect=ConnectionError("Redis down"))
+        mock_redis.pipeline.return_value = mock_pipe
+        limiter = RateLimiter(mock_redis, fallback_max_keys=16)
+
+        with (
+            patch.dict(rl.appconf["rate_limit"], {"enabled": True}),
+            patch.object(rl, "get_rate_limiter", return_value=limiter),
+        ):
+            client = app.test_client()
+            r1 = await client.get("/item/aaa")
+            r2 = await client.get("/item/bbb")
+            r3 = await client.get("/item/ccc")
+            self.assertEqual(r1.status_code, 200)
+            self.assertEqual(r2.status_code, 200)
+            self.assertEqual(r3.status_code, 429)
+            self.assertEqual(len(limiter._fallback_buckets), 1)

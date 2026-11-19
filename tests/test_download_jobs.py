@@ -355,21 +355,22 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
             shutil.rmtree(d2, ignore_errors=True)
 
     async def test_cleanup_orphaned_download_dirs_spares_active_job(self):
-        orphan = tempfile.mkdtemp(prefix="miku_dl_orphan_")
-        active_dir = tempfile.mkdtemp(prefix="miku_dl_active_")
+        test_root = tempfile.mkdtemp(prefix="miku_test_tmproot_")
+        orphan = tempfile.mkdtemp(prefix="miku_dl_orphan_", dir=test_root)
+        active_dir = tempfile.mkdtemp(prefix="miku_dl_active_", dir=test_root)
         try:
             job = download_job._DownloadJob("BV1xx411c7mD", 0, 80)
             job.tmpdir = active_dir
             async with download_job._jobs_lock:
                 download_job._download_jobs[job.job_id] = job
 
-            removed = await download_job.cleanup_orphaned_download_dirs()
-            self.assertGreaterEqual(removed, 1)
+            with patch.object(download_job.tempfile, "gettempdir", return_value=test_root):
+                removed = await download_job.cleanup_orphaned_download_dirs()
+            self.assertEqual(removed, 1)
             self.assertFalse(os.path.exists(orphan))
             self.assertTrue(os.path.exists(active_dir))
         finally:
-            shutil.rmtree(orphan, ignore_errors=True)
-            shutil.rmtree(active_dir, ignore_errors=True)
+            shutil.rmtree(test_root, ignore_errors=True)
 
     async def test_run_download_job_errors_when_single_output_exceeds_disk_quota(self):
         tmpdir = tempfile.mkdtemp(prefix="miku_test_over_")
@@ -427,6 +428,56 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(os.path.exists(tmpdir))
         finally:
             shutil.rmtree(tmpdir, ignore_errors=True)
+
+    async def test_download_file_releases_pin_on_cancellation(self):
+        tmpdir = tempfile.mkdtemp(prefix="miku_test_cancel_pin_")
+        outpath = os.path.join(tmpdir, "out.mp4")
+        with open(outpath, "wb") as f:
+            f.write(b"1234")
+
+        job = download_job._DownloadJob("BV1xx411c7mD", 0, 80)
+        job.state = "ready"
+        job.tmpdir = tmpdir
+        job.outpath = outpath
+
+        async with download_job._jobs_lock:
+            download_job._download_jobs[job.job_id] = job
+
+        async def cancel_to_thread(fn, *args, **kwargs):
+            if fn is os.path.getsize:
+                raise asyncio.CancelledError()
+            return fn(*args, **kwargs)
+
+        try:
+            with (
+                patch.object(download_job.asyncio, "to_thread", cancel_to_thread),
+                patch.dict(shared.appconf["rate_limit"], {"enabled": False}),
+            ):
+                from quart import Quart
+
+                app = Quart(__name__)
+                app.register_blueprint(download_job.dash_proxy_bp)
+                async with app.test_request_context(f"/download/file/{job.job_id}"):
+                    with self.assertRaises(asyncio.CancelledError):
+                        await download_job.download_file(job.job_id)
+
+            self.assertEqual(job.active_streams, 0)
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    async def test_legacy_and_background_downloads_share_per_ip_limit(self):
+        ip = "198.51.100.77"
+        try:
+            self.assertTrue(await download_job._try_acquire_legacy_ip_admission(ip))
+            self.assertTrue(await download_job._try_acquire_legacy_ip_admission(ip))
+            self.assertFalse(await download_job._try_acquire_legacy_ip_admission(ip))
+            with self.assertRaises(download_job.DownloadCapacityError):
+                await download_job.create_download_job("BV1xx411c7mD", 0, 80, client_ip=ip)
+            download_job._release_legacy_ip_admission(ip)
+            download_job._release_legacy_ip_admission(ip)
+            self.assertNotIn(ip, download_job._legacy_ip_active)
+        finally:
+            download_job._legacy_ip_active.pop(ip, None)
 
 
 class TestDownloadsAllowed(unittest.TestCase):
