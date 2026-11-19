@@ -62,6 +62,7 @@ def get_default_config() -> dict[str, Any]:
             ),
             "site_allow_download": os.environ.get("SITE_ALLOW_DOWNLOAD", "true").lower() == "true",
             "max_download_size_mb": int(os.environ.get("MAX_DOWNLOAD_SIZE_MB", 1024)),
+            "max_download_disk_mb": _int_env("MAX_DOWNLOAD_DISK_MB", 4096),
             "site_show_unsafe_error_response": (
                 os.environ.get("SITE_SHOW_UNSAFE_ERROR_RESPONSE", "false").lower() == "true"
             ),

@@ -16,7 +16,9 @@ class TestAppFactory(unittest.TestCase):
         self.assertIsInstance(app.session_interface, SecureCookieSessionInterface)
         self.assertTrue(len(app.secret_key) > 0)
         self.assertEqual(app.config["RESPONSE_TIMEOUT"], 10800)
-        self.assertEqual(app.config["BODY_TIMEOUT"], 10800)
+        self.assertEqual(app.config["BODY_TIMEOUT"], 30)
+        self.assertEqual(app.config["MAX_CONTENT_LENGTH"], 1 * 1024 * 1024)
+        self.assertTrue(app.config["SESSION_COOKIE_HTTPONLY"])
         import os
 
         self.assertTrue(os.path.isdir(app.template_folder))
@@ -43,6 +45,22 @@ class TestAppFactory(unittest.TestCase):
         conf["site"]["site_url"] = "http://example.com"
         app_http = create_app(conf)
         self.assertFalse(app_http.config["SESSION_COOKIE_SECURE"])
+
+
+class TestSecurityHeaders(unittest.IsolatedAsyncioTestCase):
+    async def test_csp_and_coop_headers(self):
+        from miku.app import app
+
+        client = app.test_client()
+        resp = await client.get("/preferences")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.headers.get("Cross-Origin-Opener-Policy"), "same-origin")
+        self.assertEqual(resp.headers.get("X-Frame-Options"), "DENY")
+        csp = resp.headers.get("Content-Security-Policy", "")
+        self.assertIn("connect-src 'self' blob:", csp)
+        self.assertNotIn("wss:", csp)
+        self.assertIn("object-src 'none'", csp)
+        self.assertIn("frame-ancestors 'none'", csp)
 
 
 if __name__ == "__main__":

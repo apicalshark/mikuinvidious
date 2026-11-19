@@ -40,7 +40,9 @@ def create_app(config: dict[str, Any] | None = None) -> Quart:
     if "RESPONSE_TIMEOUT" not in quart_conf:
         app.config["RESPONSE_TIMEOUT"] = 10800
     if "BODY_TIMEOUT" not in quart_conf:
-        app.config["BODY_TIMEOUT"] = 10800
+        app.config["BODY_TIMEOUT"] = 30
+    if "MAX_CONTENT_LENGTH" not in quart_conf:
+        app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024
     configured_secret = appconf.get("server", {}).get("secret_key")
     if not configured_secret and not app.debug:
         print(
@@ -50,9 +52,11 @@ def create_app(config: dict[str, Any] | None = None) -> Quart:
     app.secret_key = configured_secret or os.urandom(32).hex()
 
     app.session_interface = SecureCookieSessionInterface()
-    if "SESSION_COOKIE_SAMESITE" not in appconf.get("quart", {}):
+    if "SESSION_COOKIE_HTTPONLY" not in quart_conf:
+        app.config["SESSION_COOKIE_HTTPONLY"] = True
+    if "SESSION_COOKIE_SAMESITE" not in quart_conf:
         app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
-    if "SESSION_COOKIE_SECURE" not in appconf.get("quart", {}):
+    if "SESSION_COOKIE_SECURE" not in quart_conf:
         site_url = str(appconf.get("site", {}).get("site_url", "")).lower()
         app.config["SESSION_COOKIE_SECURE"] = site_url.startswith("https://")
 

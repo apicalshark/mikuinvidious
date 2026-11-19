@@ -120,6 +120,6 @@ def enc_wbi(params: dict[str, Any], mixin_key: str) -> dict[str, Any]:
         f"{urllib.parse.quote(str(k), safe='')}={urllib.parse.quote(str(v).translate(_WBI_FILTER_TABLE), safe='')}"
         for k, v in sorted(to_sign.items())
     )
-    params["w_rid"] = hashlib.md5((query + mixin_key).encode("utf-8")).hexdigest()
+    params["w_rid"] = hashlib.md5((query + mixin_key).encode("utf-8"), usedforsecurity=False).hexdigest()
     params["wts"] = wts
     return params

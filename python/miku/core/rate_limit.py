@@ -3,6 +3,7 @@
 
 import ipaddress
 import time
+from collections import OrderedDict, deque
 from functools import lru_cache, wraps
 
 from quart import Response, request
@@ -101,11 +102,52 @@ def ip_family_key(family: str):
 
 
 class RateLimiter:
-    """Redis-based sliding window rate limiter."""
+    """Redis-based sliding window rate limiter with bounded in-memory fallback."""
 
-    def __init__(self, redis_client, prefix="ratelimit:"):
+    _FALLBACK_MAX_KEYS = 8192
+
+    def __init__(self, redis_client, prefix="ratelimit:", fallback_max_keys: int = _FALLBACK_MAX_KEYS):
         self.redis = redis_client
         self.prefix = prefix
+        self._fallback_max_keys = max(1, fallback_max_keys)
+        self._fallback_buckets: OrderedDict[str, deque[float]] = OrderedDict()
+
+    def _fallback_is_allowed(self, key: str, limit: int, window: int) -> tuple[bool, dict]:
+        now_f = time.time()
+        now = int(now_f)
+        cutoff = now_f - window
+        bucket = self._fallback_buckets.get(key)
+        if bucket is None:
+            bucket = deque()
+            self._fallback_buckets[key] = bucket
+        else:
+            self._fallback_buckets.move_to_end(key)
+        while bucket and bucket[0] <= cutoff:
+            bucket.popleft()
+        if len(bucket) >= limit:
+            reset_time = int(bucket[0]) + window if bucket else now + window
+            return False, {
+                "remaining": 0,
+                "reset": reset_time,
+                "limit": limit,
+                "retry_after": max(reset_time - now, 1),
+            }
+        bucket.append(now_f)
+        while len(self._fallback_buckets) > self._fallback_max_keys:
+            self._fallback_buckets.popitem(last=False)
+        return True, {"remaining": limit - len(bucket), "reset": now + window, "limit": limit}
+
+    def _fallback_usage(self, key: str, window: int) -> int:
+        bucket = self._fallback_buckets.get(key)
+        if not bucket:
+            return 0
+        cutoff = time.time() - window
+        while bucket and bucket[0] <= cutoff:
+            bucket.popleft()
+        if not bucket:
+            self._fallback_buckets.pop(key, None)
+            return 0
+        return len(bucket)
 
     async def is_allowed(self, key: str, limit: int, window: int) -> tuple[bool, dict]:
         """
@@ -153,9 +195,8 @@ class RateLimiter:
 
             return True, {"remaining": limit - current_count, "reset": now + window, "limit": limit}
         except Exception as e:
-            # Fail-open: if Redis times out or is unreachable, allow request to avoid 500 error
-            print(f"[RateLimit] Redis error: {type(e).__name__}. Failing open.")
-            return True, {"remaining": limit, "reset": now + window, "limit": limit}
+            print(f"[RateLimit] Redis error: {type(e).__name__}. Using in-memory fallback.")
+            return self._fallback_is_allowed(key, limit, window)
 
     async def get_current_usage(self, key: str, window: int) -> int:
         """Get current request count for a key."""
@@ -167,7 +208,7 @@ class RateLimiter:
             return await self.redis.zcard(redis_key)
         except Exception as e:
             print(f"[RateLimit] Redis error in get_current_usage: {type(e).__name__}")
-            return 0
+            return self._fallback_usage(key, window)
 
 
 # Global rate limiter instance

@@ -269,6 +269,58 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
         self.assertIn("SESSDATA=s123", cookie_hdr)
         self.assertNotIn("bili_ticket", cookie_hdr)
 
+    async def test_per_ip_active_job_limit(self):
+        gate = asyncio.Event()
+
+        async def blocked_worker(job):
+            await gate.wait()
+
+        with (
+            patch.object(download_job, "downloads_allowed", return_value=True),
+            patch.object(download_job, "_run_download_job", side_effect=blocked_worker),
+        ):
+            for _ in range(download_job._MAX_ACTIVE_JOBS_PER_IP):
+                await download_job.create_download_job("BV1xx411c7mD", 0, 80, client_ip="203.0.113.10")
+
+            with self.assertRaises(download_job.DownloadCapacityError):
+                await download_job.create_download_job("BV1xx411c7mD", 0, 80, client_ip="203.0.113.10")
+
+            other_id = await download_job.create_download_job("BV1xx411c7mD", 0, 80, client_ip="203.0.113.11")
+            self.assertTrue(other_id)
+            gate.set()
+
+    async def test_ready_job_disk_quota_eviction(self):
+        d1 = tempfile.mkdtemp(prefix="miku_test_quota1_")
+        d2 = tempfile.mkdtemp(prefix="miku_test_quota2_")
+        try:
+            j1 = download_job._DownloadJob("BV1xx411c7mD", 0, 80)
+            j1.state = "ready"
+            j1.tmpdir = d1
+            j1.outpath = os.path.join(d1, "out.mp4")
+            j1.disk_bytes = 2 * 1024 * 1024
+            j1.updated_at -= 10
+
+            j2 = download_job._DownloadJob("BV1xx411c7mD", 1, 80)
+            j2.state = "ready"
+            j2.tmpdir = d2
+            j2.outpath = os.path.join(d2, "out.mp4")
+            j2.disk_bytes = 2 * 1024 * 1024
+
+            async with download_job._jobs_lock:
+                download_job._download_jobs[j1.job_id] = j1
+                download_job._download_jobs[j2.job_id] = j2
+
+            with patch.dict(shared.appconf["site"], {"max_download_disk_mb": 3}):
+                await download_job._sweep_jobs()
+
+            self.assertNotIn(j1.job_id, download_job._download_jobs)
+            self.assertIn(j2.job_id, download_job._download_jobs)
+            self.assertFalse(os.path.exists(d1))
+            self.assertTrue(os.path.exists(d2))
+        finally:
+            shutil.rmtree(d1, ignore_errors=True)
+            shutil.rmtree(d2, ignore_errors=True)
+
 
 class TestDownloadsAllowed(unittest.TestCase):
     def test_downloads_allowed_variants(self):

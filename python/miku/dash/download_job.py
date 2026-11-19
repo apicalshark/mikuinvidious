@@ -253,6 +253,8 @@ _JOB_SLOTS = 3
 # Bound active workers (running or queued) so overload is rejected before a
 # task is registered. Completed jobs retained for download do not count.
 _MAX_ACTIVE_JOBS = _JOB_SLOTS * 4
+_MAX_ACTIVE_JOBS_PER_IP = 2
+_DEFAULT_MAX_DOWNLOAD_DISK_MB = 4096
 # Finished files stay available for re-download (retry link) this long.
 _JOB_READY_TTL = 15 * 60
 # Error/cancelled job records are swept after this long.
@@ -264,6 +266,14 @@ _JOB_STALL_TIMEOUT = 30 * 60
 #                                                 \-> error / cancelled
 
 
+def _max_download_disk_bytes() -> int:
+    try:
+        mb = int((appconf.get("site") or {}).get("max_download_disk_mb", _DEFAULT_MAX_DOWNLOAD_DISK_MB))
+    except TypeError, ValueError:
+        mb = _DEFAULT_MAX_DOWNLOAD_DISK_MB
+    return max(mb, 1) * 1024 * 1024
+
+
 class DownloadCapacityError(RuntimeError):
     """Raised when the server-wide active download queue is full."""
 
@@ -271,15 +281,17 @@ class DownloadCapacityError(RuntimeError):
 class _DownloadJob:
     """Mutable per-download state. Only touched from the single event loop."""
 
-    def __init__(self, vid: str, idx: int, qual: int):
+    def __init__(self, vid: str, idx: int, qual: int, client_ip: str | None = None):
         self.job_id = uuid.uuid4().hex
         self.vid = vid
         self.idx = idx
         self.qual = qual
+        self.client_ip = client_ip
         self.actual_qn = None  # quality actually being fetched (fallback of qual)
         self.state = "queued"
         self.total_bytes = 0
         self.done_bytes = 0
+        self.disk_bytes = 0
         self.speed_bps = 0.0
         self.status_note = None  # transient user-facing note (e.g. retry backoff)
         self.filename = _safe_download_filename(vid, idx, qual)
@@ -353,8 +365,22 @@ _job_slots = asyncio.Semaphore(_JOB_SLOTS)
 def _remove_job_tmpdir(job: _DownloadJob):
     tmpdir = job.tmpdir
     job.tmpdir = None
+    job.disk_bytes = 0
     if tmpdir:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def _job_ready_disk_bytes(job: _DownloadJob) -> int:
+    if job.disk_bytes > 0:
+        return job.disk_bytes
+    if job.outpath:
+        try:
+            size = os.path.getsize(job.outpath)
+            job.disk_bytes = size
+            return size
+        except OSError:
+            return 0
+    return 0
 
 
 async def _sweep_jobs():
@@ -384,6 +410,18 @@ async def _sweep_jobs():
                 _remove_job_tmpdir(_download_jobs[jid])
                 del _download_jobs[jid]
 
+        disk_budget = _max_download_disk_bytes()
+        ready_jobs = sorted(
+            ((j.updated_at, jid, _job_ready_disk_bytes(j)) for jid, j in _download_jobs.items() if j.state == "ready")
+        )
+        total_disk = sum(size for _, _, size in ready_jobs)
+        for _, jid, size in ready_jobs:
+            if total_disk <= disk_budget:
+                break
+            _remove_job_tmpdir(_download_jobs[jid])
+            del _download_jobs[jid]
+            total_disk -= size
+
 
 async def _get_job(job_id: str) -> _DownloadJob | None:
     if not job_id or len(job_id) > 64:
@@ -392,7 +430,7 @@ async def _get_job(job_id: str) -> _DownloadJob | None:
         return _download_jobs.get(job_id)
 
 
-async def create_download_job(vid: str, idx: int, qual: int) -> str:
+async def create_download_job(vid: str, idx: int, qual: int, client_ip: str | None = None) -> str:
     """Register a download job and launch its background worker. Returns job_id."""
     if not downloads_allowed(appconf):
         raise RuntimeError("Downloads are disabled on this instance")
@@ -400,10 +438,14 @@ async def create_download_job(vid: str, idx: int, qual: int) -> str:
         raise RuntimeError("invalid video ID")
     await _sweep_jobs()
     async with _jobs_lock:
-        active_jobs = sum(job.state not in ("ready", "error", "cancelled") for job in _download_jobs.values())
-        if active_jobs >= _MAX_ACTIVE_JOBS:
+        active_list = [job for job in _download_jobs.values() if job.state not in ("ready", "error", "cancelled")]
+        if len(active_list) >= _MAX_ACTIVE_JOBS:
             raise DownloadCapacityError("Download queue is full; please try again later")
-        job = _DownloadJob(vid, idx, qual)
+        if client_ip:
+            ip_active = sum(job.client_ip == client_ip for job in active_list)
+            if ip_active >= _MAX_ACTIVE_JOBS_PER_IP:
+                raise DownloadCapacityError("Too many active downloads from this address; please try again later")
+        job = _DownloadJob(vid, idx, qual, client_ip=client_ip)
         job.task = asyncio.ensure_future(_run_download_job(job))
         _download_jobs[job.job_id] = job
     return job.job_id
@@ -742,10 +784,15 @@ async def _run_download_job(job: _DownloadJob):
         job.throw_if_cancelled()
         if not job.outpath or not os.path.exists(job.outpath):
             raise RuntimeError("finished file missing")
+        try:
+            job.disk_bytes = await asyncio.to_thread(os.path.getsize, job.outpath)
+        except OSError:
+            job.disk_bytes = 0
         job.state = "ready"
         job.set_note(None)
         job.speed_bps = 0.0
         job.touch()
+        await _sweep_jobs()
         print(f"[DashProxy] download job {job.job_id} ready: {job.filename}")
     except _JobCancelled:
         job.state = "cancelled"
