@@ -1,4 +1,4 @@
-{% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
+{% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge, pinned_badge with context %}
 {% from "themes/modern/components/comment_pictures.html" import reply_pictures %}
 <div id="comments-cursor"
      data-next-offset="{{ vcomments.get('next_offset', '') }}"
@@ -17,8 +17,9 @@
                 <a href="/space/{{ rep['member']['mid'] }}"
                    class="font-bold text-sm {{ 'bili-vip-name' if is_vip else 'text-on-surface' }} hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
                 {{ level_badge(rep['member'].get('level_info', {}).get('current_level'), rep['member'].get('is_senior_member')) }}
+                {{ pinned_badge(rep) }}
             </div>
-            <p class="text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
+            <p class="comment-text text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
             {{ reply_pictures(rep['content']) }}
             <div class="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-on-surface-variant/70 pt-1">
                 {% set cdate = rep.get('ctime')|date %}

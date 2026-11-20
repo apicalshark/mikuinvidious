@@ -41,3 +41,12 @@
         </span>
     {% endif %}
 {% endmacro %}
+
+{% macro pinned_badge(rep) %}
+    {% if rep.get("isTop") or (rep.get("reply_control") is mapping and rep.get("reply_control").get("is_up_top")) %}
+        <span class="bili-pinned-badge inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold leading-none bg-primary/15 text-primary select-none">
+            <i class="icon ion-md-pin"></i>
+            <span>{{ _("Pinned") }}</span>
+        </span>
+    {% endif %}
+{% endmacro %}

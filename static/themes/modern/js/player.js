@@ -470,6 +470,12 @@ class DashPlayerManager {
     this._lastSegErrPos = 0;
     this._lastFreshMpdAt = 0;
     this._lastResignAt = 0;
+    this._seekPlaybackStarted = false;
+    this._pendingSeekTime = null;
+    this._manualVideoLock = false;
+    this._onVideoPlaying = null;
+    this._onVideoSeeking = null;
+    this._onVideoTimeUpdate = null;
   }
 
   init() {
@@ -482,6 +488,8 @@ class DashPlayerManager {
     }
     this._userAudioChoice = false;
     this._segErrStreak = 0;
+    this._seekPlaybackStarted = false;
+    this._pendingSeekTime = null;
 
     console.log("[DashManager] Initializing DASH:", this.mpdUrl);
     const absoluteUrl = new URL(this.mpdUrl, window.location.href).href;
@@ -502,6 +510,11 @@ class DashPlayerManager {
           // Backward only: keep everything watched while the page is open
           bufferToKeep: 3600,
           bufferPruningInterval: 60,
+        },
+        gaps: {
+          jumpGaps: true,
+          jumpLargeGaps: false,
+          smallGapLimit: 1.5,
         },
         abr: {
           autoSwitchBitrate: { video: !this._lockVideo(), audio: false },
@@ -605,6 +618,62 @@ class DashPlayerManager {
       if (!e || e.mediaType === "video" || e.mediaType == null) this._applyTierAudio();
     };
     this.player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, this._qualityHandler);
+
+    this._onVideoPlaying = () => {
+      this._seekPlaybackStarted = true;
+    };
+    this._onVideoSeeking = () => {
+      if (!this.player || !Number.isFinite(this.video.currentTime)) {
+        return;
+      }
+      this._realignBufferedSeek(this.video.currentTime);
+      if (!this._seekPlaybackStarted) {
+        return;
+      }
+      this._pendingSeekTime = this.video.currentTime;
+      const keepLocked = this._lockVideo() || this._manualVideoLock;
+      this.player.updateSettings({
+        streaming: {
+          buffer: {
+            fastSwitchEnabled: true,
+            bufferToKeep: 3600,
+            bufferPruningInterval: 60,
+            bufferTimeDefault: 2,
+            bufferTimeAtTopQuality: 2,
+            bufferTimeAtTopQualityLongForm: 2,
+          },
+          abr: { maxBitrate: { video: keepLocked ? -1 : 1500 } },
+        },
+      });
+    };
+    this._onVideoTimeUpdate = () => {
+      if (
+        this._pendingSeekTime === null ||
+        !this.player ||
+        this.video.paused ||
+        this.video.seeking ||
+        this.video.currentTime < this._pendingSeekTime + 1.5
+      ) {
+        return;
+      }
+      this._pendingSeekTime = null;
+      this.player.updateSettings({
+        streaming: {
+          buffer: {
+            fastSwitchEnabled: true,
+            bufferToKeep: 3600,
+            bufferPruningInterval: 60,
+            bufferTimeDefault: 18,
+            bufferTimeAtTopQuality: 30,
+            bufferTimeAtTopQualityLongForm: 60,
+          },
+          abr: { maxBitrate: { video: -1 } },
+        },
+      });
+    };
+    this.video.addEventListener("playing", this._onVideoPlaying);
+    this.video.addEventListener("seeking", this._onVideoSeeking);
+    this.video.addEventListener("timeupdate", this._onVideoTimeUpdate);
 
     this.video.play().catch((error) => {
       if (error.name === "NotAllowedError") {
@@ -901,6 +970,7 @@ class DashPlayerManager {
         console.warn("[DashManager] DASH quality is not present in the manifest:", source?.quality);
         return;
       }
+      this._manualVideoLock = true;
       this.player.updateSettings({
         streaming: { abr: { autoSwitchBitrate: { video: false } } },
       });
@@ -949,9 +1019,67 @@ class DashPlayerManager {
     }
   }
 
+  _realignBufferedSeek(seekTime) {
+    try {
+      const stream = this.player?.getActiveStream?.();
+      const processors = stream?.getStreamProcessors?.() || [];
+      for (const sp of processors) {
+        const bc = sp?.getBufferController?.();
+        const sc = sp?.getScheduleController?.();
+        if (!bc || typeof bc.hasBufferAtTime !== "function" || !bc.hasBufferAtTime(seekTime)) {
+          continue;
+        }
+        const contEnd = bc.getContinuousBufferTimeForTargetTime?.(seekTime);
+        if (!Number.isFinite(contEnd)) {
+          continue;
+        }
+        const ranges = bc.getBuffer?.()?.getAllBufferRanges?.();
+        const lastEnd = ranges && ranges.length > 0 ? ranges.end(ranges.length - 1) : contEnd;
+        const hasDisjointFuture = lastEnd > contEnd + 0.1;
+        const bufferingTime = sp.getBufferingTime?.();
+        const cursorDrifted =
+          Number.isFinite(bufferingTime) && Math.abs(bufferingTime - contEnd) > 0.5;
+        if (hasDisjointFuture || cursorDrifted || bc.getIsBufferingCompleted?.()) {
+          sp.getFragmentModel?.()?.abortRequests?.();
+          const clearPromise =
+            hasDisjointFuture && typeof bc.clearBuffers === "function"
+              ? bc.clearBuffers([{ start: contEnd + 0.05, end: lastEnd + 1 }])
+              : Promise.resolve();
+          Promise.resolve(clearPromise)
+            .catch(() => {})
+            .then(() => {
+              if (this.destroyed || !this.player) return;
+              const freshEnd = bc.getContinuousBufferTimeForTargetTime?.(seekTime);
+              const nextTarget = Number.isFinite(freshEnd) ? freshEnd : contEnd;
+              if (nextTarget < (this.video?.duration || Infinity) - 0.5) {
+                bc.setIsBufferingCompleted?.(false);
+              }
+              sp.setExplicitBufferingTime?.(nextTarget);
+              bc.setSeekTarget?.(nextTarget);
+              sc?.setInitSegmentRequired?.(true);
+              sc?.startScheduleTimer?.(0);
+            });
+        }
+      }
+    } catch (e) {
+      console.warn("[DashManager] Could not realign buffered seek:", e);
+    }
+  }
+
   destroy(isFinal = true) {
     if (isFinal) this.destroyed = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.video) {
+      if (this._onVideoPlaying) this.video.removeEventListener("playing", this._onVideoPlaying);
+      if (this._onVideoSeeking) this.video.removeEventListener("seeking", this._onVideoSeeking);
+      if (this._onVideoTimeUpdate)
+        this.video.removeEventListener("timeupdate", this._onVideoTimeUpdate);
+    }
+    this._onVideoPlaying = null;
+    this._onVideoSeeking = null;
+    this._onVideoTimeUpdate = null;
+    this._seekPlaybackStarted = false;
+    this._pendingSeekTime = null;
     if (this.player) {
       try {
         if (this._errorHandler)
@@ -1197,6 +1325,73 @@ async function initMikuPlayer() {
       return origPlay.apply(this, arguments);
     };
     video._playReplayWrapped = true;
+  }
+
+  const timeRange = controller ? controller.querySelector("media-time-range") : null;
+  if (!window.is_live && timeRange && !timeRange._deferredSeekInstalled) {
+    let isScrubbing = false;
+    let isCommitting = false;
+    let pendingSeekTime = null;
+    let lastCommittedTime = null;
+    let lastCommittedAt = 0;
+
+    Object.defineProperty(timeRange, "dragging", {
+      get() {
+        return isScrubbing || this.hasAttribute("dragging");
+      },
+      configurable: true,
+    });
+
+    timeRange.addEventListener(
+      "pointerdown",
+      () => {
+        isScrubbing = true;
+        pendingSeekTime = null;
+      },
+      true
+    );
+
+    timeRange.addEventListener("mediaseekrequest", (e) => {
+      if (isCommitting) return;
+      if (isScrubbing) {
+        pendingSeekTime = Number(e.detail);
+        e.stopImmediatePropagation();
+      } else if (
+        lastCommittedTime !== null &&
+        performance.now() - lastCommittedAt < 50 &&
+        Math.abs(Number(e.detail) - lastCommittedTime) < 0.05
+      ) {
+        e.stopImmediatePropagation();
+      }
+    });
+
+    const commitPendingSeek = () => {
+      if (!isScrubbing) return;
+      isScrubbing = false;
+      if (pendingSeekTime !== null && Number.isFinite(pendingSeekTime)) {
+        const target = pendingSeekTime;
+        pendingSeekTime = null;
+        isCommitting = true;
+        try {
+          timeRange.dispatchEvent(
+            new CustomEvent("mediaseekrequest", { composed: true, bubbles: true, detail: target })
+          );
+        } finally {
+          isCommitting = false;
+        }
+        lastCommittedTime = target;
+        lastCommittedAt = performance.now();
+      }
+    };
+
+    window.addEventListener("pointerup", commitPendingSeek);
+    window.addEventListener("pointercancel", () => {
+      if (!isScrubbing) return;
+      isScrubbing = false;
+      pendingSeekTime = null;
+    });
+
+    timeRange._deferredSeekInstalled = true;
   }
 
   // Clean up old buffer controller if it exists
@@ -1997,9 +2192,24 @@ function toggleDanmaku() {
 }
 
 function setupAutoNext(video) {
+  const continueCb = document.getElementById("continue");
+  const colContinueCb = document.getElementById("collection-continue");
+  if (continueCb && !continueCb.dataset.atoInit) {
+    continueCb.checked = Boolean(window.ato);
+    continueCb.dataset.atoInit = "1";
+  }
+  if (colContinueCb && !colContinueCb.dataset.atoInit) {
+    colContinueCb.checked = Boolean(window.ato);
+    colContinueCb.dataset.atoInit = "1";
+  }
   video.addEventListener("ended", function () {
-    if (document.getElementById("continue")?.checked && ++window.idx < window.total_pages) {
+    if (continueCb?.checked && window.idx + 1 < window.total_pages) {
+      window.idx += 1;
       window.location.href = `/video/${window.current_vid}:${window.idx}?ato=1`;
+      return;
+    }
+    if (colContinueCb?.checked && colContinueCb.dataset.nextBvid) {
+      window.location.href = `/video/${colContinueCb.dataset.nextBvid}?ato=1`;
     }
   });
 }

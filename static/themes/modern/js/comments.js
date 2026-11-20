@@ -25,10 +25,30 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     const MSG_FOLD = I18n.t("Fold");
+    const MSG_SHOW_MORE = I18n.t("Show more");
     const MSG_MORE_REPLIES = I18n.t("Load more replies");
     const MSG_LOADING_DOTS = I18n.t("Loading...");
     const MSG_LOAD_FAILED = I18n.t("Load failed");
     const MSG_LOAD_MORE_COMMENTS = I18n.t("Load more comments");
+
+    function applyCommentClamping(root) {
+      if (!root) return;
+      root.querySelectorAll(".comment-text:not([data-clamp-init])").forEach((el) => {
+        el.dataset.clampInit = "1";
+        el.classList.add("line-clamp-5");
+        if (el.scrollHeight > el.clientHeight + 2) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "comment-expand-btn text-xs font-medium text-primary hover:underline cursor-pointer mt-0.5";
+          btn.dataset.expanded = "0";
+          btn.textContent = MSG_SHOW_MORE;
+          el.insertAdjacentElement("afterend", btn);
+        } else {
+          el.classList.remove("line-clamp-5");
+        }
+      });
+    }
 
     function repliesLabel(btn) {
       const c = Number(btn.dataset.count);
@@ -91,6 +111,7 @@
         })
         .then((html) => {
           commentsContainer.innerHTML = html;
+          applyCommentClamping(commentsContainer);
         })
         .catch((err) => {
           console.error("[comments] fetch failed:", err);
@@ -135,6 +156,9 @@
       });
       const more = slot.querySelector(".sub-more-btn");
       slot.insertBefore(pageEl, more || null);
+      if (!slot.classList.contains("hidden")) {
+        applyCommentClamping(pageEl);
+      }
       return {
         isEnd: pageEl.dataset.isEnd === "true",
         page: Number(pageEl.dataset.page),
@@ -227,6 +251,7 @@
             cursorEl.dataset.isEnd = newCursor.dataset.isEnd;
             if (newCursor.dataset.mode) cursorEl.dataset.mode = newCursor.dataset.mode;
           }
+          applyCommentClamping(list);
         }
         const cursorRepeated = cursorEl && cursorEl.dataset.nextOffset === previousNext;
         const isEnd =
@@ -345,7 +370,38 @@
       return lightbox;
     }
 
+    applyCommentClamping(document);
+
     document.addEventListener("click", function (e) {
+      const tsBtn = e.target.closest(".comment-timestamp");
+      if (tsBtn) {
+        const seekSec = Number(tsBtn.dataset.seek);
+        const media =
+          document.getElementById("video_player") ||
+          document.getElementById("player") ||
+          document.querySelector("video, audio");
+        if (media && Number.isFinite(seekSec)) {
+          media.currentTime = seekSec;
+          media.play?.().catch(() => {});
+          if (media.getBoundingClientRect().top < 0) {
+            media.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }
+        return;
+      }
+
+      const expandBtn = e.target.closest(".comment-expand-btn");
+      if (expandBtn) {
+        const p = expandBtn.previousElementSibling;
+        if (p && p.classList.contains("comment-text")) {
+          const expanded = expandBtn.dataset.expanded === "1";
+          p.classList.toggle("line-clamp-5", expanded);
+          expandBtn.dataset.expanded = expanded ? "0" : "1";
+          expandBtn.textContent = expanded ? MSG_SHOW_MORE : MSG_FOLD;
+        }
+        return;
+      }
+
       const picLink = e.target.closest(".comment-pic-link");
       if (picLink && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
         const container = picLink.closest(".comment-pictures");
@@ -398,6 +454,7 @@
           })
           .then((html) => {
             list.innerHTML = html;
+            applyCommentClamping(list);
             const cursorEl = document.getElementById("comments-cursor");
             const activeMode = cursorEl?.dataset.mode || sortMode;
             paintSortButtons(activeMode);

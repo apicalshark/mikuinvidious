@@ -19,7 +19,7 @@
                            class="font-semibold text-xs {{ 'bili-vip-name' if is_vip else 'text-on-surface' }} hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
                         {{ level_badge(rep['member'].get('level_info', {}).get('current_level'), rep['member'].get('is_senior_member')) }}
                     </div>
-                    <p class="text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
+                    <p class="comment-text text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
                     {{ reply_pictures(rep['content']) }}
                     <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-on-surface-variant/60 pt-0.5">
                         {% set cdate = rep.get('ctime')|date %}

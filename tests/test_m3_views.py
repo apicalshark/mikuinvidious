@@ -19,6 +19,8 @@ class TestM3Views(unittest.TestCase):
         self.env.filters["secdur"] = lambda s: str(s)
         self.env.filters["format_desc"] = lambda s: s
         self.env.filters["reply_content"] = lambda s: s
+        self.env.filters["reply_pictures"] = lambda s: []
+        self.env.filters["ugc_season"] = lambda s: None
 
     def test_all_secondary_templates_compile(self):
         templates = [

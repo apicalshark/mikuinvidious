@@ -3,8 +3,14 @@
 
 import unittest
 
+import miku.ui.filters  # noqa: F401
 from miku.core.url_signing import sign_pic_target
-from miku.media.transformers import extract_reply_pictures
+from miku.media.transformers import (
+    extract_reply_pictures,
+    extract_ugc_season,
+    format_description,
+    render_reply_content,
+)
 from miku.state import app
 from miku.ui.renderer import render_template_with_theme
 
@@ -161,6 +167,89 @@ class CommentPicturesTemplateTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(f'src="{expected_gif}"', rendered)
             self.assertIn(">GIF<", rendered)
             self.assertNotIn("https://i0.hdslb.com", rendered)
+
+    async def test_pinned_badge_renders_for_top_reply(self):
+        reply = {
+            "rpid": 999,
+            "isTop": True,
+            "member": {
+                "mid": 1,
+                "uname": "uploader",
+                "avatar": "https://i0.hdslb.com/bfs/face/avatar.jpg",
+                "level_info": {"current_level": 6},
+            },
+            "content": {"message": "see 01:23"},
+            "ctime": 1700000000,
+            "like": 10,
+            "rcount": 0,
+        }
+        async with app.test_request_context("/"):
+            html_main = await render_template_with_theme(
+                "components/comment_items.html",
+                vcomments={"replies": [reply], "next_offset": "", "is_end": True, "mode": 3},
+                vid="BV1xx411c7mD",
+            )
+        self.assertIn("bili-pinned-badge", html_main)
+        self.assertIn('data-seek="83"', html_main)
+
+
+class TimestampAndCollectionTests(unittest.TestCase):
+    def test_timestamp_linkification_in_reply_and_description(self):
+        out = render_reply_content({"message": "Jump to 03:25 or 1:02:30, ignore https://a.b/03:25 and 99:99"})
+        self.assertIn('<button type="button" class="comment-timestamp', out)
+        self.assertIn('data-seek="205">03:25</button>', out)
+        self.assertIn('data-seek="3750">1:02:30</button>', out)
+        self.assertIn("https://a.b/03:25", out)
+        self.assertIn("99:99", out)
+
+        desc = format_description("00:15 Intro\n1:00:05 End\n<script>01:00</script>")
+        self.assertIn('data-seek="15">00:15</button>', desc)
+        self.assertIn('data-seek="3605">1:00:05</button>', desc)
+        self.assertIn("&lt;script&gt;", desc)
+        self.assertNotIn("<script>", desc)
+
+    def test_extract_ugc_season_handles_sections_and_next_bvid(self):
+        vinfo = {
+            "bvid": "BV1ep2",
+            "ugc_season": {
+                "title": "My Series",
+                "sections": [
+                    {
+                        "title": "Part A",
+                        "episodes": [
+                            {
+                                "bvid": "BV1ep1",
+                                "title": "Ep 1",
+                                "arc": {"pic": "http://i0.hdslb.com/1.jpg", "duration": 120},
+                            },
+                            {
+                                "bvid": "BV1ep2",
+                                "title": "Ep 2",
+                                "arc": {"pic": "https://i0.hdslb.com/2.jpg", "duration": 180},
+                            },
+                        ],
+                    },
+                    {
+                        "title": "Part B",
+                        "episodes": [
+                            {"bvid": "BV1ep3", "title": "Ep 3", "page": {"duration": 240}},
+                            {"bvid": "../evil", "title": "Bad"},
+                        ],
+                    },
+                ],
+            },
+        }
+        season = extract_ugc_season(vinfo)
+        self.assertIsNotNone(season)
+        self.assertEqual(season["title"], "My Series")
+        self.assertEqual(season["ep_count"], 3)
+        self.assertEqual(season["next_bvid"], "BV1ep3")
+        self.assertEqual(season["sections"][0]["episodes"][0]["pic"], "https://i0.hdslb.com/1.jpg")
+        self.assertEqual(season["sections"][1]["episodes"][0]["duration"], 240)
+        self.assertEqual(len(season["sections"][1]["episodes"]), 1)
+
+        self.assertIsNone(extract_ugc_season({}))
+        self.assertIsNone(extract_ugc_season({"ugc_season": {"sections": []}}))
 
 
 if __name__ == "__main__":

@@ -21,6 +21,8 @@ class TestM3Video(unittest.TestCase):
         self.env.filters["intsep"] = lambda s: str(s)
         self.env.filters["format_desc"] = lambda s: s
         self.env.filters["reply_content"] = lambda s: s
+        self.env.filters["reply_pictures"] = lambda s: []
+        self.env.filters["ugc_season"] = lambda s: None
         self.env.filters["secdur"] = lambda s: str(s)
         self.env.filters["danmaku_url"] = lambda s: f"/res/danmaku/s/test/{s}"
         self.env.filters["subtitle_url"] = lambda s: f"/res/subtitle/s/test/{s}"
