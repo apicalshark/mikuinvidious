@@ -165,7 +165,7 @@ class CommentPicturesTemplateTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn(f'data-full-src="{expected_full}"', rendered)
             self.assertIn(f'src="{expected_thumb}"', rendered)
             self.assertIn(f'src="{expected_gif}"', rendered)
-            self.assertIn(">GIF<", rendered)
+            self.assertNotIn(">GIF<", rendered)
             self.assertNotIn("https://i0.hdslb.com", rendered)
 
     async def test_pinned_badge_renders_for_top_reply(self):

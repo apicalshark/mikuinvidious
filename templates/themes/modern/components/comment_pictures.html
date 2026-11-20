@@ -17,9 +17,6 @@
                          decoding="async"
                          {% if is_single and pic.width and pic.height %}width="{{ pic.width }}" height="{{ pic.height }}"{% endif %}
                          class="{{ 'max-h-64 w-auto max-w-full object-contain' if is_single else 'w-full h-full object-cover' }} block transition-transform duration-200 group-hover/pic:scale-[1.02]" />
-                    {% if pic.is_gif %}
-                        <span class="pointer-events-none absolute bottom-1.5 right-1.5 rounded px-1.5 py-0.5 text-[10px] font-bold leading-none bg-black/65 text-white">GIF</span>
-                    {% endif %}
                 </a>
             {% endfor %}
         </div>
