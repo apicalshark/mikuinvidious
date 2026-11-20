@@ -277,8 +277,12 @@ _REPLY_EMOTE_SIZE2_STYLE = "display:inline-block;width:50px;height:50px;vertical
 _REPLY_EMOTE_TOKEN_RE = re.compile(r"\[[^\[\]\n\r]{1,50}\]")
 
 
-def _proxied_emote_src(raw_url):
-    """Validate an upstream emote URL; same-origin /proxy/pic/ path or None."""
+_REPLY_PIC_MAX_COUNT = 9
+_REPLY_PIC_SINGLE_SUFFIX = "@480w.webp"
+_REPLY_PIC_GRID_SUFFIX = "@240w_240h_1c.webp"
+
+
+def _parse_reply_media_target(raw_url):
     if not raw_url or not isinstance(raw_url, str):
         return None
     url = raw_url.strip()
@@ -294,14 +298,77 @@ def _proxied_emote_src(raw_url):
     if not host or not any(host == d.lstrip(".") or host.endswith(d) for d in _REPLY_EMOTE_DOMAINS):
         return None
     path = parts.path or "/"
-    # Reject anything that could break out of the src attribute or path.
     if re.search(r"[\s\"'<>\\^`{|}]", path):
         return None
     if ".." in path.split("/"):
         return None
+    return host, path
+
+
+def _proxied_emote_src(raw_url):
+    parsed = _parse_reply_media_target(raw_url)
+    if not parsed:
+        return None
     from miku.core.url_signing import sign_pic_target
 
+    host, path = parsed
     return sign_pic_target(host + path)
+
+
+def _positive_int(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        num = int(value)
+    except TypeError, ValueError:
+        return None
+    return num if num > 0 else None
+
+
+def extract_reply_pictures(content):
+    if not isinstance(content, dict):
+        return []
+    raw_pictures = content.get("pictures")
+    if not isinstance(raw_pictures, list) or not raw_pictures:
+        return []
+
+    parsed_entries = []
+    for entry in raw_pictures:
+        if len(parsed_entries) >= _REPLY_PIC_MAX_COUNT:
+            break
+        if not isinstance(entry, dict):
+            continue
+        parsed = _parse_reply_media_target(entry.get("img_src"))
+        if not parsed:
+            continue
+        parsed_entries.append((entry, parsed[0], parsed[1]))
+
+    if not parsed_entries:
+        return []
+
+    from miku.core.url_signing import sign_pic_target
+
+    is_multi = len(parsed_entries) > 1
+    thumb_suffix = _REPLY_PIC_GRID_SUFFIX if is_multi else _REPLY_PIC_SINGLE_SUFFIX
+    pictures = []
+    for entry, host, path in parsed_entries:
+        full_target = host + path
+        src = sign_pic_target(full_target)
+        is_gif = path.lower().endswith(".gif") or bool(entry.get("play_gif_thumbnail"))
+        if is_gif or "@" in path:
+            thumb = src
+        else:
+            thumb = sign_pic_target(full_target + thumb_suffix)
+        pictures.append(
+            {
+                "src": src,
+                "thumb": thumb,
+                "width": _positive_int(entry.get("img_width")),
+                "height": _positive_int(entry.get("img_height")),
+                "is_gif": is_gif,
+            }
+        )
+    return pictures
 
 
 def _render_reply_content_py(message, emote):

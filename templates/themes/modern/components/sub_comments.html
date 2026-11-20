@@ -1,4 +1,5 @@
 {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
+{% from "themes/modern/components/comment_pictures.html" import reply_pictures %}
 <div class="sub-comments-page mt-3 space-y-3 border-on-surface/10"
      data-page="{{ sub_comments['page']['num'] }}"
      data-count="{{ sub_comments['page']['count'] }}"
@@ -19,6 +20,7 @@
                         {{ level_badge(rep['member'].get('level_info', {}).get('current_level'), rep['member'].get('is_senior_member')) }}
                     </div>
                     <p class="text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
+                    {{ reply_pictures(rep['content']) }}
                     <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-on-surface-variant/60 pt-0.5">
                         {% set cdate = rep.get('ctime')|date %}
                         {% set tdesc = rep.get('reply_control', {}).get('time_desc') %}

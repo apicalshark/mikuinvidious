@@ -259,7 +259,114 @@
       });
     }
 
+    let lightbox = null;
+    let lightboxItems = [];
+    let lightboxIndex = 0;
+
+    function ensureLightbox() {
+      if (lightbox) return lightbox;
+      const overlay = document.createElement("div");
+      overlay.id = "comment-pic-lightbox";
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      overlay.className =
+        "fixed inset-0 z-50 hidden items-center justify-center bg-black/85 p-4 backdrop-blur-xs";
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.setAttribute("aria-label", I18n.t("Close"));
+      closeBtn.className =
+        "absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer";
+      closeBtn.innerHTML = '<i class="icon ion-ios-close text-2xl"></i>';
+
+      const prevBtn = document.createElement("button");
+      prevBtn.type = "button";
+      prevBtn.setAttribute("aria-label", I18n.t("Previous page"));
+      prevBtn.className =
+        "hidden absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer";
+      prevBtn.innerHTML = '<i class="icon ion-ios-arrow-back text-xl"></i>';
+
+      const nextBtn = document.createElement("button");
+      nextBtn.type = "button";
+      nextBtn.setAttribute("aria-label", I18n.t("Next page"));
+      nextBtn.className =
+        "hidden absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer";
+      nextBtn.innerHTML = '<i class="icon ion-ios-arrow-forward text-xl"></i>';
+
+      const img = document.createElement("img");
+      img.alt = "";
+      img.className = "max-h-[90vh] max-w-[92vw] rounded-lg object-contain shadow-2xl select-none";
+
+      const counter = document.createElement("div");
+      counter.className =
+        "hidden absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white select-none";
+
+      overlay.append(closeBtn, prevBtn, img, nextBtn, counter);
+      document.body.appendChild(overlay);
+
+      function showIndex(idx) {
+        if (!lightboxItems.length) return;
+        lightboxIndex = (idx + lightboxItems.length) % lightboxItems.length;
+        img.src = lightboxItems[lightboxIndex];
+        const multi = lightboxItems.length > 1;
+        prevBtn.classList.toggle("hidden", !multi);
+        nextBtn.classList.toggle("hidden", !multi);
+        counter.classList.toggle("hidden", !multi);
+        if (multi) {
+          counter.textContent = `${lightboxIndex + 1} / ${lightboxItems.length}`;
+        }
+      }
+
+      function close() {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("flex");
+        img.removeAttribute("src");
+        lightboxItems = [];
+      }
+
+      closeBtn.addEventListener("click", close);
+      prevBtn.addEventListener("click", () => showIndex(lightboxIndex - 1));
+      nextBtn.addEventListener("click", () => showIndex(lightboxIndex + 1));
+      overlay.addEventListener("click", (ev) => {
+        if (ev.target === overlay) close();
+      });
+      document.addEventListener("keydown", (ev) => {
+        if (overlay.classList.contains("hidden")) return;
+        if (ev.key === "Escape") {
+          close();
+        } else if (ev.key === "ArrowLeft" && lightboxItems.length > 1) {
+          showIndex(lightboxIndex - 1);
+        } else if (ev.key === "ArrowRight" && lightboxItems.length > 1) {
+          showIndex(lightboxIndex + 1);
+        }
+      });
+
+      lightbox = { overlay, showIndex, close };
+      return lightbox;
+    }
+
     document.addEventListener("click", function (e) {
+      const picLink = e.target.closest(".comment-pic-link");
+      if (picLink && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+        const container = picLink.closest(".comment-pictures");
+        const links = container
+          ? Array.from(container.querySelectorAll(".comment-pic-link"))
+          : [picLink];
+        const items = links
+          .map((el) => el.dataset.fullSrc || el.getAttribute("href") || "")
+          .filter(Boolean);
+        if (items.length) {
+          e.preventDefault();
+          const lb = ensureLightbox();
+          lightboxItems = items;
+          const idx = Math.max(0, links.indexOf(picLink));
+          lb.overlay.classList.remove("hidden");
+          lb.overlay.classList.add("flex");
+          lb.showIndex(idx);
+          return;
+        }
+      }
+
       const sortBtn = e.target.closest(".comment-sort-btn");
       if (sortBtn) {
         if (commentsLoading) return;
