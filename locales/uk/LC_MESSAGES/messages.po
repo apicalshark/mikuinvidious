@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-21 01:52+0800\n"
+"POT-Creation-Date: 2026-11-20 18:41+0000\n"
 "Language: uk\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -183,8 +183,8 @@ msgstr "У вас поки немає історії перегляду."
 msgid "Resolving video URL..."
 msgstr "Визначення URL-адреси відео..."
 
-#: static/themes/modern/js/player.js:1898
-#: static/themes/modern/js/player.js:1968 templates/macros.html:64
+#: static/themes/modern/js/player.js:2023
+#: static/themes/modern/js/player.js:2093 templates/macros.html:64
 msgid "Resolution"
 msgstr "Якість"
 
@@ -245,7 +245,7 @@ msgstr "Читати на Bilibili"
 msgid "reads"
 msgstr "прочитань"
 
-#: static/themes/modern/js/comments.js:309
+#: static/themes/modern/js/comments.js:310
 #: templates/themes/modern/author.html:112
 #: templates/themes/modern/bangumi_index.html:101
 #: templates/themes/modern/search.html:67
@@ -255,7 +255,7 @@ msgstr "прочитань"
 msgid "Previous page"
 msgstr "Попередня сторінка"
 
-#: static/themes/modern/js/comments.js:316
+#: static/themes/modern/js/comments.js:317
 #: templates/themes/modern/author.html:118
 #: templates/themes/modern/bangumi_index.html:108
 #: templates/themes/modern/search.html:73
@@ -902,7 +902,7 @@ msgstr "Прогрес завантаження"
 msgid "Download video"
 msgstr "Завантажити відео"
 
-#: static/themes/modern/js/comments.js:302
+#: static/themes/modern/js/comments.js:303
 #: static/themes/modern/js/download.js:82
 #: static/themes/modern/js/download.js:88
 #: templates/themes/modern/space.html:104
@@ -998,28 +998,28 @@ msgstr "Потік завершено"
 msgid "Live stream has ended"
 msgstr "Трансляція завершилася"
 
-#: static/themes/modern/js/player.js:1613
+#: static/themes/modern/js/player.js:1738
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "Авто (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1636
-#: static/themes/modern/js/player.js:1640
-#: static/themes/modern/js/player.js:1697
-#: static/themes/modern/js/player.js:1701
+#: static/themes/modern/js/player.js:1761
+#: static/themes/modern/js/player.js:1765
+#: static/themes/modern/js/player.js:1822
+#: static/themes/modern/js/player.js:1826
 msgid "Auto"
 msgstr "Авто"
 
-#: static/themes/modern/js/player.js:1829
+#: static/themes/modern/js/player.js:1954
 msgid "Back"
 msgstr "Назад"
 
-#: static/themes/modern/js/player.js:1899
+#: static/themes/modern/js/player.js:2024
 msgid "Audio"
 msgstr "Аудіо"
 
-#: static/themes/modern/js/player.js:1900
-#: static/themes/modern/js/player.js:1969
+#: static/themes/modern/js/player.js:2025
+#: static/themes/modern/js/player.js:2094
 msgid "Playback speed"
 msgstr "Швидкість відтворення"
 
@@ -1075,6 +1075,15 @@ msgstr "Закріплено"
 #: static/themes/modern/js/comments.js:28
 msgid "Show more"
 msgstr "Показати більше"
+
+#: static/themes/modern/js/comments.js:297
+msgid "Comment images"
+msgstr "Зображення в коментарі"
+
+#: templates/themes/modern/components/comment_pictures.html:12
+#, python-format
+msgid "Open image %(index)s of %(total)s"
+msgstr "Відкрити зображення %(index)s із %(total)s"
 
 #~ msgid "No articles yet"
 #~ msgstr "Статей поки немає"

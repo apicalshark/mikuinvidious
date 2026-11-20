@@ -189,7 +189,7 @@
                          data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"></div>
                     {% if vcomments["replies"] %}
                         {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge, pinned_badge with context %}
-                        {% from "themes/modern/components/comment_pictures.html" import reply_pictures %}
+                        {% from "themes/modern/components/comment_pictures.html" import reply_pictures with context %}
                         {% for rep in vcomments['replies'] %}
                             <div class="flex gap-5 group" data-rpid="{{ rep['rpid'] }}">
                                 {% set mvip = rep['member'].get('vip') %}

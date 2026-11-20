@@ -9,6 +9,7 @@
                    target="_blank"
                    rel="noopener noreferrer"
                    class="comment-pic-link group/pic relative block overflow-hidden rounded-xl bg-surface-container/60 border border-outline-variant/20 {{ 'max-w-xs' if is_single else 'aspect-square' }}"
+                   {% if not pic.is_gif %}aria-label="{{ _('Open image %(index)s of %(total)s')|format(index=loop.index, total=pics|length) }}"{% endif %}
                    data-full-src="{{ pic.src }}"
                    data-pic-index="{{ loop.index0 }}">
                     <img src="{{ pic.thumb }}"

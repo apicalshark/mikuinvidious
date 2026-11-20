@@ -1,5 +1,5 @@
 {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
-{% from "themes/modern/components/comment_pictures.html" import reply_pictures %}
+{% from "themes/modern/components/comment_pictures.html" import reply_pictures with context %}
 <div class="sub-comments-page mt-3 space-y-3 border-on-surface/10"
      data-page="{{ sub_comments['page']['num'] }}"
      data-count="{{ sub_comments['page']['count'] }}"

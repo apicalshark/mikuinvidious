@@ -182,8 +182,16 @@ const controller = new EventTarget();
 const timeRange = new EventTarget();
 timeRange.hasAttribute = () => false;
 timeRange.dispatchEvent = (ev) => {
+  let stopped = false;
+  for (const method of ["stopPropagation", "stopImmediatePropagation"]) {
+    const stop = ev[method].bind(ev);
+    ev[method] = () => {
+      stopped = true;
+      stop();
+    };
+  }
   const ok = EventTarget.prototype.dispatchEvent.call(timeRange, ev);
-  if (ok && ev.bubbles && !ev.cancelBubble) {
+  if (ok && ev.bubbles && !stopped) {
     controller.dispatchEvent(new CustomEvent(ev.type, { detail: ev.detail }));
   }
   return ok;
@@ -272,6 +280,10 @@ timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, det
 
 if (controllerSeeks.length !== 1 || controllerSeeks[0] !== 88.9) {
   throw new Error("Expected single committed seek [88.9], got: " + JSON.stringify(controllerSeeks));
+}
+timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 93 }));
+if (controllerSeeks.length !== 2 || controllerSeeks[1] !== 93) {
+  throw new Error("Expected a different seek to reach the controller");
 }
 """
         proc = subprocess.run([node_bin, "-e", test_script], capture_output=True, text=True)
@@ -375,6 +387,19 @@ class Harness {{
   if (bufferingCompleted !== false) throw new Error("Expected bufferingCompleted false");
   if (!initRequired || scheduleArg !== 0) {{
     throw new Error("Expected initRequired=true and startScheduleTimer(0)");
+  }}
+
+  ranges.push({{ start: 115, end: 140 }});
+  let finishClear;
+  bc.clearBuffers = () => new Promise((resolve) => {{ finishClear = resolve; }});
+  scheduleArg = null;
+  h._realignBufferedSeek(50);
+  h._realignBufferedSeek(200);
+  finishClear();
+  await Promise.resolve();
+  await Promise.resolve();
+  if (scheduleArg !== null) {{
+    throw new Error("A superseded seek restarted the schedule timer");
   }}
 }})().catch((err) => {{
   console.error(err);

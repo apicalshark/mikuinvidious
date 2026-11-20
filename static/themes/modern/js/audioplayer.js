@@ -98,20 +98,26 @@
 /* auto next */
 var continueCb = document.getElementById("continue");
 var colContinueCb = document.getElementById("collection-continue");
+function updateAvSwitch(checked) {
+  var prefix = current_vid.startsWith("am") ? "/audio_list/" : "/video/";
+  var url = prefix + current_vid + ":" + idx;
+  if (prefix === "/video/") url += "?listen=0";
+  if (checked) url += (url.includes("?") ? "&" : "?") + "ato=1";
+  var avswitch = document.getElementById("avswitch");
+  if (avswitch) avswitch.href = url;
+}
+
 if (continueCb && total_pages > 1) {
   continueCb.checked = ato;
-
   continueCb.addEventListener("click", function () {
-    var prefix = current_vid.startsWith("am") ? "/audio_list/" : "/video/";
-    var url = prefix + current_vid + ":" + idx;
-    if (prefix === "/video/") url += "?listen=0";
-    if (continueCb.checked) url += (url.includes("?") ? "&" : "?") + "ato=1";
-    var avswitch = document.getElementById("avswitch");
-    if (avswitch) avswitch.href = url;
+    updateAvSwitch(continueCb.checked);
   });
 }
 if (colContinueCb) {
   colContinueCb.checked = ato;
+  colContinueCb.addEventListener("change", function () {
+    updateAvSwitch(colContinueCb.checked);
+  });
 }
 if ((continueCb && total_pages > 1) || colContinueCb) {
   document.getElementById("player").addEventListener("ended", function () {

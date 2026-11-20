@@ -144,7 +144,7 @@ class CommentPicturesTemplateTests(unittest.IsolatedAsyncioTestCase):
             "like": 10,
             "rcount": 0,
         }
-        async with app.test_request_context("/"):
+        async with app.test_request_context("/?lang=de"):
             html_main = await render_template_with_theme(
                 "components/comment_items.html",
                 vcomments={"replies": [reply], "next_offset": "", "is_end": True, "mode": 3},
@@ -164,6 +164,7 @@ class CommentPicturesTemplateTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("comment-pictures", rendered)
             self.assertIn(f'data-full-src="{expected_full}"', rendered)
             self.assertIn(f'src="{expected_thumb}"', rendered)
+            self.assertIn('aria-label="Bild 1 von 2 öffnen"', rendered)
             self.assertIn(f'src="{expected_gif}"', rendered)
             self.assertNotIn(">GIF<", rendered)
             self.assertNotIn("https://i0.hdslb.com", rendered)

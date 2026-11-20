@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-21 01:52+0800\n"
+"POT-Creation-Date: 2026-11-20 18:41+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -193,8 +193,8 @@ msgstr ""
 msgid "Resolving video URL..."
 msgstr ""
 
-#: static/themes/modern/js/player.js:1898
-#: static/themes/modern/js/player.js:1968 templates/macros.html:64
+#: static/themes/modern/js/player.js:2023
+#: static/themes/modern/js/player.js:2093 templates/macros.html:64
 msgid "Resolution"
 msgstr ""
 
@@ -255,7 +255,7 @@ msgstr ""
 msgid "reads"
 msgstr ""
 
-#: static/themes/modern/js/comments.js:309
+#: static/themes/modern/js/comments.js:310
 #: templates/themes/modern/author.html:112
 #: templates/themes/modern/bangumi_index.html:101
 #: templates/themes/modern/search.html:67
@@ -265,7 +265,7 @@ msgstr ""
 msgid "Previous page"
 msgstr ""
 
-#: static/themes/modern/js/comments.js:316
+#: static/themes/modern/js/comments.js:317
 #: templates/themes/modern/author.html:118
 #: templates/themes/modern/bangumi_index.html:108
 #: templates/themes/modern/search.html:73
@@ -689,7 +689,7 @@ msgstr ""
 msgid "Search videos..."
 msgstr ""
 
-#: static/themes/modern/js/comments.js:302
+#: static/themes/modern/js/comments.js:303
 #: static/themes/modern/js/download.js:82
 #: static/themes/modern/js/download.js:88
 #: templates/themes/modern/space.html:104
@@ -855,6 +855,11 @@ msgstr ""
 msgid "plays"
 msgstr ""
 
+#: templates/themes/modern/components/comment_pictures.html:12
+#, python-format
+msgid "Open image %(index)s of %(total)s"
+msgstr ""
+
 #: templates/themes/modern/components/meta_part.html:27
 msgid "Comments are closed by the uploader."
 msgstr ""
@@ -939,6 +944,10 @@ msgstr ""
 
 #: static/themes/modern/js/comments.js:119
 msgid "Failed to load comments, please try again later"
+msgstr ""
+
+#: static/themes/modern/js/comments.js:297
+msgid "Comment images"
 msgstr ""
 
 #: static/themes/modern/js/convert.js:44
@@ -1050,28 +1059,28 @@ msgstr ""
 msgid "Live stream has ended"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1613
+#: static/themes/modern/js/player.js:1738
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1636
-#: static/themes/modern/js/player.js:1640
-#: static/themes/modern/js/player.js:1697
-#: static/themes/modern/js/player.js:1701
+#: static/themes/modern/js/player.js:1761
+#: static/themes/modern/js/player.js:1765
+#: static/themes/modern/js/player.js:1822
+#: static/themes/modern/js/player.js:1826
 msgid "Auto"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1829
+#: static/themes/modern/js/player.js:1954
 msgid "Back"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1899
+#: static/themes/modern/js/player.js:2024
 msgid "Audio"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1900
-#: static/themes/modern/js/player.js:1969
+#: static/themes/modern/js/player.js:2025
+#: static/themes/modern/js/player.js:2094
 msgid "Playback speed"
 msgstr ""
 

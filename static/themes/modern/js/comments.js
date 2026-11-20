@@ -294,6 +294,7 @@
       overlay.id = "comment-pic-lightbox";
       overlay.setAttribute("role", "dialog");
       overlay.setAttribute("aria-modal", "true");
+      overlay.setAttribute("aria-label", I18n.t("Comment images"));
       overlay.className =
         "fixed inset-0 z-50 hidden items-center justify-center bg-black/85 p-4 backdrop-blur-xs";
 
@@ -342,11 +343,25 @@
         }
       }
 
+      let previousFocus = null;
+
+      function open(items, idx, trigger) {
+        previousFocus = document.activeElement;
+        if (previousFocus === document.body) previousFocus = trigger;
+        lightboxItems = items;
+        overlay.classList.remove("hidden");
+        overlay.classList.add("flex");
+        showIndex(idx);
+        closeBtn.focus();
+      }
+
       function close() {
         overlay.classList.add("hidden");
         overlay.classList.remove("flex");
         img.removeAttribute("src");
         lightboxItems = [];
+        previousFocus?.focus();
+        previousFocus = null;
       }
 
       closeBtn.addEventListener("click", close);
@@ -359,6 +374,17 @@
         if (overlay.classList.contains("hidden")) return;
         if (ev.key === "Escape") {
           close();
+        } else if (ev.key === "Tab") {
+          ev.preventDefault();
+          const controls = lightboxItems.length > 1 ? [closeBtn, prevBtn, nextBtn] : [closeBtn];
+          const current = controls.indexOf(document.activeElement);
+          const next =
+            current === -1
+              ? ev.shiftKey
+                ? controls.length - 1
+                : 0
+              : (current + (ev.shiftKey ? -1 : 1) + controls.length) % controls.length;
+          controls[next].focus();
         } else if (ev.key === "ArrowLeft" && lightboxItems.length > 1) {
           showIndex(lightboxIndex - 1);
         } else if (ev.key === "ArrowRight" && lightboxItems.length > 1) {
@@ -366,7 +392,7 @@
         }
       });
 
-      lightbox = { overlay, showIndex, close };
+      lightbox = { open };
       return lightbox;
     }
 
@@ -413,12 +439,8 @@
           .filter(Boolean);
         if (items.length) {
           e.preventDefault();
-          const lb = ensureLightbox();
-          lightboxItems = items;
           const idx = Math.max(0, links.indexOf(picLink));
-          lb.overlay.classList.remove("hidden");
-          lb.overlay.classList.add("flex");
-          lb.showIndex(idx);
+          ensureLightbox().open(items, idx, picLink);
           return;
         }
       }

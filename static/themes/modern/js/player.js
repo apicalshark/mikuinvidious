@@ -1020,6 +1020,7 @@ class DashPlayerManager {
   }
 
   _realignBufferedSeek(seekTime) {
+    const seekId = (this._bufferedSeekId = Symbol());
     try {
       const stream = this.player?.getActiveStream?.();
       const processors = stream?.getStreamProcessors?.() || [];
@@ -1048,7 +1049,7 @@ class DashPlayerManager {
           Promise.resolve(clearPromise)
             .catch(() => {})
             .then(() => {
-              if (this.destroyed || !this.player) return;
+              if (this.destroyed || !this.player || this._bufferedSeekId !== seekId) return;
               const freshEnd = bc.getContinuousBufferTimeForTargetTime?.(seekTime);
               const nextTarget = Number.isFinite(freshEnd) ? freshEnd : contEnd;
               if (nextTarget < (this.video?.duration || Infinity) - 0.5) {
@@ -1068,6 +1069,7 @@ class DashPlayerManager {
 
   destroy(isFinal = true) {
     if (isFinal) this.destroyed = true;
+    this._bufferedSeekId = null;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.video) {
       if (this._onVideoPlaying) this.video.removeEventListener("playing", this._onVideoPlaying);

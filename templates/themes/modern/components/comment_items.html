@@ -1,5 +1,5 @@
 {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge, pinned_badge with context %}
-{% from "themes/modern/components/comment_pictures.html" import reply_pictures %}
+{% from "themes/modern/components/comment_pictures.html" import reply_pictures with context %}
 <div id="comments-cursor"
      data-next-offset="{{ vcomments.get('next_offset', '') }}"
      data-is-end="{{ 'true' if vcomments.get('is_end', True) else 'false' }}"
