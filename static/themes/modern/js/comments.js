@@ -25,10 +25,30 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     const MSG_FOLD = I18n.t("Fold");
+    const MSG_SHOW_MORE = I18n.t("Show more");
     const MSG_MORE_REPLIES = I18n.t("Load more replies");
     const MSG_LOADING_DOTS = I18n.t("Loading...");
     const MSG_LOAD_FAILED = I18n.t("Load failed");
     const MSG_LOAD_MORE_COMMENTS = I18n.t("Load more comments");
+
+    function applyCommentClamping(root) {
+      if (!root) return;
+      root.querySelectorAll(".comment-text:not([data-clamp-init])").forEach((el) => {
+        el.dataset.clampInit = "1";
+        el.classList.add("line-clamp-5");
+        if (el.scrollHeight > el.clientHeight + 2) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className =
+            "comment-expand-btn text-xs font-medium text-primary hover:underline cursor-pointer mt-0.5";
+          btn.dataset.expanded = "0";
+          btn.textContent = MSG_SHOW_MORE;
+          el.insertAdjacentElement("afterend", btn);
+        } else {
+          el.classList.remove("line-clamp-5");
+        }
+      });
+    }
 
     function repliesLabel(btn) {
       const c = Number(btn.dataset.count);
@@ -91,6 +111,7 @@
         })
         .then((html) => {
           commentsContainer.innerHTML = html;
+          applyCommentClamping(commentsContainer);
         })
         .catch((err) => {
           console.error("[comments] fetch failed:", err);
@@ -135,6 +156,9 @@
       });
       const more = slot.querySelector(".sub-more-btn");
       slot.insertBefore(pageEl, more || null);
+      if (!slot.classList.contains("hidden")) {
+        applyCommentClamping(pageEl);
+      }
       return {
         isEnd: pageEl.dataset.isEnd === "true",
         page: Number(pageEl.dataset.page),
@@ -227,6 +251,7 @@
             cursorEl.dataset.isEnd = newCursor.dataset.isEnd;
             if (newCursor.dataset.mode) cursorEl.dataset.mode = newCursor.dataset.mode;
           }
+          applyCommentClamping(list);
         }
         const cursorRepeated = cursorEl && cursorEl.dataset.nextOffset === previousNext;
         const isEnd =
@@ -259,7 +284,167 @@
       });
     }
 
+    let lightbox = null;
+    let lightboxItems = [];
+    let lightboxIndex = 0;
+
+    function ensureLightbox() {
+      if (lightbox) return lightbox;
+      const overlay = document.createElement("div");
+      overlay.id = "comment-pic-lightbox";
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      overlay.setAttribute("aria-label", I18n.t("Comment images"));
+      overlay.className =
+        "fixed inset-0 z-50 hidden items-center justify-center bg-black/85 p-4 backdrop-blur-xs";
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.setAttribute("aria-label", I18n.t("Close"));
+      closeBtn.className =
+        "absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer";
+      closeBtn.innerHTML = '<i class="icon ion-ios-close text-2xl"></i>';
+
+      const prevBtn = document.createElement("button");
+      prevBtn.type = "button";
+      prevBtn.setAttribute("aria-label", I18n.t("Previous page"));
+      prevBtn.className =
+        "hidden absolute left-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer";
+      prevBtn.innerHTML = '<i class="icon ion-ios-arrow-back text-xl"></i>';
+
+      const nextBtn = document.createElement("button");
+      nextBtn.type = "button";
+      nextBtn.setAttribute("aria-label", I18n.t("Next page"));
+      nextBtn.className =
+        "hidden absolute right-4 top-1/2 -translate-y-1/2 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer";
+      nextBtn.innerHTML = '<i class="icon ion-ios-arrow-forward text-xl"></i>';
+
+      const img = document.createElement("img");
+      img.alt = "";
+      img.className = "max-h-[90vh] max-w-[92vw] rounded-lg object-contain shadow-2xl select-none";
+
+      const counter = document.createElement("div");
+      counter.className =
+        "hidden absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-white select-none";
+
+      overlay.append(closeBtn, prevBtn, img, nextBtn, counter);
+      document.body.appendChild(overlay);
+
+      function showIndex(idx) {
+        if (!lightboxItems.length) return;
+        lightboxIndex = (idx + lightboxItems.length) % lightboxItems.length;
+        img.src = lightboxItems[lightboxIndex];
+        const multi = lightboxItems.length > 1;
+        prevBtn.classList.toggle("hidden", !multi);
+        nextBtn.classList.toggle("hidden", !multi);
+        counter.classList.toggle("hidden", !multi);
+        if (multi) {
+          counter.textContent = `${lightboxIndex + 1} / ${lightboxItems.length}`;
+        }
+      }
+
+      let previousFocus = null;
+
+      function open(items, idx, trigger) {
+        previousFocus = document.activeElement;
+        if (previousFocus === document.body) previousFocus = trigger;
+        lightboxItems = items;
+        overlay.classList.remove("hidden");
+        overlay.classList.add("flex");
+        showIndex(idx);
+        closeBtn.focus();
+      }
+
+      function close() {
+        overlay.classList.add("hidden");
+        overlay.classList.remove("flex");
+        img.removeAttribute("src");
+        lightboxItems = [];
+        previousFocus?.focus();
+        previousFocus = null;
+      }
+
+      closeBtn.addEventListener("click", close);
+      prevBtn.addEventListener("click", () => showIndex(lightboxIndex - 1));
+      nextBtn.addEventListener("click", () => showIndex(lightboxIndex + 1));
+      overlay.addEventListener("click", (ev) => {
+        if (ev.target === overlay) close();
+      });
+      document.addEventListener("keydown", (ev) => {
+        if (overlay.classList.contains("hidden")) return;
+        if (ev.key === "Escape") {
+          close();
+        } else if (ev.key === "Tab") {
+          ev.preventDefault();
+          const controls = lightboxItems.length > 1 ? [closeBtn, prevBtn, nextBtn] : [closeBtn];
+          const current = controls.indexOf(document.activeElement);
+          const next =
+            current === -1
+              ? ev.shiftKey
+                ? controls.length - 1
+                : 0
+              : (current + (ev.shiftKey ? -1 : 1) + controls.length) % controls.length;
+          controls[next].focus();
+        } else if (ev.key === "ArrowLeft" && lightboxItems.length > 1) {
+          showIndex(lightboxIndex - 1);
+        } else if (ev.key === "ArrowRight" && lightboxItems.length > 1) {
+          showIndex(lightboxIndex + 1);
+        }
+      });
+
+      lightbox = { open };
+      return lightbox;
+    }
+
+    applyCommentClamping(document);
+
     document.addEventListener("click", function (e) {
+      const tsBtn = e.target.closest(".comment-timestamp");
+      if (tsBtn) {
+        const seekSec = Number(tsBtn.dataset.seek);
+        const media =
+          document.getElementById("video_player") ||
+          document.getElementById("player") ||
+          document.querySelector("video, audio");
+        if (media && Number.isFinite(seekSec)) {
+          media.currentTime = seekSec;
+          media.play?.().catch(() => {});
+          if (media.getBoundingClientRect().top < 0) {
+            media.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }
+        return;
+      }
+
+      const expandBtn = e.target.closest(".comment-expand-btn");
+      if (expandBtn) {
+        const p = expandBtn.previousElementSibling;
+        if (p && p.classList.contains("comment-text")) {
+          const expanded = expandBtn.dataset.expanded === "1";
+          p.classList.toggle("line-clamp-5", expanded);
+          expandBtn.dataset.expanded = expanded ? "0" : "1";
+          expandBtn.textContent = expanded ? MSG_SHOW_MORE : MSG_FOLD;
+        }
+        return;
+      }
+
+      const picLink = e.target.closest(".comment-pic-link");
+      if (picLink && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+        const container = picLink.closest(".comment-pictures");
+        const links = container
+          ? Array.from(container.querySelectorAll(".comment-pic-link"))
+          : [picLink];
+        const items = links
+          .map((el) => el.dataset.fullSrc || el.getAttribute("href") || "")
+          .filter(Boolean);
+        if (items.length) {
+          e.preventDefault();
+          const idx = Math.max(0, links.indexOf(picLink));
+          ensureLightbox().open(items, idx, picLink);
+          return;
+        }
+      }
+
       const sortBtn = e.target.closest(".comment-sort-btn");
       if (sortBtn) {
         if (commentsLoading) return;
@@ -291,6 +476,7 @@
           })
           .then((html) => {
             list.innerHTML = html;
+            applyCommentClamping(list);
             const cursorEl = document.getElementById("comments-cursor");
             const activeMode = cursorEl?.dataset.mode || sortMode;
             paintSortButtons(activeMode);

@@ -209,9 +209,9 @@ class User:
         # IP-blocked (HTTP 412 / -352) from datacenter IPs without the WARP
         # proxy. Fall back to the /x/series/recArchivesByKeywords endpoint used
         # by PipePipe, which serves the same uploads and is not IP-gated.
-        return await self.get_videos_fallback(pn=pn, ps=ps)
+        return await self.get_videos_fallback(pn=pn, ps=ps, keyword=keyword)
 
-    async def get_videos_fallback(self, pn=1, ps=20) -> dict:
+    async def get_videos_fallback(self, pn=1, ps=20, keyword="") -> dict:
         """Fetch a user's uploads via the (web) recArchivesByKeywords endpoint.
 
         Falls back to this when ``arc/search`` is blocked. Normalizes the
@@ -234,7 +234,7 @@ class User:
             # bundle-exact: the key is `orderby`, not `order`.
             params = {
                 "mid": self.uid,
-                "keywords": "",
+                "keywords": keyword or "",
                 "orderby": "pubdate",
                 "pn": pn,
                 "ps": ps,

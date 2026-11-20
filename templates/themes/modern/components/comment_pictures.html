@@ -1,0 +1,25 @@
+{% macro reply_pictures(content) %}
+    {% set pics = content|reply_pictures %}
+    {% if pics %}
+        {% set is_single = pics|length == 1 %}
+        {% set grid_cols = "grid-cols-2 max-w-60" if pics|length in (2, 4) else "grid-cols-3 max-w-88" %}
+        <div class="comment-pictures mt-2 {{ 'inline-block' if is_single else 'grid gap-1.5 ' ~ grid_cols }}">
+            {% for pic in pics %}
+                <a href="{{ pic.src }}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="comment-pic-link group/pic relative block overflow-hidden rounded-xl bg-surface-container/60 border border-outline-variant/20 {{ 'max-w-xs' if is_single else 'aspect-square' }}"
+                   {% if not pic.is_gif %}aria-label="{{ _('Open image %(index)s of %(total)s')|format(index=loop.index, total=pics|length) }}"{% endif %}
+                   data-full-src="{{ pic.src }}"
+                   data-pic-index="{{ loop.index0 }}">
+                    <img src="{{ pic.thumb }}"
+                         alt=""
+                         loading="lazy"
+                         decoding="async"
+                         {% if is_single and pic.width and pic.height %}width="{{ pic.width }}" height="{{ pic.height }}"{% endif %}
+                         class="{{ 'max-h-64 w-auto max-w-full object-contain' if is_single else 'w-full h-full object-cover' }} block transition-transform duration-200 group-hover/pic:scale-[1.02]" />
+                </a>
+            {% endfor %}
+        </div>
+    {% endif %}
+{% endmacro %}

@@ -96,3 +96,13 @@ def __jinja2_filter_format_desc(desc):
 @app.template_filter("reply_content")
 def __jinja2_filter_reply_content(content):
     return Markup(transformers.render_reply_content(content))
+
+
+@app.template_filter("reply_pictures")
+def __jinja2_filter_reply_pictures(content):
+    return transformers.extract_reply_pictures(content)
+
+
+@app.template_filter("ugc_season")
+def __jinja2_filter_ugc_season(vinfo):
+    return transformers.extract_ugc_season(vinfo)

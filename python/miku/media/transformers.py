@@ -45,6 +45,24 @@ def strip_search_highlight(text):
     return html.unescape(re.sub(r"</?em[^>]*>", "", text))
 
 
+_TIMESTAMP_RE = re.compile(r"(?<![:\d/])(?:(\d{1,2}):)?([0-5]?\d):([0-5]\d)(?![:\d])")
+
+
+def _linkify_timestamps(escaped_text: str) -> str:
+    def _replace(match):
+        hours = int(match.group(1) or 0)
+        minutes = int(match.group(2))
+        secs = int(match.group(3))
+        total_seconds = hours * 3600 + minutes * 60 + secs
+        label = match.group(0)
+        return (
+            f'<button type="button" class="comment-timestamp text-primary hover:underline '
+            f'cursor-pointer font-mono" data-seek="{total_seconds}">{label}</button>'
+        )
+
+    return _TIMESTAMP_RE.sub(_replace, escaped_text)
+
+
 def format_description(raw_desc):
     """Escapes HTML and formats newlines into paragraphs/breaks."""
     if not raw_desc:
@@ -56,7 +74,7 @@ def format_description(raw_desc):
     for p in paragraphs:
         if p.strip():
             # Escape HTML content to prevent XSS, then format newlines
-            safe_text = html.escape(p.strip())
+            safe_text = _linkify_timestamps(html.escape(p.strip()))
             # Replace single newlines within a paragraph with <br>
             inner = safe_text.replace("\n", "<br>")
             formatted_paragraphs.append(f"<p>{inner}</p>")
@@ -277,8 +295,12 @@ _REPLY_EMOTE_SIZE2_STYLE = "display:inline-block;width:50px;height:50px;vertical
 _REPLY_EMOTE_TOKEN_RE = re.compile(r"\[[^\[\]\n\r]{1,50}\]")
 
 
-def _proxied_emote_src(raw_url):
-    """Validate an upstream emote URL; same-origin /proxy/pic/ path or None."""
+_REPLY_PIC_MAX_COUNT = 9
+_REPLY_PIC_SINGLE_SUFFIX = "@480w.webp"
+_REPLY_PIC_GRID_SUFFIX = "@240w_240h_1c.webp"
+
+
+def _parse_reply_media_target(raw_url):
     if not raw_url or not isinstance(raw_url, str):
         return None
     url = raw_url.strip()
@@ -294,14 +316,77 @@ def _proxied_emote_src(raw_url):
     if not host or not any(host == d.lstrip(".") or host.endswith(d) for d in _REPLY_EMOTE_DOMAINS):
         return None
     path = parts.path or "/"
-    # Reject anything that could break out of the src attribute or path.
     if re.search(r"[\s\"'<>\\^`{|}]", path):
         return None
     if ".." in path.split("/"):
         return None
+    return host, path
+
+
+def _proxied_emote_src(raw_url):
+    parsed = _parse_reply_media_target(raw_url)
+    if not parsed:
+        return None
     from miku.core.url_signing import sign_pic_target
 
+    host, path = parsed
     return sign_pic_target(host + path)
+
+
+def _positive_int(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        num = int(value)
+    except TypeError, ValueError:
+        return None
+    return num if num > 0 else None
+
+
+def extract_reply_pictures(content):
+    if not isinstance(content, dict):
+        return []
+    raw_pictures = content.get("pictures")
+    if not isinstance(raw_pictures, list) or not raw_pictures:
+        return []
+
+    parsed_entries = []
+    for entry in raw_pictures:
+        if len(parsed_entries) >= _REPLY_PIC_MAX_COUNT:
+            break
+        if not isinstance(entry, dict):
+            continue
+        parsed = _parse_reply_media_target(entry.get("img_src"))
+        if not parsed:
+            continue
+        parsed_entries.append((entry, parsed[0], parsed[1]))
+
+    if not parsed_entries:
+        return []
+
+    from miku.core.url_signing import sign_pic_target
+
+    is_multi = len(parsed_entries) > 1
+    thumb_suffix = _REPLY_PIC_GRID_SUFFIX if is_multi else _REPLY_PIC_SINGLE_SUFFIX
+    pictures = []
+    for entry, host, path in parsed_entries:
+        full_target = host + path
+        src = sign_pic_target(full_target)
+        is_gif = path.lower().endswith(".gif") or bool(entry.get("play_gif_thumbnail"))
+        if is_gif or "@" in path:
+            thumb = src
+        else:
+            thumb = sign_pic_target(full_target + thumb_suffix)
+        pictures.append(
+            {
+                "src": src,
+                "thumb": thumb,
+                "width": _positive_int(entry.get("img_width")),
+                "height": _positive_int(entry.get("img_height")),
+                "is_gif": is_gif,
+            }
+        )
+    return pictures
 
 
 def _render_reply_content_py(message, emote):
@@ -329,10 +414,10 @@ def _render_reply_content_py(message, emote):
     out = []
     pos = 0
     for m in _REPLY_EMOTE_TOKEN_RE.finditer(message):
-        out.append(html.escape(message[pos : m.start()]))
+        out.append(_linkify_timestamps(html.escape(message[pos : m.start()])))
         out.append(_replace(m))
         pos = m.end()
-    out.append(html.escape(message[pos:]))
+    out.append(_linkify_timestamps(html.escape(message[pos:])))
     return "".join(out)
 
 
@@ -343,7 +428,7 @@ def render_reply_content(content):
     same-origin <img> tags. Unknown/blocked placeholders stay as plain text.
     """
     if isinstance(content, str):
-        return html.escape(content)
+        return _linkify_timestamps(html.escape(content))
     if not isinstance(content, dict):
         return ""
     message = content.get("message") or ""
@@ -351,6 +436,72 @@ def render_reply_content(content):
         message = str(message)
     emote = content.get("emote")
     if not isinstance(emote, dict) or not emote:
-        return html.escape(message)
+        return _linkify_timestamps(html.escape(message))
 
     return _render_reply_content_py(message, emote)
+
+
+_UGC_SEASON_BVID_RE = re.compile(r"^BV[A-Za-z0-9]+$")
+
+
+def extract_ugc_season(vinfo):
+    if not isinstance(vinfo, dict):
+        return None
+    season = vinfo.get("ugc_season")
+    if not isinstance(season, dict):
+        return None
+    raw_sections = season.get("sections")
+    if not isinstance(raw_sections, list) or not raw_sections:
+        return None
+
+    sections = []
+    flat_bvids = []
+    for sec in raw_sections:
+        if not isinstance(sec, dict):
+            continue
+        raw_eps = sec.get("episodes")
+        if not isinstance(raw_eps, list) or not raw_eps:
+            continue
+        episodes = []
+        for ep in raw_eps:
+            if not isinstance(ep, dict):
+                continue
+            bvid = ep.get("bvid")
+            if not isinstance(bvid, str) or not _UGC_SEASON_BVID_RE.fullmatch(bvid):
+                continue
+            arc = ep.get("arc") if isinstance(ep.get("arc"), dict) else {}
+            pic = arc.get("pic") or ep.get("pic") or ""
+            if isinstance(pic, str) and pic.startswith("http:"):
+                pic = "https:" + pic[5:]
+            page = ep.get("page") if isinstance(ep.get("page"), dict) else {}
+            duration = arc.get("duration") if arc.get("duration") is not None else page.get("duration")
+            if duration is None:
+                duration = ep.get("duration", 0)
+            episodes.append(
+                {
+                    "bvid": bvid,
+                    "title": ep.get("title") or arc.get("title") or bvid,
+                    "pic": pic if isinstance(pic, str) else "",
+                    "duration": duration or 0,
+                }
+            )
+            flat_bvids.append(bvid)
+        if episodes:
+            sections.append({"title": sec.get("title") or "", "episodes": episodes})
+
+    if not sections:
+        return None
+
+    current_bvid = vinfo.get("bvid")
+    next_bvid = None
+    if isinstance(current_bvid, str) and current_bvid in flat_bvids:
+        idx = flat_bvids.index(current_bvid)
+        if idx + 1 < len(flat_bvids):
+            next_bvid = flat_bvids[idx + 1]
+
+    return {
+        "title": season.get("title") or "",
+        "ep_count": len(flat_bvids),
+        "sections": sections,
+        "next_bvid": next_bvid,
+    }

@@ -154,10 +154,11 @@ async def space_view(mid):
     except TypeError, ValueError:
         pn = 1
     pn = max(pn, 1)
+    search_query = (request.args.get("q") or "").strip()[:100]
     # Page-1 payload is shared with /space/<mid>/json; deeper pages get
     # their own per-page key. All pages honor SPACE_CACHE_MINUTES.
     cache_ttl = cache_minutes("space_minutes") * 60
-    use_cache = cache_ttl > 0
+    use_cache = cache_ttl > 0 and not search_query
     cache_hit = False
     degraded = False
     load_failed = False
@@ -168,7 +169,7 @@ async def space_view(mid):
         uinfo, uvids = await _read_space_data(mid, cache_ttl, pn)
         cache_hit = uinfo is not None
     if not cache_hit:
-        if pn == 1:
+        if pn == 1 and not search_query:
             uinfo_res, uvids_res, degraded, load_failed = await _space_sf.do(
                 f"{mid}:1", lambda: _load_space_page1_shared(mid)
             )
@@ -207,7 +208,9 @@ async def space_view(mid):
                 local_uinfo = None
                 local_uvids = {}
                 try:
-                    local_uinfo, local_uvids = await asyncio.gather(u.get_user_info(), u.get_videos(pn=pn, ps=28))
+                    local_uinfo, local_uvids = await asyncio.gather(
+                        u.get_user_info(), u.get_videos(pn=pn, ps=28, keyword=search_query)
+                    )
                 except Exception as e:
                     if is_risk_error(e):
                         local_degraded = True
@@ -233,7 +236,8 @@ async def space_view(mid):
                         local_degraded = True
                 return local_uinfo, local_uvids, False, local_degraded, local_load_failed, local_stale
 
-            uinfo, uvids, cache_hit, degraded, load_failed, stale = await _space_sf.do(f"{mid}:{pn}", _load_space_page)
+            sf_key = f"{mid}:{pn}" if not search_query else f"{mid}:{pn}:q:{search_query}"
+            uinfo, uvids, cache_hit, degraded, load_failed, stale = await _space_sf.do(sf_key, _load_space_page)
     if not isinstance(uinfo, dict) or not uinfo:
         return await render_template_with_theme(
             "error.html",
@@ -285,7 +289,12 @@ async def space_view(mid):
         # the cached list is non-empty so the age is visible to the user.
         degraded = True
     html = await render_template_with_theme(
-        "space.html", uinfo=uinfo, uvids=uvids, degraded=degraded, load_failed=load_failed
+        "space.html",
+        uinfo=uinfo,
+        uvids=uvids,
+        degraded=degraded,
+        load_failed=load_failed,
+        search_query=search_query,
     )
     return _space_html_response(html, use_cache=use_cache, cache_hit=cache_hit, degraded=degraded, stale=stale)
 

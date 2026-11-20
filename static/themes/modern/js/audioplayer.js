@@ -96,27 +96,42 @@
 })();
 
 /* auto next */
-if (total_pages > 1) {
-  document.getElementById("continue").checked = ato;
+var continueCb = document.getElementById("continue");
+var colContinueCb = document.getElementById("collection-continue");
+function updateAvSwitch(checked) {
+  var prefix = current_vid.startsWith("am") ? "/audio_list/" : "/video/";
+  var url = prefix + current_vid + ":" + idx;
+  if (prefix === "/video/") url += "?listen=0";
+  if (checked) url += (url.includes("?") ? "&" : "?") + "ato=1";
+  var avswitch = document.getElementById("avswitch");
+  if (avswitch) avswitch.href = url;
+}
 
-  document.getElementById("continue").addEventListener("click", function () {
-    var prefix = current_vid.startsWith("am") ? "/audio_list/" : "/video/";
-    var url = prefix + current_vid + ":" + idx;
-    if (prefix === "/video/") url += "?listen=0";
-    if (document.getElementById("continue").checked)
-      url += (url.includes("?") ? "&" : "?") + "ato=1";
-    document.getElementById("avswitch").href = url;
+if (continueCb && total_pages > 1) {
+  continueCb.checked = ato;
+  continueCb.addEventListener("click", function () {
+    updateAvSwitch(continueCb.checked);
   });
-
+}
+if (colContinueCb) {
+  colContinueCb.checked = ato;
+  colContinueCb.addEventListener("change", function () {
+    updateAvSwitch(colContinueCb.checked);
+  });
+}
+if ((continueCb && total_pages > 1) || colContinueCb) {
   document.getElementById("player").addEventListener("ended", function () {
-    if (!document.getElementById("continue").checked) return;
-
-    if (++idx == total_pages) return;
-
-    var prefix = current_vid.startsWith("am") ? "/audio_list/" : "/video/";
-    var url = prefix + current_vid + ":" + idx + "?listen=1&ato=1";
-    if (current_vid.startsWith("am")) url = prefix + current_vid + ":" + idx + "?ato=1";
-    window.location.href = url;
+    if (continueCb && continueCb.checked && idx + 1 < total_pages) {
+      idx++;
+      var prefix = current_vid.startsWith("am") ? "/audio_list/" : "/video/";
+      var url = prefix + current_vid + ":" + idx + "?listen=1&ato=1";
+      if (current_vid.startsWith("am")) url = prefix + current_vid + ":" + idx + "?ato=1";
+      window.location.href = url;
+      return;
+    }
+    if (colContinueCb && colContinueCb.checked && colContinueCb.dataset.nextBvid) {
+      window.location.href = "/video/" + colContinueCb.dataset.nextBvid + "?listen=1&ato=1";
+    }
   });
 }
 

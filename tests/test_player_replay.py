@@ -160,6 +160,255 @@ if (video.currentTime !== 45) {
         proc = subprocess.run([node_bin, "-e", test_script], capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
 
+    def test_deferred_seek_present_and_defers_until_pointerup(self):
+        self.assertIn("_deferredSeekInstalled", self.src)
+        self.assertIn("mediaseekrequest", self.src)
+
+        node_bin = shutil.which("node") or shutil.which("nodejs")
+        if not node_bin:
+            brew_node = "/home/linuxbrew/.linuxbrew/bin/node"
+            if os.path.exists(brew_node) and os.access(brew_node, os.X_OK):
+                node_bin = brew_node
+        if not node_bin:
+            raise unittest.SkipTest("node executable not found")
+
+        test_script = """
+const { EventTarget, CustomEvent } = globalThis;
+const windowObj = new EventTarget();
+globalThis.window = windowObj;
+globalThis.CustomEvent = CustomEvent;
+
+const controller = new EventTarget();
+const timeRange = new EventTarget();
+timeRange.hasAttribute = () => false;
+timeRange.dispatchEvent = (ev) => {
+  let stopped = false;
+  for (const method of ["stopPropagation", "stopImmediatePropagation"]) {
+    const stop = ev[method].bind(ev);
+    ev[method] = () => {
+      stopped = true;
+      stop();
+    };
+  }
+  const ok = EventTarget.prototype.dispatchEvent.call(timeRange, ev);
+  if (ok && ev.bubbles && !stopped) {
+    controller.dispatchEvent(new CustomEvent(ev.type, { detail: ev.detail }));
+  }
+  return ok;
+};
+
+const controllerSeeks = [];
+controller.addEventListener("mediaseekrequest", (e) => {
+  controllerSeeks.push(e.detail);
+});
+
+let isScrubbing = false;
+let isCommitting = false;
+let pendingSeekTime = null;
+let lastCommittedTime = null;
+let lastCommittedAt = 0;
+
+Object.defineProperty(timeRange, "dragging", {
+  get() {
+    return isScrubbing || this.hasAttribute("dragging");
+  },
+  configurable: true,
+});
+
+timeRange.addEventListener(
+  "pointerdown",
+  () => {
+    isScrubbing = true;
+    pendingSeekTime = null;
+  },
+  true
+);
+
+timeRange.addEventListener("mediaseekrequest", (e) => {
+  if (isCommitting) return;
+  if (isScrubbing) {
+    pendingSeekTime = Number(e.detail);
+    e.stopImmediatePropagation();
+  } else if (
+    lastCommittedTime !== null &&
+    performance.now() - lastCommittedAt < 50 &&
+    Math.abs(Number(e.detail) - lastCommittedTime) < 0.05
+  ) {
+    e.stopImmediatePropagation();
+  }
+});
+
+const commitPendingSeek = () => {
+  if (!isScrubbing) return;
+  isScrubbing = false;
+  if (pendingSeekTime !== null && Number.isFinite(pendingSeekTime)) {
+    const target = pendingSeekTime;
+    pendingSeekTime = null;
+    isCommitting = true;
+    try {
+      timeRange.dispatchEvent(
+        new CustomEvent("mediaseekrequest", { composed: true, bubbles: true, detail: target })
+      );
+    } finally {
+      isCommitting = false;
+    }
+    lastCommittedTime = target;
+    lastCommittedAt = performance.now();
+  }
+};
+
+windowObj.addEventListener("pointerup", commitPendingSeek);
+windowObj.addEventListener("pointercancel", () => {
+  if (!isScrubbing) return;
+  isScrubbing = false;
+  pendingSeekTime = null;
+});
+timeRange._deferredSeekInstalled = true;
+
+timeRange.dispatchEvent(new CustomEvent("pointerdown"));
+if (!timeRange.dragging) throw new Error("Expected dragging to be true while scrubbing");
+timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 12.5 }));
+timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 45.2 }));
+timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 88.9 }));
+
+if (controllerSeeks.length !== 0) {
+  throw new Error("Expected 0 seeks during drag, got: " + JSON.stringify(controllerSeeks));
+}
+
+windowObj.dispatchEvent(new CustomEvent("pointerup"));
+timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 88.9 }));
+
+if (controllerSeeks.length !== 1 || controllerSeeks[0] !== 88.9) {
+  throw new Error("Expected single committed seek [88.9], got: " + JSON.stringify(controllerSeeks));
+}
+timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 93 }));
+if (controllerSeeks.length !== 2 || controllerSeeks[1] !== 93) {
+  throw new Error("Expected a different seek to reach the controller");
+}
+"""
+        proc = subprocess.run([node_bin, "-e", test_script], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
+    def test_dash_buffered_seek_realign_and_gap_settings(self):
+        self.assertIn("jumpLargeGaps: false", self.src)
+        self.assertIn("_realignBufferedSeek", self.src)
+        self.assertIn("bufferTimeDefault", self.src)
+        self.assertNotIn("stableBufferTime", self.src)
+
+        node_bin = shutil.which("node") or shutil.which("nodejs")
+        if not node_bin:
+            brew_node = "/home/linuxbrew/.linuxbrew/bin/node"
+            if os.path.exists(brew_node) and os.access(brew_node, os.X_OK):
+                node_bin = brew_node
+        if not node_bin:
+            raise unittest.SkipTest("node executable not found")
+
+        start_idx = self.src.index("  _realignBufferedSeek(seekTime) {")
+        end_idx = self.src.index("\n  destroy(isFinal = true) {", start_idx)
+        method_src = self.src[start_idx:end_idx]
+
+        test_script = f"""
+const cleared = [];
+let bufferingTime = 140;
+let seekTarget = null;
+let bufferingCompleted = true;
+let aborted = false;
+let initRequired = false;
+let scheduleArg = null;
+let ranges = [
+  {{ start: 0, end: 80 }},
+  {{ start: 115.008, end: 140 }},
+];
+
+const bc = {{
+  hasBufferAtTime(t) {{
+    return ranges.some((r) => t >= r.start && t <= r.end);
+  }},
+  getContinuousBufferTimeForTargetTime(t) {{
+    const hit = ranges.find((r) => t >= r.start && t <= r.end);
+    return hit ? hit.end : NaN;
+  }},
+  getBuffer() {{
+    return {{
+      getAllBufferRanges() {{
+        return {{
+          length: ranges.length,
+          start: (i) => ranges[i].start,
+          end: (i) => ranges[i].end,
+        }};
+      }},
+    }};
+  }},
+  getIsBufferingCompleted: () => bufferingCompleted,
+  setIsBufferingCompleted: (v) => {{ bufferingCompleted = v; }},
+  clearBuffers(list) {{
+    cleared.push(...list);
+    ranges = ranges.filter((r) => !list.some((c) => r.start >= c.start && r.end <= c.end));
+    return Promise.resolve();
+  }},
+  setSeekTarget: (t) => {{ seekTarget = t; }},
+}};
+
+const sc = {{
+  setInitSegmentRequired: (v) => {{ initRequired = v; }},
+  startScheduleTimer: (v) => {{ scheduleArg = v; }},
+}};
+
+const sp = {{
+  getBufferController: () => bc,
+  getScheduleController: () => sc,
+  getBufferingTime: () => bufferingTime,
+  setExplicitBufferingTime: (t) => {{ bufferingTime = t; }},
+  getFragmentModel: () => ({{ abortRequests: () => {{ aborted = true; }} }}),
+}};
+
+class Harness {{
+  constructor() {{
+    this.destroyed = false;
+    this.video = {{ duration: 300 }};
+    this.player = {{
+      getActiveStream: () => ({{ getStreamProcessors: () => [sp] }}),
+    }};
+  }}
+{method_src}
+}}
+
+(async () => {{
+  const h = new Harness();
+  h._realignBufferedSeek(50);
+  await Promise.resolve();
+  await Promise.resolve();
+  if (!aborted) throw new Error("Expected abortRequests() to be called");
+  if (cleared.length !== 1 || cleared[0].start !== 80.05 || cleared[0].end !== 141) {{
+    throw new Error("Unexpected cleared ranges: " + JSON.stringify(cleared));
+  }}
+  if (bufferingTime !== 80) throw new Error("Expected bufferingTime reset to 80, got " + bufferingTime);
+  if (seekTarget !== 80) throw new Error("Expected seekTarget reset to 80, got " + seekTarget);
+  if (bufferingCompleted !== false) throw new Error("Expected bufferingCompleted false");
+  if (!initRequired || scheduleArg !== 0) {{
+    throw new Error("Expected initRequired=true and startScheduleTimer(0)");
+  }}
+
+  ranges.push({{ start: 115, end: 140 }});
+  let finishClear;
+  bc.clearBuffers = () => new Promise((resolve) => {{ finishClear = resolve; }});
+  scheduleArg = null;
+  h._realignBufferedSeek(50);
+  h._realignBufferedSeek(200);
+  finishClear();
+  await Promise.resolve();
+  await Promise.resolve();
+  if (scheduleArg !== null) {{
+    throw new Error("A superseded seek restarted the schedule timer");
+  }}
+}})().catch((err) => {{
+  console.error(err);
+  process.exit(1);
+}});
+"""
+        proc = subprocess.run([node_bin, "-e", test_script], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

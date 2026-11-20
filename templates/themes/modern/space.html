@@ -78,9 +78,35 @@
         </div>
     </div>
 
-    <div class="flex items-center gap-3 mb-6">
-        <h2 class="text-xl font-bold text-on-surface">{{ _("Videos") }}</h2>
-        <span class="px-2.5 py-0.5 rounded-full text-xs bg-primary/10 text-primary font-bold">{{ uvids['page']['count'] }}</span>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div class="flex items-center gap-3">
+            <h2 class="text-xl font-bold text-on-surface">{{ _("Videos") }}</h2>
+            <span class="px-2.5 py-0.5 rounded-full text-xs bg-primary/10 text-primary font-bold">{{ uvids['page']['count'] }}</span>
+        </div>
+        <form action="/space/{{ uinfo['mid'] }}"
+              method="get"
+              class="flex items-center gap-2 w-full sm:w-auto">
+            <div class="relative flex-1 sm:w-64">
+                <input type="search"
+                       name="q"
+                       value="{{ search_query|default('') }}"
+                       placeholder="{{ _('Search videos...') }}"
+                       aria-label="{{ _('Search videos...') }}"
+                       class="w-full h-9 pl-3.5 pr-9 rounded-full bg-surface-container text-sm text-on-surface placeholder:text-on-surface-variant/60 border border-outline-variant/30 focus:outline-none focus:border-primary transition-colors" />
+                <button type="submit"
+                        aria-label="{{ _('Search') }}"
+                        class="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center text-on-surface-variant hover:text-primary cursor-pointer">
+                    <i class="icon ion-ios-search"></i>
+                </button>
+            </div>
+            {% if search_query|default("") %}
+                <a href="/space/{{ uinfo['mid'] }}"
+                   aria-label="{{ _('Close') }}"
+                   class="w-9 h-9 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface-variant hover:text-on-surface inline-flex items-center justify-center transition-colors shrink-0">
+                    <i class="icon ion-ios-close text-xl"></i>
+                </a>
+            {% endif %}
+        </form>
     </div>
 
     {% if degraded %}
@@ -114,6 +140,8 @@
                     {{ _("Nothing to show right now — see notice above.") }}
                 {% elif load_failed %}
                     {{ _("Nothing to show right now — loading failed, see notice above.") }}
+                {% elif search_query|default("") %}
+                    {{ _("No results found") }}
                 {% else %}
                     {{ _("This user has no videos yet.") }}
                 {% endif %}
@@ -122,15 +150,16 @@
     </div>
 
     <!-- Pagination -->
+    {% set q_suffix = '&q=' ~ (search_query|default('')|urlencode) if search_query|default('') else '' %}
     <div class="mt-10 flex items-center justify-center gap-4">
         {% if uvids["page"]["pn"] > 1 %}
-            <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']-1 }}"
+            <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']-1 }}{{ q_suffix }}"
                class="px-5 py-2.5 rounded-full bg-surface-container hover:bg-surface-container-high text-on-surface transition-colors flex items-center gap-2 text-sm font-medium">
                 <i class="icon ion-ios-arrow-back"></i> {{ _("Previous page") }}
             </a>
         {% endif %}
         {% if uvids["page"]["pn"] * uvids["page"]["ps"] < uvids["page"]["count"] %}
-            <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']+1 }}"
+            <a href="/space/{{ uinfo['mid'] }}?i={{ uvids['page']['pn']+1 }}{{ q_suffix }}"
                class="px-5 py-2.5 rounded-full bg-primary text-on-primary hover:bg-primary/90 transition-colors flex items-center gap-2 text-sm font-medium shadow-xs">
                 {{ _("Next page") }} <i class="icon ion-ios-arrow-forward"></i>
             </a>

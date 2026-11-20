@@ -183,7 +183,8 @@
 
                         <div class="space-y-6">
                             {% if vcomments["replies"] %}
-                                {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge %}
+                                {% from "themes/modern/components/user_meta.html" import avatar_with_pendant, level_badge, pinned_badge with context %}
+                                {% from "themes/modern/components/comment_pictures.html" import reply_pictures with context %}
                                 {% for rep in vcomments['replies'] %}
                                     <div class="flex gap-5 group">
                                         {% set mvip = rep['member'].get('vip') %}
@@ -197,8 +198,10 @@
                                                 <a href="/space/{{ rep['member']['mid'] }}"
                                                    class="font-bold text-sm {{ 'bili-vip-name' if is_vip else 'text-on-surface' }} hover:text-primary transition-colors">{{ rep['member']['uname'] }}</a>
                                                 {{ level_badge(rep['member'].get('level_info', {}).get('current_level'), rep['member'].get('is_senior_member')) }}
+                                                {{ pinned_badge(rep) }}
                                             </div>
-                                            <p class="text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
+                                            <p class="comment-text text-sm text-on-surface leading-relaxed wrap-break-word whitespace-pre-line">{{ rep['content']|reply_content }}</p>
+                                            {{ reply_pictures(rep['content']) }}
                                             <div class="flex items-center flex-wrap gap-x-4 gap-y-1 text-xs text-on-surface-variant/70 pt-1">
                                                 {% set cdate = rep.get('ctime')|date %}
                                                 {% set tdesc = rep.get('reply_control', {}).get('time_desc') %}
@@ -284,6 +287,55 @@
                                     </p>
                                 </div>
                             </a>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- UGC Collection -->
+            {% set season = vinfo|ugc_season %}
+            {% if season and not is_live %}
+                <div class="bg-surface dark:bg-background rounded-2xl p-4 shadow-xs">
+                    <div class="flex items-center justify-between gap-2 mb-3">
+                        <h3 class="font-bold text-on-surface truncate"
+                            title="{{ season['title'] }}">{{ season['title'] or _("Collection") }} ({{ season['ep_count'] }})</h3>
+                        {% if season["next_bvid"] %}
+                            <label class="flex items-center gap-2 text-xs text-on-surface-variant cursor-pointer hover:text-primary transition-colors shrink-0">
+                                <input id="collection-continue"
+                                       type="checkbox"
+                                       data-next-bvid="{{ season['next_bvid'] }}"
+                                       class="accent-primary rounded" />
+                                {{ _("Autoplay next") }}
+                            </label>
+                        {% endif %}
+                    </div>
+                    <div class="max-h-[60vh] overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+                        {% for sec in season['sections'] %}
+                            <div class="space-y-1.5">
+                                {% if season["sections"]|length > 1 and sec["title"] %}
+                                    <p class="text-xs font-semibold text-on-surface-variant px-2">{{ sec['title'] }}</p>
+                                {% endif %}
+                                {% for ep in sec['episodes'] %}
+                                    {% set is_curr = ep['bvid'] == vid %}
+                                    <a href="/video/{{ ep['bvid'] }}"
+                                       class="flex gap-3 p-2 rounded-lg hover:bg-surface-variant/20 transition-colors {{ 'bg-primary/10' if is_curr else '' }}">
+                                        {% if ep["pic"] %}
+                                            <div class="w-24 h-14 shrink-0 relative rounded overflow-hidden">
+                                                <img loading="lazy"
+                                                     class="w-full h-full object-cover"
+                                                     src="{{ "{}@320w".format(ep['pic']) |pic }}"
+                                                     alt="" />
+                                                {% if ep["duration"] %}
+                                                    <span class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1 rounded">{{ ep['duration']|secdur }}</span>
+                                                {% endif %}
+                                            </div>
+                                        {% endif %}
+                                        <div class="grow min-w-0 flex flex-col justify-center">
+                                            <p class="text-sm font-medium text-on-surface line-clamp-2 leading-tight {{ 'text-primary' if is_curr else '' }}">{{ ep['title'] }}</p>
+                                        </div>
+                                    </a>
+                                {% endfor %}
+                            </div>
                         {% endfor %}
                     </div>
                 </div>

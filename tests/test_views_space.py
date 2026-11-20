@@ -604,5 +604,49 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(resolved)
 
 
+class SpaceSearchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_space_search_bypasses_unfiltered_cache_and_forwards_keyword(self):
+        captured_params = []
+
+        class FakeApi:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def update_params(self, **kwargs):
+                captured_params.append(kwargs)
+                return self
+
+            @property
+            def result(self):
+                async def _empty():
+                    return {"archives": [{"bvid": "BVmatch", "title": "Miku Live"}], "page": {"total": 40}}
+
+                if len(captured_params) == 1:
+                    async def _primary_empty():
+                        return {"list": {"vlist": []}}
+
+                    return _primary_empty()
+                return _empty()
+
+        cache_get_mock = AsyncMock(side_effect=AssertionError("unfiltered cache should not be read"))
+        cache_set_mock = AsyncMock(side_effect=AssertionError("search results should not overwrite unfiltered cache"))
+        with (
+            patch.object(user, "Api", FakeApi),
+            patch.object(user.User, "get_user_info", AsyncMock(return_value={"mid": 123, "name": "Tester", "face": "", "sign": ""})),
+            patch.object(views_space, "cache_minutes", return_value=10),
+            patch.object(views_space, "cache_get", cache_get_mock),
+            patch.object(views_space, "cache_set", cache_set_mock),
+        ):
+            async with views.app.test_request_context("/space/123?q=Miku"):
+                resp = await views_space.space_view("123")
+
+        self.assertEqual(resp.status_code, 200)
+        body = (await resp.get_data()).decode("utf-8")
+        self.assertIn("BVmatch", body)
+        self.assertIn("?i=2&amp;q=Miku", body)
+        self.assertEqual(captured_params[0].get("keyword"), "Miku")
+        self.assertEqual(captured_params[1].get("keywords"), "Miku")
+
+
 if __name__ == "__main__":
     unittest.main()
