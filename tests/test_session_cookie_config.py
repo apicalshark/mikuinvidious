@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 import os
-import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from miku.core.app import create_app
+from miku.core.config import load_config
 
 
 class TestSessionCookieConfig(unittest.TestCase):
@@ -23,27 +25,17 @@ class TestSessionCookieConfig(unittest.TestCase):
             ("explicit_true", "http://localhost:8888", "[quart]\nSESSION_COOKIE_SECURE = true\n", True),
             ("explicit_false", "https://miku.example", "[quart]\nSESSION_COOKIE_SECURE = false\n", False),
         ]
-        python_paths = [str(root / "python"), *[os.path.abspath(p) for p in sys.path if p]]
-        combined_pythonpath = os.pathsep.join(dict.fromkeys(python_paths))
-        env = {**os.environ, "PYTHONPATH": combined_pythonpath, "USE_CRED": "false"}
-        env.pop("SITE_URL", None)
+        base_env = {**os.environ, "USE_CRED": "false"}
+        base_env.pop("SITE_URL", None)
+
         for name, site_url, config, expected in cases:
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
-                Path(directory, "config.toml").write_text(config)
-                result = subprocess.run(
-                    [
-                        sys.executable,
-                        "-c",
-                        "from miku.state import app, appconf; "
-                        "print(appconf['site']['site_url']); print(app.config['SESSION_COOKIE_SECURE'])",
-                    ],
-                    cwd=directory,
-                    env=env if site_url is None else {**env, "SITE_URL": site_url},
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    check=True,
-                )
-                self.assertEqual(result.stdout.strip().splitlines()[-1], str(expected))
+                cfg_path = Path(directory, "config.toml")
+                cfg_path.write_text(config)
+                env = base_env if site_url is None else {**base_env, "SITE_URL": site_url}
+                with patch.dict(os.environ, env, clear=True):
+                    appconf = load_config(cfg_path)
+                    app = create_app(appconf)
+                self.assertEqual(app.config["SESSION_COOKIE_SECURE"], expected)
                 if site_url is not None:
-                    self.assertEqual(result.stdout.strip().splitlines()[-2], site_url)
+                    self.assertEqual(appconf["site"]["site_url"], site_url)

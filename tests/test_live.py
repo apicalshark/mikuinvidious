@@ -282,28 +282,23 @@ class TestLiveChatMultiplexer(unittest.IsolatedAsyncioTestCase):
 
         import miku.views.live as views_live
 
-        manager = views_live.LiveChatManager(idle_grace=0.6)
+        manager = views_live.LiveChatManager(idle_grace=0.12)
         with patch("miku.api.live.LiveDanmaku", _FakeLiveDanmaku):
             q1 = await manager.subscribe(4366430)
-            await asyncio.sleep(0.02)
+            await asyncio.sleep(0.01)
             await manager.unsubscribe(4366430, q1)
 
-            # Wait past half of the original 0.6s deadline
-            await asyncio.sleep(0.35)
+            await asyncio.sleep(0.07)
 
-            # Reconnect and immediately unsubscribe to restart the 0.6s idle grace period
             q2 = await manager.subscribe(4366430)
             await manager.unsubscribe(4366430, q2)
 
-            # Wait another 0.35s (0.70s since first unsubscribe -> past original 0.6s deadline,
-            # but only 0.35s into the restarted 0.6s deadline)
-            await asyncio.sleep(0.35)
+            await asyncio.sleep(0.07)
             self.assertEqual(len(_FakeLiveDanmaku.instances), 1)
             self.assertFalse(_FakeLiveDanmaku.instances[0].disconnected)
             self.assertIn(4366430, manager.rooms)
 
-            # Wait past the restarted 0.6s deadline (0.75s total since second unsubscribe)
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(0.09)
             self.assertTrue(_FakeLiveDanmaku.instances[0].disconnected)
             self.assertNotIn(4366430, manager.rooms)
 

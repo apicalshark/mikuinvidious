@@ -467,7 +467,7 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
             async def write(self, buffer, timeout=None):
                 for ev in self.srv.receive_data(buffer):
-                    if isinstance(ev, h2.events.RequestReceived):
+                    if isinstance(ev, h2.events.RequestReceived) and ev.stream_id in self.srv.streams:
                         self.srv.send_headers(ev.stream_id, [(b":status", b"200"), (b"content-type", b"image/jpeg")])
                         if not self.hold_body:
                             self.srv.send_data(ev.stream_id, b"ok", end_stream=True)
@@ -486,7 +486,6 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
         req = httpcore.Request(b"GET", b"https://i0.hdslb.com/test.jpg", headers=[(b"host", b"i0.hdslb.com")])
 
-        # 1. Cancel 120 streams mid-body (> default max_concurrent_streams=100) then run another request
         hold_stream = MockH2Stream(hold_body=True)
         conn_cancel = h2_mod.AsyncHTTP2Connection(httpcore.Origin(b"https", b"i0.hdslb.com", 443), hold_stream)
 
@@ -500,7 +499,7 @@ class TestProxyPicTDD(unittest.IsolatedAsyncioTestCase):
 
         for _ in range(120):
             t = asyncio.create_task(cancel_mid_body())
-            await asyncio.sleep(0.001)
+            await asyncio.sleep(0)
             t.cancel()
             with self.assertRaises((asyncio.CancelledError, httpcore.RemoteProtocolError)):
                 await t

@@ -257,18 +257,18 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
     async def test_resumed_conn_skip_longer_than_idle_timeout_does_not_false_stall(self):
         class FakeRawConn:
             async def iter_chunks(self):
-                for _ in range(30):
-                    await asyncio.sleep(0.02)
+                for _ in range(10):
+                    await asyncio.sleep(0.015)
                     yield b"x" * 10240
-                await asyncio.sleep(0.02)
+                await asyncio.sleep(0.015)
                 yield b"HELLO_WORLD"
 
             async def close(self):
                 pass
 
-        resumed = dash_stream._ResumedDashConn(FakeRawConn(), skip=30 * 10240 + 6, limit=5)
+        resumed = dash_stream._ResumedDashConn(FakeRawConn(), skip=10 * 10240 + 6, limit=5)
         with (
-            patch.object(dash_stream, "DASH_BODY_IDLE_TIMEOUT", 0.5),
+            patch.object(dash_stream, "DASH_BODY_IDLE_TIMEOUT", 0.1),
             patch.object(dash_stream, "DASH_BODY_GRACE", 0.04),
             patch.object(dash_stream, "DASH_BODY_FLOOR_KBPS", 100),
         ):
@@ -393,6 +393,8 @@ class DashProxyLogRegressionTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(views_video, "cache_minutes", return_value=0),
+            patch.object(views_video, "_fetch_owner_meta", new=AsyncMock(return_value={})),
+            patch.object(views_video.appredis, "exists", new=AsyncMock(return_value=0)),
             patch("miku.views.video.asyncio.gather", side_effect=fake_gather),
             patch.object(
                 views_video, "render_template_with_theme", new=AsyncMock(return_value="<html>OK</html>")
@@ -450,6 +452,7 @@ class DashDownloadResumeTests(unittest.IsolatedAsyncioTestCase):
                     side_effect=lambda urls, idx: list(urls),
                 ),
                 patch.object(dash_stream, "_fetch_dash_attempt", side_effect=fake_attempt),
+                patch.object(dash_download_track.asyncio, "sleep", new=AsyncMock()),
                 patch.object(dash_download_track, "_DOWNLOAD_SEGMENT_SIZE", 100),
                 patch.object(dash_download_track, "_DOWNLOAD_WRITE_BATCH", 1),
             ):

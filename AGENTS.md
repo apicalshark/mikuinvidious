@@ -34,13 +34,13 @@ Do not run tests indiscriminately. Evaluate the scope of your changes first:
 | :--- | :--- | :--- |
 | **Documentation / Markdown only** (`*.md`, `doc/*`) | Check git status & file links | **DO NOT run unit tests, compileall, or linters.** |
 | **Frontend assets only** (`static/*`, `templates/*`) | `npm run lint:frontend`<br>`npm run build:css` (if Tailwind CSS modified)<br>`npm run build:i18n` (if translatable strings change: extracts the catalog, then updates and compiles translations)<br>`npm run check:i18n` (to verify catalogs) | **DO NOT run Python unit tests.** |
-| **Python code modified** (`python/*`, `tests/*`) | `uv run ruff check python tests tools`<br>`uv run python -m compileall -q python tests tools`<br>`npm run build:i18n` (if translatable strings change: extracts the catalog, then updates and compiles translations)<br>`npm run check:i18n` (if catalogs change)<br>`NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests` | Do not skip bytecode or ruff checks before PRs. |
+| **Python code modified** (`python/*`, `tests/*`) | `uv run ruff check python tests tools`<br>`uv run python -m compileall -q python tests tools`<br>`npm run build:i18n` (if translatable strings change: extracts the catalog, then updates and compiles translations)<br>`npm run check:i18n` (if catalogs change)<br>`uv run python tools/run_tests.py` | Do not skip bytecode or ruff checks before PRs. |
 
 ### Command Reference
 
 ```bash
 # Python Test Suite (Run ONLY when python/* or tests/* change)
-NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests
+uv run python tools/run_tests.py
 
 # Bytecode Compilation Check (Syntax Errors; Does Not Verify Imports)
 # Verify affected imports separately in the configured application environment.

@@ -32,11 +32,16 @@ class TestThemeSecurity(unittest.IsolatedAsyncioTestCase):
 
     async def test_general_exception_view_fallback(self):
         """Verify that general_exception_view recovers cleanly without recursive crash."""
+        import miku.views.home as views_home
         from miku.app import general_exception_view
 
         client = app.test_client()
-        resp = await client.get("/?theme=..")
-        # Returns 200 online or mapped upstream error (403/500/502/503) offline
+        with (
+            patch.object(views_home, "cache_get", new=AsyncMock(return_value=None)),
+            patch.object(views_home, "cache_get_stale", new=AsyncMock(return_value=(None, False))),
+            patch.object(views_home.homepage, "get_videos", new=AsyncMock(side_effect=RuntimeError("offline"))),
+        ):
+            resp = await client.get("/?theme=..")
         self.assertIn(resp.status_code, (200, 403, 500, 502, 503))
 
         async with app.test_request_context("/?theme=.."):
