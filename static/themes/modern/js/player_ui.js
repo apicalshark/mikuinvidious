@@ -938,9 +938,11 @@
       const main = document.createElement("div");
       main.dataset.menuView = "main";
       main.className = "flex flex-col gap-0.5";
-      main.appendChild(
-        makeMenuNavRow("resolution", t("Resolution"), "data-resolution-value", "video")
-      );
+      if (items.length > 0) {
+        main.appendChild(
+          makeMenuNavRow("resolution", t("Resolution"), "data-resolution-value", "video")
+        );
+      }
       main.appendChild(
         makeMenuNavRow(
           "danmaku",
@@ -952,32 +954,34 @@
       );
       settingsList.appendChild(main);
 
-      const videoView = document.createElement("div");
-      videoView.dataset.menuView = "video";
-      videoView.className = "flex flex-col gap-0.5";
-      videoView.hidden = true;
-      videoView.appendChild(makeSubmenuHeader(t("Resolution"), "main"));
+      if (items.length > 0) {
+        const videoView = document.createElement("div");
+        videoView.dataset.menuView = "video";
+        videoView.className = "flex flex-col gap-0.5";
+        videoView.hidden = true;
+        videoView.appendChild(makeSubmenuHeader(t("Resolution"), "main"));
 
-      items.forEach((item) => {
-        const btn = makeOptionButton(item.label, { liveQn: item.value }, (clickedBtn) => {
-          if (typeof onSelect === "function") onSelect(item);
-          const rv = settingsList.querySelector("[data-resolution-value]");
-          if (rv) rv.textContent = item.label;
-          settingsList.querySelectorAll("button[data-live-qn]").forEach((b) => {
-            b.classList.remove("active");
-            b.setAttribute("aria-checked", "false");
+        items.forEach((item) => {
+          const btn = makeOptionButton(item.label, { liveQn: item.value }, (clickedBtn) => {
+            if (typeof onSelect === "function") onSelect(item);
+            const rv = settingsList.querySelector("[data-resolution-value]");
+            if (rv) rv.textContent = item.label;
+            settingsList.querySelectorAll("button[data-live-qn]").forEach((b) => {
+              b.classList.remove("active");
+              b.setAttribute("aria-checked", "false");
+            });
+            clickedBtn.classList.add("active");
+            clickedBtn.setAttribute("aria-checked", "true");
+            closeSettings();
           });
-          clickedBtn.classList.add("active");
-          clickedBtn.setAttribute("aria-checked", "true");
-          closeSettings();
+          if (item.active) {
+            btn.classList.add("active");
+            btn.setAttribute("aria-checked", "true");
+          }
+          videoView.appendChild(btn);
         });
-        if (item.active) {
-          btn.classList.add("active");
-          btn.setAttribute("aria-checked", "true");
-        }
-        videoView.appendChild(btn);
-      });
-      settingsList.appendChild(videoView);
+        settingsList.appendChild(videoView);
+      }
       settingsList.appendChild(buildDanmakuSizeSubView());
       syncDanmakuSizeMenu();
 

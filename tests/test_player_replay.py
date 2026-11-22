@@ -486,6 +486,11 @@ class MockEl extends EventTarget {{
       contains(c) {{ return this._set.has(c); }},
     }};
   }}
+  get innerHTML() {{ return this._innerHTML || ""; }}
+  set innerHTML(v) {{
+    this._innerHTML = String(v);
+    if (v === "") this.children = [];
+  }}
   setAttribute(k, v) {{
     this.attrs.set(k, String(v));
     if (k.startsWith("data-")) {{
@@ -754,6 +759,14 @@ if (activeComment.style.fontSize !== "25px" || activeComment.style.font !== "25p
 window.MikuPlayerUI.mount(root, video, {{ isLive: true }});
 if (keydown(doc, root, "ArrowRight") || video.currentTime !== 35) {{
   throw new Error("Expected live playback to preserve default ArrowRight");
+}}
+window.MikuPlayerUI.setupLiveMenu({{ items: [] }});
+if (settingsList.querySelector("[data-resolution-value]")) {{
+  throw new Error("Expected Resolution row to be omitted when no live qualities are available");
+}}
+const liveDv = settingsList.querySelector("[data-danmaku-size-value]");
+if (!liveDv || liveDv.textContent !== "Medium") {{
+  throw new Error("Expected Danmaku size row in live settings menu without quality items");
 }}
 window.MikuPlayerUI.destroy();
 """

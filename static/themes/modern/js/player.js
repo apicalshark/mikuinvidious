@@ -1517,6 +1517,7 @@ function setupLivePlayer(video, list, label) {
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = hlsUrl;
+      window.MikuPlayerUI?.setupLiveMenu({ items: [] });
       video.addEventListener("loadedmetadata", () => {
         video.play().catch(() => {});
       });
