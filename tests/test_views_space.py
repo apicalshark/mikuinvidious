@@ -164,6 +164,11 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         p = patch.object(views_space, "_get_anonymous_cookies", AsyncMock(return_value={"buvid3": "TEST-BUVID3"}))
         p.start()
         self.addCleanup(p.stop)
+        p_wbi = patch.object(
+            views_space, "get_wbi_mixin_key", AsyncMock(return_value="0123456789abcdef0123456789abcdef")
+        )
+        p_wbi.start()
+        self.addCleanup(p_wbi.stop)
 
     async def test_read_view_logs_on_status_failure(self):
         mock_resp = AsyncMock()
@@ -283,6 +288,7 @@ class ArticleViewLoggingTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(Network, "get_async_client", AsyncMock(return_value=mock_client)),
             patch.object(views_space, "cache_minutes", return_value=0),
+            patch.object(views_space, "_resolve_cv_opus_id", AsyncMock(return_value=None)),
             patch.object(
                 views_space, "_get_anonymous_cookies", AsyncMock(return_value={"buvid3": "TEST-BUVID3-infoc"})
             ),
