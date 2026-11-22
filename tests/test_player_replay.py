@@ -367,6 +367,226 @@ class Harness {{
         proc = subprocess.run([node_bin, "-e", test_script], capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
 
+    def test_settings_menu_danmaku_size_and_clickable_remaining_time(self):
+        self.assertIn("setupVodMenu", self.ui_src)
+        self.assertIn("Danmaku size", self.ui_src)
+        self.assertIn("toggleTimeDisplayMode", self.ui_src)
+        self.assertNotIn("ion-ios-arrow-forward", self.src)
+
+        node_bin = shutil.which("node") or shutil.which("nodejs")
+        if not node_bin:
+            brew_node = "/home/linuxbrew/.linuxbrew/bin/node"
+            if os.path.exists(brew_node) and os.access(brew_node, os.X_OK):
+                node_bin = brew_node
+        if not node_bin:
+            raise unittest.SkipTest("node executable not found")
+
+        test_script = f"""
+const fs = require("fs");
+const {{ EventTarget }} = globalThis;
+
+class MockEl extends EventTarget {{
+  constructor(tag = "div") {{
+    super();
+    this.tagName = tag.toUpperCase();
+    this.attrs = new Map();
+    this.dataset = {{}};
+    this.style = {{}};
+    this.textContent = "";
+    this.innerHTML = "";
+    this.hidden = false;
+    this.children = [];
+    this.offsetWidth = 100;
+    this.offsetHeight = 100;
+    this.classList = {{
+      _set: new Set(),
+      add(...c) {{ c.forEach((x) => this._set.add(x)); }},
+      remove(...c) {{ c.forEach((x) => this._set.delete(x)); }},
+      toggle(c, force) {{
+        if (force === undefined) {{
+          if (this._set.has(c)) this._set.delete(c); else this._set.add(c);
+        }} else if (force) {{
+          this._set.add(c);
+        }} else {{
+          this._set.delete(c);
+        }}
+      }},
+      contains(c) {{ return this._set.has(c); }},
+    }};
+  }}
+  setAttribute(k, v) {{
+    this.attrs.set(k, String(v));
+    if (k.startsWith("data-")) {{
+      const camel = k.slice(5).replace(/-([a-z])/g, (_, ch) => ch.toUpperCase());
+      this.dataset[camel] = String(v);
+    }}
+  }}
+  getAttribute(k) {{ return this.attrs.get(k) ?? null; }}
+  removeAttribute(k) {{ this.attrs.delete(k); }}
+  hasAttribute(k) {{ return this.attrs.has(k); }}
+  appendChild(child) {{
+    if (child && child.isFragment) {{
+      child.children.forEach((c) => this.children.push(c));
+    }} else if (child) {{
+      this.children.push(child);
+    }}
+    return child;
+  }}
+  getBoundingClientRect() {{ return {{ left: 0, right: 200, top: 0, bottom: 20, width: 200, height: 20 }}; }}
+  _all() {{
+    const out = [];
+    const walk = (node) => {{
+      for (const ch of node.children || []) {{
+        out.push(ch);
+        walk(ch);
+      }}
+    }};
+    walk(this);
+    return out;
+  }}
+  querySelector(sel) {{ return this.querySelectorAll(sel)[0] || null; }}
+  querySelectorAll(sel) {{
+    return this._all().filter((el) => {{
+      if (sel === "[data-menu-view]") return el.dataset && el.dataset.menuView != null;
+      if (sel === "[data-danmaku-size-value]") return el.hasAttribute("data-danmaku-size-value");
+      if (sel === "[data-resolution-value]") return el.hasAttribute("data-resolution-value");
+      if (sel === "[data-speed-value]") return el.hasAttribute("data-speed-value");
+      if (sel === "button[data-danmaku-size]") return el.tagName === "BUTTON" && el.dataset.danmakuSize != null;
+      if (sel === "button[data-video-qn]") return el.tagName === "BUTTON" && el.dataset.videoQn != null;
+      if (sel === "button[data-video-qn].active") return el.tagName === "BUTTON" && el.dataset.videoQn != null && el.classList.contains("active");
+      if (sel === "button[data-speed-rate]") return el.tagName === "BUTTON" && el.dataset.speedRate != null;
+      if (sel === "span") return el.tagName === "SPAN";
+      return false;
+    }});
+  }}
+}}
+
+const timeCurrent = new MockEl("span");
+const timeDuration = new MockEl("span");
+const timeBtn = new MockEl("button");
+const settingsBtn = new MockEl("button");
+const settingsMenu = new MockEl("div");
+const settingsList = new MockEl("div");
+const bottomBar = new MockEl("div");
+const root = new MockEl("div");
+
+const rootMap = {{
+  "[data-time-current]": timeCurrent,
+  "[data-time-duration]": timeDuration,
+  "#quality-btn": settingsBtn,
+  "#quality-menu": settingsMenu,
+  "#quality-list": settingsList,
+  "[data-skin-bottom]": bottomBar,
+}};
+root.querySelector = (sel) => rootMap[sel] || null;
+root.querySelectorAll = (sel) => (sel === "[data-time-toggle]" ? [timeBtn] : []);
+root.contains = () => false;
+
+const store = new Map();
+globalThis.localStorage = {{
+  getItem: (k) => store.get(k) ?? null,
+  setItem: (k, v) => store.set(k, String(v)),
+}};
+
+const doc = new EventTarget();
+doc.getElementById = () => null;
+doc.createElement = (tag) => new MockEl(tag);
+doc.createDocumentFragment = () => ({{ isFragment: true, children: [], appendChild(c) {{ this.children.push(c); }} }});
+globalThis.document = doc;
+globalThis.Element = MockEl;
+globalThis.window = {{ I18n: {{ t: (k) => k }} }};
+
+const video = new MockEl("video");
+video.currentTime = 30;
+video.duration = 120;
+video.paused = false;
+video.ended = false;
+video.volume = 1;
+video.muted = false;
+video.playbackRate = 1;
+video.buffered = {{ length: 0 }};
+
+eval(fs.readFileSync({str(PLAYER_UI_JS)!r}, "utf8"));
+window.MikuPlayerUI.mount(root, video, {{ isLive: false }});
+
+if (timeCurrent.textContent !== "0:30" || timeDuration.textContent !== "2:00") {{
+  throw new Error("Expected initial time 0:30 / 2:00, got: " + timeCurrent.textContent + " / " + timeDuration.textContent);
+}}
+
+const clickEvt = new Event("click");
+clickEvt.stopPropagation = () => {{}};
+timeBtn.dispatchEvent(clickEvt);
+if (timeDuration.textContent !== "-1:30") {{
+  throw new Error("Expected remaining time -1:30 after click, got: " + timeDuration.textContent);
+}}
+
+timeBtn.dispatchEvent(clickEvt);
+if (timeDuration.textContent !== "2:00") {{
+  throw new Error("Expected total duration 2:00 after second click, got: " + timeDuration.textContent);
+}}
+
+const activeComment = {{
+  text: "flying",
+  style: {{ fontSize: "25px", font: "25px sans-serif" }},
+  width: 120,
+  height: 28,
+  node: {{ style: {{}}, offsetWidth: 150, offsetHeight: 35 }},
+}};
+const queuedComment = {{
+  text: "queued",
+  style: {{ fontSize: "25px", font: "25px sans-serif" }},
+  width: 100,
+  height: 28,
+}};
+window.dm = {{
+  _: {{ runningList: [activeComment] }},
+  comments: [activeComment, queuedComment],
+  emit(obj) {{ this.lastEmitted = obj; }},
+  resize() {{}},
+}};
+window.MikuPlayerUI.applyDanmakuScale(window.dm);
+window.MikuPlayerUI.setupVodMenu({{
+  sources: [{{ quality: 80, new_description: "1080P" }}],
+  isDash: true,
+}});
+
+const dv = settingsList.querySelector("[data-danmaku-size-value]");
+if (!dv || dv.textContent !== "Medium") {{
+  throw new Error("Expected default danmaku size Medium, got: " + (dv && dv.textContent));
+}}
+if (activeComment.style.fontSize !== "25px" || activeComment.width !== 120) {{
+  throw new Error("Expected Medium initial load to leave active comment untouched");
+}}
+
+const sizeBtns = settingsList.querySelectorAll("button[data-danmaku-size]");
+const largeBtn = sizeBtns.find((b) => b.dataset.danmakuSize === "1.25");
+const mediumBtn = sizeBtns.find((b) => b.dataset.danmakuSize === "1");
+if (!largeBtn || !mediumBtn) throw new Error("Danmaku size buttons not found");
+largeBtn.dispatchEvent(clickEvt);
+
+if (dv.textContent !== "Large") {{
+  throw new Error("Expected danmaku size Large after click, got: " + dv.textContent);
+}}
+if (activeComment.style.fontSize !== "31px" || queuedComment.style.fontSize !== "31px") {{
+  throw new Error("Expected scaled fontSize 31px for Large, got: " + activeComment.style.fontSize);
+}}
+if (activeComment.width !== 150 || activeComment.height !== 35) {{
+  throw new Error("Expected active runningList comment to remeasure width/height instead of deleting");
+}}
+if (queuedComment.width !== undefined || queuedComment.height !== undefined) {{
+  throw new Error("Expected queued comment width/height to be invalidated for fresh measurement");
+}}
+
+mediumBtn.dispatchEvent(clickEvt);
+if (activeComment.style.fontSize !== "25px" || activeComment.style.font !== "25px sans-serif") {{
+  throw new Error("Expected Medium to restore exact original font, got: " + activeComment.style.font);
+}}
+
+window.MikuPlayerUI.destroy();
+"""
+        proc = subprocess.run([node_bin, "-e", test_script], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

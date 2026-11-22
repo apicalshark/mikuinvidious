@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 13:42+0000\n"
+"POT-Creation-Date: 2026-11-22 14:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: zh_TW\n"
@@ -189,28 +189,30 @@ msgstr "尚無瀏覽紀錄。"
 msgid "Resolving video URL..."
 msgstr "正在解析影片網址..."
 
-#: static/themes/modern/js/player.js:1849
-#: static/themes/modern/js/player.js:1919
+#: static/themes/modern/js/player_ui.js:770
+#: static/themes/modern/js/player_ui.js:793
+#: static/themes/modern/js/player_ui.js:913
+#: static/themes/modern/js/player_ui.js:930
 msgid "Resolution"
 msgstr "解析度"
 
-#: templates/macros.html:383
+#: templates/macros.html:388
 msgid "Click to play"
 msgstr "點擊以開始播放"
 
-#: templates/macros.html:384
+#: templates/macros.html:389
 msgid "Browser blocked autoplay"
 msgstr "瀏覽器已封鎖自動播放"
 
-#: templates/macros.html:187
+#: templates/macros.html:192
 msgid "Volume"
 msgstr "音量"
 
-#: templates/macros.html:206 templates/macros.html:210
+#: templates/macros.html:211 templates/macros.html:215
 msgid "LIVE"
 msgstr "直播"
 
-#: templates/macros.html:224 templates/macros.html:225
+#: templates/macros.html:231 templates/macros.html:232
 msgid "Toggle danmaku"
 msgstr "切換彈幕"
 
@@ -791,8 +793,8 @@ msgstr "自動連播"
 msgid "Recommended"
 msgstr "推薦影片"
 
-#: static/themes/modern/js/player_ui.js:259 templates/macros.html:109
-#: templates/macros.html:110 templates/themes/modern/video_listen.html:358
+#: static/themes/modern/js/player_ui.js:382 templates/macros.html:114
+#: templates/macros.html:115 templates/themes/modern/video_listen.html:358
 msgid "Play"
 msgstr "播放"
 
@@ -999,43 +1001,37 @@ msgstr "直播流已結束"
 msgid "Live stream has ended"
 msgstr "直播已結束"
 
-#: static/themes/modern/js/player.js:1564
+#: static/themes/modern/js/player.js:1513
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自動 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1587
-#: static/themes/modern/js/player.js:1591
-#: static/themes/modern/js/player.js:1648
-#: static/themes/modern/js/player.js:1652
+#: static/themes/modern/js/player.js:1565
 msgid "Auto"
 msgstr "自動"
 
-#: static/themes/modern/js/player.js:1780
-msgid "Back"
-msgstr "返回"
-
-#: static/themes/modern/js/player.js:1850
+#: static/themes/modern/js/player_ui.js:773
+#: static/themes/modern/js/player_ui.js:827
 msgid "Audio"
 msgstr "音訊"
 
-#: static/themes/modern/js/player.js:1851
-#: static/themes/modern/js/player.js:1920
+#: static/themes/modern/js/player_ui.js:701
+#: static/themes/modern/js/player_ui.js:776
 msgid "Playback speed"
 msgstr "播放速度"
 
-#: static/themes/modern/js/player_ui.js:435
-#: static/themes/modern/js/player_ui.js:995
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 #: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "已開啟"
 
-#: static/themes/modern/js/player_ui.js:435
-#: static/themes/modern/js/player_ui.js:995
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 #: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
-#: templates/macros.html:258
+#: templates/macros.html:265
 msgid "Off"
 msgstr "已關閉"
 
@@ -1095,58 +1091,75 @@ msgstr "開啟第 %(index)s 張圖片，共 %(total)s 張"
 msgid "Seek"
 msgstr "進度條"
 
-#: static/themes/modern/js/player_ui.js:284 templates/macros.html:142
-#: templates/macros.html:143
+#: static/themes/modern/js/player_ui.js:407 templates/macros.html:147
+#: templates/macros.html:148
 msgid "Mute"
 msgstr "靜音"
 
-#: templates/macros.html:267 templates/macros.html:268
-#: templates/macros.html:372
+#: templates/macros.html:274 templates/macros.html:275
 msgid "Settings"
 msgstr "設定"
 
-#: static/themes/modern/js/player_ui.js:516 templates/macros.html:286
-#: templates/macros.html:287
+#: static/themes/modern/js/player_ui.js:1057 templates/macros.html:293
+#: templates/macros.html:294
 msgid "Picture-in-Picture"
 msgstr "子母畫面"
 
-#: static/themes/modern/js/player_ui.js:542 templates/macros.html:303
-#: templates/macros.html:304
+#: static/themes/modern/js/player_ui.js:1083 templates/macros.html:310
+#: templates/macros.html:311
 msgid "Theater mode"
 msgstr "寬螢幕模式"
 
-#: static/themes/modern/js/player_ui.js:486 templates/macros.html:332
-#: templates/macros.html:333
+#: static/themes/modern/js/player_ui.js:1027 templates/macros.html:339
+#: templates/macros.html:340
 msgid "Fullscreen"
 msgstr "全螢幕"
 
-#: static/themes/modern/js/player_ui.js:259
+#: static/themes/modern/js/player_ui.js:382
 msgid "Replay"
 msgstr "重播"
 
-#: static/themes/modern/js/player_ui.js:259
+#: static/themes/modern/js/player_ui.js:382
 msgid "Pause"
 msgstr "暫停"
 
-#: static/themes/modern/js/player_ui.js:284
+#: static/themes/modern/js/player_ui.js:407
 msgid "Unmute"
 msgstr "取消靜音"
 
-#: static/themes/modern/js/player_ui.js:486
+#: static/themes/modern/js/player_ui.js:1027
 msgid "Exit fullscreen"
 msgstr "退出全螢幕"
 
-#: static/themes/modern/js/player_ui.js:516
+#: static/themes/modern/js/player_ui.js:1057
 msgid "Exit Picture-in-Picture"
 msgstr "退出子母畫面"
 
-#: static/themes/modern/js/player_ui.js:542
+#: static/themes/modern/js/player_ui.js:1083
 msgid "Exit theater mode"
 msgstr "退出寬螢幕模式"
 
-#: templates/macros.html:255 templates/macros.html:256
+#: static/themes/modern/js/player_ui.js:741
+#: static/themes/modern/js/player_ui.js:781
+#: static/themes/modern/js/player_ui.js:918
+msgid "Danmaku size"
+msgstr "彈幕大小"
+
+#: static/themes/modern/js/player_ui.js:22
+msgid "Small"
+msgstr "小"
+
+#: static/themes/modern/js/player_ui.js:23
+msgid "Large"
+msgstr "大"
+
+#: static/themes/modern/js/player_ui.js:24
+msgid "Medium"
+msgstr "中"
+
+#: templates/macros.html:262 templates/macros.html:263
 msgid "Captions"
-msgstr "字幕"
+msgstr "\\\"字幕\\\""
 
 #~ msgid "Personalization settings"
 #~ msgstr "個性化設置"
@@ -1183,6 +1196,9 @@ msgstr "字幕"
 
 #~ msgid "Switch resolution"
 #~ msgstr "切換解析度"
+
+#~ msgid "Back"
+#~ msgstr "返回"
 
 #~ msgid "Toggle captions"
 #~ msgstr "切換字幕"

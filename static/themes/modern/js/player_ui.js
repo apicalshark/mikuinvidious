@@ -8,6 +8,21 @@
   const VOLUME_STORAGE_KEY = "miku_player_volume";
   const MUTED_STORAGE_KEY = "miku_player_muted";
   const THEATER_STORAGE_KEY = "miku_player_theater";
+  const TIME_REMAINING_STORAGE_KEY = "miku_player_time_remaining";
+  const DANMAKU_SIZE_STORAGE_KEY = "miku_danmaku_size";
+
+  const DANMAKU_SIZES = [
+    { key: "0.8", scale: 0.8 },
+    { key: "1", scale: 1 },
+    { key: "1.25", scale: 1.25 },
+  ];
+  const DEFAULT_DANMAKU_SIZE_KEY = "1";
+
+  function getDanmakuSizeLabel(key) {
+    if (key === "0.8") return t("Small");
+    if (key === "1.25") return t("Large");
+    return t("Medium");
+  }
 
   const HUD_ICONS = {
     play: '<svg class="size-5 fill-current" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.14v14l11-7-11-7z"/></svg>',
@@ -27,9 +42,26 @@
       '<svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="13" y2="13"/></svg>',
   };
 
-  function t(key) {
+  const MENU_ICONS = {
+    resolution:
+      '<svg class="size-4 shrink-0 text-white/75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
+    audio:
+      '<svg class="size-4 shrink-0 text-white/75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>',
+    speed:
+      '<svg class="size-4 shrink-0 text-white/75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>',
+    danmaku:
+      '<svg class="size-4 shrink-0 text-white/75" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="13" x2="13" y2="13"/></svg>',
+    chevronRight:
+      '<svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>',
+    chevronLeft:
+      '<svg class="size-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>',
+    check:
+      '<svg class="size-4 shrink-0 opacity-0 transition-opacity group-[.active]:opacity-100" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+  };
+
+  function t(key, params) {
     if (typeof window.I18n !== "undefined" && typeof window.I18n.t === "function") {
-      return window.I18n.t(key);
+      return window.I18n.t(key, params);
     }
     return key;
   }
@@ -64,6 +96,91 @@
     try {
       localStorage.setItem(key, value);
     } catch (e) {}
+  }
+
+  function getStoredDanmakuSizeEntry() {
+    const raw = storageGet(DANMAKU_SIZE_STORAGE_KEY);
+    return (
+      DANMAKU_SIZES.find((entry) => entry.key === raw) ||
+      DANMAKU_SIZES.find((entry) => entry.key === DEFAULT_DANMAKU_SIZE_KEY) ||
+      DANMAKU_SIZES[1]
+    );
+  }
+
+  function getDanmakuScale() {
+    if (
+      typeof window.dm_scale === "number" &&
+      Number.isFinite(window.dm_scale) &&
+      window.dm_scale > 0
+    ) {
+      return window.dm_scale;
+    }
+    const entry = getStoredDanmakuSizeEntry();
+    window.dm_scale = entry.scale;
+    return entry.scale;
+  }
+
+  function scaleDanmakuComment(c, scale, isRunning) {
+    if (!c || typeof c !== "object" || !c.style) return;
+    if (scale === 1 && c._baseFontSize == null) return;
+    if (c._baseFontSize == null) {
+      const parsed = parseFloat(c.style.fontSize);
+      c._baseFontSize = Number.isFinite(parsed) && parsed > 0 ? parsed : 25;
+      c._origFontSize = c.style.fontSize;
+      c._origFont = c.style.font;
+    }
+    if (scale === 1) {
+      if (c._origFontSize !== undefined) c.style.fontSize = c._origFontSize;
+      if (c._origFont !== undefined) c.style.font = c._origFont;
+    } else {
+      const px = Math.max(12, Math.round(c._baseFontSize * scale));
+      c.style.fontSize = px + "px";
+      if (typeof c._origFont === "string" && c._origFont) {
+        c.style.font = c._origFont.replace(/\d+(?:\.\d+)?px/, px + "px");
+      } else {
+        c.style.font = px + "px sans-serif";
+      }
+    }
+    if (c.node && c.node.style) {
+      if (c.style.font) c.node.style.font = c.style.font;
+      if (c.style.fontSize) c.node.style.fontSize = c.style.fontSize;
+    }
+    if (isRunning) {
+      if (c.node) {
+        const nextW = c.node.offsetWidth;
+        const nextH = c.node.offsetHeight;
+        if (nextW > 0) c.width = nextW;
+        if (nextH > 0) c.height = nextH;
+      }
+    } else {
+      delete c.width;
+      delete c.height;
+    }
+  }
+
+  function applyDanmakuScaleToInstance(dm) {
+    const target = dm || window.dm;
+    const scale = getDanmakuScale();
+    if (!target) return scale;
+    const runningList = Array.isArray(target._?.runningList) ? target._.runningList : [];
+    const runningSet = new Set(runningList);
+    if (Array.isArray(target.comments)) {
+      for (let i = 0; i < target.comments.length; i++) {
+        const c = target.comments[i];
+        scaleDanmakuComment(c, scale, runningSet.has(c));
+      }
+    }
+    if (!target._mikuEmitWrapped && typeof target.emit === "function") {
+      const origEmit = target.emit;
+      target.emit = function (obj) {
+        if (obj && typeof obj === "object") {
+          scaleDanmakuComment(obj, getDanmakuScale(), false);
+        }
+        return origEmit.call(this, obj);
+      };
+      target._mikuEmitWrapped = true;
+    }
+    return scale;
   }
 
   function blocksPlayerShortcut(event, root) {
@@ -116,6 +233,7 @@
     const timeDuration = root.querySelector("[data-time-duration]");
     const timeCurrentCompact = root.querySelector("[data-time-current-compact]");
     const timeDurationCompact = root.querySelector("[data-time-duration-compact]");
+    const timeToggleBtns = root.querySelectorAll("[data-time-toggle]");
     const scrubber = root.querySelector("[data-scrubber]");
     const scrubberBuffer = root.querySelector("[data-scrubber-buffer]");
     const scrubberFill = root.querySelector("[data-scrubber-fill]");
@@ -123,14 +241,16 @@
     const scrubberTooltip = root.querySelector("[data-scrubber-tooltip]");
     const danmakuBtn = root.querySelector("#danmaku-toggle");
     const captionsSelect = root.querySelector("[data-captions-select]");
-    const renderedSubtitles = captionsSelect
-      ? Array.from(
-          video.querySelectorAll("track[kind='subtitles'], track[kind='captions']"),
-          (el) => el.track
-        )
-      : [];
+    const renderedSubtitles =
+      captionsSelect && typeof video.querySelectorAll === "function"
+        ? Array.from(
+            video.querySelectorAll("track[kind='subtitles'], track[kind='captions']"),
+            (el) => el.track
+          )
+        : [];
     const settingsBtn = root.querySelector("#quality-btn");
     const settingsMenu = root.querySelector("#quality-menu");
+    const settingsList = root.querySelector("#quality-list");
     const pipBtn = root.querySelector("[data-pip-btn]");
     const theaterBtn = root.querySelector("[data-theater-btn]");
     const iconTheaterEnter = root.querySelector("[data-icon-theater-enter]");
@@ -154,6 +274,9 @@
     let lastSeekAt = 0;
     let seekAccum = 0;
     let savedVolume = 1;
+    let showRemainingTime = storageGet(TIME_REMAINING_STORAGE_KEY) === "1";
+
+    getDanmakuScale();
 
     const storedVol = parseFloat(storageGet(VOLUME_STORAGE_KEY));
     if (Number.isFinite(storedVol) && storedVol >= 0 && storedVol <= 1) {
@@ -209,7 +332,7 @@
 
     function hideControls() {
       if (!bottomBar) return;
-      if (root.matches(":focus-visible")) {
+      if (typeof root.matches === "function" && root.matches(":focus-visible")) {
         showControls(false);
         return;
       }
@@ -334,16 +457,25 @@
       if (scrubberFill) scrubberFill.style.width = pct + "%";
       if (scrubberThumb) scrubberThumb.style.left = pct + "%";
       const curStr = formatTime(safeTime);
-      const durStr = formatTime(safeDur);
+      const totalStr = formatTime(safeDur);
+      const remStr = "-" + formatTime(Math.max(0, safeDur - safeTime));
+      const rightStr = showRemainingTime ? remStr : totalStr;
       if (timeCurrent) timeCurrent.textContent = curStr;
       if (timeCurrentCompact) timeCurrentCompact.textContent = curStr;
-      if (timeDuration) timeDuration.textContent = durStr;
-      if (timeDurationCompact) timeDurationCompact.textContent = durStr;
+      if (timeDuration) timeDuration.textContent = rightStr;
+      if (timeDurationCompact) timeDurationCompact.textContent = rightStr;
       if (scrubber) {
         scrubber.setAttribute("aria-valuemax", String(Math.floor(safeDur)));
         scrubber.setAttribute("aria-valuenow", String(Math.floor(safeTime)));
-        scrubber.setAttribute("aria-valuetext", curStr + " / " + durStr);
+        scrubber.setAttribute("aria-valuetext", curStr + " / " + totalStr);
       }
+    }
+
+    function toggleTimeDisplayMode() {
+      showRemainingTime = !showRemainingTime;
+      storageSet(TIME_REMAINING_STORAGE_KEY, showRemainingTime ? "1" : "0");
+      const cur = isScrubbing && pendingSeekTime !== null ? pendingSeekTime : video.currentTime;
+      updateScrubberVisual(cur, video.duration);
     }
 
     function syncBufferBar() {
@@ -426,7 +558,7 @@
 
     function toggleCaptions() {
       if (renderedSubtitles.length === 0) return;
-      const showing = Array.from(video.textTracks).some(
+      const showing = Array.from(video.textTracks || []).some(
         (track) =>
           (track.kind === "subtitles" || track.kind === "captions") && track.mode === "showing"
       );
@@ -435,14 +567,418 @@
       showHud("captions", preferredTrack ? preferredTrack.label || t("On") : t("Off"));
     }
 
+    function switchMenuView(name, dir) {
+      if (!settingsList) return;
+      const reduce =
+        window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const prevW = settingsList.offsetWidth;
+      const prevH = settingsList.offsetHeight;
+      settingsList.querySelectorAll("[data-menu-view]").forEach((v) => {
+        const on = v.dataset.menuView === name;
+        v.hidden = !on;
+        if (on) v.dataset.menuDir = dir || "forward";
+      });
+      if (!reduce && typeof settingsList.animate === "function") {
+        const nextW = settingsList.offsetWidth;
+        const nextH = settingsList.offsetHeight;
+        if ((prevW > 0 || prevH > 0) && (nextW !== prevW || nextH !== prevH)) {
+          settingsList.animate(
+            [
+              { width: prevW + "px", height: prevH + "px" },
+              { width: nextW + "px", height: nextH + "px" },
+            ],
+            { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }
+          );
+        }
+      }
+    }
+
+    function makeMenuNavRow(iconKey, labelText, valueAttr, targetView, onBeforeOpen) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.setAttribute("role", "menuitem");
+      btn.className =
+        "w-full flex items-center justify-between gap-4 rounded-xl px-3 py-2.5 text-xs font-medium text-white/90 hover:bg-white/12 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/70";
+      const left = document.createElement("span");
+      left.className = "flex items-center gap-2.5";
+      const iconWrap = document.createElement("span");
+      iconWrap.className = "inline-flex items-center justify-center";
+      iconWrap.innerHTML = MENU_ICONS[iconKey] || "";
+      left.appendChild(iconWrap);
+      const labelSpan = document.createElement("span");
+      labelSpan.textContent = labelText;
+      left.appendChild(labelSpan);
+      btn.appendChild(left);
+
+      const right = document.createElement("span");
+      right.className = "ml-auto flex items-center gap-1 text-white/55";
+      const valSpan = document.createElement("span");
+      valSpan.className = "max-w-28 truncate";
+      valSpan.setAttribute(valueAttr, "1");
+      right.appendChild(valSpan);
+      const chevWrap = document.createElement("span");
+      chevWrap.className = "inline-flex items-center justify-center";
+      chevWrap.innerHTML = MENU_ICONS.chevronRight;
+      right.appendChild(chevWrap);
+      btn.appendChild(right);
+
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (typeof onBeforeOpen === "function") onBeforeOpen();
+        switchMenuView(targetView, "forward");
+      });
+      return btn;
+    }
+
+    function makeSubmenuHeader(titleText, targetView) {
+      const frag = document.createDocumentFragment();
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.setAttribute("role", "menuitem");
+      btn.className =
+        "w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-white/80 hover:bg-white/12 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/70";
+      const chev = document.createElement("span");
+      chev.className = "inline-flex items-center justify-center";
+      chev.innerHTML = MENU_ICONS.chevronLeft;
+      btn.appendChild(chev);
+      const txt = document.createElement("span");
+      txt.textContent = titleText;
+      btn.appendChild(txt);
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        switchMenuView(targetView || "main", "back");
+      });
+      frag.appendChild(btn);
+      const sep = document.createElement("div");
+      sep.className = "my-1 h-px bg-white/10";
+      frag.appendChild(sep);
+      return frag;
+    }
+
+    function makeOptionButton(labelText, datasetMap, onClick) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.setAttribute("role", "menuitemradio");
+      btn.className =
+        "group w-full flex items-center justify-between gap-4 rounded-xl px-3 py-2 text-xs font-medium text-white/85 hover:bg-white/12 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/70";
+      if (datasetMap) {
+        Object.keys(datasetMap).forEach((k) => {
+          btn.dataset[k] = String(datasetMap[k]);
+        });
+      }
+      const span = document.createElement("span");
+      span.className = "truncate";
+      span.textContent = labelText;
+      btn.appendChild(span);
+      const checkWrap = document.createElement("span");
+      checkWrap.className = "inline-flex items-center justify-center";
+      checkWrap.innerHTML = MENU_ICONS.check;
+      btn.appendChild(checkWrap);
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onClick(btn);
+      });
+      return btn;
+    }
+
+    function syncSpeedMenu() {
+      if (!settingsList) return;
+      const cur = video.playbackRate || 1;
+      settingsList.querySelectorAll("button[data-speed-rate]").forEach((b) => {
+        const active = Number(b.dataset.speedRate) === cur;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-checked", active ? "true" : "false");
+      });
+      const sv = settingsList.querySelector("[data-speed-value]");
+      if (sv) sv.textContent = cur + "x";
+    }
+
+    function buildSpeedSubView() {
+      const view = document.createElement("div");
+      view.dataset.menuView = "speed";
+      view.className = "flex flex-col gap-0.5";
+      view.hidden = true;
+      view.appendChild(makeSubmenuHeader(t("Playback speed"), "main"));
+      for (const rate of [2, 1.5, 1.25, 1, 0.75, 0.5]) {
+        const btn = makeOptionButton(rate + "x", { speedRate: rate }, () => {
+          video.playbackRate = rate;
+          syncSpeedMenu();
+          closeSettings();
+        });
+        view.appendChild(btn);
+      }
+      return view;
+    }
+
+    function syncDanmakuSizeMenu() {
+      if (!settingsList) return;
+      const curEntry = getStoredDanmakuSizeEntry();
+      settingsList.querySelectorAll("button[data-danmaku-size]").forEach((b) => {
+        const active = b.dataset.danmakuSize === curEntry.key;
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-checked", active ? "true" : "false");
+      });
+      const dv = settingsList.querySelector("[data-danmaku-size-value]");
+      if (dv) dv.textContent = getDanmakuSizeLabel(curEntry.key);
+    }
+
+    function setDanmakuSizeByKey(sizeKey) {
+      const entry =
+        DANMAKU_SIZES.find((item) => item.key === sizeKey) ||
+        DANMAKU_SIZES.find((item) => item.key === DEFAULT_DANMAKU_SIZE_KEY) ||
+        DANMAKU_SIZES[1];
+      storageSet(DANMAKU_SIZE_STORAGE_KEY, entry.key);
+      window.dm_scale = entry.scale;
+      applyDanmakuScaleToInstance(window.dm);
+      syncDanmakuSizeMenu();
+    }
+
+    function buildDanmakuSizeSubView() {
+      const view = document.createElement("div");
+      view.dataset.menuView = "danmaku-size";
+      view.className = "flex flex-col gap-0.5";
+      view.hidden = true;
+      view.appendChild(makeSubmenuHeader(t("Danmaku size"), "main"));
+      for (const entry of DANMAKU_SIZES) {
+        const btn = makeOptionButton(
+          getDanmakuSizeLabel(entry.key),
+          { danmakuSize: entry.key },
+          () => {
+            setDanmakuSizeByKey(entry.key);
+            closeSettings();
+          }
+        );
+        view.appendChild(btn);
+      }
+      return view;
+    }
+
+    function setupVodMenu(options) {
+      if (!settingsList) return;
+      const sources = Array.isArray(options?.sources)
+        ? options.sources
+        : window.supported_src || [];
+      const isDash = Boolean(options?.isDash ?? window.is_dash);
+      const onSelectVideo = options?.onSelectVideo;
+      const sorted = [...sources].sort((a, b) => b.quality - a.quality);
+
+      settingsList.innerHTML = "";
+      const main = document.createElement("div");
+      main.dataset.menuView = "main";
+      main.className = "flex flex-col gap-0.5";
+      main.appendChild(
+        makeMenuNavRow("resolution", t("Resolution"), "data-resolution-value", "video")
+      );
+      if (isDash) {
+        main.appendChild(makeMenuNavRow("audio", t("Audio"), "data-audio-value", "audio"));
+      }
+      main.appendChild(
+        makeMenuNavRow("speed", t("Playback speed"), "data-speed-value", "speed", syncSpeedMenu)
+      );
+      main.appendChild(
+        makeMenuNavRow(
+          "danmaku",
+          t("Danmaku size"),
+          "data-danmaku-size-value",
+          "danmaku-size",
+          syncDanmakuSizeMenu
+        )
+      );
+      settingsList.appendChild(main);
+
+      const videoView = document.createElement("div");
+      videoView.dataset.menuView = "video";
+      videoView.className = "flex flex-col gap-0.5";
+      videoView.hidden = true;
+      videoView.appendChild(makeSubmenuHeader(t("Resolution"), "main"));
+      sorted.forEach((src, idx) => {
+        const btn = makeOptionButton(
+          src.new_description,
+          { videoQn: src.quality, qn: src.quality },
+          (clickedBtn) => {
+            if (typeof onSelectVideo === "function") {
+              onSelectVideo(src);
+            }
+            const rv = settingsList.querySelector("[data-resolution-value]");
+            if (rv) rv.textContent = src.new_description;
+            settingsList.querySelectorAll("button[data-video-qn]").forEach((b) => {
+              b.classList.remove("active");
+              b.setAttribute("aria-checked", "false");
+            });
+            clickedBtn.classList.add("active");
+            clickedBtn.setAttribute("aria-checked", "true");
+            closeSettings();
+          }
+        );
+        const matchesCurrent = isDash ? idx === 0 : (video.src || "").includes("_" + src.quality);
+        if (matchesCurrent) {
+          btn.classList.add("active");
+          btn.setAttribute("aria-checked", "true");
+        }
+        videoView.appendChild(btn);
+      });
+      settingsList.appendChild(videoView);
+
+      if (isDash) {
+        const audioView = document.createElement("div");
+        audioView.dataset.menuView = "audio";
+        audioView.className = "flex flex-col gap-0.5";
+        audioView.hidden = true;
+        audioView.appendChild(makeSubmenuHeader(t("Audio"), "main"));
+        const audioOpts = document.createElement("div");
+        audioOpts.dataset.audioOptions = "1";
+        audioOpts.className = "flex flex-col gap-0.5";
+        audioView.appendChild(audioOpts);
+        settingsList.appendChild(audioView);
+      }
+
+      settingsList.appendChild(buildSpeedSubView());
+      settingsList.appendChild(buildDanmakuSizeSubView());
+      syncSpeedMenu();
+      syncDanmakuSizeMenu();
+
+      const activeVideoBtn =
+        settingsList.querySelector("button[data-video-qn].active") ||
+        settingsList.querySelector("button[data-video-qn]");
+      if (activeVideoBtn) {
+        activeVideoBtn.classList.add("active");
+        activeVideoBtn.setAttribute("aria-checked", "true");
+        const rv = settingsList.querySelector("[data-resolution-value]");
+        const span = activeVideoBtn.querySelector("span");
+        if (rv && span) rv.textContent = span.textContent;
+      }
+    }
+
+    function setAudioTracks(tracks, currentId, onSelectAudio) {
+      if (!settingsList) return;
+      const optsContainer = settingsList.querySelector("[data-audio-options]");
+      if (!optsContainer) return;
+      optsContainer.innerHTML = "";
+      for (const trk of tracks || []) {
+        const btn = makeOptionButton(trk.label, { audioQn: trk.id }, () => {
+          if (typeof onSelectAudio === "function") onSelectAudio(trk.id);
+          syncAudioTrack(trk.id);
+          closeSettings();
+        });
+        optsContainer.appendChild(btn);
+      }
+      syncAudioTrack(currentId);
+    }
+
+    function syncAudioTrack(currentId) {
+      if (!settingsList) return;
+      settingsList.querySelectorAll("button[data-audio-qn]").forEach((b) => {
+        const active = currentId != null && String(b.dataset.audioQn) === String(currentId);
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-checked", active ? "true" : "false");
+      });
+      if (currentId != null) {
+        const activeBtn = settingsList.querySelector(`button[data-audio-qn="${currentId}"]`);
+        const av = settingsList.querySelector("[data-audio-value]");
+        if (activeBtn && av) {
+          const span = activeBtn.querySelector("span");
+          if (span) av.textContent = span.textContent;
+        }
+      }
+    }
+
+    function syncVideoQuality(qn, labelText) {
+      if (!settingsList || !qn) return;
+      const btn = settingsList.querySelector(`button[data-qn="${qn}"]`);
+      if (btn) {
+        settingsList.querySelectorAll("button[data-video-qn]").forEach((b) => {
+          b.classList.remove("active");
+          b.setAttribute("aria-checked", "false");
+        });
+        btn.classList.add("active");
+        btn.setAttribute("aria-checked", "true");
+      }
+      const rv = settingsList.querySelector("[data-resolution-value]");
+      if (rv) {
+        const text = labelText || btn?.querySelector("span")?.textContent || "";
+        if (text) rv.textContent = text;
+      }
+    }
+
+    function setupLiveMenu(options) {
+      if (!settingsList) return;
+      const items = Array.isArray(options?.items) ? options.items : [];
+      const onSelect = options?.onSelect;
+
+      settingsList.innerHTML = "";
+      const main = document.createElement("div");
+      main.dataset.menuView = "main";
+      main.className = "flex flex-col gap-0.5";
+      main.appendChild(
+        makeMenuNavRow("resolution", t("Resolution"), "data-resolution-value", "video")
+      );
+      main.appendChild(
+        makeMenuNavRow(
+          "danmaku",
+          t("Danmaku size"),
+          "data-danmaku-size-value",
+          "danmaku-size",
+          syncDanmakuSizeMenu
+        )
+      );
+      settingsList.appendChild(main);
+
+      const videoView = document.createElement("div");
+      videoView.dataset.menuView = "video";
+      videoView.className = "flex flex-col gap-0.5";
+      videoView.hidden = true;
+      videoView.appendChild(makeSubmenuHeader(t("Resolution"), "main"));
+
+      items.forEach((item) => {
+        const btn = makeOptionButton(item.label, { liveQn: item.value }, (clickedBtn) => {
+          if (typeof onSelect === "function") onSelect(item);
+          const rv = settingsList.querySelector("[data-resolution-value]");
+          if (rv) rv.textContent = item.label;
+          settingsList.querySelectorAll("button[data-live-qn]").forEach((b) => {
+            b.classList.remove("active");
+            b.setAttribute("aria-checked", "false");
+          });
+          clickedBtn.classList.add("active");
+          clickedBtn.setAttribute("aria-checked", "true");
+          closeSettings();
+        });
+        if (item.active) {
+          btn.classList.add("active");
+          btn.setAttribute("aria-checked", "true");
+        }
+        videoView.appendChild(btn);
+      });
+      settingsList.appendChild(videoView);
+      settingsList.appendChild(buildDanmakuSizeSubView());
+      syncDanmakuSizeMenu();
+
+      const activeBtn =
+        settingsList.querySelector("button[data-live-qn].active") ||
+        settingsList.querySelector("button[data-live-qn]");
+      if (activeBtn) {
+        activeBtn.classList.add("active");
+        activeBtn.setAttribute("aria-checked", "true");
+        const rv = settingsList.querySelector("[data-resolution-value]");
+        const span = activeBtn.querySelector("span");
+        if (rv && span) rv.textContent = span.textContent;
+      }
+    }
+
+    function syncLiveQuality(labelText) {
+      if (!settingsList || !labelText) return;
+      const rv = settingsList.querySelector("[data-resolution-value]");
+      if (rv) rv.textContent = labelText;
+    }
+
     function openSettings() {
       if (!settingsMenu || !settingsBtn) return;
-      const qlist = root.querySelector("#quality-list");
-      if (qlist) {
-        qlist.querySelectorAll("[data-menu-view]").forEach((v) => {
+      if (settingsList) {
+        settingsList.querySelectorAll("[data-menu-view]").forEach((v) => {
           v.hidden = v.dataset.menuView !== "main";
         });
       }
+      syncSpeedMenu();
+      syncDanmakuSizeMenu();
       const brect = settingsBtn.getBoundingClientRect();
       const crect = root.getBoundingClientRect();
       settingsMenu.style.right = Math.max(8, crect.right - brect.right) + "px";
@@ -459,7 +995,12 @@
       if (!settingsMenu || !settingsBtn) return;
       settingsMenu.classList.add("opacity-0", "pointer-events-none", "scale-95");
       settingsMenu.classList.remove("opacity-100", "scale-100", "pointer-events-auto");
-      if (settingsMenu.contains(document.activeElement)) settingsBtn.focus();
+      if (
+        typeof settingsMenu.contains === "function" &&
+        settingsMenu.contains(document.activeElement)
+      ) {
+        settingsBtn.focus?.();
+      }
       settingsMenu.inert = true;
       settingsBtn.setAttribute("aria-expanded", "false");
       settingsOpen = false;
@@ -579,6 +1120,19 @@
         },
         { signal }
       );
+    }
+
+    if (timeToggleBtns && timeToggleBtns.length > 0 && !isLive) {
+      timeToggleBtns.forEach((btn) => {
+        btn.addEventListener(
+          "click",
+          (e) => {
+            e.stopPropagation();
+            toggleTimeDisplayMode();
+          },
+          { signal }
+        );
+      });
     }
 
     if (volumeGroup) {
@@ -849,7 +1403,9 @@
     root.addEventListener(
       "focus",
       () => {
-        if (root.matches(":focus-visible")) showControls(false);
+        if (typeof root.matches === "function" && root.matches(":focus-visible")) {
+          showControls(false);
+        }
       },
       { signal }
     );
@@ -1011,6 +1567,7 @@
     video.addEventListener("pause", syncPlayState, { signal });
     video.addEventListener("ended", syncPlayState, { signal });
     video.addEventListener("volumechange", syncVolumeState, { signal });
+    video.addEventListener("ratechange", syncSpeedMenu, { signal });
     video.addEventListener(
       "loadedmetadata",
       () => {
@@ -1123,6 +1680,12 @@
       toggleSettings,
       setDanmakuActive,
       showHud,
+      setupVodMenu,
+      setAudioTracks,
+      syncAudioTrack,
+      syncVideoQuality,
+      setupLiveMenu,
+      syncLiveQuality,
     };
   }
 
@@ -1157,5 +1720,27 @@
     showHud(iconName, text) {
       activeInstance?.showHud(iconName, text);
     },
+    setupVodMenu(options) {
+      activeInstance?.setupVodMenu(options);
+    },
+    setAudioTracks(tracks, currentId, onSelectAudio) {
+      activeInstance?.setAudioTracks(tracks, currentId, onSelectAudio);
+    },
+    syncAudioTrack(currentId) {
+      activeInstance?.syncAudioTrack(currentId);
+    },
+    syncVideoQuality(qn, labelText) {
+      activeInstance?.syncVideoQuality(qn, labelText);
+    },
+    setupLiveMenu(options) {
+      activeInstance?.setupLiveMenu(options);
+    },
+    syncLiveQuality(labelText) {
+      activeInstance?.syncLiveQuality(labelText);
+    },
+    applyDanmakuScale(dm) {
+      return applyDanmakuScaleToInstance(dm);
+    },
+    getDanmakuScale,
   };
 })();

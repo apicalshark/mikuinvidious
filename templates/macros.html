@@ -98,7 +98,12 @@
                                 </div>
                             </div>
                         </div>
-                        <span data-time-duration-compact class="hidden shrink-0 @max-md:inline">0:00</span>
+                        <button type="button"
+                                data-time-toggle
+                                data-time-duration-compact
+                                class="hidden shrink-0 cursor-pointer rounded px-1 py-0.5 text-xs text-white tabular-nums outline-none transition-colors hover:text-white/80 focus-visible:ring-2 focus-visible:ring-white @max-md:inline">
+                            0:00
+                        </button>
                     </div>
                 {% endif %}
                 <div class="flex items-center gap-2 pt-1">
@@ -108,7 +113,7 @@
                                     data-play-btn
                                     aria-label="{{ _('Play') }}"
                                     title="{{ _('Play') }}"
-                                    class="inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[background-color,scale] duration-150 ease-out motion-reduce:transition-none hover:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                    class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
                                 <svg data-icon-play
                                      class="size-5 fill-current"
                                      viewBox="0 0 24 24"
@@ -141,7 +146,7 @@
                                     data-mute-btn
                                     aria-label="{{ _('Mute') }}"
                                     title="{{ _('Mute') }}"
-                                    class="inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[background-color,scale] duration-150 ease-out motion-reduce:transition-none hover:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                    class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
                                 <svg data-icon-vol-high
                                      class="size-5"
                                      viewBox="0 0 24 24"
@@ -210,11 +215,13 @@
                                 <span>{{ _("LIVE") }}</span>
                             </button>
                         {% else %}
-                            <div class="flex h-10 items-center gap-1 rounded-full bg-black/30 px-4 font-medium text-sm text-white tabular-nums @max-md:hidden">
+                            <button type="button"
+                                    data-time-toggle
+                                    class="flex h-10 cursor-pointer items-center gap-1 rounded-full bg-black/30 px-4 font-medium text-sm text-white tabular-nums outline-none transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white @max-md:hidden">
                                 <span data-time-current>0:00</span>
                                 <span class="text-white/50">/</span>
                                 <span data-time-duration>0:00</span>
-                            </div>
+                            </button>
                         {% endif %}
                     </div>
                     <div aria-hidden="true" class="flex-1"></div>
@@ -224,7 +231,7 @@
                                 aria-label="{{ _('Toggle danmaku') }}"
                                 title="{{ _('Toggle danmaku') }}"
                                 aria-pressed="true"
-                                class="miku-bar-btn inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[background-color,scale,color] duration-150 ease-out motion-reduce:transition-none hover:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                class="miku-bar-btn relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[transform,color] duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
                             <svg class="size-5"
                                  viewBox="0 0 24 24"
                                  fill="none"
@@ -239,7 +246,7 @@
                             </svg>
                         </button>
                         {% if not is_live and subtitles %}
-                            <div class="miku-bar-btn relative inline-flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-white/15 focus-within:ring-2 focus-within:ring-white">
+                            <div class="miku-bar-btn relative inline-flex size-10 shrink-0 items-center justify-center rounded-full before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 focus-within:ring-2 focus-within:ring-white">
                                 <svg class="size-5"
                                      viewBox="0 0 24 24"
                                      fill="none"
@@ -268,7 +275,7 @@
                                 title="{{ _('Settings') }}"
                                 aria-haspopup="menu"
                                 aria-expanded="false"
-                                class="inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[background-color,scale] duration-150 ease-out motion-reduce:transition-none hover:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
                             <svg class="size-5"
                                  viewBox="0 0 24 24"
                                  fill="none"
@@ -278,14 +285,14 @@
                                  stroke-linejoin="round"
                                  aria-hidden="true">
                                 <circle cx="12" cy="12" r="3" />
-                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                             </svg>
                         </button>
                         <button type="button"
                                 data-pip-btn
                                 aria-label="{{ _('Picture-in-Picture') }}"
                                 title="{{ _('Picture-in-Picture') }}"
-                                class="inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[background-color,scale] duration-150 ease-out motion-reduce:transition-none hover:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
                             <svg class="size-5"
                                  viewBox="0 0 24 24"
                                  fill="none"
@@ -303,7 +310,7 @@
                                 aria-label="{{ _('Theater mode') }}"
                                 title="{{ _('Theater mode') }}"
                                 aria-pressed="false"
-                                class="inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[background-color,scale] duration-150 ease-out motion-reduce:transition-none hover:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white @max-md:hidden">
+                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white @max-md:hidden">
                             <svg data-icon-theater-enter
                                  class="size-5"
                                  viewBox="0 0 24 24"
@@ -331,7 +338,7 @@
                                 data-fullscreen-btn
                                 aria-label="{{ _('Fullscreen') }}"
                                 title="{{ _('Fullscreen') }}"
-                                class="inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[background-color,scale] duration-150 ease-out motion-reduce:transition-none hover:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
                             <svg data-icon-fs-enter
                                  class="size-5"
                                  viewBox="0 0 24 24"
@@ -367,11 +374,9 @@
             <div id="quality-menu"
                  inert
                  role="menu"
-                 class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-right z-35 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
-                <div data-menu-title
-                     class="text-[10px] uppercase tracking-widest text-white/40 px-3 py-2 mb-1 font-bold">{{ _("Settings") }}</div>
+                 class="absolute opacity-0 pointer-events-none scale-95 transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none origin-bottom-right z-35 p-1.5 min-w-56 rounded-2xl shadow-2xl ring-1 ring-white/10 bg-[rgb(24_24_24/0.94)] text-sm text-white">
                 <div id="quality-list"
-                     class="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar"></div>
+                     class="flex flex-col gap-0.5 max-h-[320px] overflow-y-auto custom-scrollbar"></div>
             </div>
             <div id="autoplay-overlay"
                  class="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-xs opacity-0 pointer-events-none transition-opacity duration-300">

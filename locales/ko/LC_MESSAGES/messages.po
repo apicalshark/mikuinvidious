@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 13:42+0000\n"
+"POT-Creation-Date: 2026-11-22 14:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ko\n"
@@ -189,28 +189,30 @@ msgstr "아직 탐색 기록이 없습니다."
 msgid "Resolving video URL..."
 msgstr "영상 URL을 해석하는 중..."
 
-#: static/themes/modern/js/player.js:1849
-#: static/themes/modern/js/player.js:1919
+#: static/themes/modern/js/player_ui.js:770
+#: static/themes/modern/js/player_ui.js:793
+#: static/themes/modern/js/player_ui.js:913
+#: static/themes/modern/js/player_ui.js:930
 msgid "Resolution"
 msgstr "화질"
 
-#: templates/macros.html:383
+#: templates/macros.html:388
 msgid "Click to play"
 msgstr "클릭하여 재생"
 
-#: templates/macros.html:384
+#: templates/macros.html:389
 msgid "Browser blocked autoplay"
 msgstr "브라우저가 자동 재생을 차단했습니다"
 
-#: templates/macros.html:187
+#: templates/macros.html:192
 msgid "Volume"
 msgstr "음량"
 
-#: templates/macros.html:206 templates/macros.html:210
+#: templates/macros.html:211 templates/macros.html:215
 msgid "LIVE"
 msgstr "생방송"
 
-#: templates/macros.html:224 templates/macros.html:225
+#: templates/macros.html:231 templates/macros.html:232
 msgid "Toggle danmaku"
 msgstr "단막 전환"
 
@@ -791,8 +793,8 @@ msgstr "다음 자동 재생"
 msgid "Recommended"
 msgstr "추천"
 
-#: static/themes/modern/js/player_ui.js:259 templates/macros.html:109
-#: templates/macros.html:110 templates/themes/modern/video_listen.html:358
+#: static/themes/modern/js/player_ui.js:382 templates/macros.html:114
+#: templates/macros.html:115 templates/themes/modern/video_listen.html:358
 msgid "Play"
 msgstr "재생"
 
@@ -999,43 +1001,37 @@ msgstr "스트림 종료"
 msgid "Live stream has ended"
 msgstr "생방송이 종료되었습니다"
 
-#: static/themes/modern/js/player.js:1564
+#: static/themes/modern/js/player.js:1513
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "자동 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1587
-#: static/themes/modern/js/player.js:1591
-#: static/themes/modern/js/player.js:1648
-#: static/themes/modern/js/player.js:1652
+#: static/themes/modern/js/player.js:1565
 msgid "Auto"
 msgstr "자동"
 
-#: static/themes/modern/js/player.js:1780
-msgid "Back"
-msgstr "뒤로"
-
-#: static/themes/modern/js/player.js:1850
+#: static/themes/modern/js/player_ui.js:773
+#: static/themes/modern/js/player_ui.js:827
 msgid "Audio"
 msgstr "오디오"
 
-#: static/themes/modern/js/player.js:1851
-#: static/themes/modern/js/player.js:1920
+#: static/themes/modern/js/player_ui.js:701
+#: static/themes/modern/js/player_ui.js:776
 msgid "Playback speed"
 msgstr "재생 속도"
 
-#: static/themes/modern/js/player_ui.js:435
-#: static/themes/modern/js/player_ui.js:995
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 #: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "켬"
 
-#: static/themes/modern/js/player_ui.js:435
-#: static/themes/modern/js/player_ui.js:995
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 #: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
-#: templates/macros.html:258
+#: templates/macros.html:265
 msgid "Off"
 msgstr "끔"
 
@@ -1095,58 +1091,75 @@ msgstr "이미지 %(index)s/%(total)s 열기"
 msgid "Seek"
 msgstr "탐색"
 
-#: static/themes/modern/js/player_ui.js:284 templates/macros.html:142
-#: templates/macros.html:143
+#: static/themes/modern/js/player_ui.js:407 templates/macros.html:147
+#: templates/macros.html:148
 msgid "Mute"
 msgstr "음소거"
 
-#: templates/macros.html:267 templates/macros.html:268
-#: templates/macros.html:372
+#: templates/macros.html:274 templates/macros.html:275
 msgid "Settings"
 msgstr "설정"
 
-#: static/themes/modern/js/player_ui.js:516 templates/macros.html:286
-#: templates/macros.html:287
+#: static/themes/modern/js/player_ui.js:1057 templates/macros.html:293
+#: templates/macros.html:294
 msgid "Picture-in-Picture"
 msgstr "PIP 모드"
 
-#: static/themes/modern/js/player_ui.js:542 templates/macros.html:303
-#: templates/macros.html:304
+#: static/themes/modern/js/player_ui.js:1083 templates/macros.html:310
+#: templates/macros.html:311
 msgid "Theater mode"
 msgstr "영화관 모드"
 
-#: static/themes/modern/js/player_ui.js:486 templates/macros.html:332
-#: templates/macros.html:333
+#: static/themes/modern/js/player_ui.js:1027 templates/macros.html:339
+#: templates/macros.html:340
 msgid "Fullscreen"
 msgstr "전체 화면"
 
-#: static/themes/modern/js/player_ui.js:259
+#: static/themes/modern/js/player_ui.js:382
 msgid "Replay"
 msgstr "다시 재생"
 
-#: static/themes/modern/js/player_ui.js:259
+#: static/themes/modern/js/player_ui.js:382
 msgid "Pause"
 msgstr "일시정지"
 
-#: static/themes/modern/js/player_ui.js:284
+#: static/themes/modern/js/player_ui.js:407
 msgid "Unmute"
 msgstr "음소거 해제"
 
-#: static/themes/modern/js/player_ui.js:486
+#: static/themes/modern/js/player_ui.js:1027
 msgid "Exit fullscreen"
 msgstr "전체 화면 종료"
 
-#: static/themes/modern/js/player_ui.js:516
+#: static/themes/modern/js/player_ui.js:1057
 msgid "Exit Picture-in-Picture"
 msgstr "PIP 모드 종료"
 
-#: static/themes/modern/js/player_ui.js:542
+#: static/themes/modern/js/player_ui.js:1083
 msgid "Exit theater mode"
 msgstr "영화관 모드 종료"
 
-#: templates/macros.html:255 templates/macros.html:256
+#: static/themes/modern/js/player_ui.js:741
+#: static/themes/modern/js/player_ui.js:781
+#: static/themes/modern/js/player_ui.js:918
+msgid "Danmaku size"
+msgstr "탄막 크기"
+
+#: static/themes/modern/js/player_ui.js:22
+msgid "Small"
+msgstr "작게"
+
+#: static/themes/modern/js/player_ui.js:23
+msgid "Large"
+msgstr "크게"
+
+#: static/themes/modern/js/player_ui.js:24
+msgid "Medium"
+msgstr "보통"
+
+#: templates/macros.html:262 templates/macros.html:263
 msgid "Captions"
-msgstr "자막"
+msgstr "\\\"자막\\\""
 
 #~ msgid "No articles yet"
 #~ msgstr "아직 기사가 없습니다"
@@ -1165,6 +1178,9 @@ msgstr "자막"
 
 #~ msgid "Switch resolution"
 #~ msgstr "화질 전환"
+
+#~ msgid "Back"
+#~ msgstr "뒤로"
 
 #~ msgid "Toggle captions"
 #~ msgstr "자막 전환"

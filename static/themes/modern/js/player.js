@@ -892,62 +892,28 @@ class DashPlayerManager {
   }
 
   _buildAudioMenu() {
-    // Fills the Audio sub-view ([data-audio-options]) with one row per
-    // track. Manual picks are sticky (tier-follow off until reconnect),
-    // mirroring how video picks lock video ABR off.
     try {
-      const opts = document.querySelector("#quality-list [data-audio-options]");
-      if (!opts || !this.player) return;
-      opts.innerHTML = "";
+      if (!this.player) return;
       const reps = this.player.getRepresentationsByType("audio") || [];
       const sorted = [...reps].sort((a, b) => Number(b.bandwidth) - Number(a.bandwidth));
       if (!sorted.length) return;
-      // Show the section from a single track up: one row is display-only
-      // but keeps the menu chrome consistent (cf. single-quality videos
-      // like BV1xx411c7m9 whose Audio row would otherwise vanish).
-      for (const r of sorted) {
-        const btn = document.createElement("button");
-        btn.className =
-          "w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between group";
-        btn.dataset.audioQn = String(r.id);
-        const span = document.createElement("span");
-        span.textContent = this._audioLabel(r);
-        btn.appendChild(span);
-        const icon = document.createElement("i");
-        icon.className = "icon ion-md-checkmark opacity-0 group-[.active]:opacity-100";
-        btn.appendChild(icon);
-        btn.onclick = (e) => {
-          e.stopPropagation();
-          this.setAudioQuality(r.id);
-          this._syncAudioMenu(r.id);
-          window.MikuPlayerUI?.closeSettings();
-        };
-        opts.appendChild(btn);
-      }
-      this._syncAudioMenu(null);
+      const cur = this.player.getCurrentRepresentationForType("audio");
+      const tracks = sorted.map((r) => ({ id: r.id, label: this._audioLabel(r) }));
+      window.MikuPlayerUI?.setAudioTracks(tracks, cur ? cur.id : null, (id) => {
+        this.setAudioQuality(id);
+      });
     } catch (e) {
       console.warn("[DashManager] Could not build audio menu:", e);
     }
   }
 
   _syncAudioMenu(currentId) {
-    // Checkmark truth: whatever audio is rendered. currentId null = refresh.
     try {
       if (currentId == null) {
         const cur = this.player && this.player.getCurrentRepresentationForType("audio");
         currentId = cur ? cur.id : currentId;
       }
-      document.querySelectorAll("#quality-list [data-audio-qn]").forEach((b) => {
-        b.classList.toggle(
-          "active",
-          currentId != null && String(b.dataset.audioQn) === String(currentId)
-        );
-      });
-      if (currentId != null) {
-        const btn = document.querySelector(`#quality-list [data-audio-qn="${currentId}"]`);
-        const av = document.querySelector("#quality-list [data-audio-value]");
-        if (btn && av) av.textContent = btn.querySelector("span").textContent;
-      }
+      window.MikuPlayerUI?.syncAudioTrack(currentId);
     } catch (e) {
       console.warn("[DashManager] Could not sync audio menu:", e);
     }
@@ -984,7 +950,6 @@ class DashPlayerManager {
     try {
       const rep = this.player.getCurrentRepresentationForType("video");
       if (!rep) return;
-      // MPD Representation ids are "video_<qn>_<codecid>"
       const m = /_(\d+)_/.exec(String(rep.id || ""));
       const qn = m
         ? m[1]
@@ -993,27 +958,10 @@ class DashPlayerManager {
               ?.quality ?? ""
           );
       if (!qn) return;
-      const list = document.getElementById("quality-list");
-      if (list) {
-        const btn = list.querySelector(`button[data-qn="${qn}"]`);
-        if (btn) {
-          // Scoped to the video group: the audio group keeps its own mark.
-          list
-            .querySelectorAll("button[data-video-qn]")
-            .forEach((b) => b.classList.remove("active"));
-          btn.classList.add("active");
-        }
-      }
+      const src = (window.supported_src || []).find((s) => String(s.quality) === qn);
       const label = document.getElementById("current-quality-label");
-      if (label) {
-        const src = (window.supported_src || []).find((s) => String(s.quality) === qn);
-        if (src) label.innerText = src.new_description;
-      }
-      const rv = document.querySelector("#quality-list [data-resolution-value]");
-      if (rv) {
-        const src = (window.supported_src || []).find((s) => String(s.quality) === qn);
-        if (src) rv.textContent = src.new_description;
-      }
+      if (label && src) label.innerText = src.new_description;
+      window.MikuPlayerUI?.syncVideoQuality(qn, src ? src.new_description : "");
     } catch (e) {
       console.warn("[DashManager] Could not sync DASH quality UI:", e);
     }
@@ -1408,6 +1356,7 @@ function initDanmaku(video, container, controller) {
     });
 
     window.dm_status = true;
+    window.MikuPlayerUI?.applyDanmakuScale(window.dm);
 
     // Explicitly start danmaku if media is not paused
     if (!video.paused) {
@@ -1561,7 +1510,9 @@ function setupLivePlayer(video, list, label) {
       hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
         if (hls.autoLevelEnabled) {
           const level = hls.levels[data.level];
-          if (label) label.innerText = I18n.t("Auto (%(height)sp)", { height: level.height });
+          const autoText = I18n.t("Auto (%(height)sp)", { height: level.height });
+          if (label) label.innerText = autoText;
+          window.MikuPlayerUI?.syncLiveQuality(autoText);
         }
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -1576,40 +1527,6 @@ function setupLivePlayer(video, list, label) {
     updateLiveQualityMenu(video, null, window.liveManager, list, label, false);
   }
   window.isSettingUp = false;
-}
-
-function updateVodHlsQualityMenu(hls, list, label) {
-  if (!list) return;
-  list.innerHTML = "";
-
-  // Auto option
-  const autoBtn = createOption(
-    I18n.t("Auto"),
-    -1,
-    () => {
-      hls.currentLevel = -1;
-      if (label) label.innerText = I18n.t("Auto");
-    },
-    list
-  );
-  if (hls.currentLevel === -1) autoBtn.classList.add("active");
-  list.appendChild(autoBtn);
-
-  // Specific levels
-  hls.levels.forEach((level, index) => {
-    const name = `${level.height}p`;
-    const btn = createOption(
-      name,
-      index,
-      () => {
-        hls.currentLevel = index;
-        if (label) label.innerText = name;
-      },
-      list
-    );
-    if (hls.currentLevel === index) btn.classList.add("active");
-    list.appendChild(btn);
-  });
 }
 
 function formatHlsLiveLevelLabel(level) {
@@ -1640,323 +1557,94 @@ function formatHlsLiveLevelLabel(level) {
 }
 
 function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
-  if (!list || !window.supported_src) return;
-  list.innerHTML = "";
+  if (!window.supported_src) return;
 
   if (isHls && hls) {
-    const autoBtn = createOption(
-      I18n.t("Auto"),
-      -1,
-      () => {
-        hls.currentLevel = -1;
-        if (label) label.innerText = I18n.t("Auto");
+    const items = [
+      {
+        label: I18n.t("Auto"),
+        value: -1,
+        active: hls.currentLevel === -1,
       },
-      list
-    );
-    if (hls.currentLevel === -1) autoBtn.classList.add("active");
-    list.appendChild(autoBtn);
-
-    hls.levels
-      .map((level, index) => ({ level, index }))
-      .reverse()
-      .forEach(({ level, index }) => {
-        const name = formatHlsLiveLevelLabel(level);
-        const btn = createOption(
-          name,
-          index,
-          () => {
-            hls.currentLevel = index;
-            if (label) label.innerText = name;
-          },
-          list
-        );
-        if (hls.currentLevel === index) btn.classList.add("active");
-        list.appendChild(btn);
-      });
+      ...hls.levels
+        .map((level, index) => ({ level, index }))
+        .reverse()
+        .map(({ level, index }) => ({
+          label: formatHlsLiveLevelLabel(level),
+          value: index,
+          active: hls.currentLevel === index,
+        })),
+    ];
+    window.MikuPlayerUI?.setupLiveMenu({
+      items,
+      onSelect: (item) => {
+        hls.currentLevel = Number(item.value);
+        if (label) label.innerText = item.label;
+      },
+    });
   } else {
-    // FLV / Manual Quality Switch Logic
     const firstSrc = window.supported_src[0];
-    window.supported_src.forEach((src) => {
-      const btn = createOption(
-        src.new_description,
-        src.quality,
-        () => {
-          const newUrl = `/proxy/live/${window.current_vid}_${src.quality}`;
-          if (label) label.innerText = src.new_description;
-
-          if (window.liveManager) {
-            console.log("[Player] Switching live quality to:", src.new_description);
-            window.liveManager.destroy();
-            window.liveManager = new LiveStreamManager(video, newUrl, list, label);
-            window.liveManager.init();
-          } else if (window.hls) {
-            // HLS handled above, but for consistency:
-            video.src = newUrl;
-            video.load();
-            video.play().catch(() => {});
-          } else {
-            video.src = newUrl;
-            video.load();
-            video.play().catch(() => {});
-          }
-        },
-        list
+    const items = window.supported_src.map((src) => {
+      const active = Boolean(
+        (window.liveManager && window.liveManager.url.includes(`_${src.quality}`)) ||
+        (!window.liveManager &&
+          (video.src.includes(`_${src.quality}`) ||
+            (firstSrc && src.quality === firstSrc.quality && !video.src.includes("_"))))
       );
-
-      // Check if this is the current quality
-      if (window.liveManager && window.liveManager.url.includes(`_${src.quality}`)) {
-        btn.classList.add("active");
+      if (active && label) label.innerText = src.new_description;
+      return {
+        label: src.new_description,
+        value: src.quality,
+        active,
+        src,
+      };
+    });
+    window.MikuPlayerUI?.setupLiveMenu({
+      items,
+      onSelect: (item) => {
+        const src = item.src;
+        if (!src) return;
+        const newUrl = `/proxy/live/${window.current_vid}_${src.quality}`;
         if (label) label.innerText = src.new_description;
-      } else if (
-        !window.liveManager &&
-        (video.src.includes(`_${src.quality}`) ||
-          (src.quality === firstSrc.quality && !video.src.includes("_")))
-      ) {
-        btn.classList.add("active");
-        if (label) label.innerText = src.new_description;
-      }
-      list.appendChild(btn);
+        if (window.liveManager) {
+          console.log("[Player] Switching live quality to:", src.new_description);
+          window.liveManager.destroy();
+          window.liveManager = new LiveStreamManager(video, newUrl, list, label);
+          window.liveManager.init();
+        } else {
+          video.src = newUrl;
+          video.load();
+          video.play().catch(() => {});
+        }
+      },
     });
   }
 }
 
 function setupVodQuality(video, list, label) {
-  if (!list || !window.supported_src) return;
-  list.innerHTML = "";
-  const sorted = [...window.supported_src].sort((a, b) => b.quality - a.quality);
-
-  // Shared nested-menu builders (YouTube/Bilibili style). Both VOD paths
-  // (DASH and progressive) get main rows + sub-views with back buttons;
-  // only the option rows differ. Highlights stay scoped per group.
-  const menu = document.getElementById("quality-menu");
-  const staticTitle = menu ? menu.querySelector("[data-menu-title]") : null;
-  if (staticTitle) staticTitle.style.display = "none";
-  const showView = (name, dir) => {
-    // FLIP the shell: switch views synchronously (no paint lands
-    // mid-task), then animate #quality-list from the old box to the new
-    // one so width/height glide instead of snapping. Content slides via
-    // the CSS enter animation in parallel.
-    const reduce =
-      window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const prevW = list.offsetWidth;
-    const prevH = list.offsetHeight;
-    list.querySelectorAll("[data-menu-view]").forEach((v) => {
-      const on = v.dataset.menuView === name;
-      v.hidden = !on;
-      if (on) v.dataset.menuDir = dir || "forward";
-    });
-    if (!reduce) {
-      const nextW = list.offsetWidth;
-      const nextH = list.offsetHeight;
-      if (nextW !== prevW || nextH !== prevH) {
-        list.animate(
-          [
-            { width: `${prevW}px`, height: `${prevH}px` },
-            { width: `${nextW}px`, height: `${nextH}px` },
-          ],
-          { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }
-        );
-      }
-    }
-  };
-  const rowClass =
-    "w-full px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between gap-3";
-  const optClass =
-    "w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between group";
-  const checkIcon = () => {
-    const icon = document.createElement("i");
-    icon.className = "icon ion-md-checkmark opacity-0 group-[.active]:opacity-100";
-    return icon;
-  };
-  const backBtn = (target) => {
-    const b = document.createElement("button");
-    b.className = rowClass + " text-white/50";
-    const l = document.createElement("span");
-    l.className = "flex items-center gap-1";
-    const arrow = document.createElement("i");
-    arrow.className = "icon ion-ios-arrow-back";
-    l.appendChild(arrow);
-    const t = document.createElement("span");
-    t.textContent = I18n.t("Back");
-    l.appendChild(t);
-    b.appendChild(l);
-    b.onclick = (e) => {
-      e.stopPropagation();
-      showView(target, "back");
-    };
-    return b;
-  };
-  const menuRow = (labelText, valueAttr, target) => {
-    const b = document.createElement("button");
-    b.className = rowClass;
-    const l = document.createElement("span");
-    l.textContent = labelText;
-    b.appendChild(l);
-    const r = document.createElement("span");
-    r.className = "flex items-center gap-1 text-white/50";
-    const v = document.createElement("span");
-    v.setAttribute(valueAttr, "1");
-    r.appendChild(v);
-    const chev = document.createElement("i");
-    chev.className = "icon ion-ios-arrow-forward";
-    r.appendChild(chev);
-    b.appendChild(r);
-    b.onclick = (e) => {
-      e.stopPropagation();
-      showView(target, "forward");
-    };
-    return b;
-  };
-  // Speed sub-view (Bilibili's rate set), shared by DASH and
-  // progressive menus. Static list, synced on open.
-  const buildSpeedView = () => {
-    const speedView = document.createElement("div");
-    speedView.dataset.menuView = "speed";
-    speedView.className = "flex flex-col gap-px";
-    speedView.hidden = true;
-    speedView.appendChild(backBtn("main"));
-    for (const rate of [2, 1.5, 1.25, 1, 0.75, 0.5]) {
-      const btn = document.createElement("button");
-      btn.className = optClass + " text-left group";
-      btn.dataset.speedRate = String(rate);
-      const span = document.createElement("span");
-      span.textContent = `${rate}x`;
-      btn.appendChild(span);
-      btn.appendChild(checkIcon());
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        video.playbackRate = rate;
-        syncSpeedMenu();
-        window.MikuPlayerUI?.closeSettings();
-      };
-      speedView.appendChild(btn);
-    }
-    return speedView;
-  };
-  const syncSpeedMenu = () => {
-    const cur = video.playbackRate || 1;
-    list.querySelectorAll("button[data-speed-rate]").forEach((b) => {
-      b.classList.toggle("active", Number(b.dataset.speedRate) === cur);
-    });
-    const sv = list.querySelector("[data-speed-value]");
-    if (sv) sv.textContent = `${cur}x`;
-  };
-  if (window.is_dash) {
-    // Main view: navigation rows with live values.
-    const main = document.createElement("div");
-    main.dataset.menuView = "main";
-    main.className = "flex flex-col gap-px";
-    main.appendChild(menuRow(I18n.t("Resolution"), "data-resolution-value", "video"));
-    main.appendChild(menuRow(I18n.t("Audio"), "data-audio-value", "audio"));
-    const speedRow = menuRow(I18n.t("Playback speed"), "data-speed-value", "speed");
-    // The control-bar cycle button can change the rate behind our back;
-    // re-sync the highlight every time the row is opened.
-    speedRow.onclick = (e) => {
-      e.stopPropagation();
-      syncSpeedMenu();
-      showView("speed", "forward");
-    };
-    main.appendChild(speedRow);
-    list.appendChild(main);
-    // Video sub-view.
-    const videoView = document.createElement("div");
-    videoView.dataset.menuView = "video";
-    videoView.className = "flex flex-col gap-px";
-    videoView.hidden = true;
-    videoView.appendChild(backBtn("main"));
-    sorted.forEach((src, i) => {
-      // DASH switching resolves the API quality against MPD representations.
-      // data-video-qn scopes the active highlight to this group (see
-      // _syncQualityUI); data-qn is kept for the rendered-quality lookup.
-      const btn = document.createElement("button");
-      btn.className = optClass + " text-left group";
-      btn.dataset.videoQn = String(src.quality);
-      btn.dataset.qn = String(src.quality);
-      const span = document.createElement("span");
-      span.textContent = src.new_description;
-      btn.appendChild(span);
-      btn.appendChild(checkIcon());
-      if (i === 0) btn.classList.add("active");
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        window.dashManager.setQuality(src);
+  if (!window.supported_src) return;
+  window.MikuPlayerUI?.setupVodMenu({
+    sources: window.supported_src,
+    isDash: Boolean(window.is_dash),
+    onSelectVideo: (src) => {
+      if (window.is_dash) {
+        window.dashManager?.setQuality(src);
         if (label) label.innerText = src.new_description;
-        const rv = list.querySelector("[data-resolution-value]");
-        if (rv) rv.textContent = src.new_description;
-        list.querySelectorAll("button[data-video-qn]").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        window.MikuPlayerUI?.closeSettings();
-      };
-      videoView.appendChild(btn);
-    });
-    list.appendChild(videoView);
-    // Audio sub-view: back button now, tracks once the manifest parses
-    // (DashPlayerManager._buildAudioMenu fills [data-audio-options]).
-    const audioView = document.createElement("div");
-    audioView.dataset.menuView = "audio";
-    audioView.className = "flex flex-col gap-px";
-    audioView.hidden = true;
-    audioView.appendChild(backBtn("main"));
-    const audioOpts = document.createElement("div");
-    audioOpts.dataset.audioOptions = "1";
-    audioOpts.className = "flex flex-col gap-px";
-    audioView.appendChild(audioOpts);
-    list.appendChild(audioView);
-    list.appendChild(buildSpeedView());
-    syncSpeedMenu();
-    // Prefill with the top entry; live sync corrects both rows as the
-    // player renders (video) and tiers (audio).
-    const rv0 = list.querySelector("[data-resolution-value]");
-    if (rv0 && sorted[0]) rv0.textContent = sorted[0].new_description;
-    return;
-  }
-
-  // Progressive (native MP4 / FLV) menu: same nested shape as DASH, minus
-  // the Audio row (muxed file, no separate track to choose).
-  const main = document.createElement("div");
-  main.dataset.menuView = "main";
-  main.className = "flex flex-col gap-px";
-  main.appendChild(menuRow(I18n.t("Resolution"), "data-resolution-value", "video"));
-  const speedRow = menuRow(I18n.t("Playback speed"), "data-speed-value", "speed");
-  speedRow.onclick = (e) => {
-    e.stopPropagation();
-    syncSpeedMenu();
-    showView("speed", "forward");
-  };
-  main.appendChild(speedRow);
-  list.appendChild(main);
-  const videoView = document.createElement("div");
-  videoView.dataset.menuView = "video";
-  videoView.className = "flex flex-col gap-px";
-  videoView.hidden = true;
-  videoView.appendChild(backBtn("main"));
-  sorted.forEach((src) => {
-    const btn = document.createElement("button");
-    btn.className = optClass + " text-left group";
-    btn.dataset.videoQn = String(src.quality);
-    const span = document.createElement("span");
-    span.textContent = src.new_description;
-    btn.appendChild(span);
-    btn.appendChild(checkIcon());
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      const time = video.currentTime,
-        paused = video.paused;
+        return;
+      }
+      const time = video.currentTime;
+      const paused = video.paused;
       const ext = src.ext || "";
       const newUrl = `/proxy/video/${window.current_vid}_${window.idx}_${src.quality}${ext}`;
-
       if (window.vodManager) {
         window.vodManager.destroy();
         window.vodManager = null;
       }
-
       video.src = newUrl;
-
       if (ext === ".flv") {
         window.vodManager = new VodStreamManager(video, newUrl);
         window.vodManager.init();
       }
-
       const onLoaded = () => {
         video.currentTime = time;
         if (!paused) video.play().catch(() => {});
@@ -1964,46 +1652,8 @@ function setupVodQuality(video, list, label) {
       };
       video.addEventListener("loadedmetadata", onLoaded);
       if (label) label.innerText = src.new_description;
-      const rv = list.querySelector("[data-resolution-value]");
-      if (rv) rv.textContent = src.new_description;
-      list.querySelectorAll("button[data-video-qn]").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      window.MikuPlayerUI?.closeSettings();
-    };
-    if (video.src.includes(`_${src.quality}`)) {
-      btn.classList.add("active");
-      if (label) label.innerText = src.new_description;
-      const rv = list.querySelector("[data-resolution-value]");
-      if (rv) rv.textContent = src.new_description;
-    }
-    videoView.appendChild(btn);
+    },
   });
-  list.appendChild(videoView);
-  list.appendChild(buildSpeedView());
-  syncSpeedMenu();
-}
-
-function createOption(text, val, onClick, list) {
-  const btn = document.createElement("button");
-  btn.className =
-    "w-full text-left px-4 py-2.5 text-xs text-white/70 hover:bg-white/10 hover:text-white transition-all rounded-xl flex items-center justify-between group";
-
-  const span = document.createElement("span");
-  span.textContent = text;
-  btn.appendChild(span);
-
-  const icon = document.createElement("i");
-  icon.className = "icon ion-md-checkmark opacity-0 group-[.active]:opacity-100";
-  btn.appendChild(icon);
-
-  btn.onclick = (e) => {
-    e.stopPropagation();
-    onClick();
-    list.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
-    btn.classList.add("active");
-    window.MikuPlayerUI?.closeSettings();
-  };
-  return btn;
 }
 
 function toggleDanmaku() {

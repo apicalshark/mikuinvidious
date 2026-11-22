@@ -38,8 +38,7 @@ audio#player {
   color: var(--player-on-primary, var(--md-sys-color-on-primary, #000)) !important;
 }
 
-.miku-bar-btn[aria-pressed="true"],
-.miku-bar-btn:has([data-captions-select] option:not([value="off"]):checked) {
+.miku-bar-btn[aria-pressed="true"] {
   color: var(--player-primary, var(--theme-primary, #ff97b5));
 }
 
@@ -121,10 +120,8 @@ audio#player {
 }
 
 #quality-menu {
-  background: #181818;
-  border: 1px solid #333;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgb(24 24 24 / 0.94);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.75);
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -139,21 +136,22 @@ audio#player {
   background: transparent;
   width: 100%;
   text-align: left;
-  padding: 10px 15px;
-  color: rgba(255, 255, 255, 0.8);
+  padding: 0.5rem 0.75rem;
+  color: rgba(255, 255, 255, 0.88);
   border: none;
-  border-radius: 8px;
+  border-radius: 0.75rem;
   cursor: pointer;
 }
 
 #quality-list button:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   color: #fff;
 }
 
 #quality-list button.active {
   background: var(--player-primary, var(--theme-primary, #ff97b5)) !important;
   color: var(--player-on-primary, #000) !important;
+  font-weight: 600;
 }
 
 .miku-m3-spinner {
