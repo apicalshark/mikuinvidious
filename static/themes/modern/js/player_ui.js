@@ -77,7 +77,10 @@
       return true;
     }
     const interactive = target.closest("a, button, [role='button'], [role='slider'], summary");
-    if (interactive && !root.contains(interactive)) {
+    if (
+      interactive &&
+      (!root.contains(interactive) || event.key === " " || event.key === "Enter")
+    ) {
       return true;
     }
     return false;
@@ -119,7 +122,13 @@
     const scrubberThumb = root.querySelector("[data-scrubber-thumb]");
     const scrubberTooltip = root.querySelector("[data-scrubber-tooltip]");
     const danmakuBtn = root.querySelector("#danmaku-toggle");
-    const captionsBtn = root.querySelector("[data-captions-btn]");
+    const captionsSelect = root.querySelector("[data-captions-select]");
+    const renderedSubtitles = captionsSelect
+      ? Array.from(
+          video.querySelectorAll("track[kind='subtitles'], track[kind='captions']"),
+          (el) => el.track
+        )
+      : [];
     const settingsBtn = root.querySelector("#quality-btn");
     const settingsMenu = root.querySelector("#quality-menu");
     const pipBtn = root.querySelector("[data-pip-btn]");
@@ -200,6 +209,10 @@
 
     function hideControls() {
       if (!bottomBar) return;
+      if (root.matches(":focus-visible")) {
+        showControls(false);
+        return;
+      }
       if (
         video.paused ||
         video.ended ||
@@ -389,63 +402,37 @@
     }
 
     function enforceSingleSubtitle(preferredTrack) {
-      const tracks = video.textTracks;
-      if (!tracks || tracks.length === 0) return;
-      let active = preferredTrack || null;
-      for (let i = 0; i < tracks.length; i++) {
-        const t = tracks[i];
-        if (t.kind !== "subtitles" && t.kind !== "captions") continue;
-        if (t.mode === "showing") {
-          if (!active) {
-            active = t;
-          } else if (t !== active) {
-            t.mode = "disabled";
-          }
+      const tracks = Array.from(video.textTracks || []).filter(
+        (track) => track.kind === "subtitles" || track.kind === "captions"
+      );
+      const active =
+        preferredTrack === undefined
+          ? tracks.find((track) => track.mode === "showing")
+          : preferredTrack;
+      tracks.forEach((track) => {
+        if (preferredTrack !== undefined || track.mode === "showing") {
+          const mode = track === active ? "showing" : "disabled";
+          if (track.mode !== mode) track.mode = mode;
         }
-      }
+      });
       syncCaptionsState();
     }
 
     function syncCaptionsState() {
-      if (!captionsBtn) return;
-      const tracks = video.textTracks;
-      let showing = false;
-      if (tracks) {
-        for (let i = 0; i < tracks.length; i++) {
-          const t = tracks[i];
-          if ((t.kind === "subtitles" || t.kind === "captions") && t.mode === "showing") {
-            showing = true;
-            break;
-          }
-        }
-      }
-      captionsBtn.setAttribute("aria-pressed", showing ? "true" : "false");
+      if (!captionsSelect) return;
+      captionsSelect.selectedIndex =
+        renderedSubtitles.findIndex((track) => track.mode === "showing") + 1;
     }
 
-    function toggleCaptions(withHud) {
-      const tracks = video.textTracks;
-      if (!tracks || tracks.length === 0) return;
-      const subTracks = [];
-      for (let i = 0; i < tracks.length; i++) {
-        if (tracks[i].kind === "subtitles" || tracks[i].kind === "captions") {
-          subTracks.push(tracks[i]);
-        }
-      }
-      if (subTracks.length === 0) return;
-      const activeIdx = subTracks.findIndex((t) => t.mode === "showing");
-      if (activeIdx >= 0) {
-        subTracks.forEach((t) => {
-          t.mode = "disabled";
-        });
-        syncCaptionsState();
-        if (withHud) showHud("captions", t("Off"));
-      } else {
-        subTracks.forEach((t, idx) => {
-          t.mode = idx === 0 ? "showing" : "disabled";
-        });
-        syncCaptionsState();
-        if (withHud) showHud("captions", subTracks[0].label || t("On"));
-      }
+    function toggleCaptions() {
+      if (renderedSubtitles.length === 0) return;
+      const showing = Array.from(video.textTracks).some(
+        (track) =>
+          (track.kind === "subtitles" || track.kind === "captions") && track.mode === "showing"
+      );
+      const preferredTrack = showing ? null : renderedSubtitles[0];
+      enforceSingleSubtitle(preferredTrack);
+      showHud("captions", preferredTrack ? preferredTrack.label || t("On") : t("Off"));
     }
 
     function openSettings() {
@@ -462,6 +449,7 @@
       settingsMenu.style.bottom = Math.max(48, crect.bottom - brect.top + 10) + "px";
       settingsMenu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
       settingsMenu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
+      settingsMenu.inert = false;
       settingsBtn.setAttribute("aria-expanded", "true");
       settingsOpen = true;
       showControls(false);
@@ -471,6 +459,8 @@
       if (!settingsMenu || !settingsBtn) return;
       settingsMenu.classList.add("opacity-0", "pointer-events-none", "scale-95");
       settingsMenu.classList.remove("opacity-100", "scale-100", "pointer-events-auto");
+      if (settingsMenu.contains(document.activeElement)) settingsBtn.focus();
+      settingsMenu.inert = true;
       settingsBtn.setAttribute("aria-expanded", "false");
       settingsOpen = false;
       scheduleIdle();
@@ -773,13 +763,10 @@
       );
     }
 
-    if (captionsBtn) {
-      captionsBtn.addEventListener(
-        "click",
-        (e) => {
-          e.stopPropagation();
-          toggleCaptions(false);
-        },
+    if (captionsSelect) {
+      captionsSelect.addEventListener(
+        "change",
+        () => enforceSingleSubtitle(renderedSubtitles[captionsSelect.selectedIndex - 1] || null),
         { signal }
       );
     }
@@ -858,6 +845,21 @@
         { signal }
       );
     }
+
+    root.addEventListener(
+      "focus",
+      () => {
+        if (root.matches(":focus-visible")) showControls(false);
+      },
+      { signal }
+    );
+    root.addEventListener(
+      "focusout",
+      (e) => {
+        if (e.target === root) scheduleIdle();
+      },
+      { signal }
+    );
 
     root.addEventListener(
       "pointermove",
@@ -945,6 +947,7 @@
           closeSettings();
           return;
         }
+        if (e.key === "Tab" && e.target === root) showControls(false);
         if (blocksPlayerShortcut(e, root)) return;
         const key = e.key;
         if (key === " " || key === "k" || key === "K") {
@@ -981,9 +984,9 @@
           e.preventDefault();
           togglePip();
         } else if (key === "c" || key === "C") {
-          if (!isLive && captionsBtn) {
+          if (!isLive && captionsSelect) {
             e.preventDefault();
-            toggleCaptions(true);
+            toggleCaptions();
           }
         } else if (key === "d" || key === "D") {
           if (typeof window.toggleDanmaku === "function") {

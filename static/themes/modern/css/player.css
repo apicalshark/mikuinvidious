@@ -38,7 +38,8 @@ audio#player {
   color: var(--player-on-primary, var(--md-sys-color-on-primary, #000)) !important;
 }
 
-.miku-bar-btn[aria-pressed="true"] {
+.miku-bar-btn[aria-pressed="true"],
+.miku-bar-btn:has([data-captions-select] option:not([value="off"]):checked) {
   color: var(--player-primary, var(--theme-primary, #ff97b5));
 }
 

@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 11:48+0000\n"
+"POT-Creation-Date: 2026-11-22 13:42+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
@@ -194,11 +194,11 @@ msgstr "動画URLを解決中..."
 msgid "Resolution"
 msgstr "画質"
 
-#: templates/macros.html:377
+#: templates/macros.html:383
 msgid "Click to play"
 msgstr "クリックして再生"
 
-#: templates/macros.html:378
+#: templates/macros.html:384
 msgid "Browser blocked autoplay"
 msgstr "ブラウザが自動再生をブロックしました"
 
@@ -206,11 +206,11 @@ msgstr "ブラウザが自動再生をブロックしました"
 msgid "Volume"
 msgstr "音量"
 
-#: templates/macros.html:205 templates/macros.html:209
+#: templates/macros.html:206 templates/macros.html:210
 msgid "LIVE"
 msgstr "ライブ"
 
-#: templates/macros.html:223 templates/macros.html:224
+#: templates/macros.html:224 templates/macros.html:225
 msgid "Toggle danmaku"
 msgstr "弾幕の切り替え"
 
@@ -791,7 +791,7 @@ msgstr "自動連続再生"
 msgid "Recommended"
 msgstr "おすすめ動画"
 
-#: static/themes/modern/js/player_ui.js:223 templates/macros.html:109
+#: static/themes/modern/js/player_ui.js:259 templates/macros.html:109
 #: templates/macros.html:110 templates/themes/modern/video_listen.html:358
 msgid "Play"
 msgstr "再生"
@@ -1024,17 +1024,18 @@ msgstr "音声"
 msgid "Playback speed"
 msgstr "再生速度"
 
-#: static/themes/modern/js/player_ui.js:424
-#: static/themes/modern/js/player_ui.js:866
+#: static/themes/modern/js/player_ui.js:435
+#: static/themes/modern/js/player_ui.js:995
 #: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 #: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "オン"
 
-#: static/themes/modern/js/player_ui.js:418
-#: static/themes/modern/js/player_ui.js:866
+#: static/themes/modern/js/player_ui.js:435
+#: static/themes/modern/js/player_ui.js:995
 #: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 #: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
+#: templates/macros.html:258
 msgid "Off"
 msgstr "オフ"
 
@@ -1090,62 +1091,62 @@ msgstr "コメントの画像"
 msgid "Open image %(index)s of %(total)s"
 msgstr "画像 %(index)s / %(total)s を開く"
 
-#: templates/macros.html:82
+#: templates/macros.html:80
 msgid "Seek"
 msgstr "シーク"
 
-#: static/themes/modern/js/player_ui.js:248 templates/macros.html:142
+#: static/themes/modern/js/player_ui.js:284 templates/macros.html:142
 #: templates/macros.html:143
 msgid "Mute"
 msgstr "ミュート"
 
-#: templates/macros.html:243 templates/macros.html:244
-msgid "Toggle captions"
-msgstr "字幕を切り替え"
-
-#: templates/macros.html:262 templates/macros.html:263
-#: templates/macros.html:366
+#: templates/macros.html:267 templates/macros.html:268
+#: templates/macros.html:372
 msgid "Settings"
 msgstr "設定"
 
-#: static/themes/modern/js/player_ui.js:501 templates/macros.html:281
-#: templates/macros.html:282
+#: static/themes/modern/js/player_ui.js:516 templates/macros.html:286
+#: templates/macros.html:287
 msgid "Picture-in-Picture"
 msgstr "ピクチャーインピクチャー"
 
-#: static/themes/modern/js/player_ui.js:527 templates/macros.html:298
-#: templates/macros.html:299
+#: static/themes/modern/js/player_ui.js:542 templates/macros.html:303
+#: templates/macros.html:304
 msgid "Theater mode"
 msgstr "シアターモード"
 
-#: static/themes/modern/js/player_ui.js:471 templates/macros.html:327
-#: templates/macros.html:328
+#: static/themes/modern/js/player_ui.js:486 templates/macros.html:332
+#: templates/macros.html:333
 msgid "Fullscreen"
 msgstr "全画面"
 
-#: static/themes/modern/js/player_ui.js:223
+#: static/themes/modern/js/player_ui.js:259
 msgid "Replay"
 msgstr "もう一度再生"
 
-#: static/themes/modern/js/player_ui.js:223
+#: static/themes/modern/js/player_ui.js:259
 msgid "Pause"
 msgstr "一時停止"
 
-#: static/themes/modern/js/player_ui.js:248
+#: static/themes/modern/js/player_ui.js:284
 msgid "Unmute"
 msgstr "ミュート解除"
 
-#: static/themes/modern/js/player_ui.js:471
+#: static/themes/modern/js/player_ui.js:486
 msgid "Exit fullscreen"
 msgstr "全画面を終了"
 
-#: static/themes/modern/js/player_ui.js:501
+#: static/themes/modern/js/player_ui.js:516
 msgid "Exit Picture-in-Picture"
 msgstr "ピクチャーインピクチャーを終了"
 
-#: static/themes/modern/js/player_ui.js:527
+#: static/themes/modern/js/player_ui.js:542
 msgid "Exit theater mode"
 msgstr "シアターモードを終了"
+
+#: templates/macros.html:255 templates/macros.html:256
+msgid "Captions"
+msgstr "字幕"
 
 #~ msgid "Personalization settings"
 #~ msgstr "個人設定"
@@ -1182,3 +1183,6 @@ msgstr "シアターモードを終了"
 
 #~ msgid "Switch resolution"
 #~ msgstr "画質の切り替え"
+
+#~ msgid "Toggle captions"
+#~ msgstr "字幕を切り替え"

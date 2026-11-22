@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 11:48+0000\n"
+"POT-Creation-Date: 2026-11-22 13:42+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: de\n"
@@ -194,11 +194,11 @@ msgstr "Video-URL wird aufgelöst …"
 msgid "Resolution"
 msgstr "Auflösung"
 
-#: templates/macros.html:377
+#: templates/macros.html:383
 msgid "Click to play"
 msgstr "Klicken zum Abspielen"
 
-#: templates/macros.html:378
+#: templates/macros.html:384
 msgid "Browser blocked autoplay"
 msgstr "Browser hat Autoplay blockiert"
 
@@ -206,11 +206,11 @@ msgstr "Browser hat Autoplay blockiert"
 msgid "Volume"
 msgstr "Lautstärke"
 
-#: templates/macros.html:205 templates/macros.html:209
+#: templates/macros.html:206 templates/macros.html:210
 msgid "LIVE"
 msgstr "LIVE"
 
-#: templates/macros.html:223 templates/macros.html:224
+#: templates/macros.html:224 templates/macros.html:225
 msgid "Toggle danmaku"
 msgstr "Danmaku umschalten"
 
@@ -791,7 +791,7 @@ msgstr "Nächste automatisch abspielen"
 msgid "Recommended"
 msgstr "Empfohlen"
 
-#: static/themes/modern/js/player_ui.js:223 templates/macros.html:109
+#: static/themes/modern/js/player_ui.js:259 templates/macros.html:109
 #: templates/macros.html:110 templates/themes/modern/video_listen.html:358
 msgid "Play"
 msgstr "Abspielen"
@@ -1025,17 +1025,18 @@ msgstr "Audio"
 msgid "Playback speed"
 msgstr "Wiedergabegeschwindigkeit"
 
-#: static/themes/modern/js/player_ui.js:424
-#: static/themes/modern/js/player_ui.js:866
+#: static/themes/modern/js/player_ui.js:435
+#: static/themes/modern/js/player_ui.js:995
 #: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 #: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "An"
 
-#: static/themes/modern/js/player_ui.js:418
-#: static/themes/modern/js/player_ui.js:866
+#: static/themes/modern/js/player_ui.js:435
+#: static/themes/modern/js/player_ui.js:995
 #: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 #: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
+#: templates/macros.html:258
 msgid "Off"
 msgstr "Aus"
 
@@ -1091,62 +1092,62 @@ msgstr "Kommentarbilder"
 msgid "Open image %(index)s of %(total)s"
 msgstr "Bild %(index)s von %(total)s öffnen"
 
-#: templates/macros.html:82
+#: templates/macros.html:80
 msgid "Seek"
 msgstr "Springen"
 
-#: static/themes/modern/js/player_ui.js:248 templates/macros.html:142
+#: static/themes/modern/js/player_ui.js:284 templates/macros.html:142
 #: templates/macros.html:143
 msgid "Mute"
 msgstr "Stummschalten"
 
-#: templates/macros.html:243 templates/macros.html:244
-msgid "Toggle captions"
-msgstr "Untertitel umschalten"
-
-#: templates/macros.html:262 templates/macros.html:263
-#: templates/macros.html:366
+#: templates/macros.html:267 templates/macros.html:268
+#: templates/macros.html:372
 msgid "Settings"
 msgstr "Einstellungen"
 
-#: static/themes/modern/js/player_ui.js:501 templates/macros.html:281
-#: templates/macros.html:282
+#: static/themes/modern/js/player_ui.js:516 templates/macros.html:286
+#: templates/macros.html:287
 msgid "Picture-in-Picture"
 msgstr "Bild-in-Bild"
 
-#: static/themes/modern/js/player_ui.js:527 templates/macros.html:298
-#: templates/macros.html:299
+#: static/themes/modern/js/player_ui.js:542 templates/macros.html:303
+#: templates/macros.html:304
 msgid "Theater mode"
 msgstr "Kinomodus"
 
-#: static/themes/modern/js/player_ui.js:471 templates/macros.html:327
-#: templates/macros.html:328
+#: static/themes/modern/js/player_ui.js:486 templates/macros.html:332
+#: templates/macros.html:333
 msgid "Fullscreen"
 msgstr "Vollbild"
 
-#: static/themes/modern/js/player_ui.js:223
+#: static/themes/modern/js/player_ui.js:259
 msgid "Replay"
 msgstr "Erneut abspielen"
 
-#: static/themes/modern/js/player_ui.js:223
+#: static/themes/modern/js/player_ui.js:259
 msgid "Pause"
 msgstr "Pause"
 
-#: static/themes/modern/js/player_ui.js:248
+#: static/themes/modern/js/player_ui.js:284
 msgid "Unmute"
 msgstr "Ton einschalten"
 
-#: static/themes/modern/js/player_ui.js:471
+#: static/themes/modern/js/player_ui.js:486
 msgid "Exit fullscreen"
 msgstr "Vollbild beenden"
 
-#: static/themes/modern/js/player_ui.js:501
+#: static/themes/modern/js/player_ui.js:516
 msgid "Exit Picture-in-Picture"
 msgstr "Bild-in-Bild beenden"
 
-#: static/themes/modern/js/player_ui.js:527
+#: static/themes/modern/js/player_ui.js:542
 msgid "Exit theater mode"
 msgstr "Kinomodus beenden"
+
+#: templates/macros.html:255 templates/macros.html:256
+msgid "Captions"
+msgstr "Untertitel"
 
 #~ msgid "No articles yet"
 #~ msgstr "Noch keine Artikel"
@@ -1165,3 +1166,6 @@ msgstr "Kinomodus beenden"
 
 #~ msgid "Switch resolution"
 #~ msgstr "Auflösung wechseln"
+
+#~ msgid "Toggle captions"
+#~ msgstr "Untertitel umschalten"

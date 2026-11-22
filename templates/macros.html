@@ -136,7 +136,7 @@
                             </button>
                         </span>
                         <div data-volume-group
-                             class="group/volume flex h-10 items-center rounded-full bg-black/30 transition-[padding] duration-200 ease-out focus-within:pr-3 hover:pr-3 motion-reduce:transition-none @max-md:hidden">
+                             class="group/volume flex h-10 items-center rounded-full bg-black/30 transition-[padding] duration-200 ease-out @md:focus-within:pr-3 @md:hover:pr-3 motion-reduce:transition-none">
                             <button type="button"
                                     data-mute-btn
                                     aria-label="{{ _('Mute') }}"
@@ -188,7 +188,7 @@
                                  aria-valuemin="0"
                                  aria-valuemax="100"
                                  aria-valuenow="100"
-                                 class="relative flex h-10 w-0 cursor-pointer touch-none items-center overflow-hidden opacity-0 outline-none transition-[width,opacity] duration-200 ease-out group-focus-within/volume:w-16 group-focus-within/volume:opacity-100 group-hover/volume:w-16 group-hover/volume:opacity-100 motion-reduce:transition-none">
+                                 class="relative flex h-10 w-0 @max-md:hidden cursor-pointer touch-none items-center overflow-hidden opacity-0 outline-none transition-[width,opacity] duration-200 ease-out group-focus-within/volume:w-16 group-focus-within/volume:opacity-100 group-hover/volume:w-16 group-hover/volume:opacity-100 motion-reduce:transition-none">
                                 <div class="relative mx-1.5 flex h-full flex-1 items-center">
                                     <div class="relative h-0.5 w-full rounded-full bg-white/25">
                                         <div data-volume-fill
@@ -239,12 +239,7 @@
                             </svg>
                         </button>
                         {% if not is_live and subtitles %}
-                            <button type="button"
-                                    data-captions-btn
-                                    aria-label="{{ _('Toggle captions') }}"
-                                    title="{{ _('Toggle captions') }}"
-                                    aria-pressed="false"
-                                    class="miku-bar-btn inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[background-color,scale,color] duration-150 ease-out motion-reduce:transition-none hover:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                            <div class="miku-bar-btn relative inline-flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-white/15 focus-within:ring-2 focus-within:ring-white">
                                 <svg class="size-5"
                                      viewBox="0 0 24 24"
                                      fill="none"
@@ -256,7 +251,16 @@
                                     <rect x="2" y="4" width="20" height="16" rx="2" />
                                     <path d="M7 15h4M15 15h2M7 11h2M13 11h4" />
                                 </svg>
-                            </button>
+                                <select data-captions-select
+                                        aria-label="{{ _('Captions') }}"
+                                        title="{{ _('Captions') }}"
+                                        class="absolute inset-0 size-full cursor-pointer opacity-0">
+                                    <option value="off">{{ _("Off") }}</option>
+                                    {% for sub in subtitles %}
+                                        <option value="{{ loop.index }}">{{ sub['label'] or sub['srclang'] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                         {% endif %}
                         <button type="button"
                                 id="quality-btn"
@@ -361,6 +365,7 @@
                 </div>
             </div>
             <div id="quality-menu"
+                 inert
                  role="menu"
                  class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-right z-35 p-2 min-w-[160px] rounded-xl shadow-2xl border border-white/10 bg-[#181818]">
                 <div data-menu-title
