@@ -570,7 +570,7 @@ settingsMenu.appendChild(settingsList);
 root.getBoundingClientRect = () => ({{ right: 600, bottom: 220, top: 0, height: 220 }});
 settingsBtn.getBoundingClientRect = () => ({{ right: 590, top: 170 }});
 
-const store = new Map([["miku_danmaku_size", "1"]]);
+const store = new Map();
 let failWrites = false;
 globalThis.localStorage = {{
   getItem: (k) => store.get(k) ?? null,
@@ -703,11 +703,11 @@ if (checkedQualities.length !== 1 || checkedQualities[0].dataset.videoQn !== "80
 }}
 
 const dv = settingsList.querySelector("[data-danmaku-size-value]");
-if (!dv || dv.textContent !== "Medium") {{
-  throw new Error("Expected default danmaku size Medium, got: " + (dv && dv.textContent));
+if (!dv || dv.textContent !== "Small") {{
+  throw new Error("Expected default danmaku size Small, got: " + (dv && dv.textContent));
 }}
-if (activeComment.style.fontSize !== "25px" || activeComment.width !== 120) {{
-  throw new Error("Expected Medium initial load to leave active comment untouched");
+if (activeComment.style.fontSize !== "20px" || activeComment.width !== 150) {{
+  throw new Error("Expected Small initial load to scale active comment to 20px and remeasure");
 }}
 
 const sizeBtns = settingsList.querySelectorAll("button[data-danmaku-size]");
@@ -716,7 +716,7 @@ const mediumBtn = sizeBtns.find((b) => b.dataset.danmakuSize === "1");
 if (!largeBtn || !mediumBtn) throw new Error("Danmaku size buttons not found");
 failWrites = true;
 largeBtn.dispatchEvent(clickEvt);
-if (largeBtn.getAttribute("aria-checked") !== "true" || store.get("miku_danmaku_size") !== "1") {{
+if (largeBtn.getAttribute("aria-checked") !== "true" || store.has("miku_danmaku_size")) {{
   throw new Error("Expected Large to stay checked even when storage rejects the update");
 }}
 

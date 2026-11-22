@@ -16,7 +16,7 @@
     { key: "1", scale: 1 },
     { key: "1.25", scale: 1.25 },
   ];
-  const DEFAULT_DANMAKU_SIZE_KEY = "1";
+  const DEFAULT_DANMAKU_SIZE_KEY = "0.8";
   const danmakuFontBaselines = new WeakMap();
 
   function getDanmakuSizeLabel(key) {
@@ -104,7 +104,7 @@
     return (
       DANMAKU_SIZES.find((entry) => entry.key === raw) ||
       DANMAKU_SIZES.find((entry) => entry.key === DEFAULT_DANMAKU_SIZE_KEY) ||
-      DANMAKU_SIZES[1]
+      DANMAKU_SIZES[0]
     );
   }
 
@@ -751,7 +751,7 @@
       const entry =
         DANMAKU_SIZES.find((item) => item.key === sizeKey) ||
         DANMAKU_SIZES.find((item) => item.key === DEFAULT_DANMAKU_SIZE_KEY) ||
-        DANMAKU_SIZES[1];
+        DANMAKU_SIZES[0];
       storageSet(DANMAKU_SIZE_STORAGE_KEY, entry.key);
       window.dm_scale = entry.scale;
       applyDanmakuScaleToInstance(window.dm);
