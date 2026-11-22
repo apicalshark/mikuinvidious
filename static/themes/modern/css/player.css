@@ -1,22 +1,10 @@
-/* Modern Player Styles for MikuInvidious */
-
-media-controller {
-  /* Player chrome sticks to dark-mode styling in both page themes: the
-     player surface is always black. Player accents follow Material You. */
-  --media-primary-color: var(--player-primary, var(--theme-primary, #ff97b5));
-  --media-range-bar-color: var(--media-primary-color);
-  --media-range-track-active-background: var(--media-primary-color);
-  --media-range-thumb-background: var(--media-primary-color);
-  --media-button-icon-color: var(--media-primary-color);
-  --media-icon-color: var(--media-primary-color);
-  --media-loading-indicator-icon-color: var(--media-primary-color);
-  /* Pin the native icon box: the vendored `width: var(--media-button-icon-width)`
-     has no fallback, leaving icon sizing to an intrinsic-ratio path that
-     collapses in our stack. rem keeps it unit-clean (1.5rem = stock 24px). */
-  --media-button-icon-width: 1.5rem;
-  --media-button-icon-height: 1.5rem;
-  accent-color: var(--media-primary-color);
+#miku-player {
+  accent-color: var(--player-primary, var(--theme-primary, #ff97b5));
   background: #000;
+}
+
+#miku-player[data-idle] {
+  cursor: none;
 }
 
 video#player {
@@ -24,12 +12,21 @@ video#player {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100% !important;
-  height: 100% !important;
-  object-fit: contain !important;
-  object-position: center center !important;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center center;
   background: #000;
-  accent-color: var(--media-primary-color, var(--player-primary, #ff97b5));
+  accent-color: var(--player-primary, var(--theme-primary, #ff97b5));
+}
+
+video#player::-webkit-media-text-track-container {
+  transition: transform 200ms ease-out;
+}
+
+#miku-player:has([data-skin-bottom][data-visible])
+  video#player::-webkit-media-text-track-container {
+  transform: translateY(-4.5rem);
 }
 
 audio#player {
@@ -41,28 +38,55 @@ audio#player {
   color: var(--player-on-primary, var(--md-sys-color-on-primary, #000)) !important;
 }
 
-/* Danmaku Layer - ABSOLUTE PERSISTENCE */
-#danmaku-container {
-  z-index: 10;
-  pointer-events: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: block !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  overflow: hidden;
+.miku-bar-btn[aria-pressed="true"] {
+  color: var(--player-primary, var(--theme-primary, #ff97b5));
 }
 
-/* Force container visibility even when controller hides other chrome */
-media-controller[media-user-inactive] #danmaku-container {
-  opacity: 1 !important;
-  visibility: visible !important;
+[data-player-hud-pill][data-hud-active] {
+  display: inline-flex;
+  animation: miku-hud-pop 650ms cubic-bezier(0.2, 0, 0, 1) forwards;
 }
 
-/* Style for DOM engine danmaku */
+@keyframes miku-hud-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  18% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-player-hud-pill][data-hud-active] {
+    animation: none;
+  }
+  video#player::-webkit-media-text-track-container {
+    transition: none;
+  }
+}
+
+@media (min-width: 1024px) {
+  #video-layout[data-theater="true"] > div:first-child {
+    grid-column: 1 / -1;
+  }
+  #video-layout[data-theater="true"] > div:last-child {
+    grid-column: 1 / -1;
+  }
+  #video-layout[data-theater="true"] #player-wrapper {
+    max-height: 85vh;
+  }
+}
+
 .danmaku {
   position: absolute;
   top: 0;
@@ -93,40 +117,10 @@ media-controller[media-user-inactive] #danmaku-container {
   .danmaku-item {
     font-size: 18px;
   }
-
-  /* Hide ±5s seek buttons on mobile to save control-bar space */
-  media-seek-backward-button,
-  media-seek-forward-button {
-    display: none !important;
-  }
 }
 
-/* Standardized Custom Buttons to match native Media Chrome appearance */
-.miku-control-btn {
-  appearance: none;
-  background-color: var(--media-control-background, rgba(20, 20, 30, 0.7));
-  border: none;
-  align-self: stretch;
-  padding: 0 0.625rem;
-  color: var(--media-button-icon-color);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background-color 0.15s;
-}
-
-.miku-control-btn:hover {
-  background-color: var(--media-control-hover-background, rgba(50, 50, 70, 0.7));
-}
-
-.miku-control-btn i {
-  font-size: 22px;
-}
-
-/* Quality Menu Styles - SOLID BACKGROUND */
 #quality-menu {
-  background: #181818 !important;
+  background: #181818;
   border: 1px solid #333;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -157,12 +151,10 @@ media-controller[media-user-inactive] #danmaku-container {
 }
 
 #quality-list button.active {
-  background: var(--media-primary-color, var(--player-primary, #ff97b5)) !important;
-  color: var(--player-on-primary, #000) !important; /* on-primary color from dark mode */
+  background: var(--player-primary, var(--theme-primary, #ff97b5)) !important;
+  color: var(--player-on-primary, #000) !important;
 }
 
-/* Material You indeterminate circular progress, slotted as the
-   media-loading-indicator icon (its auto show/hide is preserved). */
 .miku-m3-spinner {
   width: var(--miku-spinner-size, 48px);
   height: var(--miku-spinner-size, 48px);
@@ -171,10 +163,7 @@ media-controller[media-user-inactive] #danmaku-container {
 }
 .miku-m3-spinner circle {
   fill: none;
-  /* --media-primary-color lives on media-controller scope; outside it
-     (comments, nyaa sidebar) fall back to player-primary or theme-primary so the arc is
-     never left with the SVG default stroke:none (= invisible). */
-  stroke: var(--media-primary-color, var(--player-primary, var(--theme-primary, #ff97b5)));
+  stroke: var(--player-primary, var(--theme-primary, #ff97b5));
   stroke-width: 4;
   stroke-linecap: round;
   stroke-dasharray: 80px, 200px;
@@ -207,7 +196,6 @@ media-controller[media-user-inactive] #danmaku-container {
   }
 }
 
-/* Sub-comment fold chevron (rotates when the thread is expanded). */
 .sub-comment-toggle .sub-toggle-chevron {
   display: inline-block;
   transition: transform 0.2s;
@@ -216,8 +204,13 @@ media-controller[media-user-inactive] #danmaku-container {
   transform: rotate(180deg);
 }
 
-/* Fullscreen Specifics */
-media-controller:fullscreen #danmaku-container {
+#miku-player:fullscreen {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+#miku-player:fullscreen #danmaku-container {
   z-index: 10;
 }
 

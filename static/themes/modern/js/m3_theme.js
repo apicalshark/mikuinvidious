@@ -124,7 +124,6 @@
           "--md-sys-color-outline-variant": "oklch(0.32 0.020 350)",
           "--player-primary": "#ff97b5",
           "--player-on-primary": "#000000",
-          "--media-primary-color": "#ff97b5",
         };
       } else {
         return {
@@ -155,7 +154,6 @@
           "--md-sys-color-outline-variant": "oklch(0.900 0.008 350)",
           "--player-primary": "#ff97b5",
           "--player-on-primary": "#000000",
-          "--media-primary-color": "#ff97b5",
         };
       }
     }
@@ -201,7 +199,6 @@
         "--md-sys-color-outline-variant": `oklch(0.32 0.020 ${h})`,
         "--player-primary": playerPrimary,
         "--player-on-primary": playerOnPrimary,
-        "--media-primary-color": playerPrimary,
       };
     } else {
       const targetL = Math.min(L, 0.61);
@@ -238,7 +235,6 @@
         "--md-sys-color-outline-variant": `oklch(0.900 ${(c * 0.06).toFixed(3)} ${h})`,
         "--player-primary": playerPrimary,
         "--player-on-primary": playerOnPrimary,
-        "--media-primary-color": playerPrimary,
       };
     }
   }

@@ -24,7 +24,6 @@ const NM = path.join(ROOT, "node_modules");
 const MANIFEST = [
   { pkg: "hls.js", src: "hls.js/dist/hls.min.js", dest: "vjs/hls.min.js", map: "hls.min.js.map" },
   { pkg: "mpegts.js", src: "mpegts.js/dist/mpegts.js", dest: "vjs/mpegts.js", map: "mpegts.js.map" },
-  { pkg: "media-chrome", src: "media-chrome/dist/iife/index.js", dest: "vjs/media-chrome.js", map: "index.js.map" },
   { pkg: "hls-video-element", src: "hls-video-element/dist/hls-video-element.js", dest: "vjs/hls-video-element.js" },
   { pkg: "opencc-js", src: "opencc-js/dist/umd/full.js", dest: "opencc-js/opencc.js" },
   // dashjs v5 ships legacy (UMD global `dashjs`, used by player.js) and

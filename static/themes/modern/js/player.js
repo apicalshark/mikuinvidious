@@ -920,7 +920,7 @@ class DashPlayerManager {
           e.stopPropagation();
           this.setAudioQuality(r.id);
           this._syncAudioMenu(r.id);
-          toggleQualityMenu(false, null, document.getElementById("quality-menu"));
+          window.MikuPlayerUI?.closeSettings();
         };
         opts.appendChild(btn);
       }
@@ -1264,21 +1264,14 @@ function showAutoplayOverlay(video) {
 }
 
 async function initMikuPlayer() {
-  // Wait for media-chrome to be defined
-  await customElements.whenDefined("media-controller");
-
   const video = document.getElementById("player");
   const danmakuContainer = document.getElementById("danmaku-container");
   const qualityList = document.getElementById("quality-list");
-  const qualityMenu = document.getElementById("quality-menu");
-  const qualityBtn = document.getElementById("quality-btn");
-  const label = document.getElementById("current-quality-label"); // Note: This might be null now as we used gear icon
+  const label = document.getElementById("current-quality-label");
   const controller = document.getElementById("miku-player");
 
   if (!video) return;
 
-  // MSE evicts or invalidates buffered data on seeks to exactly 0
-  // (seeks to 0.1 keep everything in MSE and dash.js). Clamp zero seeks to 0.1s.
   if (!window.is_live && !video._zeroSeekClamped) {
     try {
       const protoDesc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "currentTime");
@@ -1300,24 +1293,6 @@ async function initMikuPlayer() {
     }
   }
 
-  // When replaying after video has ended, reset currentTime to 0 first:
-  // 1. It goes through the zero-seek clamp (seeking to 0.1s instead of 0.0s),
-  //    preventing MSE buffer eviction and dash.js clearBuffers().
-  // 2. video.ended transitions to false synchronously before play() is called,
-  //    preventing the browser from initiating a native C++ seek to 0.0s.
-  if (!window.is_live && controller && !controller._replayHandlerInstalled) {
-    controller.addEventListener(
-      "mediaplayrequest",
-      () => {
-        if (video.ended || (video.duration > 1 && video.currentTime >= video.duration)) {
-          video.currentTime = 0;
-        }
-      },
-      true
-    );
-    controller._replayHandlerInstalled = true;
-  }
-
   if (!window.is_live && !video._playReplayWrapped) {
     const origPlay = video.play;
     video.play = function () {
@@ -1329,74 +1304,10 @@ async function initMikuPlayer() {
     video._playReplayWrapped = true;
   }
 
-  const timeRange = controller ? controller.querySelector("media-time-range") : null;
-  if (!window.is_live && timeRange && !timeRange._deferredSeekInstalled) {
-    let isScrubbing = false;
-    let isCommitting = false;
-    let pendingSeekTime = null;
-    let lastCommittedTime = null;
-    let lastCommittedAt = 0;
-
-    Object.defineProperty(timeRange, "dragging", {
-      get() {
-        return isScrubbing || this.hasAttribute("dragging");
-      },
-      configurable: true,
-    });
-
-    timeRange.addEventListener(
-      "pointerdown",
-      () => {
-        isScrubbing = true;
-        pendingSeekTime = null;
-      },
-      true
-    );
-
-    timeRange.addEventListener("mediaseekrequest", (e) => {
-      if (isCommitting) return;
-      if (isScrubbing) {
-        pendingSeekTime = Number(e.detail);
-        e.stopImmediatePropagation();
-      } else if (
-        lastCommittedTime !== null &&
-        performance.now() - lastCommittedAt < 50 &&
-        Math.abs(Number(e.detail) - lastCommittedTime) < 0.05
-      ) {
-        e.stopImmediatePropagation();
-      }
-    });
-
-    const commitPendingSeek = () => {
-      if (!isScrubbing) return;
-      isScrubbing = false;
-      if (pendingSeekTime !== null && Number.isFinite(pendingSeekTime)) {
-        const target = pendingSeekTime;
-        pendingSeekTime = null;
-        isCommitting = true;
-        try {
-          timeRange.dispatchEvent(
-            new CustomEvent("mediaseekrequest", { composed: true, bubbles: true, detail: target })
-          );
-        } finally {
-          isCommitting = false;
-        }
-        lastCommittedTime = target;
-        lastCommittedAt = performance.now();
-      }
-    };
-
-    window.addEventListener("pointerup", commitPendingSeek);
-    window.addEventListener("pointercancel", () => {
-      if (!isScrubbing) return;
-      isScrubbing = false;
-      pendingSeekTime = null;
-    });
-
-    timeRange._deferredSeekInstalled = true;
+  if (controller && window.MikuPlayerUI && typeof window.MikuPlayerUI.mount === "function") {
+    window.MikuPlayerUI.mount(controller, video, { isLive: Boolean(window.is_live) });
   }
 
-  // Clean up old buffer controller if it exists
   if (window.vodBufferController) {
     window.vodBufferController.stop();
     window.vodBufferController = null;
@@ -1482,91 +1393,6 @@ async function initMikuPlayer() {
         triggerNativeRecovery(video);
       }
     };
-  }
-
-  const volumeBtn = document.getElementById("volume-btn");
-  const volumeMenu = document.getElementById("volume-menu");
-
-  if (volumeBtn && volumeMenu && controller) {
-    // Custom volume trigger button
-    volumeBtn.onclick = (e) => {
-      e.stopPropagation();
-      const isVisible = volumeMenu.classList.contains("opacity-100");
-      toggleVolumeMenu(!isVisible, volumeBtn, volumeMenu, controller);
-    };
-
-    // Close menu when clicking outside
-    document.addEventListener("click", (e) => {
-      if (!volumeBtn.contains(e.target) && !volumeMenu.contains(e.target)) {
-        toggleVolumeMenu(false, null, volumeMenu, controller);
-      }
-    });
-  }
-
-  if (qualityBtn && qualityMenu && controller) {
-    qualityBtn.onclick = (e) => {
-      e.stopPropagation();
-      const isVisible = qualityMenu.classList.contains("opacity-100");
-      if (!isVisible) {
-        // Always open on the main view: an option pick closes the menu
-        // while its sub-view is visible, which would otherwise greet the
-        // next open with a stale sub-view. Flat (live/progressive-legacy)
-        // menus have no views, so this no-ops for them.
-        const qlist = document.getElementById("quality-list");
-        if (qlist) {
-          qlist.querySelectorAll("[data-menu-view]").forEach((v) => {
-            v.hidden = v.dataset.menuView !== "main";
-          });
-        }
-      }
-      toggleQualityMenu(!isVisible, qualityBtn, qualityMenu, controller);
-    };
-    document.addEventListener("click", (e) => {
-      if (!qualityBtn.contains(e.target) && !qualityMenu.contains(e.target)) {
-        toggleQualityMenu(false, null, qualityMenu, controller);
-      }
-    });
-  }
-}
-
-function toggleVolumeMenu(show, btn, menu, controller) {
-  if (!menu) return;
-  if (show && btn && controller) {
-    const brect = btn.getBoundingClientRect();
-    const crect = controller.getBoundingClientRect();
-
-    // Align with the volume button
-    menu.style.left = brect.left - crect.left + "px";
-    menu.style.bottom = crect.bottom - brect.top + 10 + "px";
-
-    menu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
-    menu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
-
-    // Auto-hide quality menu if open
-    toggleQualityMenu(false, null, document.getElementById("quality-menu"), controller);
-  } else {
-    menu.classList.add("opacity-0", "pointer-events-none", "scale-95");
-    menu.classList.remove("opacity-100", "scale-100", "pointer-events-auto");
-  }
-}
-
-function toggleQualityMenu(show, btn, menu, controller) {
-  if (!menu) return;
-  if (show && btn && controller) {
-    const brect = btn.getBoundingClientRect();
-    const crect = controller.getBoundingClientRect();
-
-    menu.style.right = crect.right - brect.right + "px";
-    menu.style.bottom = crect.bottom - brect.top + 10 + "px";
-
-    menu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
-    menu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
-
-    // Auto-hide volume menu if open
-    toggleVolumeMenu(false, null, document.getElementById("volume-menu"), controller);
-  } else {
-    menu.classList.add("opacity-0", "pointer-events-none", "scale-95");
-    menu.classList.remove("opacity-100", "scale-100", "pointer-events-auto");
   }
 }
 
@@ -2001,7 +1827,7 @@ function setupVodQuality(video, list, label) {
         e.stopPropagation();
         video.playbackRate = rate;
         syncSpeedMenu();
-        toggleQualityMenu(false, null, document.getElementById("quality-menu"));
+        window.MikuPlayerUI?.closeSettings();
       };
       speedView.appendChild(btn);
     }
@@ -2059,7 +1885,7 @@ function setupVodQuality(video, list, label) {
         if (rv) rv.textContent = src.new_description;
         list.querySelectorAll("button[data-video-qn]").forEach((b) => b.classList.remove("active"));
         btn.classList.add("active");
-        toggleQualityMenu(false, null, document.getElementById("quality-menu"));
+        window.MikuPlayerUI?.closeSettings();
       };
       videoView.appendChild(btn);
     });
@@ -2142,7 +1968,7 @@ function setupVodQuality(video, list, label) {
       if (rv) rv.textContent = src.new_description;
       list.querySelectorAll("button[data-video-qn]").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-      toggleQualityMenu(false, null, document.getElementById("quality-menu"));
+      window.MikuPlayerUI?.closeSettings();
     };
     if (video.src.includes(`_${src.quality}`)) {
       btn.classList.add("active");
@@ -2175,22 +2001,20 @@ function createOption(text, val, onClick, list) {
     onClick();
     list.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    toggleQualityMenu(false, null, document.getElementById("quality-menu"));
+    window.MikuPlayerUI?.closeSettings();
   };
   return btn;
 }
 
 function toggleDanmaku() {
   if (!window.dm) return;
-  const btn = document.getElementById("danmaku-toggle");
   if (window.dm_status) {
     window.dm.hide();
-    if (btn) btn.style.opacity = "0.4";
   } else {
     window.dm.show();
-    if (btn) btn.style.opacity = "1.0";
   }
   window.dm_status = !window.dm_status;
+  window.MikuPlayerUI?.setDanmakuActive(window.dm_status);
 }
 
 function setupAutoNext(video) {

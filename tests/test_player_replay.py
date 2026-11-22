@@ -14,24 +14,25 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PLAYER_JS = ROOT / "static" / "themes" / "modern" / "js" / "player.js"
+PLAYER_UI_JS = ROOT / "static" / "themes" / "modern" / "js" / "player_ui.js"
 
 
 class PlayerReplayTests(unittest.TestCase):
     def setUp(self):
         self.src = PLAYER_JS.read_text(encoding="utf-8")
+        self.ui_src = PLAYER_UI_JS.read_text(encoding="utf-8")
 
     def test_zero_seek_clamp_present(self):
         self.assertIn("_zeroSeekClamped", self.src)
         self.assertIn("currentTime", self.src)
-        # Should apply to all VOD (not restricted to Firefox only)
         self.assertIn("!window.is_live && !video._zeroSeekClamped", self.src)
 
     def test_replay_handler_present(self):
-        self.assertIn("mediaplayrequest", self.src)
-        self.assertIn("video.ended", self.src)
+        self.assertIn("_playReplayWrapped", self.src)
+        self.assertIn("this.ended", self.src)
+        self.assertIn("window.MikuPlayerUI", self.ui_src)
 
     def test_js_node_execution(self):
-        """Simulate browser video element, media-controller, and verify replay behavior."""
         node_bin = shutil.which("node") or shutil.which("nodejs")
         if not node_bin:
             brew_node = "/home/linuxbrew/.linuxbrew/bin/node"
@@ -40,9 +41,6 @@ class PlayerReplayTests(unittest.TestCase):
         if not node_bin:
             raise unittest.SkipTest("node executable not found")
         test_script = """
-const { EventTarget, CustomEvent } = globalThis;
-
-// Mock HTMLMediaElement prototype
 const protoDesc = {
   get() { return this._currentTime != null ? this._currentTime : 0; },
   set(v) { this._currentTime = v; this.ended = false; }
@@ -59,7 +57,6 @@ globalThis.HTMLMediaElement = {
 };
 
 globalThis.window = { is_live: false };
-const controller = new EventTarget();
 
 const video = {
   _currentTime: 120,
@@ -69,7 +66,6 @@ const video = {
 };
 Object.setPrototypeOf(video, globalThis.HTMLMediaElement.prototype);
 
-// 1. Install zero-seek clamp (as in player.js)
 if (!window.is_live && !video._zeroSeekClamped) {
   const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, "currentTime");
   if (desc && typeof desc.set === "function") {
@@ -85,20 +81,6 @@ if (!window.is_live && !video._zeroSeekClamped) {
   }
 }
 
-// 2. Install replay handler on controller and video.play (as in player.js)
-if (!window.is_live && controller && !controller._replayHandlerInstalled) {
-  controller.addEventListener(
-    "mediaplayrequest",
-    () => {
-      if (video.ended || (video.duration > 1 && video.currentTime >= video.duration)) {
-        video.currentTime = 0;
-      }
-    },
-    true
-  );
-  controller._replayHandlerInstalled = true;
-}
-
 if (!window.is_live && !video._playReplayWrapped) {
   const origPlay = video.play;
   video.play = function () {
@@ -110,31 +92,12 @@ if (!window.is_live && !video._playReplayWrapped) {
   video._playReplayWrapped = true;
 }
 
-// Scenario 1: Dragging to the beginning (user seek)
 video.ended = false;
 video.currentTime = 0;
 if (video.currentTime !== 0.1) {
   throw new Error("Dragging to beginning should clamp to 0.1s, got: " + video.currentTime);
 }
 
-// Scenario 2: Video ended, user clicks play on media-controller (mediaplayrequest event)
-video._currentTime = 120;
-video.ended = true;
-video.paused = true;
-
-// media-play-button fires mediaplayrequest
-controller.dispatchEvent(new Event("mediaplayrequest", { bubbles: true }));
-// media-controller then calls media.play()
-video.play();
-
-if (video.ended) {
-  throw new Error("After mediaplayrequest on ended video, ended should be false");
-}
-if (video.currentTime !== 0.1) {
-  throw new Error("After replay on ended video, currentTime should be clamped to 0.1s, got: " + video.currentTime);
-}
-
-// Scenario 3: Video ended, direct video.play() call
 video._currentTime = 120;
 video.ended = true;
 video.paused = true;
@@ -147,7 +110,6 @@ if (video.currentTime !== 0.1) {
   throw new Error("After video.play() on ended video, currentTime should be clamped to 0.1s, got: " + video.currentTime);
 }
 
-// Scenario 4: Normal mid-playback pause and play (not ended)
 video._currentTime = 45;
 video.ended = false;
 video.paused = true;
@@ -161,8 +123,9 @@ if (video.currentTime !== 45) {
         self.assertEqual(proc.returncode, 0, proc.stderr)
 
     def test_deferred_seek_present_and_defers_until_pointerup(self):
-        self.assertIn("_deferredSeekInstalled", self.src)
-        self.assertIn("mediaseekrequest", self.src)
+        self.assertIn("setPointerCapture", self.ui_src)
+        self.assertIn("pendingSeekTime", self.ui_src)
+        self.assertIn("finishScrub", self.ui_src)
 
         node_bin = shutil.which("node") or shutil.which("nodejs")
         if not node_bin:
@@ -172,119 +135,114 @@ if (video.currentTime !== 45) {
         if not node_bin:
             raise unittest.SkipTest("node executable not found")
 
-        test_script = """
-const { EventTarget, CustomEvent } = globalThis;
-const windowObj = new EventTarget();
-globalThis.window = windowObj;
-globalThis.CustomEvent = CustomEvent;
+        test_script = f"""
+const fs = require("fs");
+const {{ EventTarget }} = globalThis;
 
-const controller = new EventTarget();
-const timeRange = new EventTarget();
-timeRange.hasAttribute = () => false;
-timeRange.dispatchEvent = (ev) => {
-  let stopped = false;
-  for (const method of ["stopPropagation", "stopImmediatePropagation"]) {
-    const stop = ev[method].bind(ev);
-    ev[method] = () => {
-      stopped = true;
-      stop();
-    };
-  }
-  const ok = EventTarget.prototype.dispatchEvent.call(timeRange, ev);
-  if (ok && ev.bubbles && !stopped) {
-    controller.dispatchEvent(new CustomEvent(ev.type, { detail: ev.detail }));
-  }
-  return ok;
-};
+class MockEl extends EventTarget {{
+  constructor() {{
+    super();
+    this.attrs = new Map();
+    this.style = {{}};
+    this.textContent = "";
+    this.offsetWidth = 40;
+    this.classList = {{
+      _set: new Set(),
+      add(...c) {{ c.forEach((x) => this._set.add(x)); }},
+      remove(...c) {{ c.forEach((x) => this._set.delete(x)); }},
+      toggle(c, force) {{
+        if (force === undefined) {{
+          if (this._set.has(c)) this._set.delete(c); else this._set.add(c);
+        }} else if (force) {{
+          this._set.add(c);
+        }} else {{
+          this._set.delete(c);
+        }}
+      }},
+      contains(c) {{ return this._set.has(c); }},
+    }};
+  }}
+  setAttribute(k, v) {{ this.attrs.set(k, String(v)); }}
+  getAttribute(k) {{ return this.attrs.get(k) ?? null; }}
+  removeAttribute(k) {{ this.attrs.delete(k); }}
+  hasAttribute(k) {{ return this.attrs.has(k); }}
+  getBoundingClientRect() {{ return {{ left: 0, right: 200, top: 0, bottom: 20, width: 200, height: 20 }}; }}
+  setPointerCapture() {{}}
+  releasePointerCapture() {{}}
+  hasPointerCapture() {{ return false; }}
+}}
 
-const controllerSeeks = [];
-controller.addEventListener("mediaseekrequest", (e) => {
-  controllerSeeks.push(e.detail);
-});
+const scrubber = new MockEl();
+const fill = new MockEl();
+const thumb = new MockEl();
+const tooltip = new MockEl();
+const bottomBar = new MockEl();
+const root = new MockEl();
+const map = {{
+  "[data-scrubber]": scrubber,
+  "[data-scrubber-fill]": fill,
+  "[data-scrubber-thumb]": thumb,
+  "[data-scrubber-tooltip]": tooltip,
+  "[data-skin-bottom]": bottomBar,
+}};
+root.querySelector = (sel) => map[sel] || null;
+root.querySelectorAll = () => [];
+root.contains = () => false;
 
-let isScrubbing = false;
-let isCommitting = false;
-let pendingSeekTime = null;
-let lastCommittedTime = null;
-let lastCommittedAt = 0;
+const doc = new EventTarget();
+doc.getElementById = () => null;
+doc.fullscreenElement = null;
+doc.pictureInPictureEnabled = false;
+globalThis.document = doc;
+globalThis.Element = MockEl;
+globalThis.localStorage = {{ getItem: () => null, setItem: () => {{}} }};
+globalThis.window = {{ I18n: {{ t: (k) => k }} }};
 
-Object.defineProperty(timeRange, "dragging", {
-  get() {
-    return isScrubbing || this.hasAttribute("dragging");
-  },
-  configurable: true,
-});
+const committed = [];
+const video = new MockEl();
+let _time = 10;
+Object.defineProperty(video, "currentTime", {{
+  get() {{ return _time; }},
+  set(v) {{ _time = v; committed.push(v); }},
+}});
+video.duration = 100;
+video.paused = false;
+video.ended = false;
+video.volume = 1;
+video.muted = false;
+video.buffered = {{ length: 0 }};
+video.play = () => Promise.resolve();
+video.pause = () => {{ video.paused = true; }};
 
-timeRange.addEventListener(
-  "pointerdown",
-  () => {
-    isScrubbing = true;
-    pendingSeekTime = null;
-  },
-  true
-);
+eval(fs.readFileSync({str(PLAYER_UI_JS)!r}, "utf8"));
+window.MikuPlayerUI.mount(root, video, {{ isLive: false }});
 
-timeRange.addEventListener("mediaseekrequest", (e) => {
-  if (isCommitting) return;
-  if (isScrubbing) {
-    pendingSeekTime = Number(e.detail);
-    e.stopImmediatePropagation();
-  } else if (
-    lastCommittedTime !== null &&
-    performance.now() - lastCommittedAt < 50 &&
-    Math.abs(Number(e.detail) - lastCommittedTime) < 0.05
-  ) {
-    e.stopImmediatePropagation();
-  }
-});
+const mkEvt = (type, clientX) => {{
+  const e = new Event(type);
+  e.clientX = clientX;
+  e.pointerId = 1;
+  e.pointerType = "mouse";
+  e.stopPropagation = () => {{}};
+  return e;
+}};
 
-const commitPendingSeek = () => {
-  if (!isScrubbing) return;
-  isScrubbing = false;
-  if (pendingSeekTime !== null && Number.isFinite(pendingSeekTime)) {
-    const target = pendingSeekTime;
-    pendingSeekTime = null;
-    isCommitting = true;
-    try {
-      timeRange.dispatchEvent(
-        new CustomEvent("mediaseekrequest", { composed: true, bubbles: true, detail: target })
-      );
-    } finally {
-      isCommitting = false;
-    }
-    lastCommittedTime = target;
-    lastCommittedAt = performance.now();
-  }
-};
+scrubber.dispatchEvent(mkEvt("pointerdown", 50));
+scrubber.dispatchEvent(mkEvt("pointermove", 100));
+scrubber.dispatchEvent(mkEvt("pointermove", 150));
 
-windowObj.addEventListener("pointerup", commitPendingSeek);
-windowObj.addEventListener("pointercancel", () => {
-  if (!isScrubbing) return;
-  isScrubbing = false;
-  pendingSeekTime = null;
-});
-timeRange._deferredSeekInstalled = true;
+if (committed.length !== 0) {{
+  throw new Error("Expected 0 seeks during drag, got: " + JSON.stringify(committed));
+}}
+if (fill.style.width !== "75%") {{
+  throw new Error("Expected visual preview at 75%, got: " + fill.style.width);
+}}
 
-timeRange.dispatchEvent(new CustomEvent("pointerdown"));
-if (!timeRange.dragging) throw new Error("Expected dragging to be true while scrubbing");
-timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 12.5 }));
-timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 45.2 }));
-timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 88.9 }));
+scrubber.dispatchEvent(mkEvt("pointerup", 150));
+if (committed.length !== 1 || committed[0] !== 75) {{
+  throw new Error("Expected single committed seek [75] on pointerup, got: " + JSON.stringify(committed));
+}}
 
-if (controllerSeeks.length !== 0) {
-  throw new Error("Expected 0 seeks during drag, got: " + JSON.stringify(controllerSeeks));
-}
-
-windowObj.dispatchEvent(new CustomEvent("pointerup"));
-timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 88.9 }));
-
-if (controllerSeeks.length !== 1 || controllerSeeks[0] !== 88.9) {
-  throw new Error("Expected single committed seek [88.9], got: " + JSON.stringify(controllerSeeks));
-}
-timeRange.dispatchEvent(new CustomEvent("mediaseekrequest", { bubbles: true, detail: 93 }));
-if (controllerSeeks.length !== 2 || controllerSeeks[1] !== 93) {
-  throw new Error("Expected a different seek to reach the controller");
-}
+window.MikuPlayerUI.destroy();
 """
         proc = subprocess.run([node_bin, "-e", test_script], capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)

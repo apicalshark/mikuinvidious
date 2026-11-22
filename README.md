@@ -91,6 +91,5 @@ MikuInvidious is licensed under the **GNU Affero General Public License v3.0**.
 | **hls.js** | Apache-2.0 | [github.com/video-dev/hls.js](https://github.com/video-dev/hls.js) |
 | **mpegts.js** | Apache-2.0 | [github.com/xqq/mpegts.js](https://github.com/xqq/mpegts.js) |
 | **dash.js** | BSD-3-Clause | [github.com/Dash-Industry-Forum/dash.js](https://github.com/Dash-Industry-Forum/dash.js) |
-| **media-chrome** | MIT | [github.com/muxinc/media-chrome](https://github.com/muxinc/media-chrome) |
 | **Danmaku** | MIT | [github.com/weizhenye/Danmaku](https://github.com/weizhenye/Danmaku) |
 | **opencc-js** | MIT | [github.com/nk2028/opencc-js](https://github.com/nk2028/opencc-js) |
