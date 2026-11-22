@@ -1008,5 +1008,50 @@ class TestLiveHlsProxy(unittest.IsolatedAsyncioTestCase):
                     subscribe.assert_not_awaited()
 
 
+class TestLiveRoomBaseInfo(unittest.IsolatedAsyncioTestCase):
+    @staticmethod
+    def _make_fake_api(payload):
+        from unittest.mock import AsyncMock
+
+        class _FakeApi:
+            def __init__(self, **_kwargs):
+                pass
+
+            def update_params(self, **_params):
+                return self
+
+            @property
+            def result(self):
+                return AsyncMock(return_value=payload)()
+
+        return _FakeApi
+
+    async def test_short_room_id_falls_back_to_sole_by_room_ids_entry(self):
+        from unittest.mock import patch
+
+        import miku.api.live as api_live
+
+        expected = {"room_id": 5440, "short_id": 6, "title": "Live Short Room"}
+
+        with patch.object(api_live, "Api", self._make_fake_api({"by_room_ids": {"5440": expected}})):
+            room = await api_live.LiveRoom(6).get_room_base_info()
+
+        self.assertEqual(room, expected)
+
+    async def test_ambiguous_or_empty_by_room_ids_raises(self):
+        from unittest.mock import patch
+
+        import miku.api.live as api_live
+        from miku.api.exceptions import ResponseCodeException
+
+        for payload in (
+            {"by_room_ids": {}},
+            {"by_room_ids": {"1001": {"room_id": 1001}, "1002": {"room_id": 1002}}},
+        ):
+            with self.subTest(payload=payload), patch.object(api_live, "Api", self._make_fake_api(payload)):
+                with self.assertRaises(ResponseCodeException):
+                    await api_live.LiveRoom(6).get_room_base_info()
+
+
 if __name__ == "__main__":
     unittest.main()

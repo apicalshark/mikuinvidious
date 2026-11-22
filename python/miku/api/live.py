@@ -159,6 +159,8 @@ class LiveRoom:
                     room = rooms.get(int(str(self.room_display_id)))
                 except TypeError, ValueError:
                     room = None
+            if not room and len(rooms) == 1:
+                room = next(iter(rooms.values()))
         if not room:
             raise ResponseCodeException(-1, "Failed to get live room info")
         return room
