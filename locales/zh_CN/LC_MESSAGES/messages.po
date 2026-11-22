@@ -2,11 +2,16 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-20 18:41+0000\n"
+"POT-Creation-Date: 2026-11-22 14:23+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: zh_CN\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
+"Language-Team: zh_CN <LL@li.org>\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: python/miku/ui/i18n_strings.py:18
 msgid "Article does not exist or parse error"
@@ -45,13 +50,13 @@ msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "无法获取该用户的信息，请稍后重试。"
 
 #: python/miku/ui/i18n_strings.py:27
-msgid ""
-"Failed to load bangumi info. Please check your network or try again later."
+msgid "Failed to load bangumi info. Please check your network or try again later."
 msgstr "无法加载番剧信息，请检查网络或稍后重试。"
 
 #: python/miku/ui/i18n_strings.py:28
 msgid ""
-"Failed to load the live room. Please check your network or try again later."
+"Failed to load the live room. Please check your network or try again "
+"later."
 msgstr "无法加载直播间，请检查网络或稍后重试。"
 
 #: python/miku/ui/i18n_strings.py:29
@@ -60,13 +65,14 @@ msgstr "无法获取重定向地址。"
 
 #: python/miku/ui/i18n_strings.py:30
 msgid ""
-"Failed to resolve the short link. Please check your network connection or "
-"proxy settings."
+"Failed to resolve the short link. Please check your network connection or"
+" proxy settings."
 msgstr "无法解析短链接，请检查网络连接或代理设置。"
 
 #: python/miku/ui/i18n_strings.py:31
 msgid ""
-"Internal server error. Please try again later or contact the administrator."
+"Internal server error. Please try again later or contact the "
+"administrator."
 msgstr "服务器内部错误，请稍后重试或联系管理员。"
 
 #: python/miku/ui/i18n_strings.py:32
@@ -157,8 +163,8 @@ msgstr "您请求的资源不存在。"
 
 #: python/miku/ui/i18n_strings.py:54
 msgid ""
-"This content is usually unavailable in your region or has been removed by "
-"Bilibili. Please try again later."
+"This content is usually unavailable in your region or has been removed by"
+" Bilibili. Please try again later."
 msgstr "这通常是因为该内容在您所在的地区不可用，或已被 B 站下架。如持续发生请稍后再试。"
 
 #: python/miku/ui/i18n_strings.py:57
@@ -167,7 +173,8 @@ msgstr "该内容可能受到地区限制或已被下架。"
 
 #: python/miku/ui/i18n_strings.py:58
 msgid ""
-"This video may have been deleted, is under review, or is region-restricted."
+"This video may have been deleted, is under review, or is region-"
+"restricted."
 msgstr "该影片可能已被删除、审核中，或是受到地区限制。"
 
 #: python/miku/ui/i18n_strings.py:59
@@ -182,34 +189,32 @@ msgstr "您还没有浏览历史。"
 msgid "Resolving video URL..."
 msgstr "正在解析视频地址..."
 
-#: static/themes/modern/js/player.js:2023
-#: static/themes/modern/js/player.js:2093 templates/macros.html:64
+#: static/themes/modern/js/player_ui.js:770
+#: static/themes/modern/js/player_ui.js:793
+#: static/themes/modern/js/player_ui.js:913
+#: static/themes/modern/js/player_ui.js:930
 msgid "Resolution"
 msgstr "解析度"
 
-#: templates/macros.html:84
+#: templates/macros.html:388
 msgid "Click to play"
 msgstr "点击以开始播放"
 
-#: templates/macros.html:85
+#: templates/macros.html:389
 msgid "Browser blocked autoplay"
 msgstr "浏览器已阻止自动播放"
 
-#: templates/macros.html:97
+#: templates/macros.html:192
 msgid "Volume"
 msgstr "音量"
 
-#: templates/macros.html:105
+#: templates/macros.html:211 templates/macros.html:215
 msgid "LIVE"
 msgstr "直播"
 
-#: templates/macros.html:113
+#: templates/macros.html:231 templates/macros.html:232
 msgid "Toggle danmaku"
 msgstr "切换弹幕"
-
-#: templates/macros.html:119
-msgid "Switch resolution"
-msgstr "切换解析度"
 
 #: templates/themes/modern/author.html:35 templates/themes/modern/space.html:56
 msgid "This user has no bio yet."
@@ -332,62 +337,62 @@ msgstr "Nyaa Magnet 资源"
 msgid "Failed to load Nyaa resources"
 msgstr "无法加载 Nyaa 资源"
 
-#: templates/themes/modern/base.html:179 templates/themes/modern/base.html:236
+#: templates/themes/modern/base.html:177 templates/themes/modern/base.html:234
 msgid "Bangumi"
 msgstr "番剧"
 
-#: templates/themes/modern/base.html:184 templates/themes/modern/base.html:241
+#: templates/themes/modern/base.html:182 templates/themes/modern/base.html:239
 msgid "Toggle theme"
 msgstr "切换主题"
 
-#: templates/themes/modern/base.html:189 templates/themes/modern/base.html:247
+#: templates/themes/modern/base.html:187 templates/themes/modern/base.html:245
 msgid "Language"
 msgstr "语言"
 
-#: templates/themes/modern/base.html:204 templates/themes/modern/base.html:263
+#: templates/themes/modern/base.html:202 templates/themes/modern/base.html:261
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "偏好设置"
 
-#: templates/themes/modern/base.html:227
+#: templates/themes/modern/base.html:225
 #: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "想要搜索点什么？"
 
-#: templates/themes/modern/base.html:296
+#: templates/themes/modern/base.html:294
 msgid "Original source code"
 msgstr "原始项目源代码"
 
-#: templates/themes/modern/base.html:298
+#: templates/themes/modern/base.html:296
 msgid "Modified source code"
 msgstr "修改后的源代码"
 
-#: templates/themes/modern/base.html:301
+#: templates/themes/modern/base.html:299
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "源代码"
 
-#: templates/themes/modern/base.html:307
+#: templates/themes/modern/base.html:305
 msgid "Documentation"
 msgstr "文档"
 
-#: templates/themes/modern/base.html:312
+#: templates/themes/modern/base.html:310
 msgid "Link converter"
 msgstr "链接转换器"
 
-#: templates/themes/modern/base.html:318
+#: templates/themes/modern/base.html:316
 msgid "Proudly released under AGPLv3"
 msgstr "自豪地以 AGPLv3 发布"
 
-#: templates/themes/modern/base.html:324
+#: templates/themes/modern/base.html:322
 msgid "View JavaScript licenses"
 msgstr "查看 JavaScript 许可证"
 
-#: templates/themes/modern/base.html:329
+#: templates/themes/modern/base.html:327
 msgid "Privacy policy"
 msgstr "隐私条款"
 
-#: templates/themes/modern/base.html:336
+#: templates/themes/modern/base.html:334
 msgid "Donate"
 msgstr "赞助我们"
 
@@ -398,8 +403,8 @@ msgstr "链接转换器"
 
 #: templates/themes/modern/convert.html:12
 msgid ""
-"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links "
-"and MikuInvidious pages."
+"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free "
+"links and MikuInvidious pages."
 msgstr "将 b23.tv 短链接与哔哩哔哩链接转换为无追踪的干净链接与 MikuInvidious 页面。"
 
 #: templates/themes/modern/convert.html:22
@@ -466,15 +471,15 @@ msgstr "错误"
 #: templates/themes/modern/error.html:14
 msgid ""
 "Check your request. If you believe this is a site issue, contact the "
-"administrator. If you are the administrator, consider reporting it via the "
-"source code link below."
+"administrator. If you are the administrator, consider reporting it via "
+"the source code link below."
 msgstr "请检查您的请求。如果您认为这是网站问题，请联系管理员。如果您是管理员，请考虑通过下方源代码链接反馈。"
 
 #: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:137
 msgid "Back to home"
 msgstr "返回首页"
 
-#: templates/themes/modern/base.html:176 templates/themes/modern/home.html:5
+#: templates/themes/modern/base.html:174 templates/themes/modern/home.html:5
 #: templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
@@ -492,8 +497,8 @@ msgstr "MikuInvidious 是自由的哔哩哔哩前端。"
 
 #: templates/themes/modern/home.html:16
 msgid ""
-"This is a MikuInvidious fork that supports pasting Bilibili links directly "
-"into the search box."
+"This is a MikuInvidious fork that supports pasting Bilibili links "
+"directly into the search box."
 msgstr "此为 MikuInvidious Fork，支持将哔哩哔哩链接直接粘贴到搜索框。"
 
 #: templates/themes/modern/home.html:19
@@ -547,8 +552,8 @@ msgstr "JavaScript 许可证信息"
 
 #: templates/themes/modern/licenses.html:7
 msgid ""
-"License information for the free JavaScript software used on this site is "
-"listed below."
+"License information for the free JavaScript software used on this site is"
+" listed below."
 msgstr "本站使用的自由 JavaScript 软件的许可信息如下所列。"
 
 #: templates/themes/modern/licenses.html:12
@@ -705,14 +710,14 @@ msgstr "RSS Feed"
 
 #: templates/themes/modern/space.html:114
 msgid ""
-"Video list temporarily unavailable — Bilibili rate-limited this instance. "
-"Profile shown; videos should return in a few minutes."
+"Video list temporarily unavailable — Bilibili rate-limited this instance."
+" Profile shown; videos should return in a few minutes."
 msgstr "视频列表暂时不可用——Bilibili 已限制此站点的请求。个人资料仍正常显示；视频应会在几分钟后恢复。"
 
 #: templates/themes/modern/space.html:118
 msgid ""
-"Video list could not be loaded due to a network error. Profile shown; please "
-"retry shortly."
+"Video list could not be loaded due to a network error. Profile shown; "
+"please retry shortly."
 msgstr "因网络错误，无法加载视频列表。个人资料仍正常显示；请稍后再试。"
 
 #: templates/themes/modern/space.html:140
@@ -788,7 +793,8 @@ msgstr "自动连播"
 msgid "Recommended"
 msgstr "推荐视频"
 
-#: templates/themes/modern/video_listen.html:358
+#: static/themes/modern/js/player_ui.js:382 templates/macros.html:114
+#: templates/macros.html:115 templates/themes/modern/video_listen.html:358
 msgid "Play"
 msgstr "播放"
 
@@ -995,38 +1001,37 @@ msgstr "直播流已结束"
 msgid "Live stream has ended"
 msgstr "直播已结束"
 
-#: static/themes/modern/js/player.js:1738
+#: static/themes/modern/js/player.js:1513
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自动 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1761
-#: static/themes/modern/js/player.js:1765
-#: static/themes/modern/js/player.js:1822
-#: static/themes/modern/js/player.js:1826
+#: static/themes/modern/js/player.js:1565
 msgid "Auto"
 msgstr "自动"
 
-#: static/themes/modern/js/player.js:1954
-msgid "Back"
-msgstr "返回"
-
-#: static/themes/modern/js/player.js:2024
+#: static/themes/modern/js/player_ui.js:773
+#: static/themes/modern/js/player_ui.js:827
 msgid "Audio"
 msgstr "音频"
 
-#: static/themes/modern/js/player.js:2025
-#: static/themes/modern/js/player.js:2094
+#: static/themes/modern/js/player_ui.js:701
+#: static/themes/modern/js/player_ui.js:776
 msgid "Playback speed"
 msgstr "播放速度"
 
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 #: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "已开启"
 
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 #: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
+#: templates/macros.html:265
 msgid "Off"
 msgstr "已关闭"
 
@@ -1082,6 +1087,80 @@ msgstr "评论图片"
 msgid "Open image %(index)s of %(total)s"
 msgstr "打开第 %(index)s 张图片，共 %(total)s 张"
 
+#: templates/macros.html:80
+msgid "Seek"
+msgstr "进度条"
+
+#: static/themes/modern/js/player_ui.js:407 templates/macros.html:147
+#: templates/macros.html:148
+msgid "Mute"
+msgstr "静音"
+
+#: templates/macros.html:274 templates/macros.html:275
+msgid "Settings"
+msgstr "设置"
+
+#: static/themes/modern/js/player_ui.js:1057 templates/macros.html:293
+#: templates/macros.html:294
+msgid "Picture-in-Picture"
+msgstr "画中画"
+
+#: static/themes/modern/js/player_ui.js:1083 templates/macros.html:310
+#: templates/macros.html:311
+msgid "Theater mode"
+msgstr "宽屏模式"
+
+#: static/themes/modern/js/player_ui.js:1027 templates/macros.html:339
+#: templates/macros.html:340
+msgid "Fullscreen"
+msgstr "全屏"
+
+#: static/themes/modern/js/player_ui.js:382
+msgid "Replay"
+msgstr "重播"
+
+#: static/themes/modern/js/player_ui.js:382
+msgid "Pause"
+msgstr "暂停"
+
+#: static/themes/modern/js/player_ui.js:407
+msgid "Unmute"
+msgstr "取消静音"
+
+#: static/themes/modern/js/player_ui.js:1027
+msgid "Exit fullscreen"
+msgstr "退出全屏"
+
+#: static/themes/modern/js/player_ui.js:1057
+msgid "Exit Picture-in-Picture"
+msgstr "退出画中画"
+
+#: static/themes/modern/js/player_ui.js:1083
+msgid "Exit theater mode"
+msgstr "退出宽屏模式"
+
+#: static/themes/modern/js/player_ui.js:741
+#: static/themes/modern/js/player_ui.js:781
+#: static/themes/modern/js/player_ui.js:918
+msgid "Danmaku size"
+msgstr "弹幕大小"
+
+#: static/themes/modern/js/player_ui.js:22
+msgid "Small"
+msgstr "小"
+
+#: static/themes/modern/js/player_ui.js:23
+msgid "Large"
+msgstr "大"
+
+#: static/themes/modern/js/player_ui.js:24
+msgid "Medium"
+msgstr "中"
+
+#: templates/macros.html:262 templates/macros.html:263
+msgid "Captions"
+msgstr "\\\"字幕\\\""
+
 #~ msgid "Personalization settings"
 #~ msgstr "个性化设置"
 
@@ -1114,3 +1193,12 @@ msgstr "打开第 %(index)s 张图片，共 %(total)s 张"
 
 #~ msgid "Home"
 #~ msgstr ""
+
+#~ msgid "Switch resolution"
+#~ msgstr "切换解析度"
+
+#~ msgid "Back"
+#~ msgstr "返回"
+
+#~ msgid "Toggle captions"
+#~ msgstr "切换字幕"

@@ -13,117 +13,384 @@
                 <p class="text-white/50 text-sm tracking-widest uppercase">{{ _("Resolving video URL...") }}</p>
             </div>
         {% endif %}
-        <media-controller id="miku-player" class="w-full h-full" keyboardbackwardseekoffset="5" keyboardforwardseekoffset="5">
-        {% if is_live %}
-            <video slot="media"
-                   id="player"
-                   poster="{{ vinfo['pic']|pic }}"
-                   playsinline
-                   crossorigin>
-            </video>
-        {% elif is_dash %}
-            <video slot="media"
-                   id="player"
-                   data-dash-url="{{ dash_url }}"
-                   data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"
-                   poster="{{ vinfo['pic']|pic }}"
-                   playsinline
-                   crossorigin
-                   preload="none">
-                {% for sub in subtitles %}
-                    <track kind="subtitles"
-                           srclang="{{ sub['srclang'] }}"
-                           label="{{ sub['label'] }}"
-                           src="{{ (vid ~ ':' ~ idx ~ ':' ~ sub['lan']) | subtitle_url }}" />
-                {% endfor %}
-            </video>
-        {% else %}
-            <video slot="media"
-                   id="player"
-                   {% if supported_src %}src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}{{ supported_src[0]['ext'] if supported_src[0]['ext'] else '' }}"{% endif %}
-                   data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"
-                   poster="{{ vinfo['pic']|pic }}"
-                   playsinline
-                   crossorigin
-                   preload="none">
-                {% for sub in subtitles %}
-                    <track kind="subtitles"
-                           srclang="{{ sub['srclang'] }}"
-                           label="{{ sub['label'] }}"
-                           src="{{ (vid ~ ':' ~ idx ~ ':' ~ sub['lan']) | subtitle_url }}" />
-                {% endfor %}
-            </video>
-        {% endif %}
-        <!-- Danmaku Container - Direct child of controller to manage persistence manually -->
-        <div id="danmaku-container"
-             class="absolute pointer-events-none z-10 overflow-hidden"></div>
-        <!-- Quality Menu Layer - Direct child -->
-        <div id="quality-menu"
-             class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-right z-50 p-2 min-w-[140px] rounded-xl shadow-2xl border border-white/10 bg-[#181818] pointer-events-auto">
-            <div data-menu-title
-                 class="text-[10px] uppercase tracking-widest text-white/40 px-3 py-2 mb-1 font-bold">{{ _("Resolution") }}</div>
-            <div id="quality-list"
-                 class="flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar"></div>
-        </div>
-        <!-- Volume Menu Layer -->
-        <div id="volume-menu"
-             class="absolute opacity-0 pointer-events-none scale-95 transition-all origin-bottom-left z-50 p-2 rounded-xl shadow-2xl border border-white/10 bg-[#181818] pointer-events-auto flex items-center min-w-[160px]">
-            <media-mute-button media-controller="miku-player" class="bg-transparent hover:bg-white/10 rounded-lg transition-colors scale-90 w-11 p-2.5"></media-mute-button>
-            <media-volume-range class="grow mr-2" media-controller="miku-player"></media-volume-range>
-        </div>
-        <media-loading-indicator slot="centered-chrome" noautohide class="z-20" style="--media-loading-indicator-icon-width: 48px; --media-loading-indicator-icon-height: 48px;">
-        {{ m3_spinner(slot='icon') }}
-        </media-loading-indicator>
-        <!-- Autoplay Unlock Overlay -->
-        <div id="autoplay-overlay"
-             class="absolute inset-0 z-[40] flex items-center justify-center bg-black/40 backdrop-blur-xs opacity-0 pointer-events-none transition-opacity duration-300">
-            <button id="autoplay-unlock-btn"
-                    class="md3-button md3-button-filled h-14! px-8! rounded-2xl! shadow-2xl">
-                <i class="icon ion-md-play text-xl"></i>
-                <div class="text-left">
-                    <p class="font-bold text-sm leading-tight">{{ _("Click to play") }}</p>
-                    <p class="text-[10px] opacity-80 mt-1">{{ _("Browser blocked autoplay") }}</p>
-                </div>
-            </button>
-        </div>
-        <!-- Control Bar -->
-        <media-control-bar class="w-full z-30">
-        <media-play-button class="w-11 p-2.5"></media-play-button>
-        {% if not is_live %}
-            <media-seek-backward-button seekoffset="5" class="w-11 p-2.5"></media-seek-backward-button>
-            <media-seek-forward-button seekoffset="5" class="w-11 p-2.5"></media-seek-forward-button>
-        {% endif %}
-        <button id="volume-btn"
-                title="{{ _('Volume') }}"
-                class="miku-control-btn w-11">
-            <i class="icon ion-md-volume-high"></i>
-        </button>
-        {% if is_live %}
-            <!-- Live Indicator -->
-            <div class="miku-control-btn gap-2 pointer-events-none grow">
-                <div class="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
-                <span class="text-[11px] font-bold uppercase tracking-wider text-on-primary-container">{{ _("LIVE") }}</span>
+        <div id="miku-player"
+             tabindex="0"
+             class="relative w-full h-full bg-black text-white select-none outline-none overflow-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-white">
+            {% if is_live %}
+                <video id="player" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin>
+                </video>
+            {% elif is_dash %}
+                <video id="player"
+                       data-dash-url="{{ dash_url }}"
+                       data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"
+                       poster="{{ vinfo['pic']|pic }}"
+                       playsinline
+                       crossorigin
+                       preload="none">
+                    {% for sub in subtitles %}
+                        <track kind="subtitles"
+                               srclang="{{ sub['srclang'] }}"
+                               label="{{ sub['label'] }}"
+                               src="{{ (vid ~ ':' ~ idx ~ ':' ~ sub['lan']) | subtitle_url }}" />
+                    {% endfor %}
+                </video>
+            {% else %}
+                <video id="player"
+                       {% if supported_src %}src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}{{ supported_src[0]['ext'] if supported_src[0]['ext'] else '' }}"{% endif %}
+                       data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"
+                       poster="{{ vinfo['pic']|pic }}"
+                       playsinline
+                       crossorigin
+                       preload="none">
+                    {% for sub in subtitles %}
+                        <track kind="subtitles"
+                               srclang="{{ sub['srclang'] }}"
+                               label="{{ sub['label'] }}"
+                               src="{{ (vid ~ ':' ~ idx ~ ':' ~ sub['lan']) | subtitle_url }}" />
+                    {% endfor %}
+                </video>
+            {% endif %}
+            <div id="danmaku-container"
+                 class="absolute inset-0 pointer-events-none z-10 overflow-hidden"></div>
+            <div data-player-gesture-layer class="absolute inset-0 z-15"></div>
+            <div data-player-spinner
+                 class="hidden pointer-events-none absolute inset-0 z-20 items-center justify-center">
+                {{ m3_spinner() }}
             </div>
-        {% else %}
-            <media-time-range></media-time-range>
-            <media-time-display showduration class="text-xs"></media-time-display>
-        {% endif %}
-        <!-- Custom buttons -->
-        <button id="danmaku-toggle"
-                title="{{ _('Toggle danmaku') }}"
-                class="miku-control-btn w-11">
-            <i class="icon ion-md-easel"></i>
-        </button>
-        {% if not is_live and subtitles %}<media-captions-button class="w-11 p-2.5"></media-captions-button>{% endif %}
-        <button id="quality-btn"
-                title="{{ _('Switch resolution') }}"
-                class="miku-control-btn w-11">
-            <i class="icon ion-md-settings"></i>
-        </button>
-        {% if not is_live %}<media-playback-rate-button class="w-11 p-2.5"></media-playback-rate-button>{% endif %}
-        <media-fullscreen-button class="w-11 p-2.5"></media-fullscreen-button>
-        </media-control-bar>
-        </media-controller>
+            <div data-player-hud
+                 aria-live="polite"
+                 class="pointer-events-none absolute inset-0 z-25 flex items-center justify-center">
+                <div data-player-hud-pill
+                     class="hidden items-center gap-2 rounded-full bg-black/65 px-4 py-2.5 text-sm font-medium text-white tabular-nums">
+                    <span data-player-hud-icon
+                          class="inline-flex size-5 items-center justify-center"></span>
+                    <span data-player-hud-text></span>
+                </div>
+            </div>
+            <div data-skin-bottom
+                 data-visible
+                 class="@container absolute inset-x-0 bottom-0 z-30 flex flex-col bg-linear-to-t from-black/80 to-transparent px-2 pt-10 pb-1.5 contrast-more:from-black/95 [@media(prefers-reduced-transparency:reduce)]:bg-black/90 transition-[opacity,translate,display] transition-discrete duration-100 ease-out will-change-[opacity,translate] motion-reduce:transition-none starting:translate-y-1 starting:opacity-0 [&:not([data-visible]):not(:has(:focus-visible))]:pointer-events-none [&:not([data-visible]):not(:has(:focus-visible))]:translate-y-1 [&:not([data-visible]):not(:has(:focus-visible))]:opacity-0 [&:not([data-visible]):not(:has(:focus-visible))]:duration-300 [&:not([data-visible]):not(:has(:focus-visible))]:hidden">
+                {% if not is_live %}
+                    <div class="flex items-center gap-3 px-2 text-white text-xs tabular-nums">
+                        <span data-time-current-compact class="hidden shrink-0 @max-md:inline">0:00</span>
+                        <div class="min-w-0 flex-1">
+                            <div data-scrubber
+                                 role="slider"
+                                 tabindex="0"
+                                 aria-label="{{ _('Seek') }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="0"
+                                 aria-valuenow="0"
+                                 class="group/slider relative flex h-5 w-full cursor-pointer touch-none items-center outline-none">
+                                <div class="relative h-1 w-full origin-center overflow-hidden rounded-full bg-white/25 transition-transform duration-150 ease-out motion-reduce:transition-none group-data-[pointing]/slider:scale-y-150 group-data-[dragging]/slider:scale-y-150">
+                                    <div data-scrubber-buffer
+                                         class="absolute inset-y-0 left-0 w-0 bg-white/40"></div>
+                                    <div data-scrubber-fill
+                                         class="absolute inset-y-0 left-0 w-0 bg-[var(--player-primary,#ff97b5)]">
+                                    </div>
+                                </div>
+                                <div data-scrubber-thumb
+                                     class="absolute left-0 size-3.5 -translate-x-1/2 scale-50 rounded-full bg-[var(--player-primary,#ff97b5)] opacity-0 outline-none transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none group-focus-visible/slider:scale-100 group-focus-visible/slider:opacity-100 group-focus-visible/slider:ring-2 group-focus-visible/slider:ring-white/70 group-data-[pointing]/slider:scale-100 group-data-[pointing]/slider:opacity-100 group-data-[dragging]/slider:scale-100 group-data-[dragging]/slider:opacity-100">
+                                </div>
+                                <div data-scrubber-tooltip
+                                     class="pointer-events-none absolute bottom-full left-0 mb-2 -translate-x-1/2 rounded bg-black/85 px-2 py-0.5 text-xs text-white tabular-nums opacity-0 transition-opacity duration-100 motion-reduce:transition-none group-data-[pointing]/slider:opacity-100 group-data-[dragging]/slider:opacity-100">
+                                    0:00
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button"
+                                data-time-toggle
+                                data-time-duration-compact
+                                class="hidden shrink-0 cursor-pointer rounded px-1 py-0.5 text-xs text-white tabular-nums outline-none transition-colors hover:text-white/80 focus-visible:ring-2 focus-visible:ring-white @max-md:inline">
+                            0:00
+                        </button>
+                    </div>
+                {% endif %}
+                <div class="flex items-center gap-2 pt-1">
+                    <div class="flex min-w-0 items-center gap-2">
+                        <span class="flex h-10 items-center rounded-full bg-black/30">
+                            <button type="button"
+                                    data-play-btn
+                                    aria-label="{{ _('Play') }}"
+                                    title="{{ _('Play') }}"
+                                    class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                <svg data-icon-play
+                                     class="size-5 fill-current"
+                                     viewBox="0 0 24 24"
+                                     aria-hidden="true">
+                                    <path d="M8 5.14v14l11-7-11-7z" />
+                                </svg>
+                                <svg data-icon-pause
+                                     class="hidden size-5 fill-current"
+                                     viewBox="0 0 24 24"
+                                     aria-hidden="true">
+                                    <path d="M6 5h4v14H6zm8 0h4v14h-4z" />
+                                </svg>
+                                <svg data-icon-replay
+                                     class="hidden size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                                    <path d="M3 3v5h5" />
+                                </svg>
+                            </button>
+                        </span>
+                        <div data-volume-group
+                             class="group/volume flex h-10 items-center rounded-full bg-black/30 transition-[padding] duration-200 ease-out @md:focus-within:pr-3 @md:hover:pr-3 motion-reduce:transition-none">
+                            <button type="button"
+                                    data-mute-btn
+                                    aria-label="{{ _('Mute') }}"
+                                    title="{{ _('Mute') }}"
+                                    class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                <svg data-icon-vol-high
+                                     class="size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                                </svg>
+                                <svg data-icon-vol-low
+                                     class="hidden size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                                </svg>
+                                <svg data-icon-vol-muted
+                                     class="hidden size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                                    <line x1="22" y1="9" x2="16" y2="15" />
+                                    <line x1="16" y1="9" x2="22" y2="15" />
+                                </svg>
+                            </button>
+                            <div data-volume-slider
+                                 role="slider"
+                                 tabindex="0"
+                                 aria-label="{{ _('Volume') }}"
+                                 aria-valuemin="0"
+                                 aria-valuemax="100"
+                                 aria-valuenow="100"
+                                 class="relative flex h-10 w-0 @max-md:hidden cursor-pointer touch-none items-center overflow-hidden opacity-0 outline-none transition-[width,opacity] duration-200 ease-out group-focus-within/volume:w-16 group-focus-within/volume:opacity-100 group-hover/volume:w-16 group-hover/volume:opacity-100 motion-reduce:transition-none">
+                                <div class="relative mx-1.5 flex h-full flex-1 items-center">
+                                    <div class="relative h-0.5 w-full rounded-full bg-white/25">
+                                        <div data-volume-fill
+                                             class="absolute inset-y-0 left-0 w-full rounded-full bg-white"></div>
+                                    </div>
+                                    <div data-volume-thumb
+                                         class="absolute left-full size-3 -translate-x-1/2 rounded-full bg-white outline-none">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% if is_live %}
+                            <button type="button"
+                                    data-live-btn
+                                    title="{{ _('LIVE') }}"
+                                    class="flex h-10 cursor-pointer items-center gap-2 rounded-full bg-black/30 px-3.5 text-xs font-semibold tracking-wider text-white uppercase outline-none transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white">
+                                <span class="size-2 rounded-full bg-red-500 animate-pulse"
+                                      aria-hidden="true"></span>
+                                <span>{{ _("LIVE") }}</span>
+                            </button>
+                        {% else %}
+                            <button type="button"
+                                    data-time-toggle
+                                    class="flex h-10 cursor-pointer items-center gap-1 rounded-full bg-black/30 px-4 font-medium text-sm text-white tabular-nums outline-none transition-colors hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white @max-md:hidden">
+                                <span data-time-current>0:00</span>
+                                <span class="text-white/50">/</span>
+                                <span data-time-duration>0:00</span>
+                            </button>
+                        {% endif %}
+                    </div>
+                    <div aria-hidden="true" class="flex-1"></div>
+                    <div class="flex h-10 items-center rounded-full bg-black/30 px-1">
+                        <button type="button"
+                                id="danmaku-toggle"
+                                aria-label="{{ _('Toggle danmaku') }}"
+                                title="{{ _('Toggle danmaku') }}"
+                                aria-pressed="true"
+                                class="miku-bar-btn relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[transform,color] duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                            <svg class="size-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 aria-hidden="true">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                <line x1="7" y1="9" x2="17" y2="9" />
+                                <line x1="7" y1="13" x2="13" y2="13" />
+                            </svg>
+                        </button>
+                        {% if not is_live and subtitles %}
+                            <div class="miku-bar-btn relative inline-flex size-10 shrink-0 items-center justify-center rounded-full before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 focus-within:ring-2 focus-within:ring-white">
+                                <svg class="size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                                    <path d="M7 15h4M15 15h2M7 11h2M13 11h4" />
+                                </svg>
+                                <select data-captions-select
+                                        aria-label="{{ _('Captions') }}"
+                                        title="{{ _('Captions') }}"
+                                        class="absolute inset-0 size-full cursor-pointer opacity-0">
+                                    <option value="off">{{ _("Off") }}</option>
+                                    {% for sub in subtitles %}
+                                        <option value="{{ loop.index }}">{{ sub['label'] or sub['srclang'] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        {% endif %}
+                        <button type="button"
+                                id="quality-btn"
+                                aria-label="{{ _('Settings') }}"
+                                title="{{ _('Settings') }}"
+                                aria-haspopup="menu"
+                                aria-expanded="false"
+                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                            <svg class="size-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 aria-hidden="true">
+                                <circle cx="12" cy="12" r="3" />
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                            </svg>
+                        </button>
+                        <button type="button"
+                                data-pip-btn
+                                aria-label="{{ _('Picture-in-Picture') }}"
+                                title="{{ _('Picture-in-Picture') }}"
+                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                            <svg class="size-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 aria-hidden="true">
+                                <rect x="2" y="4" width="20" height="16" rx="2" />
+                                <rect x="12" y="11" width="7" height="5" rx="1" />
+                            </svg>
+                        </button>
+                        <button type="button"
+                                data-theater-btn
+                                aria-label="{{ _('Theater mode') }}"
+                                title="{{ _('Theater mode') }}"
+                                aria-pressed="false"
+                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white @max-md:hidden">
+                            <svg data-icon-theater-enter
+                                 class="size-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 aria-hidden="true">
+                                <rect x="2" y="5" width="20" height="14" rx="2" />
+                            </svg>
+                            <svg data-icon-theater-exit
+                                 class="hidden size-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 aria-hidden="true">
+                                <rect x="4" y="6" width="16" height="12" rx="2" />
+                            </svg>
+                        </button>
+                        <button type="button"
+                                data-fullscreen-btn
+                                aria-label="{{ _('Fullscreen') }}"
+                                title="{{ _('Fullscreen') }}"
+                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                            <svg data-icon-fs-enter
+                                 class="size-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 aria-hidden="true">
+                                <polyline points="15 3 21 3 21 9" />
+                                <polyline points="9 21 3 21 3 15" />
+                                <line x1="21" y1="3" x2="14" y2="10" />
+                                <line x1="3" y1="21" x2="10" y2="14" />
+                            </svg>
+                            <svg data-icon-fs-exit
+                                 class="hidden size-5"
+                                 viewBox="0 0 24 24"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 stroke-width="2"
+                                 stroke-linecap="round"
+                                 stroke-linejoin="round"
+                                 aria-hidden="true">
+                                <polyline points="4 14 10 14 10 20" />
+                                <polyline points="20 10 14 10 14 4" />
+                                <line x1="14" y1="10" x2="21" y2="3" />
+                                <line x1="3" y1="21" x2="10" y2="14" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div id="quality-menu"
+                 inert
+                 role="menu"
+                 class="absolute opacity-0 pointer-events-none scale-95 transition-[opacity,scale] duration-150 ease-out motion-reduce:transition-none origin-bottom-right z-35 p-1.5 min-w-56 rounded-2xl shadow-2xl ring-1 ring-white/10 bg-[rgb(24_24_24/0.94)] text-sm text-white">
+                <div id="quality-list"
+                     class="flex flex-col gap-0.5 max-h-[320px] overflow-y-auto custom-scrollbar"></div>
+            </div>
+            <div id="autoplay-overlay"
+                 class="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-xs opacity-0 pointer-events-none transition-opacity duration-300">
+                <button type="button"
+                        id="autoplay-unlock-btn"
+                        class="md3-button md3-button-filled h-14! px-8! rounded-2xl! shadow-2xl">
+                    <i class="icon ion-md-play text-xl"></i>
+                    <div class="text-left">
+                        <p class="font-bold text-sm leading-tight">{{ _("Click to play") }}</p>
+                        <p class="text-[10px] opacity-80 mt-1">{{ _("Browser blocked autoplay") }}</p>
+                    </div>
+                </button>
+            </div>
+        </div>
         <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }}; window.is_dash = {{ 'true' if is_dash else 'false' }}; window.dash_url = {{ dash_url | tojson }};</script>
     </div>
 {% endmacro %}

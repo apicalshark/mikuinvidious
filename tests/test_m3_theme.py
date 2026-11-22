@@ -177,14 +177,11 @@ class TestM3Theme(unittest.IsolatedAsyncioTestCase):
         js = M3_THEME_JS.read_text(encoding="utf-8")
         self.assertIn('"--player-primary"', js)
         self.assertIn('"--player-on-primary"', js)
-        self.assertIn('"--media-primary-color"', js)
 
         player_css = (ROOT / "static" / "themes" / "modern" / "css" / "player.css").read_text(encoding="utf-8")
         self.assertIn("var(--player-primary", player_css)
-        self.assertIn("--media-primary-color: var(--player-primary", player_css)
-        self.assertIn("--media-range-bar-color: var(--media-primary-color);", player_css)
+        self.assertIn("#miku-player", player_css)
         self.assertIn("#quality-list button.active", player_css)
 
         html = BASE_HTML.read_text(encoding="utf-8")
         self.assertIn('setProperty("--player-primary"', html)
-        self.assertIn('setProperty("--media-primary-color"', html)

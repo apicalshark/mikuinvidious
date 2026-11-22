@@ -2,11 +2,16 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-20 18:41+0000\n"
+"POT-Creation-Date: 2026-11-22 14:23+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ko\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
+"Language-Team: ko <LL@li.org>\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: python/miku/ui/i18n_strings.py:18
 msgid "Article does not exist or parse error"
@@ -45,13 +50,13 @@ msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "이 사용자의 프로필을 가져오지 못했습니다. 나중에 다시 시도해 주세요."
 
 #: python/miku/ui/i18n_strings.py:27
-msgid ""
-"Failed to load bangumi info. Please check your network or try again later."
+msgid "Failed to load bangumi info. Please check your network or try again later."
 msgstr "방구미 정보를 불러오지 못했습니다. 네트워크를 확인하거나 나중에 다시 시도해 주세요."
 
 #: python/miku/ui/i18n_strings.py:28
 msgid ""
-"Failed to load the live room. Please check your network or try again later."
+"Failed to load the live room. Please check your network or try again "
+"later."
 msgstr "생방송 방을 불러오지 못했습니다. 네트워크를 확인하거나 나중에 다시 시도해 주세요."
 
 #: python/miku/ui/i18n_strings.py:29
@@ -60,13 +65,14 @@ msgstr "리디렉션 대상을 해석하지 못했습니다."
 
 #: python/miku/ui/i18n_strings.py:30
 msgid ""
-"Failed to resolve the short link. Please check your network connection or "
-"proxy settings."
+"Failed to resolve the short link. Please check your network connection or"
+" proxy settings."
 msgstr "단축 링크를 해석하지 못했습니다. 네트워크 연결 또는 프록시 설정을 확인해 주세요."
 
 #: python/miku/ui/i18n_strings.py:31
 msgid ""
-"Internal server error. Please try again later or contact the administrator."
+"Internal server error. Please try again later or contact the "
+"administrator."
 msgstr "내부 서버 오류가 발생했습니다. 나중에 다시 시도하거나 관리자에게 문의해 주세요."
 
 #: python/miku/ui/i18n_strings.py:32
@@ -157,8 +163,8 @@ msgstr "요청하신 리소스가 존재하지 않습니다."
 
 #: python/miku/ui/i18n_strings.py:54
 msgid ""
-"This content is usually unavailable in your region or has been removed by "
-"Bilibili. Please try again later."
+"This content is usually unavailable in your region or has been removed by"
+" Bilibili. Please try again later."
 msgstr "이 콘텐츠는 해당 지역에서 이용할 수 없거나 Bilibili에서 삭제되었을 수 있습니다. 나중에 다시 시도해 주세요."
 
 #: python/miku/ui/i18n_strings.py:57
@@ -167,7 +173,8 @@ msgstr "이 콘텐츠는 지역 제한되거나 삭제되었을 수 있습니다
 
 #: python/miku/ui/i18n_strings.py:58
 msgid ""
-"This video may have been deleted, is under review, or is region-restricted."
+"This video may have been deleted, is under review, or is region-"
+"restricted."
 msgstr "이 영상은 삭제되었거나 심사 중이거나 지역 제한되었을 수 있습니다."
 
 #: python/miku/ui/i18n_strings.py:59
@@ -182,34 +189,32 @@ msgstr "아직 탐색 기록이 없습니다."
 msgid "Resolving video URL..."
 msgstr "영상 URL을 해석하는 중..."
 
-#: static/themes/modern/js/player.js:2023
-#: static/themes/modern/js/player.js:2093 templates/macros.html:64
+#: static/themes/modern/js/player_ui.js:770
+#: static/themes/modern/js/player_ui.js:793
+#: static/themes/modern/js/player_ui.js:913
+#: static/themes/modern/js/player_ui.js:930
 msgid "Resolution"
 msgstr "화질"
 
-#: templates/macros.html:84
+#: templates/macros.html:388
 msgid "Click to play"
 msgstr "클릭하여 재생"
 
-#: templates/macros.html:85
+#: templates/macros.html:389
 msgid "Browser blocked autoplay"
 msgstr "브라우저가 자동 재생을 차단했습니다"
 
-#: templates/macros.html:97
+#: templates/macros.html:192
 msgid "Volume"
 msgstr "음량"
 
-#: templates/macros.html:105
+#: templates/macros.html:211 templates/macros.html:215
 msgid "LIVE"
 msgstr "생방송"
 
-#: templates/macros.html:113
+#: templates/macros.html:231 templates/macros.html:232
 msgid "Toggle danmaku"
 msgstr "단막 전환"
-
-#: templates/macros.html:119
-msgid "Switch resolution"
-msgstr "화질 전환"
 
 #: templates/themes/modern/author.html:35 templates/themes/modern/space.html:56
 msgid "This user has no bio yet."
@@ -332,62 +337,62 @@ msgstr "Nyaa 마그넷 리소스"
 msgid "Failed to load Nyaa resources"
 msgstr "Nyaa 리소스를 불러오지 못했습니다"
 
-#: templates/themes/modern/base.html:179 templates/themes/modern/base.html:236
+#: templates/themes/modern/base.html:177 templates/themes/modern/base.html:234
 msgid "Bangumi"
 msgstr "방구미"
 
-#: templates/themes/modern/base.html:184 templates/themes/modern/base.html:241
+#: templates/themes/modern/base.html:182 templates/themes/modern/base.html:239
 msgid "Toggle theme"
 msgstr "테마 전환"
 
-#: templates/themes/modern/base.html:189 templates/themes/modern/base.html:247
+#: templates/themes/modern/base.html:187 templates/themes/modern/base.html:245
 msgid "Language"
 msgstr "언어"
 
-#: templates/themes/modern/base.html:204 templates/themes/modern/base.html:263
+#: templates/themes/modern/base.html:202 templates/themes/modern/base.html:261
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "설정"
 
-#: templates/themes/modern/base.html:227
+#: templates/themes/modern/base.html:225
 #: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "검색어를 입력하세요?"
 
-#: templates/themes/modern/base.html:296
+#: templates/themes/modern/base.html:294
 msgid "Original source code"
 msgstr "원본 소스 코드"
 
-#: templates/themes/modern/base.html:298
+#: templates/themes/modern/base.html:296
 msgid "Modified source code"
 msgstr "수정된 소스 코드"
 
-#: templates/themes/modern/base.html:301
+#: templates/themes/modern/base.html:299
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "소스 코드"
 
-#: templates/themes/modern/base.html:307
+#: templates/themes/modern/base.html:305
 msgid "Documentation"
 msgstr "문서"
 
-#: templates/themes/modern/base.html:312
+#: templates/themes/modern/base.html:310
 msgid "Link converter"
 msgstr "링크 변환기"
 
-#: templates/themes/modern/base.html:318
+#: templates/themes/modern/base.html:316
 msgid "Proudly released under AGPLv3"
 msgstr "AGPLv3 하에 배포됩니다"
 
-#: templates/themes/modern/base.html:324
+#: templates/themes/modern/base.html:322
 msgid "View JavaScript licenses"
 msgstr "JavaScript 라이선스 보기"
 
-#: templates/themes/modern/base.html:329
+#: templates/themes/modern/base.html:327
 msgid "Privacy policy"
 msgstr "개인정보처리방침"
 
-#: templates/themes/modern/base.html:336
+#: templates/themes/modern/base.html:334
 msgid "Donate"
 msgstr "후원"
 
@@ -398,8 +403,8 @@ msgstr "링크 변환기"
 
 #: templates/themes/modern/convert.html:12
 msgid ""
-"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links "
-"and MikuInvidious pages."
+"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free "
+"links and MikuInvidious pages."
 msgstr "b23.tv 단축 링크 및 Bilibili URL을 추적이 없는 깔끔한 링크와 MikuInvidious 페이지로 변환합니다."
 
 #: templates/themes/modern/convert.html:22
@@ -466,15 +471,15 @@ msgstr "오류"
 #: templates/themes/modern/error.html:14
 msgid ""
 "Check your request. If you believe this is a site issue, contact the "
-"administrator. If you are the administrator, consider reporting it via the "
-"source code link below."
+"administrator. If you are the administrator, consider reporting it via "
+"the source code link below."
 msgstr "요청을 확인해 주세요. 사이트 문제라고 생각되면 관리자에게 문의하세요. 관리자인 경우 아래 소스 코드 링크를 통해 보고해 주세요."
 
 #: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:137
 msgid "Back to home"
 msgstr "홈으로 돌아가기"
 
-#: templates/themes/modern/base.html:176 templates/themes/modern/home.html:5
+#: templates/themes/modern/base.html:174 templates/themes/modern/home.html:5
 #: templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
@@ -492,8 +497,8 @@ msgstr "MikuInvidious는 자유로운 Bilibili 프론트엔드입니다."
 
 #: templates/themes/modern/home.html:16
 msgid ""
-"This is a MikuInvidious fork that supports pasting Bilibili links directly "
-"into the search box."
+"This is a MikuInvidious fork that supports pasting Bilibili links "
+"directly into the search box."
 msgstr "이 MikuInvidious 포크는 검색창에 Bilibili 링크를 직접 붙여넣을 수 있습니다."
 
 #: templates/themes/modern/home.html:19
@@ -547,8 +552,8 @@ msgstr "JavaScript 라이선스 정보"
 
 #: templates/themes/modern/licenses.html:7
 msgid ""
-"License information for the free JavaScript software used on this site is "
-"listed below."
+"License information for the free JavaScript software used on this site is"
+" listed below."
 msgstr "이 사이트에서 사용하는 자유 JavaScript 소프트웨어의 라이선스 정보는 아래에 나와 있습니다."
 
 #: templates/themes/modern/licenses.html:12
@@ -705,14 +710,14 @@ msgstr "RSS 피드"
 
 #: templates/themes/modern/space.html:114
 msgid ""
-"Video list temporarily unavailable — Bilibili rate-limited this instance. "
-"Profile shown; videos should return in a few minutes."
+"Video list temporarily unavailable — Bilibili rate-limited this instance."
+" Profile shown; videos should return in a few minutes."
 msgstr "영상 목록을 일시적으로 사용할 수 없습니다——Bilibili에서 이 인스턴스에 속도 제한을 적용했습니다. 프로필은 표시됩니다. 몇 분 후 영상이 복구될 것입니다."
 
 #: templates/themes/modern/space.html:118
 msgid ""
-"Video list could not be loaded due to a network error. Profile shown; please "
-"retry shortly."
+"Video list could not be loaded due to a network error. Profile shown; "
+"please retry shortly."
 msgstr "네트워크 오류로 영상 목록을 불러오지 못했습니다. 프로필은 표시됩니다. 잠시 후 다시 시도해 주세요."
 
 #: templates/themes/modern/space.html:140
@@ -788,7 +793,8 @@ msgstr "다음 자동 재생"
 msgid "Recommended"
 msgstr "추천"
 
-#: templates/themes/modern/video_listen.html:358
+#: static/themes/modern/js/player_ui.js:382 templates/macros.html:114
+#: templates/macros.html:115 templates/themes/modern/video_listen.html:358
 msgid "Play"
 msgstr "재생"
 
@@ -995,38 +1001,37 @@ msgstr "스트림 종료"
 msgid "Live stream has ended"
 msgstr "생방송이 종료되었습니다"
 
-#: static/themes/modern/js/player.js:1738
+#: static/themes/modern/js/player.js:1513
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "자동 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1761
-#: static/themes/modern/js/player.js:1765
-#: static/themes/modern/js/player.js:1822
-#: static/themes/modern/js/player.js:1826
+#: static/themes/modern/js/player.js:1565
 msgid "Auto"
 msgstr "자동"
 
-#: static/themes/modern/js/player.js:1954
-msgid "Back"
-msgstr "뒤로"
-
-#: static/themes/modern/js/player.js:2024
+#: static/themes/modern/js/player_ui.js:773
+#: static/themes/modern/js/player_ui.js:827
 msgid "Audio"
 msgstr "오디오"
 
-#: static/themes/modern/js/player.js:2025
-#: static/themes/modern/js/player.js:2094
+#: static/themes/modern/js/player_ui.js:701
+#: static/themes/modern/js/player_ui.js:776
 msgid "Playback speed"
 msgstr "재생 속도"
 
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 #: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "켬"
 
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 #: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
+#: templates/macros.html:265
 msgid "Off"
 msgstr "끔"
 
@@ -1082,6 +1087,80 @@ msgstr "댓글 이미지"
 msgid "Open image %(index)s of %(total)s"
 msgstr "이미지 %(index)s/%(total)s 열기"
 
+#: templates/macros.html:80
+msgid "Seek"
+msgstr "탐색"
+
+#: static/themes/modern/js/player_ui.js:407 templates/macros.html:147
+#: templates/macros.html:148
+msgid "Mute"
+msgstr "음소거"
+
+#: templates/macros.html:274 templates/macros.html:275
+msgid "Settings"
+msgstr "설정"
+
+#: static/themes/modern/js/player_ui.js:1057 templates/macros.html:293
+#: templates/macros.html:294
+msgid "Picture-in-Picture"
+msgstr "PIP 모드"
+
+#: static/themes/modern/js/player_ui.js:1083 templates/macros.html:310
+#: templates/macros.html:311
+msgid "Theater mode"
+msgstr "영화관 모드"
+
+#: static/themes/modern/js/player_ui.js:1027 templates/macros.html:339
+#: templates/macros.html:340
+msgid "Fullscreen"
+msgstr "전체 화면"
+
+#: static/themes/modern/js/player_ui.js:382
+msgid "Replay"
+msgstr "다시 재생"
+
+#: static/themes/modern/js/player_ui.js:382
+msgid "Pause"
+msgstr "일시정지"
+
+#: static/themes/modern/js/player_ui.js:407
+msgid "Unmute"
+msgstr "음소거 해제"
+
+#: static/themes/modern/js/player_ui.js:1027
+msgid "Exit fullscreen"
+msgstr "전체 화면 종료"
+
+#: static/themes/modern/js/player_ui.js:1057
+msgid "Exit Picture-in-Picture"
+msgstr "PIP 모드 종료"
+
+#: static/themes/modern/js/player_ui.js:1083
+msgid "Exit theater mode"
+msgstr "영화관 모드 종료"
+
+#: static/themes/modern/js/player_ui.js:741
+#: static/themes/modern/js/player_ui.js:781
+#: static/themes/modern/js/player_ui.js:918
+msgid "Danmaku size"
+msgstr "탄막 크기"
+
+#: static/themes/modern/js/player_ui.js:22
+msgid "Small"
+msgstr "작게"
+
+#: static/themes/modern/js/player_ui.js:23
+msgid "Large"
+msgstr "크게"
+
+#: static/themes/modern/js/player_ui.js:24
+msgid "Medium"
+msgstr "보통"
+
+#: templates/macros.html:262 templates/macros.html:263
+msgid "Captions"
+msgstr "\\\"자막\\\""
+
 #~ msgid "No articles yet"
 #~ msgstr "아직 기사가 없습니다"
 
@@ -1096,3 +1175,12 @@ msgstr "이미지 %(index)s/%(total)s 열기"
 
 #~ msgid "Home"
 #~ msgstr ""
+
+#~ msgid "Switch resolution"
+#~ msgstr "화질 전환"
+
+#~ msgid "Back"
+#~ msgstr "뒤로"
+
+#~ msgid "Toggle captions"
+#~ msgstr "자막 전환"

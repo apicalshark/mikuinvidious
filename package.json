@@ -6,7 +6,7 @@
     "build:css": "tailwindcss -i static/themes/modern/css/tailwind-input.css -o static/themes/modern/css/main.css --minify",
     "build:i18n": "uv run pybabel extract -F babel.cfg -o locales/messages.pot python templates static/themes/modern/js && uv run python tools/pomerge.py && uv run python tools/po2json.py",
     "check:i18n": "uv run python tools/pomerge.py --check && uv run python tools/po2json.py --check",
-    "sync:static": "npm update --ignore-scripts hls.js mpegts.js media-chrome hls-video-element opencc-js dashjs danmaku && node tools/sync-static.js",
+    "sync:static": "npm update --ignore-scripts hls.js mpegts.js hls-video-element opencc-js dashjs danmaku && node tools/sync-static.js",
     "sync:static:maps": "node tools/sync-static.js --with-maps",
     "postinstall": "node tools/sync-static.js",
     "test": "uv run python tools/run_tests.py",
@@ -41,7 +41,6 @@
     "dashjs": "^5.3.0",
     "hls-video-element": "^1.5.12",
     "hls.js": "^1.6.15",
-    "media-chrome": "^4.19.5",
     "mpegts.js": "^1.8.2",
     "opencc-js": "^1.4.2"
   },

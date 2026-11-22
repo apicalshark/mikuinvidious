@@ -2,11 +2,16 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-20 18:41+0000\n"
+"POT-Creation-Date: 2026-11-22 14:23+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
+"Language-Team: ja <LL@li.org>\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: python/miku/ui/i18n_strings.py:18
 msgid "Article does not exist or parse error"
@@ -45,13 +50,13 @@ msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "このユーザーのプロフィールを取得できませんでした。後でもう一度お試しください。"
 
 #: python/miku/ui/i18n_strings.py:27
-msgid ""
-"Failed to load bangumi info. Please check your network or try again later."
+msgid "Failed to load bangumi info. Please check your network or try again later."
 msgstr "番組情報の読み込みに失敗しました。ネットワークを確認するか、後でもう一度お試しください。"
 
 #: python/miku/ui/i18n_strings.py:28
 msgid ""
-"Failed to load the live room. Please check your network or try again later."
+"Failed to load the live room. Please check your network or try again "
+"later."
 msgstr "ライブルームの読み込みに失敗しました。ネットワークを確認するか、後でもう一度お試しください。"
 
 #: python/miku/ui/i18n_strings.py:29
@@ -60,13 +65,14 @@ msgstr "リダイレクト先を解決できませんでした。"
 
 #: python/miku/ui/i18n_strings.py:30
 msgid ""
-"Failed to resolve the short link. Please check your network connection or "
-"proxy settings."
+"Failed to resolve the short link. Please check your network connection or"
+" proxy settings."
 msgstr "短縮リンクを解決できませんでした。ネットワーク接続またはプロキシ設定を確認してください。"
 
 #: python/miku/ui/i18n_strings.py:31
 msgid ""
-"Internal server error. Please try again later or contact the administrator."
+"Internal server error. Please try again later or contact the "
+"administrator."
 msgstr "サーバー内部エラーです。後でもう一度お試しいただくか、管理者に連絡してください。"
 
 #: python/miku/ui/i18n_strings.py:32
@@ -157,8 +163,8 @@ msgstr "リクエストされたリソースは存在しません。"
 
 #: python/miku/ui/i18n_strings.py:54
 msgid ""
-"This content is usually unavailable in your region or has been removed by "
-"Bilibili. Please try again later."
+"This content is usually unavailable in your region or has been removed by"
+" Bilibili. Please try again later."
 msgstr "このコンテンツは通常、お住まいの地域では利用できないか、Bilibiliにより削除されています。後でもう一度お試しください。"
 
 #: python/miku/ui/i18n_strings.py:57
@@ -167,7 +173,8 @@ msgstr "このコンテンツは地域制限されているか削除された可
 
 #: python/miku/ui/i18n_strings.py:58
 msgid ""
-"This video may have been deleted, is under review, or is region-restricted."
+"This video may have been deleted, is under review, or is region-"
+"restricted."
 msgstr "この動画は削除されたか、審査中であるか、地域制限されている可能性があります。"
 
 #: python/miku/ui/i18n_strings.py:59
@@ -182,34 +189,32 @@ msgstr "まだ閲覧履歴がありません。"
 msgid "Resolving video URL..."
 msgstr "動画URLを解決中..."
 
-#: static/themes/modern/js/player.js:2023
-#: static/themes/modern/js/player.js:2093 templates/macros.html:64
+#: static/themes/modern/js/player_ui.js:770
+#: static/themes/modern/js/player_ui.js:793
+#: static/themes/modern/js/player_ui.js:913
+#: static/themes/modern/js/player_ui.js:930
 msgid "Resolution"
 msgstr "画質"
 
-#: templates/macros.html:84
+#: templates/macros.html:388
 msgid "Click to play"
 msgstr "クリックして再生"
 
-#: templates/macros.html:85
+#: templates/macros.html:389
 msgid "Browser blocked autoplay"
 msgstr "ブラウザが自動再生をブロックしました"
 
-#: templates/macros.html:97
+#: templates/macros.html:192
 msgid "Volume"
 msgstr "音量"
 
-#: templates/macros.html:105
+#: templates/macros.html:211 templates/macros.html:215
 msgid "LIVE"
 msgstr "ライブ"
 
-#: templates/macros.html:113
+#: templates/macros.html:231 templates/macros.html:232
 msgid "Toggle danmaku"
 msgstr "弾幕の切り替え"
-
-#: templates/macros.html:119
-msgid "Switch resolution"
-msgstr "画質の切り替え"
 
 #: templates/themes/modern/author.html:35 templates/themes/modern/space.html:56
 msgid "This user has no bio yet."
@@ -332,62 +337,62 @@ msgstr "Nyaa Magnet リソース"
 msgid "Failed to load Nyaa resources"
 msgstr "Nyaaリソースの読み込みに失敗"
 
-#: templates/themes/modern/base.html:179 templates/themes/modern/base.html:236
+#: templates/themes/modern/base.html:177 templates/themes/modern/base.html:234
 msgid "Bangumi"
 msgstr "番組"
 
-#: templates/themes/modern/base.html:184 templates/themes/modern/base.html:241
+#: templates/themes/modern/base.html:182 templates/themes/modern/base.html:239
 msgid "Toggle theme"
 msgstr "テーマを切り替え"
 
-#: templates/themes/modern/base.html:189 templates/themes/modern/base.html:247
+#: templates/themes/modern/base.html:187 templates/themes/modern/base.html:245
 msgid "Language"
 msgstr "言語"
 
-#: templates/themes/modern/base.html:204 templates/themes/modern/base.html:263
+#: templates/themes/modern/base.html:202 templates/themes/modern/base.html:261
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "設定"
 
-#: templates/themes/modern/base.html:227
+#: templates/themes/modern/base.html:225
 #: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "何か検索してみよう"
 
-#: templates/themes/modern/base.html:296
+#: templates/themes/modern/base.html:294
 msgid "Original source code"
 msgstr "オリジナルのソースコード"
 
-#: templates/themes/modern/base.html:298
+#: templates/themes/modern/base.html:296
 msgid "Modified source code"
 msgstr "修正後のソースコード"
 
-#: templates/themes/modern/base.html:301
+#: templates/themes/modern/base.html:299
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "ソースコード"
 
-#: templates/themes/modern/base.html:307
+#: templates/themes/modern/base.html:305
 msgid "Documentation"
 msgstr "ドキュメント"
 
-#: templates/themes/modern/base.html:312
+#: templates/themes/modern/base.html:310
 msgid "Link converter"
 msgstr "リンク変換"
 
-#: templates/themes/modern/base.html:318
+#: templates/themes/modern/base.html:316
 msgid "Proudly released under AGPLv3"
 msgstr "AGPLv3の下で誇りを持って公開"
 
-#: templates/themes/modern/base.html:324
+#: templates/themes/modern/base.html:322
 msgid "View JavaScript licenses"
 msgstr "JavaScriptライセンスを見る"
 
-#: templates/themes/modern/base.html:329
+#: templates/themes/modern/base.html:327
 msgid "Privacy policy"
 msgstr "プライバシーポリシー"
 
-#: templates/themes/modern/base.html:336
+#: templates/themes/modern/base.html:334
 msgid "Donate"
 msgstr "寄付する"
 
@@ -398,8 +403,8 @@ msgstr "リンク変換"
 
 #: templates/themes/modern/convert.html:12
 msgid ""
-"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links "
-"and MikuInvidious pages."
+"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free "
+"links and MikuInvidious pages."
 msgstr "b23.tvの短縮リンクやBilibiliのURLを、追跡のないクリーンなリンクやMikuInvidiousページに変換します。"
 
 #: templates/themes/modern/convert.html:22
@@ -466,15 +471,15 @@ msgstr "エラー"
 #: templates/themes/modern/error.html:14
 msgid ""
 "Check your request. If you believe this is a site issue, contact the "
-"administrator. If you are the administrator, consider reporting it via the "
-"source code link below."
+"administrator. If you are the administrator, consider reporting it via "
+"the source code link below."
 msgstr "リクエストを確認してください。サイトの問題だと思われる場合は管理者に連絡してください。管理者の方は下のソースコードリンクから報告を検討してください。"
 
 #: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:137
 msgid "Back to home"
 msgstr "ホームに戻る"
 
-#: templates/themes/modern/base.html:176 templates/themes/modern/home.html:5
+#: templates/themes/modern/base.html:174 templates/themes/modern/home.html:5
 #: templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
@@ -492,8 +497,8 @@ msgstr "MikuInvidiousは自由なビリビリフロントエンドです。"
 
 #: templates/themes/modern/home.html:16
 msgid ""
-"This is a MikuInvidious fork that supports pasting Bilibili links directly "
-"into the search box."
+"This is a MikuInvidious fork that supports pasting Bilibili links "
+"directly into the search box."
 msgstr "このMikuInvidiousフォークはBilibiliリンクを検索ボックスに直接貼り付けできます。"
 
 #: templates/themes/modern/home.html:19
@@ -547,8 +552,8 @@ msgstr "JavaScriptライセンス情報"
 
 #: templates/themes/modern/licenses.html:7
 msgid ""
-"License information for the free JavaScript software used on this site is "
-"listed below."
+"License information for the free JavaScript software used on this site is"
+" listed below."
 msgstr "このサイトで使用されている自由なJavaScriptソフトウェアのライセンス情報は以下の通りです。"
 
 #: templates/themes/modern/licenses.html:12
@@ -705,14 +710,14 @@ msgstr "RSSフィード"
 
 #: templates/themes/modern/space.html:114
 msgid ""
-"Video list temporarily unavailable — Bilibili rate-limited this instance. "
-"Profile shown; videos should return in a few minutes."
+"Video list temporarily unavailable — Bilibili rate-limited this instance."
+" Profile shown; videos should return in a few minutes."
 msgstr "動画一覧は一時的に利用できません——Bilibiliによりこのインスタンスがレート制限されています。プロフィールは表示中です。数分後に動画が復旧するはずです。"
 
 #: templates/themes/modern/space.html:118
 msgid ""
-"Video list could not be loaded due to a network error. Profile shown; please "
-"retry shortly."
+"Video list could not be loaded due to a network error. Profile shown; "
+"please retry shortly."
 msgstr "ネットワークエラーのため動画一覧を読み込めませんでした。プロフィールは表示中です。しばらくしてからもう一度お試しください。"
 
 #: templates/themes/modern/space.html:140
@@ -788,7 +793,8 @@ msgstr "自動連続再生"
 msgid "Recommended"
 msgstr "おすすめ動画"
 
-#: templates/themes/modern/video_listen.html:358
+#: static/themes/modern/js/player_ui.js:382 templates/macros.html:114
+#: templates/macros.html:115 templates/themes/modern/video_listen.html:358
 msgid "Play"
 msgstr "再生"
 
@@ -995,38 +1001,37 @@ msgstr "配信が終了しました"
 msgid "Live stream has ended"
 msgstr "ライブ配信が終了しました"
 
-#: static/themes/modern/js/player.js:1738
+#: static/themes/modern/js/player.js:1513
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自動 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1761
-#: static/themes/modern/js/player.js:1765
-#: static/themes/modern/js/player.js:1822
-#: static/themes/modern/js/player.js:1826
+#: static/themes/modern/js/player.js:1565
 msgid "Auto"
 msgstr "自動"
 
-#: static/themes/modern/js/player.js:1954
-msgid "Back"
-msgstr "戻る"
-
-#: static/themes/modern/js/player.js:2024
+#: static/themes/modern/js/player_ui.js:773
+#: static/themes/modern/js/player_ui.js:827
 msgid "Audio"
 msgstr "音声"
 
-#: static/themes/modern/js/player.js:2025
-#: static/themes/modern/js/player.js:2094
+#: static/themes/modern/js/player_ui.js:701
+#: static/themes/modern/js/player_ui.js:776
 msgid "Playback speed"
 msgstr "再生速度"
 
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 #: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "オン"
 
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 #: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
+#: templates/macros.html:265
 msgid "Off"
 msgstr "オフ"
 
@@ -1082,6 +1087,80 @@ msgstr "コメントの画像"
 msgid "Open image %(index)s of %(total)s"
 msgstr "画像 %(index)s / %(total)s を開く"
 
+#: templates/macros.html:80
+msgid "Seek"
+msgstr "シーク"
+
+#: static/themes/modern/js/player_ui.js:407 templates/macros.html:147
+#: templates/macros.html:148
+msgid "Mute"
+msgstr "ミュート"
+
+#: templates/macros.html:274 templates/macros.html:275
+msgid "Settings"
+msgstr "設定"
+
+#: static/themes/modern/js/player_ui.js:1057 templates/macros.html:293
+#: templates/macros.html:294
+msgid "Picture-in-Picture"
+msgstr "ピクチャーインピクチャー"
+
+#: static/themes/modern/js/player_ui.js:1083 templates/macros.html:310
+#: templates/macros.html:311
+msgid "Theater mode"
+msgstr "シアターモード"
+
+#: static/themes/modern/js/player_ui.js:1027 templates/macros.html:339
+#: templates/macros.html:340
+msgid "Fullscreen"
+msgstr "全画面"
+
+#: static/themes/modern/js/player_ui.js:382
+msgid "Replay"
+msgstr "もう一度再生"
+
+#: static/themes/modern/js/player_ui.js:382
+msgid "Pause"
+msgstr "一時停止"
+
+#: static/themes/modern/js/player_ui.js:407
+msgid "Unmute"
+msgstr "ミュート解除"
+
+#: static/themes/modern/js/player_ui.js:1027
+msgid "Exit fullscreen"
+msgstr "全画面を終了"
+
+#: static/themes/modern/js/player_ui.js:1057
+msgid "Exit Picture-in-Picture"
+msgstr "ピクチャーインピクチャーを終了"
+
+#: static/themes/modern/js/player_ui.js:1083
+msgid "Exit theater mode"
+msgstr "シアターモードを終了"
+
+#: static/themes/modern/js/player_ui.js:741
+#: static/themes/modern/js/player_ui.js:781
+#: static/themes/modern/js/player_ui.js:918
+msgid "Danmaku size"
+msgstr "弾幕サイズ"
+
+#: static/themes/modern/js/player_ui.js:22
+msgid "Small"
+msgstr "小"
+
+#: static/themes/modern/js/player_ui.js:23
+msgid "Large"
+msgstr "大"
+
+#: static/themes/modern/js/player_ui.js:24
+msgid "Medium"
+msgstr "中"
+
+#: templates/macros.html:262 templates/macros.html:263
+msgid "Captions"
+msgstr "\\\"字幕\\\""
+
 #~ msgid "Personalization settings"
 #~ msgstr "個人設定"
 
@@ -1114,3 +1193,12 @@ msgstr "画像 %(index)s / %(total)s を開く"
 
 #~ msgid "Home"
 #~ msgstr ""
+
+#~ msgid "Switch resolution"
+#~ msgstr "画質の切り替え"
+
+#~ msgid "Back"
+#~ msgstr "戻る"
+
+#~ msgid "Toggle captions"
+#~ msgstr "字幕を切り替え"

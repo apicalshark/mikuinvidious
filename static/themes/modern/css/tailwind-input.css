@@ -100,16 +100,6 @@
     text-decoration: none;
   }
 
-  /* Video Player Enforced Dark Theme */
-  .video-js {
-    background-color: #000 !important;
-  }
-
-  .vjs-control-bar {
-    background-color: rgba(0, 0, 0, 0.7) !important;
-    color: #fff !important;
-  }
-
   #searchbox,
   #searchbox:focus {
     outline: none !important;

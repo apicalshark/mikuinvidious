@@ -49,7 +49,7 @@
 {% endblock %}
 
 {% block content %}
-    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+    <div id="video-layout" class="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
         <!-- Left Column: Video, Info, Comments -->
         <div class="lg:col-span-3 space-y-6">
@@ -385,10 +385,10 @@
     {% if not is_live %}
         <script defer src="/static/vjs/dash.min.js?v={{ asset_version }}"></script>
     {% endif %}
-    <script defer src="/static/vjs/media-chrome.js?v={{ asset_version }}"></script>
-
     <script defer src="/static/danmakujs/danmaku.min.js?v={{ asset_version }}"></script>
 
+    <script defer
+            src="/static/themes/modern/js/player_ui.js?v={{ asset_version }}"></script>
     <script defer src="/static/themes/modern/js/player.js?v={{ asset_version }}"></script>
     <script defer
             src="/static/themes/modern/js/download.js?v={{ asset_version }}"></script>

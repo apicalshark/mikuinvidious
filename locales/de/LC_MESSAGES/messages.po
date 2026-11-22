@@ -2,11 +2,16 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-20 18:41+0000\n"
+"POT-Creation-Date: 2026-11-22 14:23+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: de\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
+"Language-Team: de <LL@li.org>\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
 
 #: python/miku/ui/i18n_strings.py:18
 msgid "Article does not exist or parse error"
@@ -45,13 +50,13 @@ msgid "Failed to fetch this user's profile. Please try again later."
 msgstr "Profil dieses Benutzers konnte nicht abgerufen werden. Bitte versuche es später erneut."
 
 #: python/miku/ui/i18n_strings.py:27
-msgid ""
-"Failed to load bangumi info. Please check your network or try again later."
+msgid "Failed to load bangumi info. Please check your network or try again later."
 msgstr "Bangumi-Info konnte nicht geladen werden. Bitte prüfe dein Netzwerk oder versuche es später erneut."
 
 #: python/miku/ui/i18n_strings.py:28
 msgid ""
-"Failed to load the live room. Please check your network or try again later."
+"Failed to load the live room. Please check your network or try again "
+"later."
 msgstr "Liveraum konnte nicht geladen werden. Bitte prüfe dein Netzwerk oder versuche es später erneut."
 
 #: python/miku/ui/i18n_strings.py:29
@@ -60,13 +65,14 @@ msgstr "Weiterleitungsziel konnte nicht aufgelöst werden."
 
 #: python/miku/ui/i18n_strings.py:30
 msgid ""
-"Failed to resolve the short link. Please check your network connection or "
-"proxy settings."
+"Failed to resolve the short link. Please check your network connection or"
+" proxy settings."
 msgstr "Kurzlink konnte nicht aufgelöst werden. Bitte prüfe deine Netzwerkverbindung oder Proxy-Einstellungen."
 
 #: python/miku/ui/i18n_strings.py:31
 msgid ""
-"Internal server error. Please try again later or contact the administrator."
+"Internal server error. Please try again later or contact the "
+"administrator."
 msgstr "Interner Serverfehler. Bitte versuche es später erneut oder wende dich an den Administrator."
 
 #: python/miku/ui/i18n_strings.py:32
@@ -157,8 +163,8 @@ msgstr "Die angeforderte Ressource existiert nicht."
 
 #: python/miku/ui/i18n_strings.py:54
 msgid ""
-"This content is usually unavailable in your region or has been removed by "
-"Bilibili. Please try again later."
+"This content is usually unavailable in your region or has been removed by"
+" Bilibili. Please try again later."
 msgstr "Dieser Inhalt ist in deiner Region meist nicht verfügbar oder wurde von Bilibili entfernt. Bitte versuche es später erneut."
 
 #: python/miku/ui/i18n_strings.py:57
@@ -167,7 +173,8 @@ msgstr "Dieser Inhalt ist möglicherweise regional gesperrt oder entfernt."
 
 #: python/miku/ui/i18n_strings.py:58
 msgid ""
-"This video may have been deleted, is under review, or is region-restricted."
+"This video may have been deleted, is under review, or is region-"
+"restricted."
 msgstr "Dieses Video wurde möglicherweise gelöscht, wird geprüft oder ist regional gesperrt."
 
 #: python/miku/ui/i18n_strings.py:59
@@ -182,34 +189,32 @@ msgstr "Du hast noch keinen Browserverlauf."
 msgid "Resolving video URL..."
 msgstr "Video-URL wird aufgelöst …"
 
-#: static/themes/modern/js/player.js:2023
-#: static/themes/modern/js/player.js:2093 templates/macros.html:64
+#: static/themes/modern/js/player_ui.js:770
+#: static/themes/modern/js/player_ui.js:793
+#: static/themes/modern/js/player_ui.js:913
+#: static/themes/modern/js/player_ui.js:930
 msgid "Resolution"
 msgstr "Auflösung"
 
-#: templates/macros.html:84
+#: templates/macros.html:388
 msgid "Click to play"
 msgstr "Klicken zum Abspielen"
 
-#: templates/macros.html:85
+#: templates/macros.html:389
 msgid "Browser blocked autoplay"
 msgstr "Browser hat Autoplay blockiert"
 
-#: templates/macros.html:97
+#: templates/macros.html:192
 msgid "Volume"
 msgstr "Lautstärke"
 
-#: templates/macros.html:105
+#: templates/macros.html:211 templates/macros.html:215
 msgid "LIVE"
 msgstr "LIVE"
 
-#: templates/macros.html:113
+#: templates/macros.html:231 templates/macros.html:232
 msgid "Toggle danmaku"
 msgstr "Danmaku umschalten"
-
-#: templates/macros.html:119
-msgid "Switch resolution"
-msgstr "Auflösung wechseln"
 
 #: templates/themes/modern/author.html:35 templates/themes/modern/space.html:56
 msgid "This user has no bio yet."
@@ -332,62 +337,62 @@ msgstr "Nyaa-Magnetressourcen"
 msgid "Failed to load Nyaa resources"
 msgstr "Nyaa-Ressourcen konnten nicht geladen werden"
 
-#: templates/themes/modern/base.html:179 templates/themes/modern/base.html:236
+#: templates/themes/modern/base.html:177 templates/themes/modern/base.html:234
 msgid "Bangumi"
 msgstr "Bangumi"
 
-#: templates/themes/modern/base.html:184 templates/themes/modern/base.html:241
+#: templates/themes/modern/base.html:182 templates/themes/modern/base.html:239
 msgid "Toggle theme"
 msgstr "Theme wechseln"
 
-#: templates/themes/modern/base.html:189 templates/themes/modern/base.html:247
+#: templates/themes/modern/base.html:187 templates/themes/modern/base.html:245
 msgid "Language"
 msgstr "Sprache"
 
-#: templates/themes/modern/base.html:204 templates/themes/modern/base.html:263
+#: templates/themes/modern/base.html:202 templates/themes/modern/base.html:261
 #: templates/themes/modern/pref.html:2 templates/themes/modern/pref.html:11
 msgid "Preferences"
 msgstr "Einstellungen"
 
-#: templates/themes/modern/base.html:227
+#: templates/themes/modern/base.html:225
 #: templates/themes/modern/components/m3_components.html:177
 msgid "Search for something?"
 msgstr "Nach etwas suchen?"
 
-#: templates/themes/modern/base.html:296
+#: templates/themes/modern/base.html:294
 msgid "Original source code"
 msgstr "Originaler Quellcode"
 
-#: templates/themes/modern/base.html:298
+#: templates/themes/modern/base.html:296
 msgid "Modified source code"
 msgstr "Geänderter Quellcode"
 
-#: templates/themes/modern/base.html:301
+#: templates/themes/modern/base.html:299
 #: templates/themes/modern/licenses.html:14
 msgid "Source code"
 msgstr "Quellcode"
 
-#: templates/themes/modern/base.html:307
+#: templates/themes/modern/base.html:305
 msgid "Documentation"
 msgstr "Dokumentation"
 
-#: templates/themes/modern/base.html:312
+#: templates/themes/modern/base.html:310
 msgid "Link converter"
 msgstr "Link-Konverter"
 
-#: templates/themes/modern/base.html:318
+#: templates/themes/modern/base.html:316
 msgid "Proudly released under AGPLv3"
 msgstr "Stolz unter AGPLv3 veröffentlicht"
 
-#: templates/themes/modern/base.html:324
+#: templates/themes/modern/base.html:322
 msgid "View JavaScript licenses"
 msgstr "JavaScript-Lizenzen ansehen"
 
-#: templates/themes/modern/base.html:329
+#: templates/themes/modern/base.html:327
 msgid "Privacy policy"
 msgstr "Datenschutzerklärung"
 
-#: templates/themes/modern/base.html:336
+#: templates/themes/modern/base.html:334
 msgid "Donate"
 msgstr "Spenden"
 
@@ -398,8 +403,8 @@ msgstr "Link-Konverter"
 
 #: templates/themes/modern/convert.html:12
 msgid ""
-"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free links "
-"and MikuInvidious pages."
+"Convert b23.tv shortlinks and Bilibili URLs into clean, tracking-free "
+"links and MikuInvidious pages."
 msgstr "Wandle b23.tv-Kurzlinks und Bilibili-URLs in saubere, trackingfreie Links und MikuInvidious-Seiten um."
 
 #: templates/themes/modern/convert.html:22
@@ -466,15 +471,15 @@ msgstr "Fehler"
 #: templates/themes/modern/error.html:14
 msgid ""
 "Check your request. If you believe this is a site issue, contact the "
-"administrator. If you are the administrator, consider reporting it via the "
-"source code link below."
+"administrator. If you are the administrator, consider reporting it via "
+"the source code link below."
 msgstr "Prüfe deine Anfrage. Wenn du meinst, dass es ein Websiteproblem ist, wende dich an den Administrator. Wenn du der Administrator bist, melde es über den Quellcode-Link unten."
 
 #: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:137
 msgid "Back to home"
 msgstr "Zurück zur Startseite"
 
-#: templates/themes/modern/base.html:176 templates/themes/modern/home.html:5
+#: templates/themes/modern/base.html:174 templates/themes/modern/home.html:5
 #: templates/themes/modern/search.html:5
 #: templates/themes/modern/search_article.html:3
 #: templates/themes/modern/search_user.html:3
@@ -492,8 +497,8 @@ msgstr "MikuInvidious ist ein freies Bilibili-Frontend."
 
 #: templates/themes/modern/home.html:16
 msgid ""
-"This is a MikuInvidious fork that supports pasting Bilibili links directly "
-"into the search box."
+"This is a MikuInvidious fork that supports pasting Bilibili links "
+"directly into the search box."
 msgstr "Dieser MikuInvidious-Fork unterstützt das direkte Einfügen von Bilibili-Links in das Suchfeld."
 
 #: templates/themes/modern/home.html:19
@@ -547,8 +552,8 @@ msgstr "JavaScript-Lizenzinformationen"
 
 #: templates/themes/modern/licenses.html:7
 msgid ""
-"License information for the free JavaScript software used on this site is "
-"listed below."
+"License information for the free JavaScript software used on this site is"
+" listed below."
 msgstr "Lizenzinformationen für die auf dieser Seite verwendete freie JavaScript-Software findest du unten."
 
 #: templates/themes/modern/licenses.html:12
@@ -705,14 +710,14 @@ msgstr "RSS-Feed"
 
 #: templates/themes/modern/space.html:114
 msgid ""
-"Video list temporarily unavailable — Bilibili rate-limited this instance. "
-"Profile shown; videos should return in a few minutes."
+"Video list temporarily unavailable — Bilibili rate-limited this instance."
+" Profile shown; videos should return in a few minutes."
 msgstr "Videoliste vorübergehend nicht verfügbar — Bilibili hat diese Instanz ratenlimitiert. Profil wird angezeigt; Videos sollten in wenigen Minuten zurückkehren."
 
 #: templates/themes/modern/space.html:118
 msgid ""
-"Video list could not be loaded due to a network error. Profile shown; please "
-"retry shortly."
+"Video list could not be loaded due to a network error. Profile shown; "
+"please retry shortly."
 msgstr "Videoliste konnte wegen eines Netzwerkfehlers nicht geladen werden. Profil wird angezeigt; bitte versuche es in Kürze erneut."
 
 #: templates/themes/modern/space.html:140
@@ -788,7 +793,8 @@ msgstr "Nächste automatisch abspielen"
 msgid "Recommended"
 msgstr "Empfohlen"
 
-#: templates/themes/modern/video_listen.html:358
+#: static/themes/modern/js/player_ui.js:382 templates/macros.html:114
+#: templates/macros.html:115 templates/themes/modern/video_listen.html:358
 msgid "Play"
 msgstr "Abspielen"
 
@@ -996,38 +1002,37 @@ msgstr "Stream beendet"
 msgid "Live stream has ended"
 msgstr "Livestream beendet"
 
-#: static/themes/modern/js/player.js:1738
+#: static/themes/modern/js/player.js:1513
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "Auto (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1761
-#: static/themes/modern/js/player.js:1765
-#: static/themes/modern/js/player.js:1822
-#: static/themes/modern/js/player.js:1826
+#: static/themes/modern/js/player.js:1565
 msgid "Auto"
 msgstr "Auto"
 
-#: static/themes/modern/js/player.js:1954
-msgid "Back"
-msgstr "Zurück"
-
-#: static/themes/modern/js/player.js:2024
+#: static/themes/modern/js/player_ui.js:773
+#: static/themes/modern/js/player_ui.js:827
 msgid "Audio"
 msgstr "Audio"
 
-#: static/themes/modern/js/player.js:2025
-#: static/themes/modern/js/player.js:2094
+#: static/themes/modern/js/player_ui.js:701
+#: static/themes/modern/js/player_ui.js:776
 msgid "Playback speed"
 msgstr "Wiedergabegeschwindigkeit"
 
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 #: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "An"
 
+#: static/themes/modern/js/player_ui.js:567
+#: static/themes/modern/js/player_ui.js:1551
 #: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 #: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
+#: templates/macros.html:265
 msgid "Off"
 msgstr "Aus"
 
@@ -1083,6 +1088,80 @@ msgstr "Kommentarbilder"
 msgid "Open image %(index)s of %(total)s"
 msgstr "Bild %(index)s von %(total)s öffnen"
 
+#: templates/macros.html:80
+msgid "Seek"
+msgstr "Springen"
+
+#: static/themes/modern/js/player_ui.js:407 templates/macros.html:147
+#: templates/macros.html:148
+msgid "Mute"
+msgstr "Stummschalten"
+
+#: templates/macros.html:274 templates/macros.html:275
+msgid "Settings"
+msgstr "Einstellungen"
+
+#: static/themes/modern/js/player_ui.js:1057 templates/macros.html:293
+#: templates/macros.html:294
+msgid "Picture-in-Picture"
+msgstr "Bild-in-Bild"
+
+#: static/themes/modern/js/player_ui.js:1083 templates/macros.html:310
+#: templates/macros.html:311
+msgid "Theater mode"
+msgstr "Kinomodus"
+
+#: static/themes/modern/js/player_ui.js:1027 templates/macros.html:339
+#: templates/macros.html:340
+msgid "Fullscreen"
+msgstr "Vollbild"
+
+#: static/themes/modern/js/player_ui.js:382
+msgid "Replay"
+msgstr "Erneut abspielen"
+
+#: static/themes/modern/js/player_ui.js:382
+msgid "Pause"
+msgstr "Pause"
+
+#: static/themes/modern/js/player_ui.js:407
+msgid "Unmute"
+msgstr "Ton einschalten"
+
+#: static/themes/modern/js/player_ui.js:1027
+msgid "Exit fullscreen"
+msgstr "Vollbild beenden"
+
+#: static/themes/modern/js/player_ui.js:1057
+msgid "Exit Picture-in-Picture"
+msgstr "Bild-in-Bild beenden"
+
+#: static/themes/modern/js/player_ui.js:1083
+msgid "Exit theater mode"
+msgstr "Kinomodus beenden"
+
+#: static/themes/modern/js/player_ui.js:741
+#: static/themes/modern/js/player_ui.js:781
+#: static/themes/modern/js/player_ui.js:918
+msgid "Danmaku size"
+msgstr "Danmaku-Größe"
+
+#: static/themes/modern/js/player_ui.js:22
+msgid "Small"
+msgstr "Klein"
+
+#: static/themes/modern/js/player_ui.js:23
+msgid "Large"
+msgstr "Groß"
+
+#: static/themes/modern/js/player_ui.js:24
+msgid "Medium"
+msgstr "Mittel"
+
+#: templates/macros.html:262 templates/macros.html:263
+msgid "Captions"
+msgstr "\\\"Untertitel\\\""
+
 #~ msgid "No articles yet"
 #~ msgstr "Noch keine Artikel"
 
@@ -1097,3 +1176,12 @@ msgstr "Bild %(index)s von %(total)s öffnen"
 
 #~ msgid "Home"
 #~ msgstr ""
+
+#~ msgid "Switch resolution"
+#~ msgstr "Auflösung wechseln"
+
+#~ msgid "Back"
+#~ msgstr "Zurück"
+
+#~ msgid "Toggle captions"
+#~ msgstr "Untertitel umschalten"
