@@ -17,6 +17,7 @@
     { key: "1.25", scale: 1.25 },
   ];
   const DEFAULT_DANMAKU_SIZE_KEY = "1";
+  const danmakuFontBaselines = new WeakMap();
 
   function getDanmakuSizeLabel(key) {
     if (key === "0.8") return t("Small");
@@ -121,25 +122,31 @@
   }
 
   function scaleDanmakuComment(c, scale, isRunning) {
-    if (!c || typeof c !== "object" || !c.style) return;
-    if (scale === 1 && c._baseFontSize == null) return;
-    if (c._baseFontSize == null) {
-      const parsed = parseFloat(c.style.fontSize);
-      c._baseFontSize = Number.isFinite(parsed) && parsed > 0 ? parsed : 25;
-      c._origFontSize = c.style.fontSize;
-      c._origFont = c.style.font;
+    const style = c?.style;
+    if (!style || typeof style !== "object") return;
+    let baseline = danmakuFontBaselines.get(style);
+    if (!baseline) {
+      if (scale === 1) return;
+      const parsed = parseFloat(style.fontSize);
+      baseline = {
+        size: Number.isFinite(parsed) && parsed > 0 ? parsed : 25,
+        fontSize: style.fontSize,
+        font: style.font,
+      };
+      danmakuFontBaselines.set(style, baseline);
     }
     if (scale === 1) {
-      if (c._origFontSize !== undefined) c.style.fontSize = c._origFontSize;
-      if (c._origFont !== undefined) c.style.font = c._origFont;
+      if (baseline.fontSize === undefined) delete style.fontSize;
+      else style.fontSize = baseline.fontSize;
+      if (baseline.font === undefined) delete style.font;
+      else style.font = baseline.font;
     } else {
-      const px = Math.max(12, Math.round(c._baseFontSize * scale));
-      c.style.fontSize = px + "px";
-      if (typeof c._origFont === "string" && c._origFont) {
-        c.style.font = c._origFont.replace(/\d+(?:\.\d+)?px/, px + "px");
-      } else {
-        c.style.font = px + "px sans-serif";
-      }
+      const px = Math.max(12, Math.round(baseline.size * scale)) + "px";
+      style.fontSize = px;
+      style.font =
+        typeof baseline.font === "string" && baseline.font
+          ? baseline.font.replace(/\d+(?:\.\d+)?px/, px)
+          : px + " sans-serif";
     }
     if (c.node && c.node.style) {
       if (c.style.font) c.node.style.font = c.style.font;
@@ -186,7 +193,7 @@
   function blocksPlayerShortcut(event, root) {
     if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return true;
     const target = event.target;
-    if (!target || !(target instanceof Element)) return false;
+    if (!(target instanceof Element) || !root.contains(target)) return true;
     if (target.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']")) {
       return true;
     }
@@ -194,10 +201,7 @@
       return true;
     }
     const interactive = target.closest("a, button, [role='button'], [role='slider'], summary");
-    if (
-      interactive &&
-      (!root.contains(interactive) || event.key === " " || event.key === "Enter")
-    ) {
+    if (interactive && (event.key === " " || event.key === "Enter")) {
       return true;
     }
     return false;
@@ -266,11 +270,12 @@
     let lastTapAt = 0;
     let lastTapRegion = null;
     let pointerInBar = false;
-    let isScrubbing = false;
+    let scrubPointerId = null;
     let pendingSeekTime = null;
-    let isVolumeDragging = false;
+    let volumePointerId = null;
     let hasPlayedOnce = false;
     let settingsOpen = false;
+    let menuInvoker = null;
     let lastSeekAt = 0;
     let seekAccum = 0;
     let savedVolume = 1;
@@ -340,8 +345,8 @@
         video.paused ||
         video.ended ||
         settingsOpen ||
-        isScrubbing ||
-        isVolumeDragging ||
+        scrubPointerId !== null ||
+        volumePointerId !== null ||
         pointerInBar
       ) {
         return;
@@ -359,8 +364,8 @@
         video.paused ||
         video.ended ||
         settingsOpen ||
-        isScrubbing ||
-        isVolumeDragging ||
+        scrubPointerId !== null ||
+        volumePointerId !== null ||
         pointerInBar
       ) {
         return;
@@ -474,28 +479,30 @@
     function toggleTimeDisplayMode() {
       showRemainingTime = !showRemainingTime;
       storageSet(TIME_REMAINING_STORAGE_KEY, showRemainingTime ? "1" : "0");
-      const cur = isScrubbing && pendingSeekTime !== null ? pendingSeekTime : video.currentTime;
+      const cur =
+        scrubPointerId !== null && pendingSeekTime !== null ? pendingSeekTime : video.currentTime;
       updateScrubberVisual(cur, video.duration);
     }
 
     function syncBufferBar() {
       if (!scrubberBuffer || isLive) return;
       const dur = video.duration;
-      if (!Number.isFinite(dur) || dur <= 0 || !video.buffered || video.buffered.length === 0) {
-        scrubberBuffer.style.width = "0%";
-        return;
-      }
       const cur = video.currentTime;
-      let end = 0;
-      for (let i = 0; i < video.buffered.length; i++) {
-        if (video.buffered.start(i) <= cur + 0.5 && video.buffered.end(i) > end) {
-          end = video.buffered.end(i);
+      const ranges = video.buffered;
+      if (Number.isFinite(dur) && dur > 0 && ranges) {
+        for (let i = 0; i < ranges.length; i++) {
+          const start = ranges.start(i);
+          const end = ranges.end(i);
+          if (cur >= start && cur <= end) {
+            const left = clamp((start / dur) * 100, 0, 100);
+            const right = clamp((end / dur) * 100, left, 100);
+            scrubberBuffer.style.left = left + "%";
+            scrubberBuffer.style.width = right - left + "%";
+            return;
+          }
         }
       }
-      if (end === 0) {
-        end = video.buffered.end(video.buffered.length - 1);
-      }
-      scrubberBuffer.style.width = clamp((end / dur) * 100, 0, 100) + "%";
+      scrubberBuffer.style.width = "0%";
     }
 
     function ratioFromPointer(el, clientX) {
@@ -515,8 +522,12 @@
       scrubberTooltip.style.left = px + "px";
     }
 
+    function canSeek() {
+      return !isLive && Number.isFinite(video.duration) && video.duration > 0;
+    }
+
     function seekBy(delta, withHud) {
-      if (isLive || !Number.isFinite(video.duration) || video.duration <= 0) return;
+      if (!canSeek()) return;
       const now = performance.now();
       if (now - lastSeekAt < RAPID_SEEK_WINDOW_MS && Math.sign(delta) === Math.sign(seekAccum)) {
         seekAccum += delta;
@@ -567,6 +578,11 @@
       showHud("captions", preferredTrack ? preferredTrack.label || t("On") : t("Off"));
     }
 
+    function visibleMenuItems() {
+      const view = settingsList?.querySelector("[data-menu-view]:not([hidden])");
+      return view ? Array.from(view.querySelectorAll("button:not(:disabled)")) : [];
+    }
+
     function switchMenuView(name, dir) {
       if (!settingsList) return;
       const reduce =
@@ -590,6 +606,12 @@
             { duration: 180, easing: "cubic-bezier(0.2, 0, 0, 1)" }
           );
         }
+      }
+      if (settingsOpen) {
+        const items = visibleMenuItems();
+        const next = dir === "back" && items.includes(menuInvoker) ? menuInvoker : items[0];
+        if (dir === "back") menuInvoker = null;
+        next?.focus();
       }
     }
 
@@ -625,6 +647,7 @@
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         if (typeof onBeforeOpen === "function") onBeforeOpen();
+        menuInvoker = btn;
         switchMenuView(targetView, "forward");
       });
       return btn;
@@ -712,14 +735,16 @@
 
     function syncDanmakuSizeMenu() {
       if (!settingsList) return;
-      const curEntry = getStoredDanmakuSizeEntry();
+      const scale = getDanmakuScale();
+      const key =
+        DANMAKU_SIZES.find((entry) => entry.scale === scale)?.key ?? DEFAULT_DANMAKU_SIZE_KEY;
       settingsList.querySelectorAll("button[data-danmaku-size]").forEach((b) => {
-        const active = b.dataset.danmakuSize === curEntry.key;
+        const active = b.dataset.danmakuSize === key;
         b.classList.toggle("active", active);
         b.setAttribute("aria-checked", active ? "true" : "false");
       });
       const dv = settingsList.querySelector("[data-danmaku-size-value]");
-      if (dv) dv.textContent = getDanmakuSizeLabel(curEntry.key);
+      if (dv) dv.textContent = getDanmakuSizeLabel(key);
     }
 
     function setDanmakuSizeByKey(sizeKey) {
@@ -761,6 +786,10 @@
       const isDash = Boolean(options?.isDash ?? window.is_dash);
       const onSelectVideo = options?.onSelectVideo;
       const sorted = [...sources].sort((a, b) => b.quality - a.quality);
+      const currentQn =
+        !isDash && video.src
+          ? new URL(video.src, document.baseURI).pathname.match(/_(\d+)(?:\.[^./]+)?$/)?.[1]
+          : null;
 
       settingsList.innerHTML = "";
       const main = document.createElement("div");
@@ -810,7 +839,7 @@
             closeSettings();
           }
         );
-        const matchesCurrent = isDash ? idx === 0 : (video.src || "").includes("_" + src.quality);
+        const matchesCurrent = isDash ? idx === 0 : currentQn === String(src.quality);
         if (matchesCurrent) {
           btn.classList.add("active");
           btn.setAttribute("aria-checked", "true");
@@ -972,23 +1001,27 @@
 
     function openSettings() {
       if (!settingsMenu || !settingsBtn) return;
-      if (settingsList) {
-        settingsList.querySelectorAll("[data-menu-view]").forEach((v) => {
-          v.hidden = v.dataset.menuView !== "main";
-        });
-      }
+      menuInvoker = null;
+      showControls(false);
       syncSpeedMenu();
       syncDanmakuSizeMenu();
       const brect = settingsBtn.getBoundingClientRect();
       const crect = root.getBoundingClientRect();
       settingsMenu.style.right = Math.max(8, crect.right - brect.right) + "px";
-      settingsMenu.style.bottom = Math.max(48, crect.bottom - brect.top + 10) + "px";
+      const bottom = Math.max(48, crect.bottom - brect.top + 10);
+      settingsMenu.style.bottom = bottom + "px";
+      if (settingsList) {
+        const { paddingTop, paddingBottom } = window.getComputedStyle(settingsMenu);
+        const available =
+          crect.height - bottom - parseFloat(paddingTop) - parseFloat(paddingBottom);
+        settingsList.style.maxHeight = clamp(available, 0, 320) + "px";
+      }
       settingsMenu.classList.remove("opacity-0", "pointer-events-none", "scale-95");
       settingsMenu.classList.add("opacity-100", "scale-100", "pointer-events-auto");
       settingsMenu.inert = false;
       settingsBtn.setAttribute("aria-expanded", "true");
       settingsOpen = true;
-      showControls(false);
+      switchMenuView("main");
     }
 
     function closeSettings() {
@@ -1157,7 +1190,8 @@
         "pointerdown",
         (e) => {
           e.stopPropagation();
-          isVolumeDragging = true;
+          if (volumePointerId !== null) return;
+          volumePointerId = e.pointerId;
           if (typeof volumeSlider.setPointerCapture === "function") {
             volumeSlider.setPointerCapture(e.pointerId);
           }
@@ -1169,14 +1203,14 @@
       volumeSlider.addEventListener(
         "pointermove",
         (e) => {
-          if (!isVolumeDragging) return;
+          if (volumePointerId !== e.pointerId) return;
           applyVolPointer(e);
         },
         { signal }
       );
       const endVolDrag = (e) => {
-        if (!isVolumeDragging) return;
-        isVolumeDragging = false;
+        if (volumePointerId !== e.pointerId) return;
+        volumePointerId = null;
         if (
           typeof volumeSlider.releasePointerCapture === "function" &&
           volumeSlider.hasPointerCapture?.(e.pointerId)
@@ -1216,7 +1250,7 @@
       scrubber.addEventListener(
         "pointerleave",
         () => {
-          if (!isScrubbing) {
+          if (scrubPointerId === null) {
             scrubber.removeAttribute("data-pointing");
           }
         },
@@ -1227,7 +1261,8 @@
         "pointerdown",
         (e) => {
           e.stopPropagation();
-          isScrubbing = true;
+          if (scrubPointerId !== null) return;
+          scrubPointerId = e.pointerId;
           scrubber.setAttribute("data-dragging", "");
           scrubber.setAttribute("data-pointing", "");
           if (typeof scrubber.setPointerCapture === "function") {
@@ -1246,9 +1281,10 @@
       scrubber.addEventListener(
         "pointermove",
         (e) => {
+          if (scrubPointerId !== null && scrubPointerId !== e.pointerId) return;
           const ratio = ratioFromPointer(scrubber, e.clientX);
           updateScrubberTooltip(ratio);
-          if (!isScrubbing) return;
+          if (scrubPointerId === null) return;
           const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
           pendingSeekTime = ratio * dur;
           updateScrubberVisual(pendingSeekTime, dur);
@@ -1257,14 +1293,13 @@
       );
 
       const finishScrub = (e, commit) => {
-        if (!isScrubbing) return;
-        isScrubbing = false;
+        if (scrubPointerId !== e.pointerId) return;
+        scrubPointerId = null;
         scrubber.removeAttribute("data-dragging");
-        if (e && e.pointerType !== "mouse") {
+        if (e.pointerType !== "mouse") {
           scrubber.removeAttribute("data-pointing");
         }
         if (
-          e &&
           typeof scrubber.releasePointerCapture === "function" &&
           scrubber.hasPointerCapture?.(e.pointerId)
         ) {
@@ -1286,6 +1321,7 @@
       scrubber.addEventListener(
         "keydown",
         (e) => {
+          if (!canSeek()) return;
           if (e.key === "ArrowLeft") {
             e.preventDefault();
             seekBy(-5, true);
@@ -1331,6 +1367,24 @@
         (e) => {
           e.stopPropagation();
           toggleSettings();
+        },
+        { signal }
+      );
+      settingsMenu.addEventListener(
+        "keydown",
+        (e) => {
+          if (!settingsOpen || e.altKey || e.ctrlKey || e.metaKey) return;
+          const items = visibleMenuItems();
+          if (!items.length) return;
+          const index = items.indexOf(document.activeElement);
+          let next;
+          if (e.key === "ArrowDown") next = (index + 1) % items.length;
+          else if (e.key === "ArrowUp") next = (index <= 0 ? items.length : index) - 1;
+          else if (e.key === "Home") next = 0;
+          else if (e.key === "End") next = items.length - 1;
+          else return;
+          e.preventDefault();
+          items[next].focus();
         },
         { signal }
       );
@@ -1498,7 +1552,7 @@
     document.addEventListener(
       "keydown",
       (e) => {
-        if (e.key === "Escape" && settingsOpen) {
+        if (e.key === "Escape" && settingsOpen && root.contains(e.target)) {
           e.preventDefault();
           closeSettings();
           return;
@@ -1510,15 +1564,19 @@
           e.preventDefault();
           togglePlay(true);
         } else if (key === "ArrowLeft") {
+          if (!canSeek()) return;
           e.preventDefault();
           seekBy(-5, true);
         } else if (key === "ArrowRight") {
+          if (!canSeek()) return;
           e.preventDefault();
           seekBy(5, true);
         } else if (key === "j" || key === "J") {
+          if (!canSeek()) return;
           e.preventDefault();
           seekBy(-10, true);
         } else if (key === "l" || key === "L") {
+          if (!canSeek()) return;
           e.preventDefault();
           seekBy(10, true);
         } else if (key === "ArrowUp") {
@@ -1531,27 +1589,48 @@
           e.preventDefault();
           toggleMute(true);
         } else if (key === "f" || key === "F") {
+          const fullscreen =
+            document.fullscreenElement === root || document.webkitFullscreenElement === root;
+          if (
+            fullscreen
+              ? !(document.exitFullscreen || document.webkitExitFullscreen)
+              : !(
+                  root.requestFullscreen ||
+                  root.webkitRequestFullscreen ||
+                  video.webkitEnterFullscreen
+                )
+          )
+            return;
           e.preventDefault();
           toggleFullscreen();
         } else if (key === "t" || key === "T") {
+          if (!document.getElementById("video-layout")) return;
           e.preventDefault();
           toggleTheater();
         } else if (key === "i" || key === "I") {
+          if (
+            !document.pictureInPictureEnabled ||
+            (document.pictureInPictureElement === video
+              ? typeof document.exitPictureInPicture !== "function"
+              : video.disablePictureInPicture ||
+                typeof video.requestPictureInPicture !== "function")
+          )
+            return;
           e.preventDefault();
           togglePip();
         } else if (key === "c" || key === "C") {
-          if (!isLive && captionsSelect) {
+          if (!isLive && renderedSubtitles.length) {
             e.preventDefault();
             toggleCaptions();
           }
         } else if (key === "d" || key === "D") {
-          if (typeof window.toggleDanmaku === "function") {
+          if (window.dm && typeof window.toggleDanmaku === "function") {
             e.preventDefault();
             window.toggleDanmaku();
             showHud("danmaku", window.dm_status ? t("On") : t("Off"));
           }
-        } else if (!isLive && key >= "0" && key <= "9") {
-          if (Number.isFinite(video.duration) && video.duration > 0) {
+        } else if (key >= "0" && key <= "9") {
+          if (canSeek()) {
             e.preventDefault();
             const target = (Number(key) / 10) * video.duration;
             video.currentTime = target;
@@ -1564,7 +1643,15 @@
     );
 
     video.addEventListener("play", syncPlayState, { signal });
-    video.addEventListener("pause", syncPlayState, { signal });
+    video.addEventListener(
+      "pause",
+      () => {
+        clearStallTimer();
+        setSpinnerVisible(false);
+        syncPlayState();
+      },
+      { signal }
+    );
     video.addEventListener("ended", syncPlayState, { signal });
     video.addEventListener("volumechange", syncVolumeState, { signal });
     video.addEventListener("ratechange", syncSpeedMenu, { signal });
@@ -1580,7 +1667,7 @@
     video.addEventListener(
       "durationchange",
       () => {
-        updateScrubberVisual(video.currentTime, video.duration);
+        if (scrubPointerId === null) updateScrubberVisual(video.currentTime, video.duration);
         syncBufferBar();
       },
       { signal }
@@ -1588,7 +1675,7 @@
     video.addEventListener(
       "timeupdate",
       () => {
-        if (!isScrubbing) {
+        if (scrubPointerId === null) {
           updateScrubberVisual(video.currentTime, video.duration);
         }
         syncBufferBar();
@@ -1608,6 +1695,7 @@
       "waiting",
       () => {
         clearStallTimer();
+        if (video.paused) return;
         if (!hasPlayedOnce) {
           setSpinnerVisible(true);
         } else {

@@ -15,7 +15,7 @@
         {% endif %}
         <div id="miku-player"
              tabindex="0"
-             class="relative w-full h-full bg-black text-white select-none outline-none overflow-hidden">
+             class="relative w-full h-full bg-black text-white select-none outline-none overflow-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-white">
             {% if is_live %}
                 <video id="player" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin>
                 </video>

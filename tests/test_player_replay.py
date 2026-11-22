@@ -174,6 +174,9 @@ class MockEl extends EventTarget {{
 
 const scrubber = new MockEl();
 const fill = new MockEl();
+const spinner = new MockEl();
+const buffer = new MockEl();
+const volume = new MockEl();
 const thumb = new MockEl();
 const tooltip = new MockEl();
 const bottomBar = new MockEl();
@@ -181,6 +184,9 @@ const root = new MockEl();
 const map = {{
   "[data-scrubber]": scrubber,
   "[data-scrubber-fill]": fill,
+  "[data-player-spinner]": spinner,
+  "[data-scrubber-buffer]": buffer,
+  "[data-volume-slider]": volume,
   "[data-scrubber-thumb]": thumb,
   "[data-scrubber-tooltip]": tooltip,
   "[data-skin-bottom]": bottomBar,
@@ -217,10 +223,10 @@ video.pause = () => {{ video.paused = true; }};
 eval(fs.readFileSync({str(PLAYER_UI_JS)!r}, "utf8"));
 window.MikuPlayerUI.mount(root, video, {{ isLive: false }});
 
-const mkEvt = (type, clientX) => {{
+const mkEvt = (type, clientX, pointerId = 1) => {{
   const e = new Event(type);
   e.clientX = clientX;
-  e.pointerId = 1;
+  e.pointerId = pointerId;
   e.pointerType = "mouse";
   e.stopPropagation = () => {{}};
   return e;
@@ -237,10 +243,76 @@ if (fill.style.width !== "75%") {{
   throw new Error("Expected visual preview at 75%, got: " + fill.style.width);
 }}
 
+for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel"]) {{
+  scrubber.dispatchEvent(mkEvt(type, 0, 2));
+}}
+video.buffered = {{
+  length: 2,
+  start: (i) => [0, 60][i],
+  end: (i) => [20, 80][i],
+}};
+video.dispatchEvent(new Event("durationchange"));
+if (fill.style.width !== "75%" || buffer.style.width !== "20%" || committed.length !== 0) {{
+  throw new Error("Expected secondary pointers and duration changes to preserve the pending seek");
+}}
+
 scrubber.dispatchEvent(mkEvt("pointerup", 150));
 if (committed.length !== 1 || committed[0] !== 75) {{
   throw new Error("Expected single committed seek [75] on pointerup, got: " + JSON.stringify(committed));
 }}
+
+video.dispatchEvent(new Event("timeupdate"));
+if (buffer.style.left !== "60%" || buffer.style.width !== "20%") {{
+  throw new Error("Expected only the buffered interval containing the playhead to be displayed");
+}}
+video.currentTime = 40;
+video.dispatchEvent(new Event("timeupdate"));
+if (buffer.style.width !== "0%") throw new Error("Expected no buffer indicator in a gap");
+
+volume.dispatchEvent(mkEvt("pointerdown", 100));
+for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel"]) {{
+  volume.dispatchEvent(mkEvt(type, 0, 2));
+}}
+if (video.volume !== 0.5) throw new Error("Expected the second pointer to leave volume unchanged");
+volume.dispatchEvent(mkEvt("pointermove", 150));
+if (video.volume !== 0.75) throw new Error("Expected the initiating pointer to still own volume");
+volume.dispatchEvent(mkEvt("pointercancel", 150));
+volume.dispatchEvent(mkEvt("pointerdown", 50, 2));
+if (video.volume !== 0.25) throw new Error("Expected cancel to release volume ownership");
+
+const stallCallbacks = new Map();
+const realSetTimeout = globalThis.setTimeout;
+const realClearTimeout = globalThis.clearTimeout;
+globalThis.setTimeout = (fn, delay) => {{
+  if (delay !== 400) return realSetTimeout(fn, delay);
+  const id = Symbol();
+  stallCallbacks.set(id, fn);
+  return id;
+}};
+globalThis.clearTimeout = (id) => {{
+  if (typeof id === "symbol") stallCallbacks.delete(id);
+  else realClearTimeout(id);
+}};
+
+video.dispatchEvent(new Event("playing"));
+video.dispatchEvent(new Event("waiting"));
+if (stallCallbacks.size !== 1 || spinner.classList.contains("flex")) {{
+  throw new Error("Expected an active playback stall to delay showing the spinner");
+}}
+video.paused = true;
+video.dispatchEvent(new Event("pause"));
+if (stallCallbacks.size || spinner.classList.contains("flex")) {{
+  throw new Error("Expected pause to clear the scheduled spinner");
+}}
+video.paused = false;
+video.dispatchEvent(new Event("waiting"));
+const [stall, showSpinner] = stallCallbacks.entries().next().value;
+stallCallbacks.delete(stall);
+showSpinner();
+if (!spinner.classList.contains("flex")) throw new Error("Expected spinner after active stall");
+video.paused = true;
+video.dispatchEvent(new Event("pause"));
+if (spinner.classList.contains("flex")) throw new Error("Expected pause to hide a visible spinner");
 
 window.MikuPlayerUI.destroy();
 """
@@ -422,6 +494,11 @@ class MockEl extends EventTarget {{
     }}
   }}
   getAttribute(k) {{ return this.attrs.get(k) ?? null; }}
+  focus() {{ document.activeElement = this; }}
+  contains(el) {{ return el === this || this._all().includes(el); }}
+  closest(sel) {{
+    return sel.includes("a, button") && this.tagName === "BUTTON" ? this : null;
+  }}
   removeAttribute(k) {{ this.attrs.delete(k); }}
   hasAttribute(k) {{ return this.attrs.has(k); }}
   appendChild(child) {{
@@ -448,6 +525,8 @@ class MockEl extends EventTarget {{
   querySelectorAll(sel) {{
     return this._all().filter((el) => {{
       if (sel === "[data-menu-view]") return el.dataset && el.dataset.menuView != null;
+      if (sel === "[data-menu-view]:not([hidden])") return el.dataset.menuView != null && !el.hidden;
+      if (sel === "button:not(:disabled)") return el.tagName === "BUTTON" && !el.disabled;
       if (sel === "[data-danmaku-size-value]") return el.hasAttribute("data-danmaku-size-value");
       if (sel === "[data-resolution-value]") return el.hasAttribute("data-resolution-value");
       if (sel === "[data-speed-value]") return el.hasAttribute("data-speed-value");
@@ -480,12 +559,20 @@ const rootMap = {{
 }};
 root.querySelector = (sel) => rootMap[sel] || null;
 root.querySelectorAll = (sel) => (sel === "[data-time-toggle]" ? [timeBtn] : []);
-root.contains = () => false;
+root.appendChild(settingsBtn);
+root.appendChild(settingsMenu);
+settingsMenu.appendChild(settingsList);
+root.getBoundingClientRect = () => ({{ right: 600, bottom: 220, top: 0, height: 220 }});
+settingsBtn.getBoundingClientRect = () => ({{ right: 590, top: 170 }});
 
-const store = new Map();
+const store = new Map([["miku_danmaku_size", "1"]]);
+let failWrites = false;
 globalThis.localStorage = {{
   getItem: (k) => store.get(k) ?? null,
-  setItem: (k, v) => store.set(k, String(v)),
+  setItem: (k, v) => {{
+    if (failWrites) throw new Error("Storage is unavailable");
+    store.set(k, String(v));
+  }},
 }};
 
 const doc = new EventTarget();
@@ -494,7 +581,10 @@ doc.createElement = (tag) => new MockEl(tag);
 doc.createDocumentFragment = () => ({{ isFragment: true, children: [], appendChild(c) {{ this.children.push(c); }} }});
 globalThis.document = doc;
 globalThis.Element = MockEl;
-globalThis.window = {{ I18n: {{ t: (k) => k }} }};
+globalThis.window = {{
+  I18n: {{ t: (k) => k }},
+  getComputedStyle: () => ({{ paddingTop: "6px", paddingBottom: "6px" }}),
+}};
 
 const video = new MockEl("video");
 video.currentTime = 30;
@@ -538,17 +628,74 @@ const queuedComment = {{
   width: 100,
   height: 28,
 }};
-window.dm = {{
-  _: {{ runningList: [activeComment] }},
+const Danmaku = require({str(ROOT / "static" / "danmakujs" / "danmaku.min.js")!r});
+const dmMedia = new MockEl("video");
+dmMedia.paused = true;
+dmMedia.currentTime = 30;
+window.dm = new Danmaku({{
+  media: dmMedia,
   comments: [activeComment, queuedComment],
-  emit(obj) {{ this.lastEmitted = obj; }},
-  resize() {{}},
-}};
-window.MikuPlayerUI.applyDanmakuScale(window.dm);
-window.MikuPlayerUI.setupVodMenu({{
-  sources: [{{ quality: 80, new_description: "1080P" }}],
-  isDash: true,
 }});
+window.dm._.runningList.push(activeComment);
+window.MikuPlayerUI.applyDanmakuScale(window.dm);
+video.src = "https://example.test/proxy/video/BVexample_32_80.mp4?quality=_32";
+window.MikuPlayerUI.setupVodMenu({{
+  sources: [{{ quality: 80, new_description: "1080P" }}, {{ quality: 32, new_description: "480P" }}],
+  isDash: false,
+}});
+
+const keydown = (receiver, target, key) => {{
+  const e = new Event("keydown", {{ cancelable: true }});
+  e.key = key;
+  Object.defineProperty(e, "target", {{ value: target }});
+  receiver.dispatchEvent(e);
+  return e.defaultPrevented;
+}};
+settingsBtn.dispatchEvent(clickEvt);
+const main = settingsList.querySelector("[data-menu-view]:not([hidden])");
+const [resolution, speed] = main.querySelectorAll("button:not(:disabled)");
+if (settingsList.style.maxHeight !== "148px" || doc.activeElement !== resolution) {{
+  throw new Error("Expected settings to fit above the controls and focus its first row");
+}}
+if (!keydown(settingsMenu, resolution, "ArrowDown") || doc.activeElement !== speed) {{
+  throw new Error("Expected ArrowDown to focus the next row");
+}}
+speed.dispatchEvent(clickEvt);
+const speedView = settingsList.querySelector("[data-menu-view]:not([hidden])");
+const [back] = speedView.querySelectorAll("button:not(:disabled)");
+if (speedView.dataset.menuView !== "speed" || doc.activeElement !== back) {{
+  throw new Error("Expected focus to move into the speed view");
+}}
+back.dispatchEvent(clickEvt);
+if (doc.activeElement !== speed) throw new Error("Expected Back to restore focus to Playback speed");
+window.MikuPlayerUI.closeSettings();
+if (doc.activeElement !== settingsBtn) throw new Error("Expected focus to return to Settings");
+root.getBoundingClientRect = () => ({{ right: 600, bottom: 600, top: 0, height: 600 }});
+settingsBtn.dispatchEvent(clickEvt);
+if (settingsList.style.maxHeight !== "148px") {{
+  throw new Error("Expected the menu to stay above the controls when their offset changes");
+}}
+window.MikuPlayerUI.closeSettings();
+settingsBtn.getBoundingClientRect = () => ({{ right: 590, top: 550 }});
+settingsBtn.dispatchEvent(clickEvt);
+if (settingsList.style.maxHeight !== "320px") throw new Error("Expected the 320px cap");
+window.MikuPlayerUI.closeSettings();
+
+if (keydown(doc, new MockEl(), "ArrowUp") || video.volume !== 1) {{
+  throw new Error("Expected outside focus to preserve default ArrowUp");
+}}
+for (const key of [" ", "Enter"]) {{
+  if (keydown(doc, settingsBtn, key)) throw new Error("Expected native button activation");
+}}
+if (!keydown(doc, root, "ArrowRight") || video.currentTime !== 35) {{
+  throw new Error("Expected ArrowRight to seek with focus inside a VOD player");
+}}
+
+const checkedQualities = settingsList.querySelectorAll("button[data-video-qn]")
+  .filter((b) => b.getAttribute("aria-checked") === "true");
+if (checkedQualities.length !== 1 || checkedQualities[0].dataset.videoQn !== "80") {{
+  throw new Error("Expected only quality 80 to match the selected source");
+}}
 
 const dv = settingsList.querySelector("[data-danmaku-size-value]");
 if (!dv || dv.textContent !== "Medium") {{
@@ -562,7 +709,11 @@ const sizeBtns = settingsList.querySelectorAll("button[data-danmaku-size]");
 const largeBtn = sizeBtns.find((b) => b.dataset.danmakuSize === "1.25");
 const mediumBtn = sizeBtns.find((b) => b.dataset.danmakuSize === "1");
 if (!largeBtn || !mediumBtn) throw new Error("Danmaku size buttons not found");
+failWrites = true;
 largeBtn.dispatchEvent(clickEvt);
+if (largeBtn.getAttribute("aria-checked") !== "true" || store.get("miku_danmaku_size") !== "1") {{
+  throw new Error("Expected Large to stay checked even when storage rejects the update");
+}}
 
 if (dv.textContent !== "Large") {{
   throw new Error("Expected danmaku size Large after click, got: " + dv.textContent);
@@ -577,11 +728,33 @@ if (queuedComment.width !== undefined || queuedComment.height !== undefined) {{
   throw new Error("Expected queued comment width/height to be invalidated for fresh measurement");
 }}
 
+const emitted = {{
+  text: "emitted while Large",
+  style: {{ fontSize: "20px", font: "bold 20px serif" }},
+}};
+window.dm.emit(emitted);
+const retained = window.dm.comments.find((c) => c.text === emitted.text);
+if (!retained || retained === emitted || retained.style.font !== "bold 25px serif") {{
+  throw new Error("Expected Danmaku to retain a copy scaled to Large");
+}}
+
+mediumBtn.dispatchEvent(clickEvt);
+if (retained.style.fontSize !== "20px" || retained.style.font !== "bold 20px serif") {{
+  throw new Error("Expected the retained copy to restore its exact original font at Medium");
+}}
+sizeBtns.find((b) => b.dataset.danmakuSize === "0.8").dispatchEvent(clickEvt);
+if (retained.style.fontSize !== "16px" || retained.style.font !== "bold 16px serif") {{
+  throw new Error("Expected Small to scale the retained copy from its original baseline");
+}}
 mediumBtn.dispatchEvent(clickEvt);
 if (activeComment.style.fontSize !== "25px" || activeComment.style.font !== "25px sans-serif") {{
   throw new Error("Expected Medium to restore exact original font, got: " + activeComment.style.font);
 }}
 
+window.MikuPlayerUI.mount(root, video, {{ isLive: true }});
+if (keydown(doc, root, "ArrowRight") || video.currentTime !== 35) {{
+  throw new Error("Expected live playback to preserve default ArrowRight");
+}}
 window.MikuPlayerUI.destroy();
 """
         proc = subprocess.run([node_bin, "-e", test_script], capture_output=True, text=True)
