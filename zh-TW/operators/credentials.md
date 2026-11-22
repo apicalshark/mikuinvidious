@@ -16,7 +16,7 @@
 
 ## 加密存放（建議）
 
-以明文存放 Cookie 於組態檔存在外洩風險。本專案支援 libsodium（XChaCha20-Poly1305）加密：
+以明文存放 Cookie 於組態檔存在外洩風險。本專案支援 libsodium（XSalsa20-Poly1305）加密：
 
 ```bash
 python tools/encrypt_secrets.py --generate-key   # 產生主金鑰，存放於 SECRETS_MASTER_KEY

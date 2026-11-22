@@ -2,7 +2,7 @@
 
 MikuInvidious includes an atomic Redis sliding-window token bucket rate limiter to protect public instances from scraping floods and Denial of Service attacks.
 
-Rate limiting is **disabled by default**. For public instances exposed directly to the internet, enabling it is strongly recommended.
+Rate limiting is **enabled by default** in `config.toml.sample` and `compose.yml` (the raw fallback default when unconfigured is `false`). For public instances exposed directly to the internet, keeping it enabled is strongly recommended.
 
 ---
 
@@ -13,7 +13,7 @@ In `config.toml`:
 ```toml
 [rate_limit]
 enabled = true
-trusted_proxies = "172.18.0.0/16, 10.0.0.0/8"
+trusted_proxies = "127.0.0.1/8,::1/128,172.30.0.0/24"
 ```
 
 Alternatively, configure via environment variables:
@@ -23,15 +23,15 @@ For Docker deployments, set them under the `app` service environment in `compose
 ```yaml
 environment:
   - RATE_LIMIT_ENABLED=true
-  - TRUSTED_PROXIES=172.18.0.0/16
+  - TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24
 ```
 
 For direct CLI launches, export the environment variables before starting the server:
 
 ```bash
 export RATE_LIMIT_ENABLED=true
-export TRUSTED_PROXIES="172.18.0.0/16"
-uv run python/main.py
+export TRUSTED_PROXIES="127.0.0.1/8,::1/128"
+uv run python python/main.py
 ```
 
 > [!IMPORTANT]
@@ -60,7 +60,8 @@ Predefined bucket profiles are applied based on endpoint sensitivity:
 | **Strict** | 10 req | 60 sec | Sensitive administrative endpoints and raw credential actions. |
 | **Search** | 20 req | 60 sec | Category and keyword search endpoints (`/search`). |
 | **Normal** | 60 req | 60 sec | General video metadata, user spaces, and Bangumi views. |
-| **Proxy** | 100 req | 60 sec | Media streaming fragments and image proxies. |
+| **Proxy** | 100 req | 60 sec | Image proxies and progressive media fragments (`/proxy/pic/*`, `/proxy/video/*`). |
+| **Streaming** | 600 req (per IP) / 120 req (per target) | 60 sec | High-frequency segmented media proxies (`/proxy/dash/*`, `/proxy/live_hls`). |
 | **Loose** | 300 req | 60 sec | Auxiliary static assets and auxiliary resources. |
 
 When a client exceeds the quota, the server responds with `HTTP 429 Too Many Requests` and a `Retry-After` header. Allowed responses include standard telemetry headers:

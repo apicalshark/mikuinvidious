@@ -15,6 +15,6 @@ npm run check:i18n   # strings changed only
 1. Issues, PRs, discussions all fine. Check `git status` / `git diff` before
    submitting — no secrets.
 
-License: app is GNU GPL-3.0. Frontend licenses: `/licenses` (hls.js, mpegts.js:
-Apache-2.0; dash.js: BSD-3-Clause; media-chrome, Danmaku, opencc-js: MIT).
+License: app is GNU AGPL-3.0. Frontend licenses: `/licenses` (hls.js, mpegts.js:
+Apache-2.0; dash.js: BSD-3-Clause; Danmaku, opencc-js: MIT).
 Vendored files sync via `npm run sync:static`, never by hand.

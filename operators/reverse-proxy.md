@@ -18,16 +18,32 @@ Caddy serves as the public entry point for MikuInvidious: it handles automatic T
     # Set webroot for static assets
     root * /usr/share/caddy
 
+    log {
+        output stdout
+        format json
+    }
+
+    request_body {
+        max_size 1MB
+    }
+
+    header -Server
+
     # Serve static assets directly from disk (bypasses Python app entirely)
     handle /static/* {
         header X-Content-Type-Options "nosniff"
-        header Cache-Control "public, no-cache"
+        header X-Frame-Options "DENY"
+        header Referrer-Policy "strict-origin-when-cross-origin"
+        header Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        header Cross-Origin-Resource-Policy "same-origin"
         file_server
     }
 
     handle /site.webmanifest {
         root * /usr/share/caddy/static
         header Content-Type "application/manifest+json"
+        header X-Content-Type-Options "nosniff"
+        header Cross-Origin-Resource-Policy "same-origin"
         file_server
     }
 

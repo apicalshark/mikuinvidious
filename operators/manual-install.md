@@ -66,7 +66,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Run Granian ASGI via the development launcher:
 
 ```bash
-uv run python/main.py
+uv run python python/main.py
 ```
 
 The application will bind to the address specified in `config.toml` (default `http://[::]:8888` or `http://0.0.0.0:8888`). When running behind a reverse proxy such as Caddy, restrict direct backend access by setting `host = "127.0.0.1"` in `config.toml` or firewalling port 8888, ensuring public requests cannot bypass proxy protections.

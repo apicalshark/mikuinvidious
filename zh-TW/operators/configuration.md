@@ -1,6 +1,6 @@
 # 組態參照
 
-MikuInvidious 可透過 `config.toml` 設定檔（建議方式）或環境變數進行組態配置。設定檔設定（`config.toml`）會優先覆寫環境變數預設值，唯一的例外是 `SITE_URL`，若於環境變數中設定，將覆蓋 `site.site_url`。
+MikuInvidious 可透過 `config.toml` 設定檔（建議方式）或環境變數進行組態配置。設定檔設定（`config.toml`）會優先覆寫環境變數預設值，唯一的例外是 `SITE_URL`（覆寫 `site.site_url`）與 `DEFAULT_ACCENT_COLOR` / `DEFAULT_ACCENT`（覆寫 `display.default_accent`），若於環境變數中設定將優先套用。
 
 ---
 
@@ -15,6 +15,7 @@ MikuInvidious 可透過 `config.toml` 設定檔（建議方式）或環境變數
 | `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | 修改後之原始碼儲存庫連結（若修改了程式碼，為符合 AGPL-3.0 規範必須提供）。未修改請設為 `false`。 |
 | `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | 設為 `false` 時於前端隱藏下載按鈕（媒體代理本身仍維持運作）。 |
 | `max_download_size_mb` | `MAX_DOWNLOAD_SIZE_MB` | `1024` | 單軌下載大小上限（MB），超出此容量之任務將被拒絕。 |
+| `max_download_disk_mb` | `MAX_DOWNLOAD_DISK_MB` | `4096` | 已完成下載任務保留之總磁碟空間上限（MB），超出時會自動淘汰最舊檔案。 |
 | `site_show_unsafe_error_response` | `SITE_SHOW_UNSAFE_ERROR_RESPONSE` | `false` | 設為 `true` 時直接於介面展示後端詳細錯誤回應。**僅供本機偵錯使用。** |
 | `nyaa_bangumi` | `NYAA_BANGUMI` | `false` | 是否於番劇頁面啟用 Nyaa.si BT 種子搜尋（在 `compose.yml` 中預設為 `true`）。 |
 | `robots_policy` | `ROBOTS_POLICY` | `strict` | 搜尋引擎爬蟲政策：`strict`（阻擋所有）、`relaxed`（允許專欄與搜尋）或 `PLEASE_INDEX_EVERYTHING`。 |
@@ -59,6 +60,17 @@ Web 伺服器核心設定（Granian / Quart）。
 | 設定鍵值 | 對應環境變數 | 預設值 | 說明 |
 | :--- | :--- | :--- | :--- |
 | `prefer_hls` | `LIVE_PREFER_HLS` | `false` | 設為 `false` 時優先提供 FLV，HLS master 作為備援；設為 `true` 則反轉優先級。 |
+
+---
+
+## `[dash]`
+
+DASH CDN 鏡像合成與區域偏好設定。
+
+| 設定鍵值 | 對應環境變數 | 預設值 | 說明 |
+| :--- | :--- | :--- | :--- |
+| `cdn_region` | `DASH_CDN_REGION` | `overseas_hk_tw` | DASH 主機重寫之區域鏡像預設集：`overseas_hk_tw`（海外＋港台 Tier 1）、`overseas`（歐美海外 Tier 1）、`hk_tw`（港台 Tier 1）、`mainland`（中國大陸 Tier 1）、`auto`（依被動 EWMA 吞吐量排序之廣域池）或 `none`（停用鏡像合成）。 |
+| `custom_cdn_mirrors` | `DASH_CUSTOM_CDN_MIRRORS` | `[]` | 選用的自訂 Bilibili CDN 主機名稱清單，會優先置於 Tier 1（`config.toml` 使用 TOML 陣列，環境變數以逗號分隔）。非白名單網域會被忽略。 |
 
 ---
 
@@ -162,7 +174,7 @@ Redis 頁面快取存留時間（以分鐘為單位），設為 `0` 即可完全
 
 | 設定鍵值 | 對應環境變數 | 預設值 | 說明 |
 | :--- | :--- | :--- | :--- |
-| `enabled` | `RATE_LIMIT_ENABLED` | `false` | 速率限制器總開關。 |
+| `enabled` | `RATE_LIMIT_ENABLED` | `false`（程式預設）/ `true`（`config.toml.sample`、`compose.yml`） | 速率限制器總開關。 |
 | `trusted_proxies` | `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | 以逗號分隔之信任反向代理 IP 位址或 CIDR 網段，僅信任清單內對端所帶入之 `X-Forwarded-For`（`get_client_ip()`）。 |
 
 > [!WARNING]

@@ -12,7 +12,7 @@ Do not run tests indiscriminately. Evaluate the scope of your changes first:
 | :--- | :--- | :--- |
 | **Documentation / Markdown only** (`*.md`, `doc/*`) | Check git status & verify markdown link targets (`npm run build` in docs repo) | **DO NOT run unit tests, compileall, or linters.** |
 | **Frontend assets only** (`static/*`, `templates/*`) | `npm run lint:frontend`<br>`npm run build:css` (if Tailwind CSS modified)<br>`npm run build:i18n` (if translatable strings change)<br>`npm run check:i18n` (to verify catalogs) | **DO NOT run Python unit tests.** |
-| **Python code modified** (`python/*`, `tests/*`) | `uv run ruff check python`<br>`uv run python -m compileall -q python tests tools`<br>`npm run build:i18n` (if strings change)<br>`npm run check:i18n` (if catalogs change)<br>`NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests` | Do not skip bytecode or ruff checks before PRs. |
+| **Python code modified** (`python/*`, `tests/*`) | `uv run ruff check python tests tools`<br>`uv run python -m compileall -q python tests tools`<br>`npm run build:i18n` (if strings change)<br>`npm run check:i18n` (if catalogs change)<br>`uv run python tools/run_tests.py` | Do not skip bytecode or ruff checks before PRs. |
 
 ---
 
@@ -23,7 +23,7 @@ Do not run tests indiscriminately. Evaluate the scope of your changes first:
 Run only when `python/*` or `tests/*` change:
 
 ```bash
-NO_PROXY="localhost,127.0.0.1,::1" no_proxy="localhost,127.0.0.1,::1" PYTHONPATH=python uv run python -m unittest discover tests
+uv run python tools/run_tests.py
 ```
 
 ### Bytecode Compilation Check
@@ -37,8 +37,8 @@ uv run python -m compileall -f python tests tools
 ### Python Linting & Formatting
 
 ```bash
-uv run ruff check python
-uv run ruff format python
+uv run ruff check python tests tools
+uv run ruff format python tests tools
 ```
 
 ### Frontend Linting & Formatting
@@ -68,7 +68,7 @@ npm run build:i18n
 
 ## 3. High-Risk Testing Zones
 
-- **DASH Engine (`python/dash_*.py`)**: Any modifications to mirror failover, bounded Range checks, keep-alive socket pools, or signature refresh MUST be validated against `tests/test_mpd.py` and `tests/test_proxy_flood.py`.
+- **DASH Engine (`python/miku/dash/*.py`)**: Any modifications to mirror failover, bounded Range checks, keep-alive socket pools, or signature refresh MUST be validated against `tests/test_mpd.py`, `tests/test_dash_regressions.py`, and `tests/test_proxy_flood.py`.
 - **Live Stream Manager (`python/miku/media/live_manager.py`)**: Validated via `tests/test_live.py`.
 - **Danmaku Converter (`python/miku/media/danmaku.py`)**: Validated via `tests/test_danmaku.py`.
 - **Image Disk Cache (`python/miku/media/image_cache.py`)**: Validated via `tests/test_image_cache.py`.

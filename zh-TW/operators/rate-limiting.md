@@ -2,7 +2,7 @@
 
 MikuInvidious 內建基於 Redis 權杖桶的滑動視窗速率限制器，保護公開實例免於惡意爬蟲掃描與阻斷服務攻擊（DoS）。
 
-速率限制**預設為關閉狀態**。對於直接暴露於公網之公開站點，強烈建議啟用此功能。
+速率限制在 `config.toml.sample` 與 `compose.yml` 中**預設為啟用狀態**（未設定時之程式回退預設值為 `false`）。對於直接暴露於公網之公開站點，強烈建議保持啟用。
 
 ---
 
@@ -13,7 +13,7 @@ MikuInvidious 內建基於 Redis 權杖桶的滑動視窗速率限制器，保�
 ```toml
 [rate_limit]
 enabled = true
-trusted_proxies = "172.18.0.0/16, 10.0.0.0/8"
+trusted_proxies = "127.0.0.1/8,::1/128,172.30.0.0/24"
 ```
 
 或透過環境變數傳遞：
@@ -23,15 +23,15 @@ trusted_proxies = "172.18.0.0/16, 10.0.0.0/8"
 ```yaml
 environment:
   - RATE_LIMIT_ENABLED=true
-  - TRUSTED_PROXIES=172.18.0.0/16
+  - TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24
 ```
 
 若直接以 CLI 啟動伺服器，請在執行指令前先匯出環境變數：
 
 ```bash
 export RATE_LIMIT_ENABLED=true
-export TRUSTED_PROXIES="172.18.0.0/16"
-uv run python/main.py
+export TRUSTED_PROXIES="127.0.0.1/8,::1/128"
+uv run python python/main.py
 ```
 
 > [!IMPORTANT]
@@ -60,7 +60,8 @@ uv run python/main.py
 | **Strict** | 10 次 | 60 秒 | 敏感管理操作與憑證設定相關端點。 |
 | **Search** | 20 次 | 60 秒 | 分類與關鍵字搜尋端點（`/search`）。 |
 | **Normal** | 60 次 | 60 秒 | 一般影片詳情頁面、個人空間與番劇動漫。 |
-| **Proxy** | 100 次 | 60 秒 | 媒體串流分段與圖片代理。 |
+| **Proxy** | 100 次 | 60 秒 | 圖片代理與漸進式媒體串流（`/proxy/pic/*`、`/proxy/video/*`）。 |
+| **Streaming** | 600 次（每 IP）/ 120 次（每目標） | 60 秒 | 高頻分段媒體代理（`/proxy/dash/*`、`/proxy/live_hls`）。 |
 | **Loose** | 300 次 | 60 秒 | 輔助靜態資源。 |
 
 當客戶端超出配額時，伺服器回傳 `HTTP 429 Too Many Requests` 與 `Retry-After` 標頭。正常回應亦會附帶標準監控標頭：

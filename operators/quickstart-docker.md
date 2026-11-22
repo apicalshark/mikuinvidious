@@ -27,7 +27,9 @@ The recommended and easiest method to deploy MikuInvidious. Caddy, Granian, Redi
    cp Caddyfile.example Caddyfile
    ```
 
-3. **Start the containers**:
+3. **Configure secrets & start the containers**:
+
+   `compose.yml` runs containers with hardened defaults (`read_only: true`, dropped capabilities, `no-new-privileges`, memory/PID limits, and a pinned `172.30.0.0/24` bridge network). Before exposing an instance publicly, set strong values for `REDIS_PASSWORD` and `QUART_SECRET_KEY` (for example via `.env` or environment variables) so Redis is protected and user sessions survive restarts:
 
    ```bash
    docker compose up -d
@@ -79,7 +81,9 @@ Your instance will immediately be available at `http://localhost:8000`.
 
        handle {
            reverse_proxy app:8080 {
-               header_up X-Real-IP {remote_host}
+               header_up X-Real-IP {client_ip}
+               header_up X-Forwarded-For {client_ip}
+               header_up X-Forwarded-Proto {scheme}
            }
        }
    }

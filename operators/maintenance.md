@@ -53,5 +53,5 @@ What you should back up:
 What does **not** need backup:
 
 - **Redis**: Redis holds transient caches, temporary tickets, and rate-limiting counters. It can be cleared or discarded at any time.
-- **User Sessions**: Quart cryptographically signs client-side session cookies with an ephemeral secret key generated per startup, but does not encrypt their contents. Restarting the server intentionally invalidates sessions.
+- **User Sessions**: Quart cryptographically signs client-side session cookies and CSRF tokens. When `QUART_SECRET_KEY` (or `[server].secret_key`) is unset, an ephemeral key is generated at startup and restarts invalidate sessions; set `QUART_SECRET_KEY` in production if you want sessions to survive restarts.
 - **Image Disk Cache**: The `img_cache` directory automatically rebuilds on demand and prunes itself via LRU policies.

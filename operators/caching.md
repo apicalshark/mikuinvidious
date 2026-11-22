@@ -26,6 +26,7 @@ All cached page responses emit an `X-Cache: HIT` or `X-Cache: MISS` HTTP respons
 1. **Shared Space Payload**: The HTML space view (`/space/<mid>`) and JSON feed (`/space/<mid>/json`) share a single upstream Bilibili request (`space:data:<mid>`). The key expires on the longer TTL, with each route enforcing its own max-age on read.
 2. **Never Pin Failures**: Only healthy responses are cached. Upstream errors, network timeouts, or risk-control empty responses (e.g., empty video archives) are served live and never written to cache.
 3. **Bypass Rules**: Requests with `?listen=1` or custom format exports bypass the HTML page cache.
+4. **Singleflight Coalescing**: Cold-cache view paths and proxied image requests (`/proxy/pic/*`) use a loop-scoped `SingleflightGroup` (`python/miku/core/singleflight.py`) to deduplicate concurrent upstream fetches for the same resource, and `/proxy/pic/*` pairs it with a bounded 404 negative cache.
 
 ---
 

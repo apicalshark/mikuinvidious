@@ -27,7 +27,9 @@
    cp Caddyfile.example Caddyfile
    ```
 
-3. **啟動容器叢集**：
+3. **設定密鑰並啟動容器叢集**：
+
+   `compose.yml` 預設已套用安全強化（唯讀根檔案系統、移除權限、`no-new-privileges`、記憶體與 PID 上限，以及固定 `172.30.0.0/24` 橋接網路）。公開部署前請先設定高強度的 `REDIS_PASSWORD` 與 `QUART_SECRET_KEY`（例如透過 `.env` 或環境變數），以保護 Redis 並讓工作階段在重啟後得以保留：
 
    ```bash
    docker compose up -d
@@ -79,7 +81,9 @@
 
        handle {
            reverse_proxy app:8080 {
-               header_up X-Real-IP {remote_host}
+               header_up X-Real-IP {client_ip}
+               header_up X-Forwarded-For {client_ip}
+               header_up X-Forwarded-Proto {scheme}
            }
        }
    }

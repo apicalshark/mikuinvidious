@@ -24,32 +24,32 @@ MikuInvidious 是一套非同步、隱私優先的 Bilibili 網頁前端與媒�
 |                                                             |
 | +---------------------------------------------------------+ |
 | | 中介軟體層（Middleware）                                | |
-| | - 速率限制器（rate_limit.py，Redis 權杖桶滑動視窗）     | |
-| | - CSRF 防禦（csrf.py）                                  | |
-| | - 多國語系引擎（i18n.py）                               | |
+| | - 速率限制器（miku/core/rate_limit.py，Redis 權杖桶）   | |
+| | - CSRF 防禦（miku/core/csrf.py）                        | |
+| | - 多國語系引擎（miku/ui/i18n.py）                       | |
 | +---------------------------------------------------------+ |
 |                                                             |
 | +---------------------------------------------------------+ |
-| | 路由與視圖藍圖（views_*.py, app.py）                    | |
-| | - 首頁、搜尋、分區推薦（views_home.py）                 | |
-| | - 影片資訊與播放器頁（views_video.py）                   | |
-| | - 個人空間與文章專欄（views_space.py）                  | |
-| | - 番劇動畫與 Nyaa 種子（views_bangumi.py）              | |
-| | - 直播間與格式選擇（views_live.py）                     | |
-| | - 音訊單曲與歌單（views_audio.py）                      | |
+| | 路由與視圖藍圖（miku/views/*.py, miku/app.py）          | |
+| | - 首頁、搜尋、分區推薦（miku/views/home.py）            | |
+| | - 影片資訊與播放器頁（miku/views/video.py）             | |
+| | - 個人空間與文章專欄（miku/views/space.py）             | |
+| | - 番劇動畫與 Nyaa 種子（miku/views/bangumi.py）         | |
+| | - 直播間與格式選擇（miku/views/live.py）                | |
+| | - 音訊單曲與歌單（miku/views/audio.py）                 | |
 | +---------------------------------------------------------+ |
 |                                                             |
 | +---------------------------------------------------------+ |
-| | 媒體串流與代理引擎                                      | |
+| | 媒體串流與代理引擎（miku/dash/, miku/media/）           | |
 | | - DASH 引擎：MPD、拉取、串流、下載                      | |
-| |   (dash_mpd, dash_fetch, dash_stream, dash_download_*)  | |
+| |   (mpd, fetch, stream, download_*)                      | |
 | | - 圖片代理與本機 LRU 磁碟快取 (proxy.py, image_cache)   | |
 | | - 漸進式代理與直播管理 (proxy.py, live_mgr)             | |
 | | - 原生 Socket 與持久化 TLS 上下文 (stream.py, CdnConn)  | |
 | +---------------------------------------------------------+ |
 |                                                             |
 | +---------------------------------------------------------+ |
-| | 上游 Bilibili 客戶端封裝（python/api/）                 | |
+| | 上游 Bilibili 客戶端封裝（python/miku/api/）            | |
 | | - WBI 簽名、bili_ticket 憑證、Gaia 風控規避             | |
 | | - 影片、使用者、直播、番劇、音訊與文章模組              | |
 | +---------------------------------------------------------+ |
@@ -70,7 +70,7 @@ MikuInvidious 是一套非同步、隱私優先的 Bilibili 網頁前端與媒�
 ```
 
 > [!NOTE]
-> Quart 透過具數位簽章的客戶端 Cookie（`SecureCookieSessionInterface`）完全管理使用者工作階段，**不儲存在 Redis 中**。應用程式於每次啟動時均隨機產生一組暫態 32 位元組金鑰（`os.urandom(32).hex()`）。僅清除 Redis 資料庫絕不會影響現有使用者的登入 Cookie。
+> Quart 透過具數位簽章的客戶端 Cookie（`SecureCookieSessionInterface`）完全管理使用者工作階段，**不儲存在 Redis 中**。`miku.core.app.create_app()` 會優先使用 `[server].secret_key`（或 `QUART_SECRET_KEY`）；若未設定，則於每次啟動時隨機產生一組暫態 32 位元組金鑰（`os.urandom(32).hex()`）。僅清除 Redis 資料庫絕不會影響現有使用者的登入 Cookie。
 
 ---
 
@@ -88,21 +88,21 @@ graph TD
             Router{網址路徑？}
             
             subgraph "媒體與代理引擎"
-                ProxyDASH["DASH 串流代理引擎<br>(dash_stream.py / dash_download_*)"]
-                ProxyPic["圖片代理與快取<br>(proxy.py / image_cache.py)"]
-                ProxyLive["直播串流管理員<br>(live_manager.py)"]
+                ProxyDASH["DASH 串流代理引擎<br>(miku/dash/stream.py / download_*)"]
+                ProxyPic["圖片代理與快取<br>(miku/media/proxy.py / image_cache.py)"]
+                ProxyLive["直播串流管理員<br>(miku/media/live_manager.py)"]
             end
 
             subgraph "視圖模組（Views）"
-                HomeBP["首頁 / 搜尋 / 轉換<br>(views_home.py)"]
-                VideoBP["影片播放與詳情<br>(views_video.py)"]
-                SpaceBP["個人空間與專欄<br>(views_space.py)"]
-                BangumiBP["番劇動畫與 Nyaa<br>(views_bangumi.py)"]
-                LiveBP["直播間串流<br>(views_live.py)"]
-                AudioBP["音訊單曲與歌單<br>(views_audio.py)"]
+                HomeBP["首頁 / 搜尋 / 轉換<br>(miku/views/home.py)"]
+                VideoBP["影片播放與詳情<br>(miku/views/video.py)"]
+                SpaceBP["個人空間與專欄<br>(miku/views/space.py)"]
+                BangumiBP["番劇動畫與 Nyaa<br>(miku/views/bangumi.py)"]
+                LiveBP["直播間串流<br>(miku/views/live.py)"]
+                AudioBP["音訊單曲與歌單<br>(miku/views/audio.py)"]
             end
 
-            BiliAPI["本機 Bilibili API 客戶端<br>(python/api/)"]
+            BiliAPI["本機 Bilibili API 客戶端<br>(python/miku/api/)"]
         end
 
         Redis[("Redis 快取、憑證與限制")]
@@ -197,27 +197,29 @@ graph TD
 - **`miku/dash/stream.py`**：HTTP Range 分段串流代理、多鏡像自動容錯、停滯看門狗與 Socket 連線複用池（`_PlaybackKeepAlivePool`）。
 - **`miku/dash/download_track.py`**：分段背景下載器，搭載自適應降速階梯與 ffmpeg 無損音視訊封裝。
 - **`miku/dash/download_job.py`**：下載佇列併發排程器與狀態查詢 REST API。
-- **`miku/media/proxy.py`**：漸進式媒體串流（`/proxy/video/`）與圖片代理（`/proxy/pic/`）。
+- **`miku/media/proxy.py`**：漸進式媒體串流（`/proxy/video/`）、伺服器端直播 HLS 代理（`/proxy/live_hls`）與經 HMAC 驗證之圖片代理（`/proxy/pic/s/<sig>/...`），具備有界 404 負向快取、單飛合併請求與 HTTP/2 分波鏡像重試。
+- **`miku/core/singleflight.py`**：共用的事件迴圈層級取消安全 `SingleflightGroup` 與 `BoundedNegativeCache`，用於媒體代理與冷快取視圖路徑。
+- **`miku/core/url_signing.py`**：衍生自 `app.secret_key` 的無狀態 HMAC-SHA256 網址簽章與驗證，保護 `/proxy/pic/`、`/proxy/live_hls`、`/res/danmaku/`、`/res/subtitle/`、`/video/dash/.../manifest.mpd` 與 `/proxy/dash/`。
 - **`miku/media/image_cache.py`**：高效能本機磁碟 LRU 圖片快取，具備容量自動修剪功能。
 - **`miku/media/stream.py`**：原生 TCP Socket 輔助程式，搭配全域持久化 `_TLS_CONTEXT`。
 - **`miku/media/live_manager.py`**：直播串流長連線管理與定時心跳封包維持。
 - **`miku/core/dns_cache.py`**：非同步 Stale-While-Revalidate DNS 解析快取，徹底杜絕 SSRF 攻擊與連線抖動。
 - **`miku/media/danmaku.py`**：抓取、Protobuf 解碼與轉換 Bilibili 直播與影片彈幕。
 - **`miku/media/b23_resolver.py`**：於伺服器端解析 `b23.tv` 短網址，防範客戶端追蹤。
-- **`ip_slots.py`**：外連 IP 併發平衡控制器。
-- **`refresher.py` 與 `ticket_legacy.py`**：上游憑證與 Web 票券定時更新維護任務。
+- **`miku/core/ip_slots.py`**：外連 IP 併發平衡控制器與每 IP 媒體並行槽位限制器（`PerIpSlotLimiter`）。
+- **`miku/media/refresher.py`**：上游憑證與 Web 票券定時更新維護任務。
 
-### 本機 API 封裝（`python/api/`）
+### 本機 API 封裝（`python/miku/api/`）
 
-- **`api/client.py`**：核心 HTTP 客戶端，實作 WBI 查詢雜湊簽名、`bili_ticket` 簽章與 Gaia 風控退避。
-- **`api/credential.py`**：帳號身分憑證容器（`SESSDATA`、`bili_jct`、`buvid3`、`buvid4`、`dedeuserid`）。
-- **`api/video.py`**：影片詳情、標籤、CID 解析、播放網址（DASH 與漸進式）與字幕。
-- **`api/user.py`**：個人空間主頁、作者影片投稿與專欄文章。
-- **`api/live.py` 與 `api/live_area.py`**：直播間資訊、直播串流網址、即時彈幕與分類架構。
-- **`api/bangumi.py`**：官方動漫季番詳情、單集索引與類別篩選。
-- **`api/search.py`**：全站多分類綜合搜尋。
-- **`api/comment.py`**：影片與專欄評論留言討論串。
-- **`api/audio.py`**：音樂單曲與專輯歌單。
-- **`api/article.py` 與 `api/opus.py`**：專欄文章與動態圖文。
-- **`api/homepage.py` 與 `api/video_zone.py`**：熱門推薦動態與各分區動態。
-- **`api/exceptions.py`**：結構化上游例外類別架構。
+- **`miku/api/client.py` 與 `miku/api/wbi.py`**：核心 HTTP 客戶端，實作單飛保護 Cookie、WBI 查詢雜湊簽名、`bili_ticket` 簽章與 Gaia 風控退避。
+- **`miku/api/credential.py`**：帳號身分憑證容器（`SESSDATA`、`bili_jct`、`buvid3`、`buvid4`、`dedeuserid`）。
+- **`miku/api/video.py` 與 `miku/api/bvid.py`**：影片詳情、標籤、CID/BVID 解析、播放網址（DASH 與漸進式）與字幕。
+- **`miku/api/user.py`**：個人空間主頁、作者影片投稿與專欄文章。
+- **`miku/api/live.py` 與 `miku/api/live_area.py`**：直播間資訊、直播串流網址、即時彈幕與分類架構。
+- **`miku/api/bangumi.py`**：官方動漫季番詳情、單集索引與類別篩選。
+- **`miku/api/search.py`**：全站多分類綜合搜尋。
+- **`miku/api/comment.py`**：影片與專欄評論留言討論串（支援排序、附圖留言與訪客重試）。
+- **`miku/api/audio.py`**：音樂單曲與專輯歌單。
+- **`miku/api/article.py` 與 `miku/api/opus.py`**：專欄文章與動態圖文。
+- **`miku/api/homepage.py` 與 `miku/api/video_zone.py`**：熱門推薦動態與各分區動態。
+- **`miku/api/exceptions.py`**：結構化上游例外類別架構。

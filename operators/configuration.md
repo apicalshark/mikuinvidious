@@ -1,6 +1,6 @@
 # Configuration Reference
 
-MikuInvidious can be configured using `config.toml` (recommended) or environment variables. Configuration file settings (`config.toml`) override environment variable defaults, with the sole exception of `SITE_URL`, which overrides `site.site_url` if set in the environment.
+MikuInvidious can be configured using `config.toml` (recommended) or environment variables. Configuration file settings (`config.toml`) override environment variable defaults, except for `SITE_URL` (overrides `site.site_url`) and `DEFAULT_ACCENT_COLOR` / `DEFAULT_ACCENT` (overrides `display.default_accent`), which take precedence when set in the environment.
 
 ---
 
@@ -15,6 +15,7 @@ Settings related to site identity, security flags, and features.
 | `site_modified_source_code_url` | `SITE_MODIFIED_SOURCE_CODE_URL` | `false` | Link to modified source code (required by AGPL-3.0 if you modified the code). Set to `false` if unmodified. |
 | `site_allow_download` | `SITE_ALLOW_DOWNLOAD` | `true` | When `false`, hides video download UI elements (media proxy remains available). |
 | `max_download_size_mb` | `MAX_DOWNLOAD_SIZE_MB` | `1024` | Maximum allowed size (in MB) per downloaded track. Jobs exceeding this limit are rejected. |
+| `max_download_disk_mb` | `MAX_DOWNLOAD_DISK_MB` | `4096` | Maximum total disk space (in MB) retained by completed download jobs before oldest files are evicted. |
 | `site_show_unsafe_error_response` | `SITE_SHOW_UNSAFE_ERROR_RESPONSE` | `false` | When `true`, exposes raw backend error responses directly in the UI. **Use only for local debugging.** |
 | `nyaa_bangumi` | `NYAA_BANGUMI` | `false` | Enable or disable Nyaa.si torrent search in the Bangumi view (set to `true` in `compose.yml`). |
 | `robots_policy` | `ROBOTS_POLICY` | `strict` | Controls `robots.txt`: `strict` (disallow all), `relaxed` (allows articles/search), or `PLEASE_INDEX_EVERYTHING`. |
@@ -59,6 +60,17 @@ Live stream format policies.
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `prefer_hls` | `LIVE_PREFER_HLS` | `false` | When `false`, FLV is served first with HLS master as fallback. When `true`, HLS is served first with FLV fallback. |
+
+---
+
+## `[dash]`
+
+DASH CDN mirror synthesis and regional selection.
+
+| Key | Environment Variable | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `cdn_region` | `DASH_CDN_REGION` | `overseas_hk_tw` | Regional mirror preset for DASH host-rewriting: `overseas_hk_tw` (overseas + HK/TW Tier 1), `overseas` (EU/US global Tier 1), `hk_tw` (HK/TW Tier 1), `mainland` (Mainland China Tier 1), `auto` (broad pool ranked by passive EWMA throughput), or `none` (disable mirror synthesis). |
+| `custom_cdn_mirrors` | `DASH_CUSTOM_CDN_MIRRORS` | `[]` | Optional list of allowed Bilibili CDN hostnames prepended to Tier 1 (TOML array in `config.toml`, comma-separated string in env). Non-allowlisted domains are ignored. |
 
 ---
 
@@ -162,7 +174,7 @@ Sliding-window Redis token bucket rate limiting per client IP address.
 
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master toggle for rate limiting. |
+| `enabled` | `RATE_LIMIT_ENABLED` | `false` (code) / `true` (`config.toml.sample`, `compose.yml`) | Master toggle for rate limiting. |
 | `trusted_proxies` | `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | Comma-separated list of IP addresses or CIDR blocks whose `X-Forwarded-For` header is trusted for client IP extraction (`get_client_ip()`). |
 
 > [!WARNING]

@@ -1,6 +1,6 @@
 # Bilibili 上游 API 參照與簽名規範
 
-本文件記載本機客戶端模組（`python/api/`）中所實作的 Bilibili API 端點、查詢參數與加密簽名架構。
+本文件記載本機客戶端模組（`python/miku/api/`）中所實作的 Bilibili API 端點、查詢參數與加密簽名架構。
 
 ---
 
@@ -48,7 +48,7 @@
 - `GET https://www.bilibili.com/audio/music-service-c/web/url` —— 音訊串流播放網址。
 - `GET https://www.bilibili.com/audio/music-service-c/web/menu/info` —— 歌單資訊。
 - `GET https://www.bilibili.com/audio/music-service-c/web/song/of-menu` —— 歌單內收錄之歌曲。
-- `GET https://api.bilibili.com/x/article/viewinfo` —— 專欄文章附加統計（讚數、硬幣、收藏與標題備援）。文章主體由 `views_space.py` 直接自網頁 HTML 解析。
+- `GET https://api.bilibili.com/x/article/viewinfo` —— 專欄文章附加統計（讚數、硬幣、收藏與標題備援）。文章主體由 `miku/views/space.py` 直接自網頁 HTML 解析（並支援 Opus 圖文備援）。
 - `GET https://api.bilibili.com/x/polymer/web-dynamic/v1/opus/detail` —— 動態圖文內容。
 - `GET https://api.bilibili.com/x/web-interface/wbi/index/top/feed/rcmd` —— 首頁熱門推薦動態（經 WBI 簽名）。
 - `GET https://api.bilibili.com/x/web-interface/dynamic/region` —— 分區動態串。
@@ -57,7 +57,7 @@
 
 ## 2. 簽名雜湊機制與安全憑證
 
-### WBI 查詢字串簽名（`api/client.py`）
+### WBI 查詢字串簽名（`api/wbi.py`）
 
 1. **取得金鑰**：向 `/x/web-interface/nav` 取得 `wbi_img.img_url` 與 `wbi_img.sub_url`。
 2. **混合金鑰衍生**：串接檔名基底並透過 Bilibili OE 查表置換，計算出 32 字元的 `mixin_key`。

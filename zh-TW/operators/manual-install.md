@@ -66,7 +66,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 透過開發執行腳本啟動 Granian ASGI：
 
 ```bash
-uv run python/main.py
+uv run python python/main.py
 ```
 
 伺服器將監聽於 `config.toml` 中指定的位址（預設為 `http://[::]:8888` 或 `http://0.0.0.0:8888`）。在 Caddy 等反向代理後方執行時，建議在 `config.toml` 中將 `host` 限制為 `"127.0.0.1"` 或設定防火牆封鎖 8888 埠，避免公網流量繞過反向代理防護直接存取後端。

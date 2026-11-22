@@ -20,7 +20,7 @@ env vars (`SESSDATA`, `BILI_JCT`, `BUVID3`, `BUVID4`, `DEDEUSERID`, `USE_CRED=tr
 
 ## Encrypted storage
 
-Plaintext cookies leak. The project supports libsodium (XChaCha20-Poly1305):
+Plaintext cookies leak. The project supports libsodium (XSalsa20-Poly1305):
 
 ```bash
 python tools/encrypt_secrets.py --generate-key   # master key -> SECRETS_MASTER_KEY

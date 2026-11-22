@@ -9,8 +9,8 @@ MikuInvidious is an asynchronous, privacy-first web frontend and media proxy for
 - **Runtime & Framework**: Python 3.15+, [Quart](https://pgjones.gitlab.io/quart/) (async ASGI framework), [Granian](https://github.com/emmett-framework/granian)
 - **Web Server & Reverse Proxy**: [Caddy](https://caddyserver.com/) (serves `/static/*` directly and forwards dynamic routes to Granian; default `:8000` listener uses HTTP, while TLS termination requires a configured domain or upstream TLS terminator)
 - **Database / Cache**: [Redis](https://redis.io/) (required for playurl normalization, page caching, rate limiting, and ticket storage; Quart client sessions are signed client cookies)
-- **Local API Wrapper**: Self-maintained `python/api/` module with WBI signing, `bili_ticket` generation, Gaia risk evasion, and PGC fallback
-- **Frontend & Players**: Tailwind CSS 4, `dash.js` (VOD DASH v5), `hls.js` + `mpegts.js` (Live streaming), `media-chrome`
+- **Local API Wrapper**: Self-maintained `python/miku/api/` module with WBI signing, `bili_ticket` generation, Gaia risk evasion, and PGC fallback
+- **Frontend & Players**: Tailwind CSS 4, custom light-DOM player UI (`player_ui.js`), `dash.js` (VOD DASH v5), `hls.js` + `mpegts.js` (Live streaming)
 - **Optional Egress**: Cloudflare WARP (SOCKS5 proxy on `:1080`) for bypassing datacenter IP risk control
 
 ---

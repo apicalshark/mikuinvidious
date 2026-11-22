@@ -6,7 +6,7 @@ MikuInvidious features an advanced media playback and background download engine
 
 ## 1. Video Player & Quality Selection
 
-The video player uses `dash.js` (v5 representations API) with a modern, mobile-friendly interface.
+The video player uses `dash.js` (v5 representations API) with a custom, lightweight Tailwind CSS interface (`player_ui.js`) featuring a themed settings menu, native caption selector, and clickable time display.
 
 ### Quality Tiers
 
@@ -36,7 +36,7 @@ Danmaku comments are loaded as server-converted XML and rendered smoothly over t
 - **Toggle**: Use the danmaku icon in the player control bar or press <kbd>D</kbd>.
 - **Customization**: Under the settings cog in the player, you can tune:
   - **Opacity**: Adjust transparency from solid to faint so danmaku doesn't obscure subtitles.
-  - **Font Size**: Scale comment size to fit desktop or mobile displays.
+  - **Font Size**: Scale comment size (defaults to **Small**) to fit desktop or mobile displays.
   - **Display Speed**: Control how fast comments float across the screen.
 
 ---
@@ -89,5 +89,5 @@ The download status updates in real-time through the following phases:
 
 Live stream rooms support real-time audio/video streaming via raw sockets:
 
-- **Format Policy**: By default, live rooms stream using high-speed FLV (via `mpegts.js`), automatically falling back to HLS master playlists (via `hls.js`) if required.
+- **Format Policy**: By default, live rooms stream using high-speed FLV (via `mpegts.js`), automatically falling back to server-proxied HLS master playlists (via `hls.js` or native HLS with live settings menu support) if required.
 - **Real-Time Danmaku**: Connects to Bilibili live room chat websockets server-side and broadcasts comments to your browser with low latency.

@@ -24,32 +24,32 @@ MikuInvidious is an asynchronous, privacy-first web frontend and media proxy for
 |                                                             |
 | +---------------------------------------------------------+ |
 | | Middleware Layer                                        | |
-| | - Rate Limiter (rate_limit.py, Redis token bucket)      | |
-| | - CSRF Protection (csrf.py)                             | |
-| | - Internationalization (i18n.py)                        | |
+| | - Rate Limiter (miku/core/rate_limit.py, Redis-backed)  | |
+| | - CSRF Protection (miku/core/csrf.py)                   | |
+| | - Internationalization (miku/ui/i18n.py)                | |
 | +---------------------------------------------------------+ |
 |                                                             |
 | +---------------------------------------------------------+ |
-| | Routing & View Blueprints (views_*.py, app.py)          | |
-| | - Home, Search, Feeds (views_home.py)                   | |
-| | - Video Details & Player (views_video.py)               | |
-| | - User Space & Articles (views_space.py)                | |
-| | - Bangumi / Anime Index & Nyaa (views_bangumi.py)       | |
-| | - Live Room & Format Selector (views_live.py)           | |
-| | - Audio & Playlists (views_audio.py)                    | |
+| | Routing & View Blueprints (miku/views/*.py, miku/app.py)| |
+| | - Home, Search, Feeds (miku/views/home.py)              | |
+| | - Video Details & Player (miku/views/video.py)          | |
+| | - User Space & Articles (miku/views/space.py)           | |
+| | - Bangumi / Anime Index & Nyaa (miku/views/bangumi.py)  | |
+| | - Live Room & Format Selector (miku/views/live.py)      | |
+| | - Audio & Playlists (miku/views/audio.py)               | |
 | +---------------------------------------------------------+ |
 |                                                             |
 | +---------------------------------------------------------+ |
-| | Media & Streaming Engine                                | |
+| | Media & Streaming Engine (miku/dash/, miku/media/)      | |
 | | - DASH Engine: MPD, Fetch, Stream, Download             | |
-| |   (dash_mpd, dash_fetch, dash_stream, dash_download_*)  | |
+| |   (mpd, fetch, stream, download_*)                      | |
 | | - Image Proxy & Disk LRU Cache (proxy.py, image_cache)  | |
 | | - Progressive Proxy & Live Manager (proxy.py, live_mgr) | |
 | | - Raw Sockets & TLS Context (stream.py, CdnConnection)  | |
 | +---------------------------------------------------------+ |
 |                                                             |
 | +---------------------------------------------------------+ |
-| | Upstream Bilibili Client (python/api/)                  | |
+| | Upstream Bilibili Client (python/miku/api/)             | |
 | | - WBI Signatures, bili_ticket, Gaia avoidance           | |
 | | - Video, User, Live, Bangumi, Audio, Article wrappers   | |
 | +---------------------------------------------------------+ |
@@ -70,7 +70,7 @@ MikuInvidious is an asynchronous, privacy-first web frontend and media proxy for
 ```
 
 > [!NOTE]
-> Quart manages user sessions entirely via signed client-side cookies (`SecureCookieSessionInterface`), not in Redis. An ephemeral random 32-byte secret key is generated at every application startup (`os.urandom(32).hex()`). Flushing Redis alone does not invalidate existing user session cookies while the application is running.
+> Quart manages user sessions entirely via signed client-side cookies (`SecureCookieSessionInterface`), not in Redis. `miku.core.app.create_app()` uses `[server].secret_key` (or `QUART_SECRET_KEY`) when configured, and otherwise generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at each startup. Flushing Redis alone does not invalidate existing user session cookies while the application is running.
 
 ---
 
@@ -88,21 +88,21 @@ graph TD
             Router{URL Path?}
             
             subgraph "Media & Proxy Engine"
-                ProxyDASH["DASH Proxy Engine<br>(dash_stream.py / dash_download_*)"]
-                ProxyPic["Image Proxy & Cache<br>(proxy.py / image_cache.py)"]
-                ProxyLive["Live Stream Manager<br>(live_manager.py)"]
+                ProxyDASH["DASH Proxy Engine<br>(miku/dash/stream.py / download_*)"]
+                ProxyPic["Image Proxy & Cache<br>(miku/media/proxy.py / image_cache.py)"]
+                ProxyLive["Live Stream Manager<br>(miku/media/live_manager.py)"]
             end
 
             subgraph "View Blueprints"
-                HomeBP["Home / Search / Convert<br>(views_home.py)"]
-                VideoBP["Video & Player View<br>(views_video.py)"]
-                SpaceBP["Space & Articles<br>(views_space.py)"]
-                BangumiBP["Bangumi & Nyaa<br>(views_bangumi.py)"]
-                LiveBP["Live Broadcasts<br>(views_live.py)"]
-                AudioBP["Audio & Playlists<br>(views_audio.py)"]
+                HomeBP["Home / Search / Convert<br>(miku/views/home.py)"]
+                VideoBP["Video & Player View<br>(miku/views/video.py)"]
+                SpaceBP["Space & Articles<br>(miku/views/space.py)"]
+                BangumiBP["Bangumi & Nyaa<br>(miku/views/bangumi.py)"]
+                LiveBP["Live Broadcasts<br>(miku/views/live.py)"]
+                AudioBP["Audio & Playlists<br>(miku/views/audio.py)"]
             end
 
-            BiliAPI["Local Bilibili API Client<br>(python/api/)"]
+            BiliAPI["Local Bilibili API Client<br>(python/miku/api/)"]
         end
 
         Redis[("Redis Cache, Tickets & Limits")]
@@ -197,27 +197,29 @@ graph TD
 - **`miku/dash/stream.py`**: HTTP Range track proxying, multi-mirror failover, watchdog, and upstream socket reuse (`_PlaybackKeepAlivePool`).
 - **`miku/dash/download_track.py`**: Segmented background track downloader with adaptive pacing ladders and ffmpeg muxing.
 - **`miku/dash/download_job.py`**: Download queue concurrency controller and status polling REST endpoints.
-- **`miku/media/proxy.py`**: Progressive media streaming (`/proxy/video/`) and image proxying (`/proxy/pic/`).
+- **`miku/media/proxy.py`**: Progressive media streaming (`/proxy/video/`), server-side live HLS proxying (`/proxy/live_hls`), and HMAC-verified image proxying (`/proxy/pic/s/<sig>/...`) with bounded 404 negative caching, singleflight coalescing, and wave-grouped mirror retries over HTTP/2.
+- **`miku/core/singleflight.py`**: Shared loop-scoped cancellation-safe `SingleflightGroup` and `BoundedNegativeCache` used across media proxies and view cold-cache paths.
+- **`miku/core/url_signing.py`**: Stateless HMAC-SHA256 URL signing and verification derived from `app.secret_key` for `/proxy/pic/`, `/proxy/live_hls`, `/res/danmaku/`, `/res/subtitle/`, `/video/dash/.../manifest.mpd`, and `/proxy/dash/`.
 - **`miku/media/image_cache.py`**: High-performance disk-based LRU image cache with automatic capacity pruning.
 - **`miku/media/stream.py`**: Raw TCP socket helpers with persistent `_TLS_CONTEXT` for low-latency streaming.
 - **`miku/media/live_manager.py`**: Persistent live stream connection buffering and heartbeat injection.
 - **`miku/core/dns_cache.py`**: Async stale-while-revalidate DNS resolver preventing SSRF attacks and inline latency spikes.
 - **`miku/media/danmaku.py`**: Fetches, decodes protobuf, and converts Bilibili live/video danmaku.
 - **`miku/media/b23_resolver.py`**: Resolves `b23.tv` short links server-side to prevent client tracking.
-- **`ip_slots.py`**: Concurrency controller balancing outbound requests across IP pools.
-- **`refresher.py` & `ticket_legacy.py`**: Upstream credential and web ticket refresh maintenance.
+- **`miku/core/ip_slots.py`**: Concurrency controller balancing outbound requests across IP pools and per-IP media slot limiters (`PerIpSlotLimiter`).
+- **`miku/media/refresher.py`**: Upstream credential and web ticket refresh maintenance.
 
-### Local API Wrapper (`python/api/`)
+### Local API Wrapper (`python/miku/api/`)
 
-- **`api/client.py`**: Core HTTP client implementing WBI query signing, `bili_ticket` generation, auto-cookies, and Gaia risk mitigation.
-- **`api/credential.py`**: Credential state container (`SESSDATA`, `bili_jct`, `buvid3`, `buvid4`, `dedeuserid`).
-- **`api/video.py`**: Video metadata, tags, cid resolution, playurls (DASH + progressive), and subtitles.
-- **`api/user.py`**: Space profiles, author video archives, and articles.
-- **`api/live.py` & `api/live_area.py`**: Live room metadata, stream URLs, live danmaku, and category taxonomy.
-- **`api/bangumi.py`**: PGC seasons, episodes, and index exploration.
-- **`api/search.py`**: Unified multi-category search.
-- **`api/comment.py`**: Video and article discussion threads.
-- **`api/audio.py`**: Music tracks and audio playlists.
-- **`api/article.py` & `api/opus.py`**: Text articles and dynamic opus posts.
-- **`api/homepage.py` & `api/video_zone.py`**: Trending home feeds and sub-channel feeds.
-- **`api/exceptions.py`**: Structured upstream exception hierarchy.
+- **`miku/api/client.py` & `miku/api/wbi.py`**: Core HTTP client implementing singleflight-guarded cookies, WBI query signing, `bili_ticket` generation, auto-cookies, and Gaia risk mitigation.
+- **`miku/api/credential.py`**: Credential state container (`SESSDATA`, `bili_jct`, `buvid3`, `buvid4`, `dedeuserid`).
+- **`miku/api/video.py` & `miku/api/bvid.py`**: Video metadata, tags, cid/bvid resolution, playurls (DASH + progressive), and subtitles.
+- **`miku/api/user.py`**: Space profiles, author video archives, and articles.
+- **`miku/api/live.py` & `miku/api/live_area.py`**: Live room metadata, stream URLs, live danmaku, and category taxonomy.
+- **`miku/api/bangumi.py`**: PGC seasons, episodes, and index exploration.
+- **`miku/api/search.py`**: Unified multi-category search.
+- **`miku/api/comment.py`**: Video and article discussion threads (with sort options, picture attachments, and guest retry).
+- **`miku/api/audio.py`**: Music tracks and audio playlists.
+- **`miku/api/article.py` & `miku/api/opus.py`**: Text articles and dynamic opus posts.
+- **`miku/api/homepage.py` & `miku/api/video_zone.py`**: Trending home feeds and sub-channel feeds.
+- **`miku/api/exceptions.py`**: Structured upstream exception hierarchy.

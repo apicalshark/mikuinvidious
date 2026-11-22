@@ -18,16 +18,32 @@ Caddy 是 MikuInvidious 的公網入口閘道：它負責自動申請與展延 T
     # 設定靜態資源網站根目錄
     root * /usr/share/caddy
 
+    log {
+        output stdout
+        format json
+    }
+
+    request_body {
+        max_size 1MB
+    }
+
+    header -Server
+
     # 直接自磁碟提供靜態資源（完全不經過 Python 應用程式）
     handle /static/* {
         header X-Content-Type-Options "nosniff"
-        header Cache-Control "public, no-cache"
+        header X-Frame-Options "DENY"
+        header Referrer-Policy "strict-origin-when-cross-origin"
+        header Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        header Cross-Origin-Resource-Policy "same-origin"
         file_server
     }
 
     handle /site.webmanifest {
         root * /usr/share/caddy/static
         header Content-Type "application/manifest+json"
+        header X-Content-Type-Options "nosniff"
+        header Cross-Origin-Resource-Policy "same-origin"
         file_server
     }
 
