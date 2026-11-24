@@ -96,6 +96,7 @@ class TestFingerprints(unittest.TestCase):
         headers = get_web_api_headers()
         self.assertEqual(headers["User-Agent"], FIXED_CHROME_UA)
         self.assertEqual(headers["Referer"], "https://www.bilibili.com")
+        self.assertEqual(headers["Accept-Encoding"], "gzip, deflate, br, zstd")
         self.assertEqual(headers["Accept-Language"], "zh-CN,zh;q=0.9")
 
     def test_article_scrape_headers(self):

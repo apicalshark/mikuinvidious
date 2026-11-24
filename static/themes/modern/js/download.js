@@ -237,7 +237,7 @@
     var backdrop = document.createElement("div");
     backdrop.id = "miku-dl-backdrop";
     backdrop.className =
-      "fixed inset-0 z-[100] hidden items-end justify-center bg-black/60 backdrop-blur-xs p-2 md:items-center md:p-4";
+      "fixed inset-0 z-[100] hidden items-center justify-center bg-black/60 backdrop-blur-xs p-4";
 
     var dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");
@@ -245,7 +245,7 @@
     dialog.setAttribute("tabindex", "-1");
     dialog.setAttribute("aria-label", I18n.t("Download"));
     dialog.className =
-      "w-full max-w-md rounded-t-3xl md:rounded-3xl bg-surface-container-low text-on-surface p-5 md:p-6 shadow-2xl";
+      "w-full max-w-md rounded-3xl bg-surface-container-low text-on-surface p-5 md:p-6 shadow-2xl";
 
     var header = document.createElement("div");
     header.className = "flex items-start justify-between gap-4 mb-4";
