@@ -9,7 +9,7 @@
             </h3>
             <div class="flex items-center gap-2 text-xs font-medium"
                  id="comments-sort-bar"
-                 data-vid="{{ vid }}"
+                 data-vid="{{ comment_vid|default(vid) }}"
                  data-idx="{{ idx if idx is defined else 0 }}"
                  data-comment-type="{{ comment_type|default(1) }}">
                 <button type="button"
@@ -34,7 +34,7 @@
              class="text-center pt-6 {{ '' if has_more else 'hidden' }}">
             <button id="comments-load-more-btn"
                     type="button"
-                    data-vid="{{ vid }}"
+                    data-vid="{{ comment_vid|default(vid) }}"
                     data-idx="{{ idx if idx is defined else 0 }}"
                     data-comment-type="{{ comment_type|default(1) }}"
                     class="md3-button md3-button-tonal w-full sm:w-auto">

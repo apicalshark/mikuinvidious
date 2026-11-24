@@ -1,4 +1,4 @@
-{% macro video_player(vid, vinfo, idx, supported_src, is_live=False, is_dash=False, dash_url='', subtitles=[], paywall=False) %}
+{% macro video_player(vid, vinfo, idx, supported_src, is_live=False, is_dash=False, dash_url='', subtitles=[], paywall=False, is_audio=False, download_options=None) %}
     <div id="player-wrapper"
          class="relative w-full bg-black md:rounded-xl rounded-none overflow-hidden shadow-2xl aspect-video"
          style="max-height: 85vh">
@@ -16,14 +16,20 @@
         <div id="miku-player"
              tabindex="0"
              class="relative w-full h-full bg-black text-white select-none outline-none overflow-hidden focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-white">
+            {% if is_audio %}
+                <img src="{{ vinfo['pic']|pic }}"
+                     alt="{{ vinfo['title'] }}"
+                     class="absolute inset-0 z-1 h-full w-full object-contain pointer-events-none" />
+            {% endif %}
             {% if is_live %}
                 <video id="player" poster="{{ vinfo['pic']|pic }}" playsinline crossorigin>
                 </video>
             {% elif is_dash %}
                 <video id="player"
+                       {% if is_audio %}class="z-2 bg-transparent!"{% endif %}
                        data-dash-url="{{ dash_url }}"
-                       data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"
-                       poster="{{ vinfo['pic']|pic }}"
+                       {% if not is_audio %}data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"{% endif %}
+                       {% if not is_audio %}poster="{{ vinfo['pic']|pic }}"{% endif %}
                        playsinline
                        crossorigin
                        preload="none">
@@ -36,9 +42,10 @@
                 </video>
             {% else %}
                 <video id="player"
+                       {% if is_audio %}class="z-2 bg-transparent!"{% endif %}
                        {% if supported_src %}src="/proxy/video/{{ vid }}_{{ idx }}_{{ supported_src[0]['quality'] }}{{ supported_src[0]['ext'] if supported_src[0]['ext'] else '' }}"{% endif %}
-                       data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"
-                       poster="{{ vinfo['pic']|pic }}"
+                       {% if not is_audio %}data-danmaku-url="{{ (vid ~ ':' ~ idx) | danmaku_url }}"{% endif %}
+                       {% if not is_audio %}poster="{{ vinfo['pic']|pic }}"{% endif %}
                        playsinline
                        crossorigin
                        preload="none">
@@ -50,8 +57,10 @@
                     {% endfor %}
                 </video>
             {% endif %}
-            <div id="danmaku-container"
-                 class="absolute inset-0 pointer-events-none z-10 overflow-hidden"></div>
+            {% if not is_audio %}
+                <div id="danmaku-container"
+                     class="absolute inset-0 pointer-events-none z-10 overflow-hidden"></div>
+            {% endif %}
             <div data-player-gesture-layer class="absolute inset-0 z-15"></div>
             <div data-player-spinner
                  class="hidden pointer-events-none absolute inset-0 z-20 items-center justify-center">
@@ -226,25 +235,27 @@
                     </div>
                     <div aria-hidden="true" class="flex-1"></div>
                     <div class="flex h-10 items-center rounded-full bg-black/30 px-1">
-                        <button type="button"
-                                id="danmaku-toggle"
-                                aria-label="{{ _('Toggle danmaku') }}"
-                                title="{{ _('Toggle danmaku') }}"
-                                aria-pressed="true"
-                                class="miku-bar-btn relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[transform,color] duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
-                            <svg class="size-5"
-                                 viewBox="0 0 24 24"
-                                 fill="none"
-                                 stroke="currentColor"
-                                 stroke-width="2"
-                                 stroke-linecap="round"
-                                 stroke-linejoin="round"
-                                 aria-hidden="true">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                                <line x1="7" y1="9" x2="17" y2="9" />
-                                <line x1="7" y1="13" x2="13" y2="13" />
-                            </svg>
-                        </button>
+                        {% if not is_audio %}
+                            <button type="button"
+                                    id="danmaku-toggle"
+                                    aria-label="{{ _('Toggle danmaku') }}"
+                                    title="{{ _('Toggle danmaku') }}"
+                                    aria-pressed="true"
+                                    class="miku-bar-btn relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-[transform,color] duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                <svg class="size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                    <line x1="7" y1="9" x2="17" y2="9" />
+                                    <line x1="7" y1="13" x2="13" y2="13" />
+                                </svg>
+                            </button>
+                        {% endif %}
                         {% if not is_live and subtitles %}
                             <div class="miku-bar-btn relative inline-flex size-10 shrink-0 items-center justify-center rounded-full before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 focus-within:ring-2 focus-within:ring-white">
                                 <svg class="size-5"
@@ -288,86 +299,88 @@
                                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                             </svg>
                         </button>
-                        <button type="button"
-                                data-pip-btn
-                                aria-label="{{ _('Picture-in-Picture') }}"
-                                title="{{ _('Picture-in-Picture') }}"
-                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
-                            <svg class="size-5"
-                                 viewBox="0 0 24 24"
-                                 fill="none"
-                                 stroke="currentColor"
-                                 stroke-width="2"
-                                 stroke-linecap="round"
-                                 stroke-linejoin="round"
-                                 aria-hidden="true">
-                                <rect x="2" y="4" width="20" height="16" rx="2" />
-                                <rect x="12" y="11" width="7" height="5" rx="1" />
-                            </svg>
-                        </button>
-                        <button type="button"
-                                data-theater-btn
-                                aria-label="{{ _('Theater mode') }}"
-                                title="{{ _('Theater mode') }}"
-                                aria-pressed="false"
-                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white @max-md:hidden">
-                            <svg data-icon-theater-enter
-                                 class="size-5"
-                                 viewBox="0 0 24 24"
-                                 fill="none"
-                                 stroke="currentColor"
-                                 stroke-width="2"
-                                 stroke-linecap="round"
-                                 stroke-linejoin="round"
-                                 aria-hidden="true">
-                                <rect x="2" y="5" width="20" height="14" rx="2" />
-                            </svg>
-                            <svg data-icon-theater-exit
-                                 class="hidden size-5"
-                                 viewBox="0 0 24 24"
-                                 fill="none"
-                                 stroke="currentColor"
-                                 stroke-width="2"
-                                 stroke-linecap="round"
-                                 stroke-linejoin="round"
-                                 aria-hidden="true">
-                                <rect x="4" y="6" width="16" height="12" rx="2" />
-                            </svg>
-                        </button>
-                        <button type="button"
-                                data-fullscreen-btn
-                                aria-label="{{ _('Fullscreen') }}"
-                                title="{{ _('Fullscreen') }}"
-                                class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
-                            <svg data-icon-fs-enter
-                                 class="size-5"
-                                 viewBox="0 0 24 24"
-                                 fill="none"
-                                 stroke="currentColor"
-                                 stroke-width="2"
-                                 stroke-linecap="round"
-                                 stroke-linejoin="round"
-                                 aria-hidden="true">
-                                <polyline points="15 3 21 3 21 9" />
-                                <polyline points="9 21 3 21 3 15" />
-                                <line x1="21" y1="3" x2="14" y2="10" />
-                                <line x1="3" y1="21" x2="10" y2="14" />
-                            </svg>
-                            <svg data-icon-fs-exit
-                                 class="hidden size-5"
-                                 viewBox="0 0 24 24"
-                                 fill="none"
-                                 stroke="currentColor"
-                                 stroke-width="2"
-                                 stroke-linecap="round"
-                                 stroke-linejoin="round"
-                                 aria-hidden="true">
-                                <polyline points="4 14 10 14 10 20" />
-                                <polyline points="20 10 14 10 14 4" />
-                                <line x1="14" y1="10" x2="21" y2="3" />
-                                <line x1="3" y1="21" x2="10" y2="14" />
-                            </svg>
-                        </button>
+                        {% if not is_audio %}
+                            <button type="button"
+                                    data-pip-btn
+                                    aria-label="{{ _('Picture-in-Picture') }}"
+                                    title="{{ _('Picture-in-Picture') }}"
+                                    class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                <svg class="size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                                    <rect x="12" y="11" width="7" height="5" rx="1" />
+                                </svg>
+                            </button>
+                            <button type="button"
+                                    data-theater-btn
+                                    aria-label="{{ _('Theater mode') }}"
+                                    title="{{ _('Theater mode') }}"
+                                    aria-pressed="false"
+                                    class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white @max-md:hidden">
+                                <svg data-icon-theater-enter
+                                     class="size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                                </svg>
+                                <svg data-icon-theater-exit
+                                     class="hidden size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <rect x="4" y="6" width="16" height="12" rx="2" />
+                                </svg>
+                            </button>
+                            <button type="button"
+                                    data-fullscreen-btn
+                                    aria-label="{{ _('Fullscreen') }}"
+                                    title="{{ _('Fullscreen') }}"
+                                    class="relative inline-flex size-10 shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full text-white outline-none transition-transform duration-150 ease-out motion-reduce:transition-none before:pointer-events-none before:absolute before:inset-1 before:rounded-full before:transition-colors before:duration-150 hover:before:bg-white/15 active:scale-95 focus-visible:ring-2 focus-visible:ring-white">
+                                <svg data-icon-fs-enter
+                                     class="size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <polyline points="15 3 21 3 21 9" />
+                                    <polyline points="9 21 3 21 3 15" />
+                                    <line x1="21" y1="3" x2="14" y2="10" />
+                                    <line x1="3" y1="21" x2="10" y2="14" />
+                                </svg>
+                                <svg data-icon-fs-exit
+                                     class="hidden size-5"
+                                     viewBox="0 0 24 24"
+                                     fill="none"
+                                     stroke="currentColor"
+                                     stroke-width="2"
+                                     stroke-linecap="round"
+                                     stroke-linejoin="round"
+                                     aria-hidden="true">
+                                    <polyline points="4 14 10 14 10 20" />
+                                    <polyline points="20 10 14 10 14 4" />
+                                    <line x1="14" y1="10" x2="21" y2="3" />
+                                    <line x1="3" y1="21" x2="10" y2="14" />
+                                </svg>
+                            </button>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -391,7 +404,7 @@
                 </button>
             </div>
         </div>
-        <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }}; window.is_dash = {{ 'true' if is_dash else 'false' }}; window.dash_url = {{ dash_url | tojson }};</script>
+        <script nonce="{{ csp_nonce }}">window.supported_src = {{ supported_src | tojson if supported_src else '[]' }}; window.is_dash = {{ 'true' if is_dash else 'false' }}; window.dash_url = {{ dash_url | tojson }}; window.download_options = {{ download_options | tojson if download_options else 'null' }};</script>
     </div>
 {% endmacro %}
 {% macro m3_spinner(size='48px', slot='', cls='') %}

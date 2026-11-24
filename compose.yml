@@ -84,8 +84,9 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    pids_limit: 64
-    mem_limit: 128m
+    pids_limit: 128
+    mem_limit: 192m
+    memswap_limit: 192m
     command:
       - redis-server
       - --save
@@ -96,6 +97,16 @@ services:
       - 64mb
       - --maxmemory-policy
       - allkeys-lru
+      - --lazyfree-lazy-eviction
+      - "yes"
+      - --lazyfree-lazy-expire
+      - "yes"
+      - --lazyfree-lazy-server-del
+      - "yes"
+      - --timeout
+      - "60"
+      - --tcp-keepalive
+      - "30"
       - --requirepass
       - ${REDIS_PASSWORD:-miku_change_me_redis_password}
     networks:

@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-22 14:23+0000\n"
+"POT-Creation-Date: 2026-11-24 20:06+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
@@ -189,30 +189,30 @@ msgstr "まだ閲覧履歴がありません。"
 msgid "Resolving video URL..."
 msgstr "動画URLを解決中..."
 
-#: static/themes/modern/js/player_ui.js:770
-#: static/themes/modern/js/player_ui.js:793
-#: static/themes/modern/js/player_ui.js:913
-#: static/themes/modern/js/player_ui.js:930
+#: static/themes/modern/js/player_ui.js:806
+#: static/themes/modern/js/player_ui.js:833
+#: static/themes/modern/js/player_ui.js:1049
+#: static/themes/modern/js/player_ui.js:1068
 msgid "Resolution"
 msgstr "画質"
 
-#: templates/macros.html:388
+#: templates/macros.html:401
 msgid "Click to play"
 msgstr "クリックして再生"
 
-#: templates/macros.html:389
+#: templates/macros.html:402
 msgid "Browser blocked autoplay"
 msgstr "ブラウザが自動再生をブロックしました"
 
-#: templates/macros.html:192
+#: templates/macros.html:201
 msgid "Volume"
 msgstr "音量"
 
-#: templates/macros.html:211 templates/macros.html:215
+#: templates/macros.html:220 templates/macros.html:224
 msgid "LIVE"
 msgstr "ライブ"
 
-#: templates/macros.html:231 templates/macros.html:232
+#: templates/macros.html:241 templates/macros.html:242
 msgid "Toggle danmaku"
 msgstr "弾幕の切り替え"
 
@@ -249,7 +249,7 @@ msgstr "Bilibiliで読む"
 msgid "reads"
 msgstr "回閲覧"
 
-#: static/themes/modern/js/comments.js:310
+#: static/themes/modern/js/comments.js:314
 #: templates/themes/modern/author.html:112
 #: templates/themes/modern/bangumi_index.html:101
 #: templates/themes/modern/search.html:67
@@ -259,7 +259,7 @@ msgstr "回閲覧"
 msgid "Previous page"
 msgstr "前のページ"
 
-#: static/themes/modern/js/comments.js:317
+#: static/themes/modern/js/comments.js:321
 #: templates/themes/modern/author.html:118
 #: templates/themes/modern/bangumi_index.html:108
 #: templates/themes/modern/search.html:73
@@ -475,7 +475,7 @@ msgid ""
 "the source code link below."
 msgstr "リクエストを確認してください。サイトの問題だと思われる場合は管理者に連絡してください。管理者の方は下のソースコードリンクから報告を検討してください。"
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:137
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:193
 msgid "Back to home"
 msgstr "ホームに戻る"
 
@@ -526,19 +526,17 @@ msgid "suffix."
 msgstr "の後に貼り付けてください。"
 
 #: templates/themes/modern/components/m3_components.html:127
-#: templates/themes/modern/video.html:138
-#: templates/themes/modern/video_listen.html:137
-#: templates/themes/modern/zone.html:49
+#: templates/themes/modern/video.html:143 templates/themes/modern/zone.html:49
 msgid "Watch on Bilibili"
 msgstr "Bilibiliで見る"
 
 #: templates/themes/modern/components/m3_components.html:135
-#: templates/themes/modern/video.html:70 templates/themes/modern/zone.html:54
+#: templates/themes/modern/video.html:75 templates/themes/modern/zone.html:54
 msgid "Audio mode"
 msgstr "オーディオモード"
 
 #: templates/themes/modern/components/m3_components.html:147
-#: templates/themes/modern/video.html:88 templates/themes/modern/video.html:369
+#: templates/themes/modern/video.html:93 templates/themes/modern/video.html:381
 msgid "views"
 msgstr "回再生"
 
@@ -572,7 +570,7 @@ msgstr "繁体字変換"
 msgid "Convert content to Traditional Chinese with OpenCC"
 msgstr "OpenCCで簡体字を繁体字に変換する"
 
-#: static/themes/modern/js/comments.js:30 templates/themes/modern/pref.html:102
+#: static/themes/modern/js/comments.js:31 templates/themes/modern/pref.html:102
 #: templates/themes/modern/pref.html:111 templates/themes/modern/pref.html:120
 #: templates/themes/modern/pref.html:129
 msgid "Loading..."
@@ -647,7 +645,6 @@ msgstr "再生数が多い順"
 #: templates/themes/modern/components/meta_part.html:21
 #: templates/themes/modern/search.html:26
 #: templates/themes/modern/search_article.html:23
-#: templates/themes/modern/video_listen.html:183
 msgid "Newest"
 msgstr "新着順"
 
@@ -732,115 +729,106 @@ msgstr "現在表示できる内容がありません——読み込みに失敗
 msgid "This user has no videos yet."
 msgstr "このユーザーはまだ動画を投稿していません。"
 
-#: templates/themes/modern/video.html:88
+#: templates/themes/modern/video.html:93
 msgid "Online"
 msgstr "オンライン"
 
-#: templates/themes/modern/video.html:90
+#: templates/themes/modern/video.html:95
 msgid "Likes"
 msgstr "いいね"
 
-#: templates/themes/modern/video.html:91
+#: templates/themes/modern/video.html:96
 msgid "Coins"
 msgstr "コイン"
 
-#: templates/themes/modern/video.html:92
+#: templates/themes/modern/video.html:97
 msgid "Favorites"
 msgstr "お気に入り"
 
-#: templates/themes/modern/video.html:93
+#: templates/themes/modern/video.html:98
 msgid "Share"
 msgstr "共有"
 
-#: templates/themes/modern/video.html:161
+#: static/themes/modern/js/download.js:228
+#: static/themes/modern/js/download.js:242
+#: static/themes/modern/js/download.js:384
+#: static/themes/modern/js/download.js:854
+#: templates/themes/modern/video.html:168
 msgid "Download"
 msgstr "ダウンロード"
 
-#: static/themes/modern/js/comments.js:118
+#: static/themes/modern/js/comments.js:122
 #: templates/themes/modern/components/meta_part.html:8
-#: templates/themes/modern/video.html:181
-#: templates/themes/modern/video_listen.html:170
+#: templates/themes/modern/video.html:191
 msgid "Comments"
 msgstr "コメント"
 
-#: templates/themes/modern/video.html:220
+#: templates/themes/modern/video.html:230
 msgid "Loading comments..."
 msgstr "コメントを読み込み中..."
 
-#: templates/themes/modern/video.html:239
-#: templates/themes/modern/video.html:242
+#: templates/themes/modern/video.html:250
+#: templates/themes/modern/video.html:253
 msgid "Live chat"
 msgstr "ライブチャット"
 
-#: templates/themes/modern/video.html:251
+#: templates/themes/modern/video.html:262
 msgid "Connecting to chat..."
 msgstr "チャットに接続中..."
 
-#: templates/themes/modern/video.html:262
-#: templates/themes/modern/video_listen.html:257
+#: templates/themes/modern/video.html:273
 msgid "Episodes"
 msgstr "エピソード"
 
-#: templates/themes/modern/video.html:268
-#: templates/themes/modern/video.html:308
-#: templates/themes/modern/video_listen.html:263
-#: templates/themes/modern/video_listen.html:302
+#: templates/themes/modern/video.html:279
+#: templates/themes/modern/video.html:320
 msgid "Autoplay next"
 msgstr "自動連続再生"
 
-#: templates/themes/modern/video.html:348
-#: templates/themes/modern/video_listen.html:339
+#: static/themes/modern/js/download.js:687
+#: templates/themes/modern/video.html:360
 msgid "Recommended"
 msgstr "おすすめ動画"
 
-#: static/themes/modern/js/player_ui.js:382 templates/macros.html:114
-#: templates/macros.html:115 templates/themes/modern/video_listen.html:358
+#: static/themes/modern/js/player_ui.js:388 templates/macros.html:123
+#: templates/macros.html:124
 msgid "Play"
 msgstr "再生"
 
-#: static/themes/modern/js/comments.js:27
+#: static/themes/modern/js/comments.js:28
 msgid "Fold"
 msgstr "折りたたむ"
 
-#: static/themes/modern/js/comments.js:29
+#: static/themes/modern/js/comments.js:30
 msgid "Load more replies"
 msgstr "返信をさらに表示"
 
-#: static/themes/modern/js/comments.js:32
+#: static/themes/modern/js/comments.js:33
 #: templates/themes/modern/components/meta_part.html:42
-#: templates/themes/modern/video_listen.html:246
 msgid "Load more comments"
 msgstr "さらにコメントを読み込む"
 
-#: static/themes/modern/js/comments.js:31
+#: static/themes/modern/js/comments.js:32
 msgid "Load failed"
 msgstr "読み込み失敗"
 
-#: static/themes/modern/js/audioplayer.js:29
-#: static/themes/modern/js/audioplayer.js:38
-#: templates/themes/modern/video_listen.html:52
-#, python-format
-msgid "Buffering: %(available)s / %(target)s"
-msgstr "バッファリング中：%(available)s / %(target)s"
-
-#: templates/themes/modern/video_listen.html:68
+#: templates/themes/modern/video.html:75
 msgid "Video mode"
 msgstr "ビデオモード"
 
-#: templates/themes/modern/video_listen.html:152
+#: static/themes/modern/js/download.js:864
+#: templates/themes/modern/video.html:168
 msgid "Download audio"
 msgstr "音声をダウンロード"
 
-#: static/themes/modern/js/comments.js:59
+#: static/themes/modern/js/comments.js:60
 #: templates/themes/modern/components/comment_items.html:40
-#: templates/themes/modern/video_listen.html:225
 #, python-format
 msgid "%(count)s reply"
 msgid_plural "%(count)s replies"
 msgstr[0] "%(count)s 件の返信"
 
 #: templates/themes/modern/components/meta_part.html:29
-#: templates/themes/modern/video_listen.html:234
 msgid "No comments yet or failed to load"
 msgstr "まだコメントがないか読み込みに失敗しました"
 
@@ -897,99 +885,60 @@ msgstr "Magnet"
 msgid "No collection resources found"
 msgstr "コレクションリソースが見つかりません"
 
-#: static/themes/modern/js/download.js:80
-msgid "Download progress"
-msgstr "ダウンロード進捗"
-
-#: static/themes/modern/js/download.js:81
+#: static/themes/modern/js/download.js:864
 msgid "Download video"
 msgstr "動画をダウンロード"
 
-#: static/themes/modern/js/comments.js:303
-#: static/themes/modern/js/download.js:82
-#: static/themes/modern/js/download.js:88
+#: static/themes/modern/js/comments.js:307
+#: static/themes/modern/js/download.js:251
+#: static/themes/modern/js/download.js:254
+#: static/themes/modern/js/download.js:418
 #: templates/themes/modern/space.html:104
 msgid "Close"
 msgstr "閉じる"
 
-#: static/themes/modern/js/download.js:83
-msgid "Preparing..."
-msgstr "準備中..."
-
-#: static/themes/modern/js/download.js:84
+#: static/themes/modern/js/download.js:401
 msgid "If the download does not start automatically, click here to retry"
 msgstr "ダウンロードが自動で始まらない場合は、ここをクリックして再試行してください"
 
-#: static/themes/modern/js/download.js:87
+#: static/themes/modern/js/download.js:414
 msgid "Cancel"
 msgstr "キャンセル"
 
-#: static/themes/modern/js/download.js:169
+#: static/themes/modern/js/download.js:979
 msgid "Queued... (server download slots are limited)"
 msgstr "キュー待ち...（サーバーの同時ダウンロード数に限りがあります）"
 
-#: static/themes/modern/js/download.js:172
-msgid "Resolving video info..."
-msgstr "動画情報を解決中..."
-
-#: static/themes/modern/js/download.js:184
-#, python-format
-msgid "Downloading %(percent)s% · %(bytes)s · %(speed)s"
-msgstr "ダウンロード中 %(percent)s% · %(bytes)s · %(speed)s"
-
-#: static/themes/modern/js/download.js:189
-#, python-format
-msgid "Downloading %(percent)s% · %(bytes)s"
-msgstr "ダウンロード中 %(percent)s% · %(bytes)s"
-
-#: static/themes/modern/js/download.js:196
-#, python-format
-msgid "Downloading... %(bytes)s · %(speed)s"
-msgstr "ダウンロード中... %(bytes)s · %(speed)s"
-
-#: static/themes/modern/js/download.js:197
-#, python-format
-msgid "Downloading... %(bytes)s"
-msgstr "ダウンロード中... %(bytes)s"
-
-#: static/themes/modern/js/download.js:201
+#: static/themes/modern/js/download.js:1006
 msgid "Muxing... (merging audio and video, please wait)"
 msgstr "多重化中...（音声と映像を結合しています。しばらくお待ちください）"
 
-#: static/themes/modern/js/download.js:204
+#: static/themes/modern/js/download.js:1011
 msgid "Done, download started in browser"
 msgstr "完了、ブラウザでダウンロードを開始しました"
 
-#: static/themes/modern/js/download.js:207
+#: static/themes/modern/js/download.js:1014
 msgid "Cancelled"
 msgstr "キャンセルしました"
 
-#: static/themes/modern/js/download.js:211
+#: static/themes/modern/js/download.js:1018
 #, python-format
 msgid "Download failed: %(error)s"
 msgstr "ダウンロード失敗：%(error)s"
 
-#: static/themes/modern/js/download.js:212
+#: static/themes/modern/js/download.js:1019
 msgid "Download failed"
 msgstr "ダウンロード失敗"
 
-#: static/themes/modern/js/download.js:227
-msgid "Requested quality unavailable, switched to highest available quality"
-msgstr "（選択した画質は利用できないため、最高の利用可能な画質に切り替えました）"
-
-#: static/themes/modern/js/download.js:258
+#: static/themes/modern/js/download.js:1083
 msgid "Task expired, please download again"
 msgstr "タスクの有効期限が切れました。再度ダウンロードしてください"
 
-#: static/themes/modern/js/download.js:284
+#: static/themes/modern/js/download.js:1101
 msgid "Lost connection to the server, please retry"
 msgstr "サーバーとの接続が切れました。再試行してください"
 
-#: static/themes/modern/js/download.js:380
-msgid "Preparing download..."
-msgstr "ダウンロードを準備中..."
-
-#: static/themes/modern/js/download.js:384
+#: static/themes/modern/js/download.js:1264
 msgid "Creating download task..."
 msgstr "ダウンロードタスクを作成中..."
 
@@ -1001,37 +950,37 @@ msgstr "配信が終了しました"
 msgid "Live stream has ended"
 msgstr "ライブ配信が終了しました"
 
-#: static/themes/modern/js/player.js:1513
+#: static/themes/modern/js/player.js:1692
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自動 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1565
+#: static/themes/modern/js/player.js:1745
 msgid "Auto"
 msgstr "自動"
 
-#: static/themes/modern/js/player_ui.js:773
-#: static/themes/modern/js/player_ui.js:827
+#: static/themes/modern/js/player_ui.js:810
+#: static/themes/modern/js/player_ui.js:895
 msgid "Audio"
 msgstr "音声"
 
-#: static/themes/modern/js/player_ui.js:701
-#: static/themes/modern/js/player_ui.js:776
+#: static/themes/modern/js/player_ui.js:729
+#: static/themes/modern/js/player_ui.js:813
 msgid "Playback speed"
 msgstr "再生速度"
 
-#: static/themes/modern/js/player_ui.js:567
-#: static/themes/modern/js/player_ui.js:1551
+#: static/themes/modern/js/player_ui.js:579
+#: static/themes/modern/js/player_ui.js:1741
 #: static/themes/modern/js/themes.js:200 static/themes/modern/js/themes.js:212
 #: static/themes/modern/js/themes.js:228 static/themes/modern/js/themes.js:238
 msgid "On"
 msgstr "オン"
 
-#: static/themes/modern/js/player_ui.js:567
-#: static/themes/modern/js/player_ui.js:1551
+#: static/themes/modern/js/player_ui.js:579
+#: static/themes/modern/js/player_ui.js:1741
 #: static/themes/modern/js/themes.js:203 static/themes/modern/js/themes.js:215
 #: static/themes/modern/js/themes.js:225 static/themes/modern/js/themes.js:241
-#: templates/macros.html:265
+#: templates/macros.html:276
 msgid "Off"
 msgstr "オフ"
 
@@ -1047,17 +996,16 @@ msgstr "テーマカラーをリセット"
 msgid "Custom Color"
 msgstr "カスタムカラー"
 
-#: static/themes/modern/js/comments.js:60
+#: static/themes/modern/js/comments.js:61
 #, python-format
 msgid "%(count)s replies"
 msgstr ""
 
-#: static/themes/modern/js/comments.js:119
+#: static/themes/modern/js/comments.js:123
 msgid "Failed to load comments, please try again later"
 msgstr "コメントの読み込みに失敗しました。後でもう一度お試しください"
 
 #: templates/themes/modern/components/meta_part.html:17
-#: templates/themes/modern/video_listen.html:179
 msgid "Hot"
 msgstr ""
 
@@ -1065,8 +1013,7 @@ msgstr ""
 msgid "Search videos..."
 msgstr "動画を検索..."
 
-#: templates/themes/modern/video.html:301
-#: templates/themes/modern/video_listen.html:295
+#: templates/themes/modern/video.html:313
 msgid "Collection"
 msgstr "コレクション"
 
@@ -1074,11 +1021,11 @@ msgstr "コレクション"
 msgid "Pinned"
 msgstr "固定"
 
-#: static/themes/modern/js/comments.js:28
+#: static/themes/modern/js/comments.js:29
 msgid "Show more"
 msgstr "もっと見る"
 
-#: static/themes/modern/js/comments.js:297
+#: static/themes/modern/js/comments.js:301
 msgid "Comment images"
 msgstr "コメントの画像"
 
@@ -1087,79 +1034,183 @@ msgstr "コメントの画像"
 msgid "Open image %(index)s of %(total)s"
 msgstr "画像 %(index)s / %(total)s を開く"
 
-#: templates/macros.html:80
+#: templates/macros.html:89
 msgid "Seek"
 msgstr "シーク"
 
-#: static/themes/modern/js/player_ui.js:407 templates/macros.html:147
-#: templates/macros.html:148
+#: static/themes/modern/js/player_ui.js:413 templates/macros.html:156
+#: templates/macros.html:157
 msgid "Mute"
 msgstr "ミュート"
 
-#: templates/macros.html:274 templates/macros.html:275
+#: templates/macros.html:285 templates/macros.html:286
 msgid "Settings"
 msgstr "設定"
 
-#: static/themes/modern/js/player_ui.js:1057 templates/macros.html:293
-#: templates/macros.html:294
+#: static/themes/modern/js/player_ui.js:1200 templates/macros.html:305
+#: templates/macros.html:306
 msgid "Picture-in-Picture"
 msgstr "ピクチャーインピクチャー"
 
-#: static/themes/modern/js/player_ui.js:1083 templates/macros.html:310
-#: templates/macros.html:311
+#: static/themes/modern/js/player_ui.js:1226 templates/macros.html:322
+#: templates/macros.html:323
 msgid "Theater mode"
 msgstr "シアターモード"
 
-#: static/themes/modern/js/player_ui.js:1027 templates/macros.html:339
-#: templates/macros.html:340
+#: static/themes/modern/js/player_ui.js:1170 templates/macros.html:351
+#: templates/macros.html:352
 msgid "Fullscreen"
 msgstr "全画面"
 
-#: static/themes/modern/js/player_ui.js:382
+#: static/themes/modern/js/player_ui.js:388
 msgid "Replay"
 msgstr "もう一度再生"
 
-#: static/themes/modern/js/player_ui.js:382
+#: static/themes/modern/js/player_ui.js:388
 msgid "Pause"
 msgstr "一時停止"
 
-#: static/themes/modern/js/player_ui.js:407
+#: static/themes/modern/js/player_ui.js:413
 msgid "Unmute"
 msgstr "ミュート解除"
 
-#: static/themes/modern/js/player_ui.js:1027
+#: static/themes/modern/js/player_ui.js:1170
 msgid "Exit fullscreen"
 msgstr "全画面を終了"
 
-#: static/themes/modern/js/player_ui.js:1057
+#: static/themes/modern/js/player_ui.js:1200
 msgid "Exit Picture-in-Picture"
 msgstr "ピクチャーインピクチャーを終了"
 
-#: static/themes/modern/js/player_ui.js:1083
+#: static/themes/modern/js/player_ui.js:1226
 msgid "Exit theater mode"
 msgstr "シアターモードを終了"
 
-#: static/themes/modern/js/player_ui.js:741
-#: static/themes/modern/js/player_ui.js:781
-#: static/themes/modern/js/player_ui.js:918
+#: static/themes/modern/js/player_ui.js:771
+#: static/themes/modern/js/player_ui.js:819
+#: static/themes/modern/js/player_ui.js:1055
 msgid "Danmaku size"
 msgstr "弾幕サイズ"
 
-#: static/themes/modern/js/player_ui.js:22
+#: static/themes/modern/js/player_ui.js:23
 msgid "Small"
 msgstr "小"
 
-#: static/themes/modern/js/player_ui.js:23
+#: static/themes/modern/js/player_ui.js:24
 msgid "Large"
 msgstr "大"
 
-#: static/themes/modern/js/player_ui.js:24
+#: static/themes/modern/js/player_ui.js:25
 msgid "Medium"
 msgstr "中"
 
-#: templates/macros.html:262 templates/macros.html:263
+#: templates/macros.html:273 templates/macros.html:274
 msgid "Captions"
 msgstr "\\\"字幕\\\""
+
+#: static/themes/modern/js/download.js:102
+#: static/themes/modern/js/download.js:185
+#: static/themes/modern/js/download.js:826
+msgid "Video"
+msgstr ""
+
+#: static/themes/modern/js/download.js:118
+#: static/themes/modern/js/download.js:166
+#: static/themes/modern/js/download.js:188
+msgid "Unknown size"
+msgstr ""
+
+#: static/themes/modern/js/download.js:354
+msgid "Start download"
+msgstr ""
+
+#: static/themes/modern/js/download.js:384
+msgid "Prepare"
+msgstr ""
+
+#: static/themes/modern/js/download.js:384
+msgid "Finalize"
+msgstr ""
+
+#: static/themes/modern/js/download.js:410
+msgid "Back"
+msgstr ""
+
+#: static/themes/modern/js/download.js:337
+msgid "No downloadable formats available"
+msgstr ""
+
+#: static/themes/modern/js/download.js:983
+msgid "Resolving stream info..."
+msgstr ""
+
+#: static/themes/modern/js/download.js:992
+#: static/themes/modern/js/download.js:995
+msgid "Downloading..."
+msgstr ""
+
+#: static/themes/modern/js/download.js:1002
+msgid "Remuxing audio, please wait..."
+msgstr ""
+
+#: static/themes/modern/js/download.js:1048
+#: static/themes/modern/js/download.js:1261
+#, python-format
+msgid "Selected: %(format)s"
+msgstr ""
+
+#: static/themes/modern/js/download.js:326
+#: static/themes/modern/js/download.js:740
+msgid "Video track"
+msgstr ""
+
+#: static/themes/modern/js/download.js:331
+#: static/themes/modern/js/download.js:741
+msgid "Audio track"
+msgstr ""
+
+#: static/themes/modern/js/download.js:777
+msgid "No video (audio only)"
+msgstr ""
+
+#: static/themes/modern/js/download.js:801
+msgid "No audio (video only)"
+msgstr ""
+
+#: static/themes/modern/js/download.js:586
+msgid "Select at least a video or audio track"
+msgstr ""
+
+#: static/themes/modern/js/download.js:608
+msgid "Audio only"
+msgstr ""
+
+#: static/themes/modern/js/download.js:617
+msgid "Video only (silent)"
+msgstr ""
+
+#: static/themes/modern/js/download.js:1004
+msgid "Remuxing video, please wait..."
+msgstr ""
+
+#: static/themes/modern/js/player_ui.js:838
+#: static/themes/modern/js/player_ui.js:881
+msgid "Codec"
+msgstr ""
+
+#: templates/themes/modern/pref.html:134 templates/themes/modern/pref.html:140
+msgid "Preferred video codec"
+msgstr ""
+
+#: templates/themes/modern/pref.html:135
+msgid ""
+"Preferred codec for playback and downloads (falls back automatically if "
+"unavailable)"
+msgstr ""
+
+#: templates/themes/modern/pref.html:145 templates/themes/modern/pref.html:157
+msgid "Auto (AV1 → HEVC → AVC)"
+msgstr ""
 
 #~ msgid "Personalization settings"
 #~ msgstr "個人設定"
@@ -1202,3 +1253,57 @@ msgstr "\\\"字幕\\\""
 
 #~ msgid "Toggle captions"
 #~ msgstr "字幕を切り替え"
+
+#~ msgid "Buffering: %(available)s / %(target)s"
+#~ msgstr "バッファリング中：%(available)s / %(target)s"
+
+#~ msgid "Download progress"
+#~ msgstr "ダウンロード進捗"
+
+#~ msgid "Preparing..."
+#~ msgstr "準備中..."
+
+#~ msgid "Resolving video info..."
+#~ msgstr "動画情報を解決中..."
+
+#~ msgid "Downloading %(percent)s% · %(bytes)s · %(speed)s"
+#~ msgstr "ダウンロード中 %(percent)s% · %(bytes)s · %(speed)s"
+
+#~ msgid "Downloading %(percent)s% · %(bytes)s"
+#~ msgstr "ダウンロード中 %(percent)s% · %(bytes)s"
+
+#~ msgid "Downloading... %(bytes)s · %(speed)s"
+#~ msgstr "ダウンロード中... %(bytes)s · %(speed)s"
+
+#~ msgid "Downloading... %(bytes)s"
+#~ msgstr "ダウンロード中... %(bytes)s"
+
+#~ msgid "Requested quality unavailable, switched to highest available quality"
+#~ msgstr "（選択した画質は利用できないため、最高の利用可能な画質に切り替えました）"
+
+#~ msgid "Preparing download..."
+#~ msgstr "ダウンロードを準備中..."
+
+#~ msgid "Recommended (%(height)sp)"
+#~ msgstr ""
+
+#~ msgid "Balanced"
+#~ msgstr ""
+
+#~ msgid "Best quality"
+#~ msgstr ""
+
+#~ msgid "Best sound"
+#~ msgstr ""
+
+#~ msgid "Small size (360p)"
+#~ msgstr ""
+
+#~ msgid "Small size"
+#~ msgstr ""
+
+#~ msgid "Simple view"
+#~ msgstr ""
+
+#~ msgid "All formats (%(count)s)"
+#~ msgstr ""

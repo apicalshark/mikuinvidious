@@ -24,10 +24,16 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await download_job.shutdown_download_jobs()
 
-    async def test_download_file_flv_and_mp4_mime_and_filename(self):
+    async def test_download_file_flv_mp4_m4a_and_flac_mime_and_filename(self):
         tmpdir = tempfile.mkdtemp(prefix="miku_test_dl_mime_")
         try:
-            for ext, expected_mime in ((".flv", "video/x-flv"), (".mp4", "video/mp4")):
+            for ext, expected_mime in (
+                (".flv", "video/x-flv"),
+                (".mp4", "video/mp4"),
+                (".mkv", "video/x-matroska"),
+                (".m4a", "audio/mp4"),
+                (".flac", "audio/flac"),
+            ):
                 with self.subTest(ext=ext):
                     job = download_job._DownloadJob("BV1xx411c7mD", 0, 80)
                     job.state = "ready"
@@ -534,6 +540,370 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(ip, download_job._legacy_ip_active)
         finally:
             download_job._legacy_ip_active.pop(ip, None)
+
+    async def test_extract_download_options_and_exact_track_selection(self):
+        dash_data = {
+            "support_formats": [
+                {"quality": 112, "new_description": "1080P+"},
+                {"quality": 80, "new_description": "1080P"},
+                {"quality": 64, "new_description": "720P"},
+            ],
+            "dash": {
+                "duration": 100,
+                "video": [
+                    {
+                        "id": 112,
+                        "codecid": 7,
+                        "width": 1920,
+                        "height": 1080,
+                        "bandwidth": 3000000,
+                        "codecs": "avc1.640028",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v112.m4s",
+                    },
+                    {
+                        "id": 80,
+                        "codecid": 7,
+                        "width": 1920,
+                        "height": 1080,
+                        "frameRate": "60",
+                        "bandwidth": 2000000,
+                        "codecs": "avc1.640028",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v80_avc.m4s",
+                    },
+                    {
+                        "id": 80,
+                        "codecid": 12,
+                        "width": 1920,
+                        "height": 1080,
+                        "frameRate": "60",
+                        "bandwidth": 1400000,
+                        "codecs": "hev1.1.6.L150.90",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v80_hevc.m4s",
+                    },
+                    {
+                        "id": 80,
+                        "codecid": 13,
+                        "width": 1920,
+                        "height": 1080,
+                        "frameRate": "60",
+                        "bandwidth": 1100000,
+                        "codecs": "av01.0.08M.08",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v80_av1.m4s",
+                    },
+                    {
+                        "id": 64,
+                        "codecid": 13,
+                        "width": 1280,
+                        "height": 720,
+                        "bandwidth": 800000,
+                        "codecs": "av01.0.08M.08",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v64_av1.m4s",
+                    },
+                ],
+                "audio": [
+                    {
+                        "id": 30280,
+                        "codecid": 0,
+                        "bandwidth": 192000,
+                        "codecs": "mp4a.40.2",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/a30280.m4s",
+                    },
+                    {
+                        "id": 30216,
+                        "codecid": 0,
+                        "bandwidth": 64000,
+                        "codecs": "mp4a.40.5",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/a30216.m4s",
+                    },
+                ],
+                "dolby": {
+                    "audio": [
+                        {
+                            "id": 30250,
+                            "codecid": 0,
+                            "bandwidth": 384000,
+                            "codecs": "ec-3",
+                            "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/dolby.m4s",
+                        }
+                    ]
+                },
+                "flac": {
+                    "audio": {
+                        "id": 30251,
+                        "codecid": 0,
+                        "bandwidth": 1200000,
+                        "codecs": "fLaC",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/flac.m4s",
+                    }
+                },
+            },
+        }
+        opts = download_track.extract_download_options(dash_data)
+        self.assertEqual([v["id"] for v in opts["videos"]], [80, 80, 80, 64])
+        self.assertEqual([v["codec_label"] for v in opts["videos"]], ["AV1", "HEVC", "AVC", "AV1"])
+        self.assertEqual(opts["videos"][0]["description"], "1080p")
+        self.assertEqual(opts["videos"][0]["size_bytes"], 13750000)
+        self.assertEqual([a["id"] for a in opts["audios"]], [30251, 30250, 30280, 30216])
+        self.assertEqual([a["codec_label"] for a in opts["audios"]], ["FLAC", "Dolby", "AAC", "HE-AAC"])
+        self.assertEqual([a["container"] for a in opts["audios"]], ["flac", "m4a", "m4a", "m4a"])
+
+        v_picked, a_picked = download_track._pick_download_tracks(dash_data, 80, video_cid=12)
+        self.assertEqual(v_picked["codecid"], 12)
+        self.assertEqual(a_picked["id"], 30280)
+
+        flac_picked = download_track._pick_audio_track(dash_data, audio_qn=30251, audio_cid=0)
+        self.assertEqual(flac_picked["id"], 30251)
+
+        self.assertEqual(dash_fetch._lookup_track(dash_data, "audio", 30250, 0)["id"], 30250)
+        self.assertEqual(dash_fetch._lookup_track(dash_data, "audio", 30251, 0)["id"], 30251)
+
+    async def test_remux_audio_track_command_args_and_audio_job_execution(self):
+        recorded_cmds = []
+        fake_proc = MagicMock()
+        fake_proc.returncode = 0
+        fake_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+        async def capture_exec(*cmd, **kwargs):
+            recorded_cmds.append(list(cmd))
+            return fake_proc
+
+        with (
+            patch.object(download_track.shutil, "which", return_value="/usr/bin/ffmpeg"),
+            patch.object(download_track.asyncio, "create_subprocess_exec", side_effect=capture_exec),
+        ):
+            await download_track._remux_audio_track("/tmp/a.m4s", "/tmp/out.m4a", is_flac=False)
+            await download_track._remux_audio_track("/tmp/a.m4s", "/tmp/out.flac", is_flac=True)
+
+        self.assertIn("-movflags", recorded_cmds[0])
+        self.assertNotIn("-movflags", recorded_cmds[1])
+
+        dash_data = {
+            "dash": {
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 7,
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v.m4s",
+                        "SegmentBase": {"Initialization": "0-10", "indexRange": "11-20"},
+                    }
+                ],
+                "audio": [
+                    {
+                        "id": 30280,
+                        "codecid": 0,
+                        "bandwidth": 192000,
+                        "codecs": "mp4a.40.2",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/a.m4s",
+                        "SegmentBase": {"Initialization": "0-10", "indexRange": "11-20"},
+                    }
+                ],
+            }
+        }
+        job = download_job._DownloadJob("BV1xx411c7mD", 0, 30280, mode="audio", audio_qn=30280, audio_cid=0)
+        dl_mock = AsyncMock(return_value=128)
+        remux_mock = AsyncMock()
+        try:
+            with (
+                patch.object(download_job, "_build_dash_cdn_headers", AsyncMock(return_value={})),
+                patch.object(download_job, "_is_safe_dash_url_async", AsyncMock(return_value=True)),
+                patch.object(download_job, "_peek_content_length", AsyncMock(return_value=128)),
+                patch.object(download_job, "_download_track_file", dl_mock),
+                patch.object(download_job, "_remux_audio_track", remux_mock),
+            ):
+                await download_job._run_dash_job(job, dash_data)
+            dl_mock.assert_awaited_once()
+            remux_mock.assert_awaited_once()
+            self.assertEqual(job.actual_qn, 30280)
+            self.assertTrue(job.filename.endswith("_0_a30280.m4a"))
+            self.assertEqual(job.resolved, {"mode": "audio", "bitrate": 192, "codec": "AAC", "container": "m4a"})
+        finally:
+            download_job._remove_job_tmpdir(job)
+
+    async def test_post_download_route_supports_audio_mode_and_music_ids(self):
+        with (
+            patch.dict(shared.appconf["site"], {"site_allow_download": True}),
+            patch.dict(shared.appconf["rate_limit"], {"enabled": False}),
+            patch("miku.core.csrf.validate_csrf_token", return_value=True),
+            patch("miku.dash.create_download_job", new=AsyncMock(return_value="job-123")) as create_mock,
+        ):
+            client = app.test_client()
+            resp = await client.post(
+                "/download",
+                form={
+                    "csrf_token": "tok",
+                    "id": "BV1xx411c7mD",
+                    "cvid": "0",
+                    "qual": "30280",
+                    "mode": "audio",
+                    "a_qn": "30280",
+                    "a_cid": "0",
+                },
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(await resp.get_json(), {"job_id": "job-123"})
+            self.assertEqual(create_mock.await_args.kwargs["mode"], "audio")
+            self.assertEqual(create_mock.await_args.kwargs["audio_qn"], 30280)
+
+            resp_au = await client.post(
+                "/download",
+                form={"csrf_token": "tok", "id": "au12345", "cvid": "0", "qual": "0", "mode": "audio"},
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+            self.assertEqual(resp_au.status_code, 200)
+            self.assertEqual(await resp_au.get_json(), {"direct_url": "/proxy/video/au12345_0_0?dl=1"})
+
+            resp_am = await client.post(
+                "/download",
+                form={"csrf_token": "tok", "id": "am67890", "cvid": "2", "qual": "0", "mode": "audio"},
+            )
+            self.assertEqual(resp_am.status_code, 302)
+            self.assertEqual(resp_am.headers.get("Location"), "/proxy/video/am67890_2_0?dl=1")
+
+            resp_vo = await client.post(
+                "/download",
+                form={
+                    "csrf_token": "tok",
+                    "id": "BV1xx411c7mD",
+                    "cvid": "0",
+                    "qual": "80",
+                    "mode": "video_only",
+                    "v_cid": "12",
+                },
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+            self.assertEqual(resp_vo.status_code, 200)
+            self.assertEqual(create_mock.await_args.kwargs["mode"], "video_only")
+            self.assertEqual(create_mock.await_args.kwargs["video_cid"], 12)
+
+            resp_combo = await client.post(
+                "/download",
+                form={
+                    "csrf_token": "tok",
+                    "id": "BV1xx411c7mD",
+                    "cvid": "0",
+                    "qual": "80",
+                    "mode": "video",
+                    "v_cid": "12",
+                    "a_qn": "30251",
+                    "a_cid": "0",
+                },
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+            self.assertEqual(resp_combo.status_code, 200)
+            self.assertEqual(create_mock.await_args.kwargs["mode"], "video")
+            self.assertEqual(create_mock.await_args.kwargs["video_cid"], 12)
+            self.assertEqual(create_mock.await_args.kwargs["audio_qn"], 30251)
+            self.assertEqual(create_mock.await_args.kwargs["audio_cid"], 0)
+
+    async def test_video_only_remux_and_video_flac_mkv_job(self):
+        recorded_cmds = []
+        fake_proc = MagicMock()
+        fake_proc.returncode = 0
+        fake_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+        async def capture_exec(*cmd, **kwargs):
+            recorded_cmds.append(list(cmd))
+            return fake_proc
+
+        with (
+            patch.object(download_track.shutil, "which", return_value="/usr/bin/ffmpeg"),
+            patch.object(download_track.asyncio, "create_subprocess_exec", side_effect=capture_exec),
+        ):
+            await download_track._mux_tracks("/tmp/v.m4s", "/tmp/a.m4s", "/tmp/out.mp4", is_mkv=False)
+            await download_track._mux_tracks("/tmp/v.m4s", "/tmp/a.m4s", "/tmp/out.mkv", is_mkv=True)
+            await download_track._remux_video_track("/tmp/v.m4s", "/tmp/vo.mp4")
+
+        self.assertIn("-movflags", recorded_cmds[0])
+        self.assertNotIn("-movflags", recorded_cmds[1])
+        self.assertIn("0:v:0", recorded_cmds[2])
+        self.assertIn("-movflags", recorded_cmds[2])
+
+        dash_data = {
+            "dash": {
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 12,
+                        "height": 1080,
+                        "codecs": "hev1.1.6.L120.90",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v_hevc.m4s",
+                        "SegmentBase": {"Initialization": "0-10", "indexRange": "11-20"},
+                    }
+                ],
+                "audio": [
+                    {
+                        "id": 30280,
+                        "codecid": 0,
+                        "bandwidth": 192000,
+                        "codecs": "mp4a.40.2",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/a.m4s",
+                    }
+                ],
+                "flac": {
+                    "audio": {
+                        "id": 30251,
+                        "codecid": 0,
+                        "bandwidth": 1200000,
+                        "codecs": "fLaC",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/flac.m4s",
+                    }
+                },
+            }
+        }
+
+        job_vo = download_job._DownloadJob("BV1xx411c7mD", 0, 80, mode="video_only", video_cid=12)
+        dl_mock = AsyncMock(return_value=256)
+        remux_video_mock = AsyncMock()
+        try:
+            with (
+                patch.object(download_job, "_build_dash_cdn_headers", AsyncMock(return_value={})),
+                patch.object(download_job, "_is_safe_dash_url_async", AsyncMock(return_value=True)),
+                patch.object(download_job, "_peek_content_length", AsyncMock(return_value=256)),
+                patch.object(download_job, "_download_track_file", dl_mock),
+                patch.object(download_job, "_remux_video_track", remux_video_mock),
+            ):
+                await download_job._run_dash_job(job_vo, dash_data)
+            dl_mock.assert_awaited_once()
+            remux_video_mock.assert_awaited_once()
+            self.assertTrue(job_vo.filename.endswith("_0_p80.mp4"))
+            self.assertEqual(
+                job_vo.resolved,
+                {"mode": "video_only", "height": 1080, "codec": "HEVC", "container": "mp4"},
+            )
+        finally:
+            download_job._remove_job_tmpdir(job_vo)
+
+        job_mkv = download_job._DownloadJob(
+            "BV1xx411c7mD", 0, 80, mode="video", video_cid=12, audio_qn=30251, audio_cid=0
+        )
+        dl_combo_mock = AsyncMock(return_value=256)
+        mux_mock = AsyncMock()
+        try:
+            with (
+                patch.object(download_job, "_build_dash_cdn_headers", AsyncMock(return_value={})),
+                patch.object(download_job, "_is_safe_dash_url_async", AsyncMock(return_value=True)),
+                patch.object(download_job, "_peek_content_length", AsyncMock(return_value=256)),
+                patch.object(download_job, "_download_track_file", dl_combo_mock),
+                patch.object(download_job, "_mux_tracks", mux_mock),
+            ):
+                await download_job._run_dash_job(job_mkv, dash_data)
+            self.assertEqual(dl_combo_mock.await_count, 2)
+            self.assertTrue(mux_mock.await_args.kwargs["is_mkv"])
+            self.assertTrue(job_mkv.filename.endswith("_0_p80.mkv"))
+            self.assertEqual(
+                job_mkv.resolved,
+                {
+                    "mode": "video",
+                    "height": 1080,
+                    "codec": "HEVC",
+                    "audio_bitrate": 1200,
+                    "audio_codec": "FLAC",
+                    "container": "mkv",
+                },
+            )
+        finally:
+            download_job._remove_job_tmpdir(job_mkv)
 
 
 class TestDownloadsAllowed(unittest.TestCase):

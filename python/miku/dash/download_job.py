@@ -32,10 +32,15 @@ from miku.dash.common import (
     dash_proxy_bp,
 )
 from miku.dash.download_track import (
+    _audio_codec_label,
     _download_track_file,
     _mux_tracks,
     _open_cdn_track,
+    _pick_audio_track,
     _pick_download_tracks,
+    _remux_audio_track,
+    _remux_video_track,
+    _video_codec_label,
 )
 from miku.dash.fetch import (
     _DurlResolveError,
@@ -81,41 +86,97 @@ async def _proxy_download_durl_fallback(vid: str, idx: int, qual: int):
     return redirect(f"/proxy/video/{vid}_{idx}_{qn}{ext}?dl=1", code=302)
 
 
+def _parse_optional_int(raw) -> int | None:
+    if raw is None or raw == "":
+        return None
+    try:
+        val = int(raw)
+        return val if val >= 0 else None
+    except TypeError, ValueError:
+        return None
+
+
+def _audio_output_meta(track: dict) -> tuple[bool, str, str, str, int, int]:
+    try:
+        a_qn = int(track.get("id") or 0)
+    except TypeError, ValueError:
+        a_qn = 0
+    try:
+        a_cid = int(track.get("codecid") or 0)
+    except TypeError, ValueError:
+        a_cid = 0
+    codecs = str(track.get("codecs") or "mp4a.40.2")
+    codec_label, container = _audio_codec_label(a_qn, codecs)
+    is_flac = container == "flac"
+    ext = f".{container}"
+    mime = "audio/flac" if is_flac else "audio/mp4"
+    return is_flac, ext, mime, codec_label, a_qn, a_cid
+
+
 @dash_proxy_bp.route("/proxy/download/<vid>/<int:idx>/<int:qual>")
 @rate_limit(**RATE_LIMITS["strict"], key_func=ip_family_key("dash_download"))
 async def proxy_download(vid, idx, qual):
-    """Mux the best DASH video (<=1080p anonymous cap) + audio into one MP4.
-
-    Downloads both tracks through the WARP tunnel, remuxes with ffmpeg into a
-    single faststart MP4, and streams it back as an attachment.
-
-    Durl-only uploads (no DASH tracks) fall back to a
-    redirect at the native progressive ``/proxy/video/`` path — those MP4s
-    are already muxed, so no ffmpeg step is needed.
-    """
+    """Mux the best DASH video (<=1080p anonymous cap) + audio into one MP4, or remux audio-only."""
     if not downloads_allowed(appconf):
         return Response("Forbidden: downloads are disabled on this instance", status=403)
     if not _is_valid_vid(vid):
         return Response("Bad Request: invalid video ID", status=400)
+
+    raw_mode = request.args.get("mode")
+    mode = raw_mode if raw_mode in ("audio", "video_only") else "video"
+    v_cid = _parse_optional_int(request.args.get("v_cid"))
+    a_qn_req = _parse_optional_int(request.args.get("a_qn"))
+    a_cid_req = _parse_optional_int(request.args.get("a_cid"))
 
     max_qn = min(qual, _FREE_DOWNLOAD_MAX_QN) if qual > 0 else _FREE_DOWNLOAD_MAX_QN
     dash_data = await _load_dash_data(vid, idx)
     if not has_valid_dash_tracks(dash_data):
         return await _proxy_download_durl_fallback(vid, idx, qual)
 
-    video, audio = _pick_download_tracks(dash_data, max_qn)
-    if not video or not audio:
-        return Response("Not Found: no suitable DASH tracks", status=404)
-    vurls = _dash_candidate_urls(video)
-    aurls = _dash_candidate_urls(audio)
-    if not vurls or not aurls:
-        return Response("Not Found: track has no URL", status=404)
-    v_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in vurls))
-    a_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in aurls))
-    vurls = [u for u, ok in zip(vurls, v_checks, strict=False) if ok]
-    aurls = [u for u, ok in zip(aurls, a_checks, strict=False) if ok]
-    if not vurls or not aurls:
-        return Response("Forbidden: Invalid proxy target", status=403)
+    if mode == "audio":
+        audio = _pick_audio_track(
+            dash_data,
+            audio_qn=a_qn_req or (qual if qual >= 30000 else None),
+            audio_cid=a_cid_req,
+        )
+        if not audio:
+            return Response("Not Found: no suitable DASH tracks", status=404)
+        aurls = _dash_candidate_urls(audio)
+        if not aurls:
+            return Response("Not Found: track has no URL", status=404)
+        a_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in aurls))
+        aurls = [u for u, ok in zip(aurls, a_checks, strict=False) if ok]
+        if not aurls:
+            return Response("Forbidden: Invalid proxy target", status=403)
+        video = None
+        vurls = []
+    elif mode == "video_only":
+        video, _ = _pick_download_tracks(dash_data, max_qn, video_cid=v_cid)
+        if not video:
+            return Response("Not Found: no suitable DASH tracks", status=404)
+        vurls = _dash_candidate_urls(video)
+        if not vurls:
+            return Response("Not Found: track has no URL", status=404)
+        v_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in vurls))
+        vurls = [u for u, ok in zip(vurls, v_checks, strict=False) if ok]
+        if not vurls:
+            return Response("Forbidden: Invalid proxy target", status=403)
+        audio = None
+        aurls = []
+    else:
+        video, audio = _pick_download_tracks(dash_data, max_qn, video_cid=v_cid, audio_qn=a_qn_req, audio_cid=a_cid_req)
+        if not video or not audio:
+            return Response("Not Found: no suitable DASH tracks", status=404)
+        vurls = _dash_candidate_urls(video)
+        aurls = _dash_candidate_urls(audio)
+        if not vurls or not aurls:
+            return Response("Not Found: track has no URL", status=404)
+        v_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in vurls))
+        a_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in aurls))
+        vurls = [u for u, ok in zip(vurls, v_checks, strict=False) if ok]
+        aurls = [u for u, ok in zip(aurls, a_checks, strict=False) if ok]
+        if not vurls or not aurls:
+            return Response("Forbidden: Invalid proxy target", status=403)
 
     client_ip = get_client_ip(request)
     if not await _try_acquire_legacy_ip_admission(client_ip):
@@ -130,28 +191,40 @@ async def proxy_download(vid, idx, qual):
         tmpdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="miku_dl_")
         vpath = os.path.join(tmpdir, "video.m4s")
         apath = os.path.join(tmpdir, "audio.m4s")
-        outpath = os.path.join(tmpdir, "out.mp4")
+        if audio is not None:
+            is_flac, out_ext, out_mime, _, a_qn, a_cid = _audio_output_meta(audio)
+        else:
+            is_flac, out_ext, out_mime, a_qn, a_cid = False, ".mp4", "video/mp4", 0, 0
+        if mode == "video":
+            out_ext, out_mime = (".mkv", "video/x-matroska") if is_flac else (".mp4", "video/mp4")
+        elif mode == "video_only":
+            out_ext, out_mime = ".mp4", "video/mp4"
+        outpath = os.path.join(tmpdir, f"out{out_ext}")
         try:
-            vsize = await _peek_content_length(vurls, headers, proxy_url)
-            asize = await _peek_content_length(aurls, headers, proxy_url)
+            vsize = await _peek_content_length(vurls, headers, proxy_url) if mode in ("video", "video_only") else 0
+            asize = await _peek_content_length(aurls, headers, proxy_url) if mode in ("video", "audio") else 0
         except RuntimeError as exc:
             return Response(str(exc), status=413)
 
         try:
-            v_qn = int(video.get("id") or 0)
+            v_qn = int(video.get("id") or 0) if video else 0
         except TypeError, ValueError:
             v_qn = 0
         try:
-            a_qn = int(audio.get("id") or 0)
+            v_cid_picked = int(video.get("codecid") or 0) if video else 0
         except TypeError, ValueError:
-            a_qn = 0
+            v_cid_picked = 0
 
-        async def _refresh_legacy_track_urls(media_type: str, qn: int):
+        async def _refresh_legacy_track_urls(media_type: str, qn: int, cid: int):
             fresh = await _refresh_dash_data(vid, idx)
             if not has_valid_dash_tracks(fresh):
                 return None
-            pick = _pick_download_tracks(fresh, max_qn)
-            track = pick[0] if media_type == "video" else pick[1]
+            track = _lookup_track(fresh, media_type, qn, cid)
+            if track is None:
+                if media_type == "audio":
+                    track = _pick_audio_track(fresh, audio_qn=qn, audio_cid=cid)
+                else:
+                    track = _pick_download_tracks(fresh, max_qn, video_cid=cid)[0]
             if track is None:
                 return None
             try:
@@ -165,24 +238,14 @@ async def proxy_download(vid, idx, qual):
             return urls or None
 
         async def _refresh_legacy_video_urls():
-            return await _refresh_legacy_track_urls("video", v_qn)
+            return await _refresh_legacy_track_urls("video", v_qn, v_cid_picked)
 
         async def _refresh_legacy_audio_urls():
-            return await _refresh_legacy_track_urls("audio", a_qn)
+            return await _refresh_legacy_track_urls("audio", a_qn, a_cid)
 
         async with _job_slots:
-            vn, an = await asyncio.gather(
-                _download_track_file(
-                    vurls,
-                    headers,
-                    proxy_url,
-                    vpath,
-                    vsize,
-                    f"{vid}:{idx} video",
-                    cancel_event=cancel_event,
-                    refresh_cb=_refresh_legacy_video_urls,
-                ),
-                _download_track_file(
+            if mode == "audio":
+                an = await _download_track_file(
                     aurls,
                     headers,
                     proxy_url,
@@ -191,18 +254,67 @@ async def proxy_download(vid, idx, qual):
                     f"{vid}:{idx} audio",
                     cancel_event=cancel_event,
                     refresh_cb=_refresh_legacy_audio_urls,
-                ),
-            )
-            if vn < 0:
-                return Response("Upstream error (video track)", status=502)
-            if an < 0:
-                return Response("Upstream error (audio track)", status=502)
-            try:
-                await _mux_tracks(vpath, apath, outpath)
-            except RuntimeError as exc:
-                print(f"[DashProxy] download mux failed for {vid}:{idx}: {exc}")
-                return Response("Mux failed", status=502)
-        actual_qn = int(video.get("id") or max_qn)
+                )
+                if an < 0:
+                    return Response("Upstream error (audio track)", status=502)
+                try:
+                    await _remux_audio_track(apath, outpath, is_flac=is_flac)
+                except RuntimeError as exc:
+                    print(f"[DashProxy] audio remux failed for {vid}:{idx}: {exc}")
+                    return Response("Mux failed", status=502)
+                actual_qn = a_qn
+            elif mode == "video_only":
+                vn = await _download_track_file(
+                    vurls,
+                    headers,
+                    proxy_url,
+                    vpath,
+                    vsize,
+                    f"{vid}:{idx} video",
+                    cancel_event=cancel_event,
+                    refresh_cb=_refresh_legacy_video_urls,
+                )
+                if vn < 0:
+                    return Response("Upstream error (video track)", status=502)
+                try:
+                    await _remux_video_track(vpath, outpath)
+                except RuntimeError as exc:
+                    print(f"[DashProxy] video remux failed for {vid}:{idx}: {exc}")
+                    return Response("Mux failed", status=502)
+                actual_qn = int(video.get("id") or max_qn)
+            else:
+                vn, an = await asyncio.gather(
+                    _download_track_file(
+                        vurls,
+                        headers,
+                        proxy_url,
+                        vpath,
+                        vsize,
+                        f"{vid}:{idx} video",
+                        cancel_event=cancel_event,
+                        refresh_cb=_refresh_legacy_video_urls,
+                    ),
+                    _download_track_file(
+                        aurls,
+                        headers,
+                        proxy_url,
+                        apath,
+                        asize,
+                        f"{vid}:{idx} audio",
+                        cancel_event=cancel_event,
+                        refresh_cb=_refresh_legacy_audio_urls,
+                    ),
+                )
+                if vn < 0:
+                    return Response("Upstream error (video track)", status=502)
+                if an < 0:
+                    return Response("Upstream error (audio track)", status=502)
+                try:
+                    await _mux_tracks(vpath, apath, outpath, is_mkv=is_flac)
+                except RuntimeError as exc:
+                    print(f"[DashProxy] download mux failed for {vid}:{idx}: {exc}")
+                    return Response("Mux failed", status=502)
+                actual_qn = int(video.get("id") or max_qn)
 
         async def generate():
             try:
@@ -219,8 +331,10 @@ async def proxy_download(vid, idx, qual):
                 await asyncio.shield(asyncio.to_thread(shutil.rmtree, tmpdir, ignore_errors=True))
 
         resp = Response(generate())
-        resp.headers["Content-Type"] = "video/mp4"
-        resp.headers["Content-Disposition"] = f'attachment; filename="{_safe_download_filename(vid, idx, actual_qn)}"'
+        resp.headers["Content-Type"] = out_mime
+        resp.headers["Content-Disposition"] = (
+            f'attachment; filename="{_safe_download_filename(vid, idx, actual_qn, ext=out_ext)}"'
+        )
         resp.headers["X-Accel-Buffering"] = "no"
         response_owns_cleanup = True
         return resp
@@ -286,13 +400,29 @@ class DownloadCapacityError(RuntimeError):
 class _DownloadJob:
     """Mutable per-download state. Only touched from the single event loop."""
 
-    def __init__(self, vid: str, idx: int, qual: int, client_ip: str | None = None):
+    def __init__(
+        self,
+        vid: str,
+        idx: int,
+        qual: int,
+        client_ip: str | None = None,
+        *,
+        mode: str = "video",
+        video_cid: int | None = None,
+        audio_qn: int | None = None,
+        audio_cid: int | None = None,
+    ):
         self.job_id = uuid.uuid4().hex
         self.vid = vid
         self.idx = idx
         self.qual = qual
         self.client_ip = client_ip
+        self.mode = mode if mode in ("audio", "video_only") else "video"
+        self.video_cid = video_cid
+        self.audio_qn = audio_qn
+        self.audio_cid = audio_cid
         self.actual_qn = None  # quality actually being fetched (fallback of qual)
+        self.resolved = None
         self.state = "queued"
         self.total_bytes = 0
         self.done_bytes = 0
@@ -300,7 +430,9 @@ class _DownloadJob:
         self.active_streams = 0
         self.speed_bps = 0.0
         self.status_note = None  # transient user-facing note (e.g. retry backoff)
-        self.filename = _safe_download_filename(vid, idx, qual)
+        self.filename = _safe_download_filename(
+            vid, idx, audio_qn or qual, ext=".m4a" if self.mode == "audio" else ".mp4"
+        )
         self.tmpdir = None
         self.outpath = None
         self.error = None
@@ -351,12 +483,14 @@ class _DownloadJob:
             percent = round(min(self.done_bytes / self.total_bytes, 1.0) * 100, 1)
         return {
             "job_id": self.job_id,
+            "mode": self.mode,
             "state": self.state,
             "percent": percent,
             "done_bytes": self.done_bytes,
             "total_bytes": self.total_bytes,
             "speed_bps": round(self.speed_bps, 1),
             "actual_qn": self.actual_qn,
+            "resolved": self.resolved,
             "filename": self.filename,
             "note": self.status_note,
             "error": self.error,
@@ -501,7 +635,17 @@ async def _get_job(job_id: str) -> _DownloadJob | None:
         return _download_jobs.get(job_id)
 
 
-async def create_download_job(vid: str, idx: int, qual: int, client_ip: str | None = None) -> str:
+async def create_download_job(
+    vid: str,
+    idx: int,
+    qual: int,
+    client_ip: str | None = None,
+    *,
+    mode: str = "video",
+    video_cid: int | None = None,
+    audio_qn: int | None = None,
+    audio_cid: int | None = None,
+) -> str:
     """Register a download job and launch its background worker. Returns job_id."""
     if not downloads_allowed(appconf):
         raise RuntimeError("Downloads are disabled on this instance")
@@ -514,7 +658,16 @@ async def create_download_job(vid: str, idx: int, qual: int, client_ip: str | No
             raise DownloadCapacityError("Download queue is full; please try again later")
         if client_ip and _active_downloads_for_ip_locked(client_ip) >= _MAX_ACTIVE_JOBS_PER_IP:
             raise DownloadCapacityError("Too many active downloads from this address; please try again later")
-        job = _DownloadJob(vid, idx, qual, client_ip=client_ip)
+        job = _DownloadJob(
+            vid,
+            idx,
+            qual,
+            client_ip=client_ip,
+            mode=mode,
+            video_cid=video_cid,
+            audio_qn=audio_qn,
+            audio_cid=audio_cid,
+        )
         job.task = asyncio.ensure_future(_run_download_job(job))
         _download_jobs[job.job_id] = job
     return job.job_id
@@ -588,21 +741,58 @@ async def _peek_content_length(
 
 
 async def _run_dash_job(job: _DownloadJob, dash_data: dict):
-    """Download best video (<=1080p cap) + audio tracks, then ffmpeg-mux."""
+    """Download video + audio tracks, audio-only, or video-only, then ffmpeg remux."""
     max_qn = min(job.qual, _FREE_DOWNLOAD_MAX_QN) if job.qual > 0 else _FREE_DOWNLOAD_MAX_QN
-    video, audio = _pick_download_tracks(dash_data, max_qn)
-    if not video or not audio:
-        raise RuntimeError("no suitable DASH tracks for download")
-    vurls = _dash_candidate_urls(video)
-    aurls = _dash_candidate_urls(audio)
-    if not vurls or not aurls:
-        raise RuntimeError("track has no URL")
-    v_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in vurls))
-    a_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in aurls))
-    vurls = [u for u, ok in zip(vurls, v_checks, strict=False) if ok]
-    aurls = [u for u, ok in zip(aurls, a_checks, strict=False) if ok]
-    if not vurls or not aurls:
-        raise RuntimeError("invalid CDN target")
+    if job.mode == "audio":
+        video = None
+        audio = _pick_audio_track(
+            dash_data,
+            audio_qn=job.audio_qn or (job.qual if job.qual >= 30000 else None),
+            audio_cid=job.audio_cid,
+        )
+        if not audio:
+            raise RuntimeError("no suitable DASH audio track for download")
+        vurls = []
+        aurls = _dash_candidate_urls(audio)
+        if not aurls:
+            raise RuntimeError("track has no URL")
+        a_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in aurls))
+        aurls = [u for u, ok in zip(aurls, a_checks, strict=False) if ok]
+        if not aurls:
+            raise RuntimeError("invalid CDN target")
+    elif job.mode == "video_only":
+        video, _ = _pick_download_tracks(dash_data, max_qn, video_cid=job.video_cid)
+        if not video:
+            raise RuntimeError("no suitable DASH video track for download")
+        vurls = _dash_candidate_urls(video)
+        if not vurls:
+            raise RuntimeError("track has no URL")
+        v_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in vurls))
+        vurls = [u for u, ok in zip(vurls, v_checks, strict=False) if ok]
+        if not vurls:
+            raise RuntimeError("invalid CDN target")
+        audio = None
+        aurls = []
+    else:
+        video, audio = _pick_download_tracks(
+            dash_data,
+            max_qn,
+            video_cid=job.video_cid,
+            audio_qn=job.audio_qn,
+            audio_cid=job.audio_cid,
+        )
+        if not video or not audio:
+            raise RuntimeError("no suitable DASH tracks for download")
+        vurls = _dash_candidate_urls(video)
+        aurls = _dash_candidate_urls(audio)
+        if not vurls or not aurls:
+            raise RuntimeError("track has no URL")
+        v_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in vurls))
+        a_checks = await asyncio.gather(*(_is_safe_dash_url_async(u) for u in aurls))
+        vurls = [u for u, ok in zip(vurls, v_checks, strict=False) if ok]
+        aurls = [u for u, ok in zip(aurls, a_checks, strict=False) if ok]
+        if not vurls or not aurls:
+            raise RuntimeError("invalid CDN target")
 
     proxy_url = Network.get_proxy()
     headers = await _build_dash_cdn_headers()
@@ -611,36 +801,92 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     job.tmpdir = tmpdir
     vpath = os.path.join(tmpdir, "video.m4s")
     apath = os.path.join(tmpdir, "audio.m4s")
-    outpath = os.path.join(tmpdir, "out.mp4")
-    job.outpath = outpath
-    actual_qn = int(video.get("id") or max_qn)
-    job.actual_qn = actual_qn
-    job.filename = _safe_download_filename(job.vid, job.idx, actual_qn)
+    if audio is not None:
+        is_flac, out_ext, _, audio_codec_label, a_qn, a_cid = _audio_output_meta(audio)
+        try:
+            a_bw = int(audio.get("bandwidth") or 0)
+        except TypeError, ValueError:
+            a_bw = 0
+    else:
+        is_flac, out_ext, audio_codec_label, a_qn, a_cid, a_bw = False, ".mp4", "", 0, 0, 0
 
-    vsize = await _peek_content_length(vurls, headers, proxy_url)
-    job.throw_if_cancelled()
-    asize = await _peek_content_length(aurls, headers, proxy_url)
-    job.throw_if_cancelled()
+    if job.mode == "audio":
+        outpath = os.path.join(tmpdir, f"out{out_ext}")
+        job.outpath = outpath
+        job.actual_qn = a_qn
+        job.filename = _safe_download_filename(job.vid, job.idx, a_qn, ext=out_ext)
+        job.resolved = {
+            "mode": "audio",
+            "bitrate": round(a_bw / 1000) if a_bw > 0 else None,
+            "codec": audio_codec_label,
+            "container": out_ext.lstrip("."),
+        }
+        vsize = 0
+        asize = await _peek_content_length(aurls, headers, proxy_url)
+        job.throw_if_cancelled()
+    elif job.mode == "video_only":
+        outpath = os.path.join(tmpdir, "out.mp4")
+        job.outpath = outpath
+        actual_qn = int(video.get("id") or max_qn)
+        job.actual_qn = actual_qn
+        job.filename = _safe_download_filename(job.vid, job.idx, actual_qn, ext=".mp4")
+        try:
+            v_height = int(video.get("height") or 0)
+        except TypeError, ValueError:
+            v_height = 0
+        try:
+            v_cid_resolved = int(video.get("codecid") or 0)
+        except TypeError, ValueError:
+            v_cid_resolved = 0
+        job.resolved = {
+            "mode": "video_only",
+            "height": v_height or None,
+            "codec": _video_codec_label(v_cid_resolved, str(video.get("codecs") or "")),
+            "container": "mp4",
+        }
+        vsize = await _peek_content_length(vurls, headers, proxy_url)
+        job.throw_if_cancelled()
+        asize = 0
+    else:
+        video_ext = ".mkv" if is_flac else ".mp4"
+        outpath = os.path.join(tmpdir, f"out{video_ext}")
+        job.outpath = outpath
+        actual_qn = int(video.get("id") or max_qn)
+        job.actual_qn = actual_qn
+        job.filename = _safe_download_filename(job.vid, job.idx, actual_qn, ext=video_ext)
+        try:
+            v_height = int(video.get("height") or 0)
+        except TypeError, ValueError:
+            v_height = 0
+        try:
+            v_cid_resolved = int(video.get("codecid") or 0)
+        except TypeError, ValueError:
+            v_cid_resolved = 0
+        job.resolved = {
+            "mode": "video",
+            "height": v_height or None,
+            "codec": _video_codec_label(v_cid_resolved, str(video.get("codecs") or "")),
+            "audio_bitrate": round(a_bw / 1000) if a_bw > 0 else None,
+            "audio_codec": audio_codec_label,
+            "container": video_ext.lstrip("."),
+        }
+        vsize = await _peek_content_length(vurls, headers, proxy_url)
+        job.throw_if_cancelled()
+        asize = await _peek_content_length(aurls, headers, proxy_url)
+        job.throw_if_cancelled()
+
     job.total_bytes = vsize + asize
     job.state = "downloading"
     job.touch()
 
     try:
-        v_qn = int(video.get("id") or 0)
+        v_qn = int(video.get("id") or 0) if video else 0
     except TypeError, ValueError:
         v_qn = 0
     try:
-        v_cid = int(video.get("codecid") or 0)
+        v_cid = int(video.get("codecid") or 0) if video else 0
     except TypeError, ValueError:
         v_cid = 0
-    try:
-        a_qn = int(audio.get("id") or 0)
-    except TypeError, ValueError:
-        a_qn = 0
-    try:
-        a_cid = int(audio.get("codecid") or 0)
-    except TypeError, ValueError:
-        a_cid = 0
 
     async def _refresh_job_track_urls(media_type: str, qn: int, cid: int):
         """Fresh-playurl mirrors for the *same* track (byte-identical content).
@@ -654,8 +900,10 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
             return None
         track = _lookup_track(fresh, media_type, qn, cid)
         if track is None:
-            pick = _pick_download_tracks(fresh, max_qn)
-            track = pick[0] if media_type == "video" else pick[1]
+            if media_type == "audio":
+                track = _pick_audio_track(fresh, audio_qn=qn, audio_cid=cid)
+            else:
+                track = _pick_download_tracks(fresh, max_qn, video_cid=cid)[0]
         if track is None:
             return None
         try:
@@ -678,26 +926,8 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
     async def _refresh_audio_urls():
         return await _refresh_job_track_urls("audio", a_qn, a_cid)
 
-    # Video + audio fetch concurrently (like dash.js's two adaptation sets):
-    # independent files, shared progress/cancel accounting. All shared-state
-    # updates are synchronous (no awaits inside), so coroutines cannot
-    # interleave mid-update on the single event loop. Callees never raise
-    # (they return byte counts / _DOWNLOAD_CANCELLED), so gather is safe.
-    vn, an = await asyncio.gather(
-        _download_track_file(
-            vurls,
-            headers,
-            proxy_url,
-            vpath,
-            vsize,
-            f"{job.vid}:{job.idx} video",
-            progress_cb=job.add_progress,
-            cancel_event=job.cancel_event,
-            note_cb=job.set_note,
-            rewind_cb=job.rewind_progress,
-            refresh_cb=_refresh_video_urls,
-        ),
-        _download_track_file(
+    if job.mode == "audio":
+        an = await _download_track_file(
             aurls,
             headers,
             proxy_url,
@@ -709,26 +939,103 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
             note_cb=job.set_note,
             rewind_cb=job.rewind_progress,
             refresh_cb=_refresh_audio_urls,
-        ),
-    )
-    if vn == _DOWNLOAD_CANCELLED or an == _DOWNLOAD_CANCELLED:
-        raise _JobCancelled()
-    job.throw_if_cancelled()
-    if vn < 0:
-        raise RuntimeError("video track download failed")
-    if an < 0:
-        raise RuntimeError("audio track download failed")
+        )
+        if an == _DOWNLOAD_CANCELLED:
+            raise _JobCancelled()
+        job.throw_if_cancelled()
+        if an < 0:
+            raise RuntimeError("audio track download failed")
 
-    job.state = "muxing"
-    job.set_note(None)
-    job.speed_bps = 0.0
-    job.touch()
-    await _mux_tracks(vpath, apath, outpath, job=job)
-    for p in (vpath, apath):
+        job.state = "muxing"
+        job.set_note(None)
+        job.speed_bps = 0.0
+        job.touch()
+        await _remux_audio_track(apath, outpath, is_flac=is_flac, job=job)
         try:
-            await asyncio.to_thread(os.remove, p)
+            await asyncio.to_thread(os.remove, apath)
         except Exception:
             pass
+    elif job.mode == "video_only":
+        vn = await _download_track_file(
+            vurls,
+            headers,
+            proxy_url,
+            vpath,
+            vsize,
+            f"{job.vid}:{job.idx} video",
+            progress_cb=job.add_progress,
+            cancel_event=job.cancel_event,
+            note_cb=job.set_note,
+            rewind_cb=job.rewind_progress,
+            refresh_cb=_refresh_video_urls,
+        )
+        if vn == _DOWNLOAD_CANCELLED:
+            raise _JobCancelled()
+        job.throw_if_cancelled()
+        if vn < 0:
+            raise RuntimeError("video track download failed")
+
+        job.state = "muxing"
+        job.set_note(None)
+        job.speed_bps = 0.0
+        job.touch()
+        await _remux_video_track(vpath, outpath, job=job)
+        try:
+            await asyncio.to_thread(os.remove, vpath)
+        except Exception:
+            pass
+    else:
+        # Video + audio fetch concurrently (like dash.js's two adaptation sets):
+        # independent files, shared progress/cancel accounting. All shared-state
+        # updates are synchronous (no awaits inside), so coroutines cannot
+        # interleave mid-update on the single event loop. Callees never raise
+        # (they return byte counts / _DOWNLOAD_CANCELLED), so gather is safe.
+        vn, an = await asyncio.gather(
+            _download_track_file(
+                vurls,
+                headers,
+                proxy_url,
+                vpath,
+                vsize,
+                f"{job.vid}:{job.idx} video",
+                progress_cb=job.add_progress,
+                cancel_event=job.cancel_event,
+                note_cb=job.set_note,
+                rewind_cb=job.rewind_progress,
+                refresh_cb=_refresh_video_urls,
+            ),
+            _download_track_file(
+                aurls,
+                headers,
+                proxy_url,
+                apath,
+                asize,
+                f"{job.vid}:{job.idx} audio",
+                progress_cb=job.add_progress,
+                cancel_event=job.cancel_event,
+                note_cb=job.set_note,
+                rewind_cb=job.rewind_progress,
+                refresh_cb=_refresh_audio_urls,
+            ),
+        )
+        if vn == _DOWNLOAD_CANCELLED or an == _DOWNLOAD_CANCELLED:
+            raise _JobCancelled()
+        job.throw_if_cancelled()
+        if vn < 0:
+            raise RuntimeError("video track download failed")
+        if an < 0:
+            raise RuntimeError("audio track download failed")
+
+        job.state = "muxing"
+        job.set_note(None)
+        job.speed_bps = 0.0
+        job.touch()
+        await _mux_tracks(vpath, apath, outpath, is_mkv=is_flac, job=job)
+        for p in (vpath, apath):
+            try:
+                await asyncio.to_thread(os.remove, p)
+            except Exception:
+                pass
 
 
 async def _run_durl_job(job: _DownloadJob):
@@ -966,9 +1273,19 @@ async def download_file(job_id):
 
     delivery_task.add_done_callback(cleanup)
 
-    ext = ".flv" if outpath.lower().endswith(".flv") else ".mp4"
+    lower_out = outpath.lower()
+    if lower_out.endswith(".flv"):
+        ext, content_type = ".flv", "video/x-flv"
+    elif lower_out.endswith(".mkv"):
+        ext, content_type = ".mkv", "video/x-matroska"
+    elif lower_out.endswith(".m4a"):
+        ext, content_type = ".m4a", "audio/mp4"
+    elif lower_out.endswith(".flac"):
+        ext, content_type = ".flac", "audio/flac"
+    else:
+        ext, content_type = ".mp4", "video/mp4"
     resp = Response(DownloadBody(generate()))
-    resp.headers["Content-Type"] = "video/x-flv" if ext == ".flv" else "video/mp4"
+    resp.headers["Content-Type"] = content_type
     resp.headers["Content-Length"] = str(size)
     safe_name = _safe_download_filename(job.vid, job.idx, job.actual_qn or job.qual, ext=ext)
     resp.headers["Content-Disposition"] = f'attachment; filename="{safe_name}"'

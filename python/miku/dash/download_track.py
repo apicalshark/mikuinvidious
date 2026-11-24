@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 import asyncio
+import re
 import shutil
 import time
 from urllib.parse import urlparse
@@ -10,6 +11,7 @@ from miku.dash.common import (
     _CUT_ERRORS,
     _DOWNLOAD_CANCELLED,
     _DOWNLOAD_GOOD_BPS,
+    _FREE_DOWNLOAD_MAX_QN,
     _RETRYABLE_TRACK_ERRORS,
     _SLOW_ARM_BPS,
     _SLOW_TRIP_PAUSE,
@@ -29,6 +31,7 @@ from miku.dash.common import (
 )
 from miku.dash.fetch import _normalize_track_urls, _playurl_url_expiry
 from miku.dash.stream import (
+    _dash_candidate_urls,
     _DashUpstreamError,
     _failover_dash_conn,
     _ResumedDashConn,
@@ -50,37 +53,238 @@ _DOWNLOAD_WRITE_BATCH = 1024 * 1024
 # patiently instead of hammering.
 
 
-def _pick_download_tracks(dash_data: dict | None, max_video_qn: int) -> tuple:
+def _safe_int(val, default: int = 0) -> int:
+    try:
+        return int(val)
+    except TypeError, ValueError:
+        return default
+
+
+_VIDEO_CODEC_RANK = {13: 3, 12: 2, 7: 1}
+_QUALITY_NOISE_RE = re.compile(
+    r"\s*(?:超高清|超清|高清|清晰|流畅|流暢|标清|標清|极速|極速|高码率|高碼率|高帧率|高幀率)"
+)
+
+
+def _clean_quality_desc(desc: str) -> str:
+    cleaned = _QUALITY_NOISE_RE.sub("", str(desc or ""))
+    return re.sub(r"(\d+)P\b", r"\1p", cleaned).strip()
+
+
+def _video_codec_label(codecid: int, codecs: str) -> str:
+    low = (codecs or "").lower()
+    if "av01" in low or codecid == 13:
+        return "AV1"
+    if "hev" in low or "hvc" in low or codecid == 12:
+        return "HEVC"
+    if "avc" in low or codecid == 7:
+        return "AVC"
+    return codecs.split(".")[0].upper() if codecs else "VIDEO"
+
+
+def _audio_codec_label(qn: int, codecs: str) -> tuple[str, str]:
+    low = (codecs or "").lower()
+    if "flac" in low or qn == 30251:
+        return "FLAC", "flac"
+    if "ec-3" in low or "ac-3" in low or qn == 30250:
+        return "Dolby", "m4a"
+    if "40.5" in low:
+        return "HE-AAC", "m4a"
+    return "AAC", "m4a"
+
+
+def _all_dash_audio_tracks(dash: dict) -> list[dict]:
+    seen: set[tuple[int, int]] = set()
+    tracks: list[dict] = []
+    sources = (
+        dash.get("audio"),
+        (dash.get("dolby") or {}).get("audio"),
+        (dash.get("flac") or {}).get("audio"),
+    )
+    for src in sources:
+        for t in _normalize_track_urls(src):
+            qn = _safe_int(t.get("id"))
+            cid = _safe_int(t.get("codecid"))
+            if qn <= 0 or not _dash_candidate_urls(t):
+                continue
+            key = (qn, cid)
+            if key in seen:
+                continue
+            seen.add(key)
+            tracks.append(t)
+    return tracks
+
+
+def extract_download_options(dash_data: dict | None, *, max_video_qn: int = _FREE_DOWNLOAD_MAX_QN) -> dict:
+    """Build TypeType-style video and audio format lists from DASH playurl data."""
+    if not dash_data or not isinstance(dash_data, dict):
+        return {"videos": [], "audios": [], "progressive": []}
+    dash = dash_data.get("dash") or {}
+    if not isinstance(dash, dict):
+        return {"videos": [], "audios": [], "progressive": []}
+
+    duration = _safe_int(dash.get("duration"))
+    if duration <= 0:
+        duration = _safe_int(dash_data.get("timelength")) // 1000
+
+    fmt_map: dict[int, str] = {}
+    for fmt in dash_data.get("support_formats") or []:
+        if not isinstance(fmt, dict):
+            continue
+        fqn = _safe_int(fmt.get("quality"))
+        desc = fmt.get("new_description") or fmt.get("display_desc") or ""
+        if fqn > 0 and desc:
+            fmt_map[fqn] = str(desc)
+
+    videos: list[dict] = []
+    seen_videos: set[tuple[int, int]] = set()
+    for t in _normalize_track_urls(dash.get("video")):
+        qn = _safe_int(t.get("id"))
+        cid = _safe_int(t.get("codecid"))
+        if qn <= 0 or qn > max_video_qn or not _dash_candidate_urls(t):
+            continue
+        if (qn, cid) in seen_videos:
+            continue
+        seen_videos.add((qn, cid))
+        bw = max(_safe_int(t.get("bandwidth")), 0)
+        width = max(_safe_int(t.get("width")), 0)
+        height = max(_safe_int(t.get("height")), 0)
+        fps_raw = t.get("frameRate") or t.get("frame_rate") or 0
+        try:
+            fps = round(float(fps_raw))
+        except TypeError, ValueError:
+            fps = 0
+        codecs = str(t.get("codecs") or "")
+        size_bytes = int(bw * duration / 8) if bw > 0 and duration > 0 else 0
+        if height >= 4320:
+            desc = "8K"
+        elif height >= 2160:
+            desc = "4K"
+        elif height > 0:
+            desc = f"{height}p"
+        else:
+            desc = _clean_quality_desc(fmt_map.get(qn, "")) or f"qn {qn}"
+        videos.append(
+            {
+                "id": qn,
+                "codecid": cid,
+                "codecs": codecs,
+                "codec_label": _video_codec_label(cid, codecs),
+                "width": width,
+                "height": height,
+                "fps": fps,
+                "bandwidth": bw,
+                "description": desc,
+                "container": "mp4",
+                "size_bytes": size_bytes,
+            }
+        )
+    videos.sort(
+        key=lambda item: (
+            item["height"],
+            item["id"],
+            item["fps"],
+            _VIDEO_CODEC_RANK.get(item["codecid"], 0),
+            item["bandwidth"],
+        ),
+        reverse=True,
+    )
+
+    audios: list[dict] = []
+    for t in _all_dash_audio_tracks(dash):
+        qn = _safe_int(t.get("id"))
+        cid = _safe_int(t.get("codecid"))
+        bw = max(_safe_int(t.get("bandwidth")), 0)
+        codecs = str(t.get("codecs") or "mp4a.40.2")
+        codec_label, container = _audio_codec_label(qn, codecs)
+        size_bytes = int(bw * duration / 8) if bw > 0 and duration > 0 else 0
+        audios.append(
+            {
+                "id": qn,
+                "codecid": cid,
+                "codecs": codecs,
+                "codec_label": codec_label,
+                "bandwidth": bw,
+                "container": container,
+                "size_bytes": size_bytes,
+            }
+        )
+    audios.sort(key=lambda item: item["bandwidth"], reverse=True)
+    return {"videos": videos, "audios": audios, "progressive": []}
+
+
+def _pick_audio_track(
+    dash_data: dict | None,
+    *,
+    audio_qn: int | None = None,
+    audio_cid: int | None = None,
+) -> dict | None:
+    """Pick the requested DASH audio track, or the highest-bandwidth standard track."""
+    if not dash_data or not isinstance(dash_data, dict):
+        return None
+    dash = dash_data.get("dash") or {}
+    all_tracks = _all_dash_audio_tracks(dash)
+    if audio_qn is not None and audio_qn > 0:
+        if audio_cid is not None:
+            for t in all_tracks:
+                if _safe_int(t.get("id")) == audio_qn and _safe_int(t.get("codecid")) == audio_cid:
+                    return t
+        for t in all_tracks:
+            if _safe_int(t.get("id")) == audio_qn:
+                return t
+
+    standard = _normalize_track_urls(dash.get("audio"))
+    candidates = [t for t in standard if _dash_candidate_urls(t)] or all_tracks
+    if not candidates:
+        return None
+    return max(candidates, key=lambda t: max(_safe_int(t.get("bandwidth")), 0))
+
+
+def _pick_download_tracks(
+    dash_data: dict | None,
+    max_video_qn: int,
+    *,
+    video_cid: int | None = None,
+    audio_qn: int | None = None,
+    audio_cid: int | None = None,
+) -> tuple:
     """Pick the best (video, audio) track pair for a muxed download.
 
-    Video: highest ``id`` (quality) <= ``max_video_qn``. Audio: highest
-    ``bandwidth`` from the standard ``dash.audio`` array, independent of the
-    video resolution (avoids Dolby/FLAC lossless tracks).
+    Video: exact ``(max_video_qn, video_cid)`` when requested, falling back to
+    highest ``id`` (quality) <= ``max_video_qn``. Audio: requested track or
+    highest ``bandwidth`` from the standard ``dash.audio`` array.
     """
     if not dash_data or not isinstance(dash_data, dict):
         return None, None
     dash = dash_data.get("dash") or {}
 
+    videos = _normalize_track_urls(dash.get("video"))
     video = None
-    for t in _normalize_track_urls(dash.get("video")):
-        try:
-            qn = int(t.get("id", 0))
-        except TypeError, ValueError:
-            qn = 0
-        if qn <= max_video_qn and (video is None or qn > int(video.get("id") or 0)):
-            video = t
+    if video_cid is not None:
+        for t in videos:
+            if _safe_int(t.get("id")) == max_video_qn and _safe_int(t.get("codecid")) == video_cid:
+                video = t
+                break
+    if video is None:
+        for t in videos:
+            qn = _safe_int(t.get("id"))
+            cid = _safe_int(t.get("codecid"))
+            if qn <= max_video_qn:
+                if video is None:
+                    video = t
+                    continue
+                best_qn = _safe_int(video.get("id"))
+                best_cid = _safe_int(video.get("codecid"))
+                if qn > best_qn:
+                    video = t
+                elif qn == best_qn:
+                    if video_cid is not None:
+                        if cid == video_cid and best_cid != video_cid:
+                            video = t
+                    elif _VIDEO_CODEC_RANK.get(cid, 0) > _VIDEO_CODEC_RANK.get(best_cid, 0):
+                        video = t
 
-    audio = None
-    audio_bw = -1
-    for t in _normalize_track_urls(dash.get("audio")):
-        try:
-            bw = int(t.get("bandwidth") or 0)
-        except TypeError, ValueError:
-            bw = 0
-        if bw < 0:
-            bw = 0
-        if audio is None or bw > audio_bw:
-            audio, audio_bw = t, bw
+    audio = _pick_audio_track(dash_data, audio_qn=audio_qn, audio_cid=audio_cid)
     return video, audio
 
 
@@ -344,34 +548,13 @@ async def _stream_track_body(conn, file_obj, total: int, max_bytes: int, progres
 _MUX_TIMEOUT = 600.0
 
 
-async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None) -> None:
-    """Remux video + audio tracks into a single faststart MP4 with ffmpeg (-c copy).
-
-    When ``job`` (a ``_DownloadJob``) is given, the ffmpeg subprocess handle is
-    tracked on it so a cancel request can kill the mux mid-flight.
-    """
+async def _run_ffmpeg_cmd(args: list[str], job=None) -> None:
     ffmpeg = await asyncio.to_thread(shutil.which, "ffmpeg")
     if not ffmpeg:
         raise RuntimeError("ffmpeg not available on this server")
-    cmd = [
-        ffmpeg,
-        "-y",
-        "-i",
-        video_path,
-        "-i",
-        audio_path,
-        "-map",
-        "0:v:0",
-        "-map",
-        "1:a:0",
-        "-c",
-        "copy",
-        "-movflags",
-        "+faststart",
-        out_path,
-    ]
     proc = await asyncio.create_subprocess_exec(
-        *cmd,
+        ffmpeg,
+        *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -413,6 +596,44 @@ async def _mux_tracks(video_path: str, audio_path: str, out_path: str, job=None)
         raise
     if proc.returncode != 0:
         raise RuntimeError("ffmpeg mux failed: " + (stderr or b"").decode(errors="replace")[-600:])
+
+
+async def _mux_tracks(video_path: str, audio_path: str, out_path: str, *, is_mkv: bool = False, job=None) -> None:
+    """Remux video + audio tracks into MP4 or MKV with ffmpeg (-c copy)."""
+    cmd = [
+        "-y",
+        "-i",
+        video_path,
+        "-i",
+        audio_path,
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-c",
+        "copy",
+    ]
+    if not is_mkv:
+        cmd.extend(["-movflags", "+faststart"])
+    cmd.append(out_path)
+    await _run_ffmpeg_cmd(cmd, job=job)
+
+
+async def _remux_video_track(video_path: str, out_path: str, job=None) -> None:
+    """Remux a single DASH video track into a playable silent MP4."""
+    await _run_ffmpeg_cmd(
+        ["-y", "-i", video_path, "-map", "0:v:0", "-c", "copy", "-movflags", "+faststart", out_path],
+        job=job,
+    )
+
+
+async def _remux_audio_track(audio_path: str, out_path: str, *, is_flac: bool = False, job=None) -> None:
+    """Remux a single DASH audio track into a playable M4A or FLAC container."""
+    cmd = ["-y", "-i", audio_path, "-map", "0:a:0", "-c", "copy"]
+    if not is_flac:
+        cmd.extend(["-movflags", "+faststart"])
+    cmd.append(out_path)
+    await _run_ffmpeg_cmd(cmd, job=job)
 
 
 def _has_exact_content_length(resp_headers, span_left: int) -> bool:

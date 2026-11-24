@@ -426,8 +426,9 @@ def _safe_download_filename(vid: str, idx: int, qn: int, ext: str = ".mp4") -> s
         qn = int(qn)
     except TypeError, ValueError:
         qn = 0
-    ext = ext if ext in (".mp4", ".flv") else ".mp4"
-    return f"{_safe_vid(vid) or 'video'}_{idx}_p{qn}{ext}"
+    ext = ext if ext in (".mp4", ".mkv", ".flv", ".m4a", ".flac") else ".mp4"
+    prefix = "a" if ext in (".m4a", ".flac") else "p"
+    return f"{_safe_vid(vid) or 'video'}_{idx}_{prefix}{qn}{ext}"
 
 
 async def _extract_ep_id(vi) -> str | None:

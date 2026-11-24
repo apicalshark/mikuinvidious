@@ -273,37 +273,68 @@ async def dl_redirect():
     form = await request.form
     bvid = form.get("id")
     cvid = form.get("cvid")
-    qual = form.get("qual")
+    qual = form.get("qual") or "0"
+    is_xhr = request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get(
+        "Accept", ""
+    )
 
-    # Validate input to prevent open redirect
     import re
+    from urllib.parse import urlencode
+
+    if not cvid or not cvid.isdigit():
+        return Response("Invalid page index", status=400)
+
+    if bvid and re.match(r"^(au|am)\d{1,20}$", bvid):
+        direct_url = f"/proxy/video/{bvid}_{cvid}_0?dl=1"
+        return jsonify({"direct_url": direct_url}) if is_xhr else redirect(direct_url, code=302)
 
     if not bvid or not re.match(r"^(BV[a-zA-Z0-9]{10}|av\d+)$", bvid):
         return Response("Invalid video ID", status=400)
-    if not cvid or not cvid.isdigit():
-        return Response("Invalid page index", status=400)
-    if not qual or not qual.isdigit():
+    if not qual.isdigit():
         return Response("Invalid quality", status=400)
 
-    # Muxed DASH download: resolves the best video (<=1080p anonymous cap) + audio
-    # tracks and remuxes them into a single playable MP4 via ffmpeg.
-    #
-    # fetch/XHR callers (the floating download dialog) get a background job id
-    # and poll /download/status/<job_id> instead of hanging on this response;
-    # plain form posts keep the legacy 302 for no-JS clients.
-    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or "application/json" in request.headers.get(
-        "Accept", ""
-    ):
+    mode = form.get("mode") or ("audio" if qual == "0" else "video")
+    if mode not in ("video", "audio", "video_only"):
+        return Response("Invalid download mode", status=400)
+
+    def _opt_int(field: str) -> int | None:
+        raw = form.get(field)
+        if raw and raw.isdigit():
+            return int(raw)
+        return None
+
+    v_cid = _opt_int("v_cid")
+    a_qn = _opt_int("a_qn")
+    a_cid = _opt_int("a_cid")
+
+    if is_xhr:
         from miku.dash import DownloadCapacityError, create_download_job
 
         try:
-            job_id = await create_download_job(bvid, int(cvid), int(qual), client_ip=get_client_ip(request))
+            job_id = await create_download_job(
+                bvid,
+                int(cvid),
+                int(qual),
+                client_ip=get_client_ip(request),
+                mode=mode,
+                video_cid=v_cid,
+                audio_qn=a_qn,
+                audio_cid=a_cid,
+            )
         except DownloadCapacityError as exc:
             return jsonify({"error": str(exc)}), 429
         except RuntimeError as exc:
             return jsonify({"error": str(exc)}), 403
         return jsonify({"job_id": job_id})
-    return redirect(f"/proxy/download/{bvid}/{cvid}/{qual}", code=302)
+
+    query = {"mode": mode}
+    if v_cid is not None:
+        query["v_cid"] = v_cid
+    if a_qn is not None:
+        query["a_qn"] = a_qn
+    if a_cid is not None:
+        query["a_cid"] = a_cid
+    return redirect(f"/proxy/download/{bvid}/{cvid}/{qual}?{urlencode(query)}", code=302)
 
 
 ##########################################

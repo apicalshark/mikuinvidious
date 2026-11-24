@@ -242,6 +242,86 @@ function initPreferences() {
     }
   }
 
+  const codecDropdown = document.getElementById("preferred_codec_dropdown");
+  const codecBtn = document.getElementById("select_preferred_codec_btn");
+  const codecLabel = document.getElementById("select_preferred_codec_label");
+  const codecChevron = document.getElementById("select_preferred_codec_chevron");
+  const codecMenu = document.getElementById("select_preferred_codec_menu");
+  if (codecDropdown && codecBtn && codecLabel && codecMenu) {
+    const allowedCodecs = ["auto", "av1", "hevc", "avc"];
+    const codecOptions = Array.from(codecMenu.querySelectorAll("[data-codec-value]"));
+    const storedCodec = (
+      getCookie("preferred_codec") ||
+      helpers.storage.get("preferred_codec") ||
+      "auto"
+    ).toLowerCase();
+    let currentCodec = allowedCodecs.includes(storedCodec) ? storedCodec : "auto";
+
+    function syncCodecDropdown(val) {
+      currentCodec = allowedCodecs.includes(val) ? val : "auto";
+      codecOptions.forEach((opt) => {
+        const active = opt.dataset.codecValue === currentCodec;
+        opt.setAttribute("aria-selected", active ? "true" : "false");
+        opt.classList.toggle("bg-primary/15", active);
+        opt.classList.toggle("text-primary", active);
+        opt.classList.toggle("text-on-surface", !active);
+        opt.classList.toggle("hover:bg-surface-container-highest", !active);
+        const icon = opt.querySelector(".ion-md-checkmark");
+        if (icon) icon.classList.toggle("hidden", !active);
+        if (active) {
+          const txt = opt.querySelector("span");
+          if (txt) codecLabel.textContent = txt.textContent;
+        }
+      });
+    }
+
+    function setCodecMenuOpen(open) {
+      codecMenu.classList.toggle("hidden", !open);
+      codecBtn.setAttribute("aria-expanded", open ? "true" : "false");
+      if (codecChevron) codecChevron.classList.toggle("rotate-180", open);
+    }
+
+    syncCodecDropdown(currentCodec);
+
+    codecBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      setCodecMenuOpen(codecMenu.classList.contains("hidden"));
+    });
+
+    codecOptions.forEach((opt) => {
+      opt.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const val = allowedCodecs.includes(opt.dataset.codecValue)
+          ? opt.dataset.codecValue
+          : "auto";
+        syncCodecDropdown(val);
+        helpers.storage.set("preferred_codec", val);
+        const secureFlag = location.protocol === "https:" ? "; Secure" : "";
+        document.cookie =
+          "preferred_codec=" +
+          val +
+          "; path=/; max-age=" +
+          3600 * 24 * 30 +
+          "; SameSite=Lax" +
+          secureFlag;
+        setCodecMenuOpen(false);
+      });
+    });
+
+    document.addEventListener("click", function (e) {
+      if (!codecDropdown.contains(e.target)) {
+        setCodecMenuOpen(false);
+      }
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !codecMenu.classList.contains("hidden")) {
+        setCodecMenuOpen(false);
+        codecBtn.focus();
+      }
+    });
+  }
+
   // Material You Palette Picker
   const seedPicker = document.getElementById("m3-seed-picker");
   if (seedPicker && window.M3Theme) {

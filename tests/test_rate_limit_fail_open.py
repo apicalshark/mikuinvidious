@@ -110,3 +110,66 @@ class TestRateLimitFailOpen(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(r2.status_code, 200)
             self.assertEqual(r3.status_code, 429)
             self.assertEqual(len(limiter._fallback_buckets), 1)
+
+    async def test_redis_cooldown_skips_redis_and_recovers_after_expiry(self):
+        from unittest.mock import patch
+
+        from redis.exceptions import MaxConnectionsError
+
+        mock_redis = MagicMock()
+        mock_pipe = MagicMock()
+        mock_pipe.execute = AsyncMock(
+            side_effect=[
+                MaxConnectionsError("Too many connections"),
+                [1, 0, 1, True],
+            ]
+        )
+        mock_redis.pipeline.return_value = mock_pipe
+
+        limiter = RateLimiter(mock_redis, redis_cooldown=30.0)
+        with patch("miku.core.rate_limit.time.monotonic", side_effect=[100.0, 110.0, 130.0]):
+            allowed1, info1 = await limiter.is_allowed("127.0.0.1:/a", limit=5, window=60)
+            allowed2, info2 = await limiter.is_allowed("127.0.0.1:/a", limit=5, window=60)
+            allowed3, info3 = await limiter.is_allowed("127.0.0.1:/a", limit=5, window=60)
+
+        self.assertTrue(allowed1)
+        self.assertTrue(allowed2)
+        self.assertTrue(allowed3)
+        self.assertEqual(info1["remaining"], 4)
+        self.assertEqual(info2["remaining"], 3)
+        self.assertEqual(info3["remaining"], 4)
+        self.assertEqual(mock_pipe.execute.await_count, 2)
+        mock_redis.pipeline.assert_called_with(transaction=False)
+
+    async def test_in_memory_mode_enforces_limits_without_redis(self):
+        limiter = RateLimiter(None)
+        self.assertEqual(await limiter.get_current_usage("127.0.0.1:/mem", window=60), 0)
+
+        for i in range(2):
+            allowed, info = await limiter.is_allowed("127.0.0.1:/mem", limit=2, window=60)
+            self.assertTrue(allowed)
+            self.assertEqual(info["remaining"], 1 - i)
+
+        allowed, info = await limiter.is_allowed("127.0.0.1:/mem", limit=2, window=60)
+        self.assertFalse(allowed)
+        self.assertEqual(info["remaining"], 0)
+        self.assertEqual(await limiter.get_current_usage("127.0.0.1:/mem", window=60), 2)
+
+    async def test_get_rate_limiter_selects_backend(self):
+        from unittest.mock import patch
+
+        from miku.core import rate_limit as rl
+
+        prev = rl._rate_limiter
+        try:
+            rl._rate_limiter = None
+            with patch.dict(rl.appconf["rate_limit"], {"backend": "memory"}):
+                mem_limiter = rl.get_rate_limiter()
+                self.assertIsNone(mem_limiter.redis)
+
+            rl._rate_limiter = None
+            with patch.dict(rl.appconf["rate_limit"], {"backend": "redis"}):
+                redis_limiter = rl.get_rate_limiter()
+                self.assertIs(redis_limiter.redis, rl.appredis)
+        finally:
+            rl._rate_limiter = prev

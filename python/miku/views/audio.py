@@ -139,15 +139,22 @@ async def audio_view(auid):
         "tname": "Audio",
     }
     html = await render_template_with_theme(
-        "video_listen.html",
+        "video.html",
         vid=auid,
+        comment_vid=auid,
         vinfo=vinfo,
         vrelated=[],
         vcomments=acomments,
         keywords="",
+        supported_src=[{"quality": 0, "new_description": "Audio", "ext": ""}],
         ato=ato,
         idx=0,
         vset=[{"page": 1, "part": auid}],
+        is_live=False,
+        is_audio=True,
+        is_progressive_audio=True,
+        comment_type=comment.CommentResourceType.AUDIO.value,
+        direct_download_url=f"/proxy/video/{auid}_0_0?dl=1",
     )
     if cache_ttl > 0:
         return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT" if cache_hit else "MISS"})
@@ -327,15 +334,22 @@ async def audio_list_view(amid, idx=0):
         if isinstance(s, dict)
     ]
     html = await render_template_with_theme(
-        "video_listen.html",
+        "video.html",
         vid=amid,
+        comment_vid=auid,
         vinfo=vinfo,
         vrelated=[],
         vcomments=acomments,
         keywords="",
+        supported_src=[{"quality": 0, "new_description": "Audio", "ext": ""}],
         ato=ato,
         idx=idx,
         vset=vset,
+        is_live=False,
+        is_audio=True,
+        is_progressive_audio=True,
+        comment_type=comment.CommentResourceType.AUDIO.value,
+        direct_download_url=f"/proxy/video/{amid}_{idx}_0?dl=1",
     )
     if cache_ttl > 0:
         return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT" if cache_hit else "MISS"})

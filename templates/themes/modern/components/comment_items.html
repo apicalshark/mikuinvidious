@@ -32,7 +32,7 @@
                 {% set rcount = rep.get('rcount', 0) %}
                 {% if rcount > 0 %}
                     <button class="sub-comment-toggle flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
-                            data-vid="{{ vid }}"
+                            data-vid="{{ comment_vid|default(vid) }}"
                             data-root="{{ rep['rpid'] }}"
                             data-count="{{ rcount }}"
                             data-comment-type="{{ comment_type|default(1) }}"
