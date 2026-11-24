@@ -628,6 +628,7 @@ class SpaceSearchTests(unittest.IsolatedAsyncioTestCase):
                     return {"archives": [{"bvid": "BVmatch", "title": "Miku Live"}], "page": {"total": 40}}
 
                 if len(captured_params) == 1:
+
                     async def _primary_empty():
                         return {"list": {"vlist": []}}
 
@@ -638,7 +639,11 @@ class SpaceSearchTests(unittest.IsolatedAsyncioTestCase):
         cache_set_mock = AsyncMock(side_effect=AssertionError("search results should not overwrite unfiltered cache"))
         with (
             patch.object(user, "Api", FakeApi),
-            patch.object(user.User, "get_user_info", AsyncMock(return_value={"mid": 123, "name": "Tester", "face": "", "sign": ""})),
+            patch.object(
+                user.User,
+                "get_user_info",
+                AsyncMock(return_value={"mid": 123, "name": "Tester", "face": "", "sign": ""}),
+            ),
             patch.object(views_space, "cache_minutes", return_value=10),
             patch.object(views_space, "cache_get", cache_get_mock),
             patch.object(views_space, "cache_set", cache_set_mock),
