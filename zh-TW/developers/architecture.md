@@ -24,7 +24,7 @@ MikuInvidious 是一套非同步、隱私優先的 Bilibili 網頁前端與媒�
 |                                                             |
 | +---------------------------------------------------------+ |
 | | 中介軟體層（Middleware）                                | |
-| | - 速率限制器（miku/core/rate_limit.py，Redis 權杖桶）   | |
+| | - 速率限制器（miku/core/rate_limit.py，記憶體／Redis） | |
 | | - CSRF 防禦（miku/core/csrf.py）                        | |
 | | - 多國語系引擎（miku/ui/i18n.py）                       | |
 | +---------------------------------------------------------+ |

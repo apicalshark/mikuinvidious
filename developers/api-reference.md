@@ -11,10 +11,9 @@ This document maps all public web routes, media streaming proxies, and auxiliary
 | `/` | `miku/views/home.py` | Home page with trending recommendation feeds. |
 | `/search` | `miku/views/home.py` | Universal search with tabs (video, bangumi, users, live). |
 | `/convert?url=<url>` | `miku/views/home.py` | Server-side `b23.tv` shortlink unwrapper and cleaner. |
-| `/video/<vid>` | `miku/views/video.py` | Video page, metadata, player, parts, and comments. |
+| `/video/<vid>` | `miku/views/video.py` | Video page, metadata, player, parts, comments, and Listen Mode (`?listen=1`). |
 | `/video/<vid>:<idx>` | `miku/views/video.py` | Multi-part video page (colon notation or `?p=<idx>`). |
-| `/video_listen/<vid>` | `miku/views/video.py` | Audio-only Listen Mode (`?listen=1`). |
-| `/video/dash/<vid>/<idx>/manifest.mpd` | `miku/dash/mpd.py` | Dynamic ISO/IEC 23009-1 DASH MPD manifest (`?fresh=1` forces refresh; HMAC-signed). |
+| `/video/dash/<vid>/<idx>/manifest.mpd` | `miku/dash/mpd.py` | Dynamic ISO/IEC 23009-1 DASH MPD manifest (`?fresh=1` forces refresh; `?audio_only=1` omits video tracks; respects `preferred_codec` cookie; HMAC-signed). |
 | `/bangumi` | `miku/views/bangumi.py` | Anime & Bangumi catalog index. |
 | `/bangumi/view/<ssid>` | `miku/views/bangumi.py` | Season details, episodes grid, and PV sections. |
 | `/bangumi/play/<epid>` | `miku/views/bangumi.py` | Bangumi episode player. |
@@ -42,7 +41,7 @@ This document maps all public web routes, media streaming proxies, and auxiliary
 | `/proxy/dash/<vid>/<idx>/<type>/<qn>/<cid>` | `miku/dash/stream.py` | HMAC-signed bounded HTTP Range DASH track proxy (max 32 MiB per request; open-ended rejected with 416). |
 | `/proxy/live_hls` | `miku/media/proxy.py` | HMAC-signed server-side live HLS playlist and segment proxy (rewrites child URIs). |
 | `/proxy/video/*` | `miku/media/proxy.py` | Progressive MP4 proxy for legacy `durl` uploads lacking DASH. |
-| `/proxy/download/<vid>/<idx>/<qual>` | `miku/media/proxy.py` | Legacy direct media download endpoint for non-JavaScript environments. |
+| `/proxy/download/<vid>/<idx>/<qual>` | `miku/dash/download_job.py` | Direct media download endpoint for non-JavaScript environments (supports `mode=video|audio|video_only`, `v_cid`, `a_qn`, `a_cid`). |
 | `/proxy/live/disconnect` (POST) | `miku/views/live.py` | Gracefully closes active upstream live stream connections. |
 | `/res/danmaku/<vid>[:<idx>]` | `miku/media/res.py`, `danmaku.py` | Fetches, decodes protobuf, and emits Danmaku XML (HMAC-signed). |
 | `/res/subtitle/<vid>[:<idx>[:<lan>]]` | `miku/media/res.py` | Fetches and formats video subtitle tracks (HMAC-signed). |
@@ -53,9 +52,9 @@ This document maps all public web routes, media streaming proxies, and auxiliary
 
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
-| `/download` | POST | Enqueues a multi-track background download job → returns `{"job_id": "<uuid>"}`. |
+| `/download` | POST | Enqueues a background download job (`mode`: `video`, `audio`, `video_only`; optional `v_cid`, `a_qn`, `a_cid`) → returns `{"job_id": "<uuid>"}` (or `{"direct_url": "..."}` for standalone `/audio/*` tracks). |
 | `/download/status/<job>` | GET | Polls download progress, speed, and phase (`queued`, `resolving`, `downloading`, `muxing`, `ready`). |
-| `/download/file/<job>` | GET | Streams the completed, faststart-muxed `.mp4` file. |
+| `/download/file/<job>` | GET | Streams the completed, faststart-remuxed `.mp4`, `.mkv`, `.m4a`, or `.flac` file. |
 | `/download/cancel/<job>` | POST | Aborts active background download and purges temporary disk files. |
 | `/api/component/player/<vid>/<idx>` | GET | HTML snippet for player component. |
 | `/api/component/meta/<vid>/<idx>` | GET | HTML snippet for video metadata. |

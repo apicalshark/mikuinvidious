@@ -1,6 +1,6 @@
 # 速率限制與防爬蟲
 
-MikuInvidious 內建基於 Redis 權杖桶的滑動視窗速率限制器，保護公開實例免於惡意爬蟲掃描與阻斷服務攻擊（DoS）。
+MikuInvidious 內建滑動視窗速率限制器，保護公開實例免於惡意爬蟲掃描與阻斷服務攻擊（DoS）。預設採用行程內有界記憶體計數器（`backend = "memory"`，建議單工作程序部署使用），並可選用共用 `redis` 後端（在 Redis 異常時自動退避至記憶體 30 秒）。
 
 速率限制在 `config.toml.sample` 與 `compose.yml` 中**預設為啟用狀態**（未設定時之程式回退預設值為 `false`）。對於直接暴露於公網之公開站點，強烈建議保持啟用。
 
@@ -13,6 +13,7 @@ MikuInvidious 內建基於 Redis 權杖桶的滑動視窗速率限制器，保�
 ```toml
 [rate_limit]
 enabled = true
+backend = "memory" # 若需跨工作程序共用計數器可改為 "redis"
 trusted_proxies = "127.0.0.1/8,::1/128,172.30.0.0/24"
 ```
 
@@ -23,6 +24,7 @@ trusted_proxies = "127.0.0.1/8,::1/128,172.30.0.0/24"
 ```yaml
 environment:
   - RATE_LIMIT_ENABLED=true
+  - RATE_LIMIT_BACKEND=memory
   - TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24
 ```
 
@@ -30,6 +32,7 @@ environment:
 
 ```bash
 export RATE_LIMIT_ENABLED=true
+export RATE_LIMIT_BACKEND=memory
 export TRUSTED_PROXIES="127.0.0.1/8,::1/128"
 uv run python python/main.py
 ```

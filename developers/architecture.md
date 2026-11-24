@@ -24,7 +24,7 @@ MikuInvidious is an asynchronous, privacy-first web frontend and media proxy for
 |                                                             |
 | +---------------------------------------------------------+ |
 | | Middleware Layer                                        | |
-| | - Rate Limiter (miku/core/rate_limit.py, Redis-backed)  | |
+| | - Rate Limiter (miku/core/rate_limit.py, memory/Redis)    | |
 | | - CSRF Protection (miku/core/csrf.py)                   | |
 | | - Internationalization (miku/ui/i18n.py)                | |
 | +---------------------------------------------------------+ |
