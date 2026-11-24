@@ -48,6 +48,18 @@ yourdomain {
         Referrer-Policy "strict-origin-when-cross-origin"
     }
 
+    handle_errors {
+        header {
+            -Server
+            -Via
+            Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+            X-Content-Type-Options "nosniff"
+            X-Frame-Options "DENY"
+            Referrer-Policy "strict-origin-when-cross-origin"
+        }
+        respond "" {err.status_code}
+    }
+
     handle /static/* {
     	header Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()"
     	header Cross-Origin-Resource-Policy "same-origin"
