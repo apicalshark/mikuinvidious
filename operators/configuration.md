@@ -170,11 +170,12 @@ All cached pages emit `X-Cache: HIT` or `X-Cache: MISS`.
 
 ## `[rate_limit]`
 
-Sliding-window Redis token bucket rate limiting per client IP address.
+Sliding-window rate limiting per client IP address (bounded in-memory by default for single-worker deployments, with optional Redis backend and automatic 30-second in-memory fallback on Redis errors).
 
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `enabled` | `RATE_LIMIT_ENABLED` | `false` (code) / `true` (`config.toml.sample`, `compose.yml`) | Master toggle for rate limiting. |
+| `backend` | `RATE_LIMIT_BACKEND` | `memory` | Rate limiter storage backend: `memory` (bounded in-process buckets, recommended for single-worker deployments) or `redis` (shared Redis counters with automatic 30s in-memory fallback on Redis errors). |
 | `trusted_proxies` | `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | Comma-separated list of IP addresses or CIDR blocks whose `X-Forwarded-For` header is trusted for client IP extraction (`get_client_ip()`). |
 
 > [!WARNING]

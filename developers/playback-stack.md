@@ -58,6 +58,7 @@ The DASH engine is divided into six modular components located in `python/miku/d
 ### B. Dynamic MPD Generation (`miku/dash/mpd.py`)
 
 - Emits a standards-compliant `isoff-on-demand` MPD at `/video/dash/<vid>/<idx>/manifest.mpd` (HMAC-signed).
+- Supports `?audio_only=1` (omits video adaptation sets for Listen Mode) and orders video adaptation sets by the `preferred_codec` cookie (`auto`: AV1 → HEVC → AVC, `av1`, `hevc`, or `avc`).
 - Only audio and video tracks containing valid `SegmentBase.indexRange` headers are included.
 - BaseURLs dynamically point to the local track proxy (`/proxy/dash/...`), resolved per request rather than hardcoded in the manifest.
 
@@ -80,9 +81,10 @@ The DASH engine is divided into six modular components located in `python/miku/d
 ### E. Background Download Pipeline (`miku/dash/download_*.py`)
 
 - **Queue & Concurrency**: Managed by `miku/dash/download_job.py` (`_JOB_SLOTS = 3` concurrent download/mux slots, `_MAX_ACTIVE_JOBS = 12` queued/active ceiling, and disk retention bounded by `max_download_disk_mb`). Per-IP media concurrency is enforced via `PerIpSlotLimiter` (`DASH_MAX_CONCURRENT_PER_IP = 8` for DASH track proxying in `miku/dash/stream.py`; `LIVE_CHAT_MAX_PER_IP = 4` for live chat SSE in `miku/views/live.py`). Each download job is assigned an unguessable UUID.
-- **Segment Downloading**: Downloads video and audio tracks concurrently as 32MB `Range` segments with 1MB disk write batches.
+- **Track Selection & Modes**: `extract_download_options()` exposes selectable video tracks (by quality and `v_cid` codec) and audio tracks (including `audio`, `dolby.audio`, and `flac.audio` by `a_qn`/`a_cid`). Jobs support `mode="video"` (muxed `.mp4`/`.mkv`), `mode="audio"` (`.m4a`/`.flac`), and `mode="video_only"`.
+- **Segment Downloading**: Downloads selected video and audio tracks concurrently as 32MB `Range` segments with 1MB disk write batches.
 - **Adaptive Pacing & Slowdown Watchdog**: Consecutive slow transfers trigger an adaptive backoff ladder (2s to 10s). A 1-second rolling watchdog detects edge throttling, dropping stalled connections and pausing before reconnecting.
-- **Muxing & Delivery**: Completed tracks are remuxed with stream copy (`ffmpeg -c copy -movflags +faststart`) up to 1080p anonymous ceiling. Cancelled jobs cleanly abort CDN transfers and prune temporary files.
+- **Muxing & Delivery**: Completed tracks are muxed or remuxed with stream copy (`ffmpeg -c copy -movflags +faststart`) up to 1080p anonymous ceiling. Cancelled jobs cleanly abort CDN transfers and prune temporary files.
 
 ### F. Progressive `durl` Fallback (`miku/media/proxy.py`)
 
@@ -94,7 +96,7 @@ The DASH engine is divided into six modular components located in `python/miku/d
 ## 3. Frontend Players
 
 - **Light-DOM Player UI (`player_ui.js`)**: Custom Tailwind v4 player chrome replacing `media-chrome`, with a themed settings menu, native caption selector, clickable timer, and danmaku controls (default size: small).
-- **VOD Player (`dash.js`)**: Vendored v5 representations API (`static/themes/modern/js/player.js`).
+- **Unified VOD & Audio Player (`dash.js`)**: Vendored v5 representations API (`static/themes/modern/js/player.js`). Both Listen Mode (`?listen=1`) and `/audio/*` pages share the unified `video.html` template and player stack.
 - **Live Stream Players**: `hls.js` (for HLS fMP4/TS playlists proxied server-side via `/proxy/live_hls`) and `mpegts.js` (for FLV streams). Live player scripts are strictly segregated and never loaded on VOD pages.
 
 ---

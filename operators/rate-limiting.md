@@ -1,6 +1,6 @@
 # Rate Limiting & Anti-Abuse
 
-MikuInvidious includes an atomic Redis sliding-window token bucket rate limiter to protect public instances from scraping floods and Denial of Service attacks.
+MikuInvidious includes a sliding-window rate limiter to protect public instances from scraping floods and Denial of Service attacks. By default it uses bounded in-process memory buckets (`backend = "memory"`, recommended for single-worker deployments), and optionally supports a shared `redis` backend with automatic 30-second in-memory fallback if Redis is unavailable.
 
 Rate limiting is **enabled by default** in `config.toml.sample` and `compose.yml` (the raw fallback default when unconfigured is `false`). For public instances exposed directly to the internet, keeping it enabled is strongly recommended.
 
@@ -13,6 +13,7 @@ In `config.toml`:
 ```toml
 [rate_limit]
 enabled = true
+backend = "memory" # or "redis" for multi-worker shared counters
 trusted_proxies = "127.0.0.1/8,::1/128,172.30.0.0/24"
 ```
 
@@ -23,6 +24,7 @@ For Docker deployments, set them under the `app` service environment in `compose
 ```yaml
 environment:
   - RATE_LIMIT_ENABLED=true
+  - RATE_LIMIT_BACKEND=memory
   - TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24
 ```
 
@@ -30,6 +32,7 @@ For direct CLI launches, export the environment variables before starting the se
 
 ```bash
 export RATE_LIMIT_ENABLED=true
+export RATE_LIMIT_BACKEND=memory
 export TRUSTED_PROXIES="127.0.0.1/8,::1/128"
 uv run python python/main.py
 ```

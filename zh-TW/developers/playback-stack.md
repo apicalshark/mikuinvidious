@@ -58,6 +58,7 @@ DASH 串流引擎在 `python/miku/dash/` 中拆分為六個解耦的模組：
 ### B. 動態 MPD 生成（`miku/dash/mpd.py`）
 
 - 於 `/video/dash/<vid>/<idx>/manifest.mpd` 輸出符合 `isoff-on-demand` 規範的標準 DASH 清單（具 HMAC 簽章）。
+- 支援 `?audio_only=1`（於聆聽模式省略視訊 AdaptationSet），並依 `preferred_codec` Cookie（`auto`：AV1 → HEVC → AVC、`av1`、`hevc` 或 `avc`）排序視訊編碼軌道。
 - 僅收錄具備有效 `SegmentBase.indexRange` 標頭的音訊與視訊軌道。
 - BaseURL 動態指向本機分段代理路徑（`/proxy/dash/...`），於每次請求時動態計算，不硬編碼於靜態清單中。
 
@@ -80,16 +81,17 @@ DASH 串流引擎在 `python/miku/dash/` 中拆分為六個解耦的模組：
 ### E. 背景下載管線（`miku/dash/download_*.py`）
 
 - **佇列與併發**：由 `miku/dash/download_job.py` 排程（`_JOB_SLOTS = 3` 個併發下載／封裝槽位，`_MAX_ACTIVE_JOBS = 12` 佇列上限，並受 `max_download_disk_mb` 磁碟保留上限控管），每個任務獲派一組不可推測的 UUID。每 IP 媒體併發由 `PerIpSlotLimiter` 控制（`DASH_MAX_CONCURRENT_PER_IP = 8`、`LIVE_CHAT_MAX_PER_IP = 4`）。
-- **分段下載**：以 32 MB 為單元並行下載音訊與視訊軌道，並以 1 MB 進行本機磁碟批次寫入。
+- **選軌與下載模式**：`extract_download_options()` 會彙整可選視訊軌（依畫質與 `v_cid` 編碼）與音訊軌（包含 `audio`、`dolby.audio` 與 `flac.audio`，依 `a_qn`／`a_cid` 區分）。下載任務支援 `mode="video"`（封裝為 `.mp4`／`.mkv`）、`mode="audio"`（`.m4a`／`.flac`）與 `mode="video_only"`。
+- **分段下載**：以 32 MB 為單元並行下載所選音訊與視訊軌道，並以 1 MB 進行本機磁碟批次寫入。
 - **自適應降速避障與看門狗**：連續遭遇傳輸慢速將觸發自適應退避階梯（2 至 10 秒）。1 秒滾動看門狗偵測到 CDN 節流時，自動中斷連線並暫停後重試。
-- **格式封裝與交付**：下載完畢後呼叫 `ffmpeg -c copy -movflags +faststart` 無損合成為可直接隨選預覽的 MP4 檔案。
+- **格式封裝與交付**：下載完畢後呼叫 `ffmpeg -c copy -movflags +faststart` 無損合成或轉封裝，並受 1080p 免登入畫質上限約束。
 
 ---
 
 ## 3. 前端播放器
 
 - **Light-DOM 播放器介面（`player_ui.js`）**：以自研 Tailwind v4 介面取代 `media-chrome`，提供主題化設定選單、原生字幕選擇器、可點擊切換的時間顯示與彈幕控制（預設大小為「小」）。
-- **VOD 播放器（`dash.js`）**：內嵌 v5 representations API（`static/themes/modern/js/player.js`）。
+- **整合式 VOD 與音訊播放器（`dash.js`）**：內嵌 v5 representations API（`static/themes/modern/js/player.js`）。純音訊聆聽模式（`?listen=1`）與 `/audio/*` 頁面已統一共用 `video.html` 模板與播放器架構。
 - **直播串流播放器**：`hls.js`（搭配由 `/proxy/live_hls` 伺服器端代理的 HLS 播放清單）與 `mpegts.js`（處理 FLV 串流）。直播播放腳本嚴格隔離，絕不於隨選視訊頁面載入。
 
 ---

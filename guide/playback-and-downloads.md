@@ -8,10 +8,11 @@ MikuInvidious features an advanced media playback and background download engine
 
 The video player uses `dash.js` (v5 representations API) with a custom, lightweight Tailwind CSS interface (`player_ui.js`) featuring a themed settings menu, native caption selector, and clickable time display.
 
-### Quality Tiers
+### Quality Tiers & Preferred Codec
 
 - **Anonymous Tier (Default)**: Supported up to **1080P High Definition** (1080P, 720P, 480P, 360P). No login or account required.
 - **Premium / 4K Tier**: Server-side Bilibili credentials do not automatically unlock all content. Access to higher qualities (**1080P 60fps**, **4K Ultra HD**) and paid episodes depends on the specific video and the configured account's membership or purchase entitlements.
+- **Preferred Video Codec**: Under `/preferences`, you can choose your preferred codec (**Auto (AV1 → HEVC → AVC)**, **AV1**, **HEVC (H.265)**, or **AVC (H.264)**). MikuInvidious prioritizes that codec in DASH manifests and downloads, falling back automatically if unavailable.
 
 ### Keyboard Shortcuts
 
@@ -66,9 +67,12 @@ Any video can be downloaded directly from the video page when enabled by the ins
 
 ### How to Download
 
-1. On any video page, click the **Download** button located below the player.
-2. Select your desired resolution.
-3. A floating download drawer appears at the bottom of the screen.
+1. On any video or audio page, open the **Download** dialog below the player.
+2. Choose a download mode and track:
+   - **Video + Audio**: Select your desired resolution, video codec (AV1, HEVC, AVC), and audio track (AAC, HE-AAC, Dolby, or FLAC) to mux into a single `.mp4` or `.mkv` file.
+   - **Audio Only**: Extract and remux the selected audio stream directly into `.m4a` (AAC/HE-AAC/Dolby) or `.flac` (Hi-Res FLAC).
+   - **Video Only**: Remux only the selected video track without audio.
+3. A floating download drawer appears at the bottom of the screen. (Standalone `/audio/<auid>` tracks and legacy progressive `durl` videos download directly.)
 
 ### Download Phases
 
@@ -76,8 +80,8 @@ The download status updates in real-time through the following phases:
 
 1. **Queued**: The job is registered in the server's background download queue.
 2. **Resolving**: The server fetches fresh high-resolution video and audio CDN stream signatures.
-3. **Downloading**: Video and audio tracks are downloaded concurrently in 32 MB segments with an adaptive watchdog that avoids CDN rate throttling.
-4. **Muxing**: The server muxes the isolated video and audio streams using `ffmpeg -c copy -movflags +faststart` into a clean, seekable `.mp4` file.
+3. **Downloading**: Selected tracks are downloaded concurrently in 32 MB segments with an adaptive watchdog that avoids CDN rate throttling.
+4. **Muxing**: The server muxes or remuxes the selected streams using `ffmpeg -c copy -movflags +faststart` into a clean, seekable `.mp4`, `.mkv`, `.m4a`, or `.flac` file.
 5. **Ready**: The file is ready and automatically prompts your browser to save it to your local storage.
 
 > [!TIP]

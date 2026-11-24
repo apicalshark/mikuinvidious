@@ -11,10 +11,9 @@
 | `/` | `miku/views/home.py` | 首頁與全站熱門推薦動態。 |
 | `/search` | `miku/views/home.py` | 全站通用搜尋（影片、番劇、使用者、直播頁籤）。 |
 | `/convert?url=<網址>` | `miku/views/home.py` | 伺服器端短網址展開與去追蹤過濾工具。 |
-| `/video/<vid>` | `miku/views/video.py` | 影片頁面、中繼資料、播放器、分 P 清單與留言區。 |
+| `/video/<vid>` | `miku/views/video.py` | 影片頁面、中繼資料、播放器、分 P 清單、留言區與純音訊聆聽模式（`?listen=1`）。 |
 | `/video/<vid>:<idx>` | `miku/views/video.py` | 指定分 P 影片頁（冒號標記或 `?p=<idx>` 參數）。 |
-| `/video_listen/<vid>` | `miku/views/video.py` | 純音訊聆聽模式（`?listen=1`）。 |
-| `/video/dash/<vid>/<idx>/manifest.mpd` | `miku/dash/mpd.py` | 動態 ISO/IEC 23009-1 DASH 清單（`?fresh=1` 強制刷新，HMAC 簽章保護）。 |
+| `/video/dash/<vid>/<idx>/manifest.mpd` | `miku/dash/mpd.py` | 動態 ISO/IEC 23009-1 DASH 清單（`?fresh=1` 強制刷新、`?audio_only=1` 僅保留音軌、依 `preferred_codec` Cookie 排序，HMAC 簽章保護）。 |
 | `/bangumi` | `miku/views/bangumi.py` | 動畫與番劇分類目錄。 |
 | `/bangumi/view/<ssid>` | `miku/views/bangumi.py` | 季番詳情、單集網格與 PV 預告花絮。 |
 | `/bangumi/play/<epid>` | `miku/views/bangumi.py` | 番劇單集播放介面。 |
@@ -42,7 +41,7 @@
 | `/proxy/dash/<vid>/<idx>/<type>/<qn>/<cid>` | `miku/dash/stream.py` | 經 HMAC 簽章驗證之有界 HTTP Range DASH 分段代理（單次上限 32 MiB，無界請求拒絕 416）。 |
 | `/proxy/live_hls` | `miku/media/proxy.py` | 經 HMAC 簽章驗證之伺服器端直播 HLS 播放清單與分段代理（自動重寫子 URI）。 |
 | `/proxy/video/*` | `miku/media/proxy.py` | 針對缺失 DASH 節點的老舊投稿提供傳統漸進式 MP4 代理。 |
-| `/proxy/download/<vid>/<idx>/<qual>` | `miku/media/proxy.py` | 傳統直接媒體下載端點（適用於無 JavaScript 環境）。 |
+| `/proxy/download/<vid>/<idx>/<qual>` | `miku/dash/download_job.py` | 直接媒體下載端點（適用於無 JavaScript 環境，支援 `mode=video|audio|video_only` 與 `v_cid`、`a_qn`、`a_cid`）。 |
 | `/proxy/live/disconnect` (POST) | `miku/views/live.py` | 優雅關閉伺服器上游活躍的直播連線。 |
 | `/res/danmaku/<vid>[:<idx>]` | `miku/media/res.py`, `danmaku.py` | 抓取、Protobuf 解碼並輸出彈幕 XML（HMAC 簽章保護）。 |
 | `/res/subtitle/<vid>[:<idx>[:<lan>]]` | `miku/media/res.py` | 取得並格式化字幕軌道（HMAC 簽章保護）。 |
@@ -53,9 +52,9 @@
 
 | 端點路徑 | 請求方法 | 功能職責說明 |
 | :--- | :--- | :--- |
-| `/download` | POST | 建立多軌背景下載任務 → 回傳 `{"job_id": "<uuid>"}`。 |
+| `/download` | POST | 建立背景下載任務（支援 `mode`：`video`、`audio`、`video_only` 及選填 `v_cid`、`a_qn`、`a_cid`）→ 回傳 `{"job_id": "<uuid>"}`（獨立 `/audio/*` 曲目則回傳 `{"direct_url": "..."}`）。 |
 | `/download/status/<job>` | GET | 輪詢查詢下載進度、速度與階段（`queued`, `resolving`, `downloading`, `muxing`, `ready`）。 |
-| `/download/file/<job>` | GET | 串流傳輸封裝完成且具備 faststart 的 `.mp4` 檔案。 |
+| `/download/file/<job>` | GET | 串流傳輸封裝完成且具備 faststart 的 `.mp4`、`.mkv`、`.m4a` 或 `.flac` 檔案。 |
 | `/download/cancel/<job>` | POST | 中斷下載任務並清除伺服器暫存檔案。 |
 | `/api/component/player/<vid>/<idx>` | GET | 播放器 HTML 片段組件。 |
 | `/api/component/meta/<vid>/<idx>` | GET | 影片詳情中繼資料 HTML 片段。 |

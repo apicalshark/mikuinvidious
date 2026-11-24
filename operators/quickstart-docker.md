@@ -102,3 +102,6 @@ Caddy will automatically request and renew trusted SSL/TLS certificates from Let
 ## 4. Datacenter IP Note
 
 If hosting on cloud providers (Hetzner, OVH, DigitalOcean, AWS), Bilibili may challenge or block server IPs with HTTP 412 or `-352` errors. WARP is not enabled by default in the root `compose.yml`; to route outbound requests through Cloudflare WARP, follow the instructions in `tools/warp/` to launch the optional companion stack, or configure an external residential/SOCKS5 proxy via `HTTP_PROXY` and `HTTPS_PROXY` in `compose.yml`.
+
+> [!TIP]
+> For a hardened public instance with Anubis PoW bot defense, GeoIP/ASN filtering, and built-in `microwarp`, see [Public Instance Deployment (`example/docker/`)](reverse-proxy#4-public-instance-deployment-exampledocker).

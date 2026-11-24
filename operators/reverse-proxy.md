@@ -113,21 +113,69 @@ reverse_proxy app:8080 {
 
 ## 3. High-Traffic Bot Defense with Anubis PoW
 
-For public instances experiencing aggressive scraper traffic or volumetric abuse, MikuInvidious includes an Anubis Proof-of-Work (PoW) configuration (`tools/botPolicy.yaml.example` and `tools/Caddyfile.prod.example`).
+For public instances experiencing aggressive scraper traffic or volumetric abuse, MikuInvidious includes a production Anubis Proof-of-Work (PoW) stack in `example/docker/` (`compose.yml.example`, `Caddyfile.prod.example`, and `botPolicy.yaml.example`).
 
 ```
 [ Browser / Scraper ]
          |
          v
-    [ Caddy ]
-         | (Static /static/* served directly)
+    [ Caddy ]  (TLS, security headers, compression exclusion for /proxy/*)
+         | (Static /static/* & /site.webmanifest bypass Anubis -> app:8080)
          v
-    [ Anubis PoW Gateway ] -- Challenges scrapers / headless bots
+    [ Anubis PoW Gateway ] -- Challenges scrapers / headless bots (:8923)
          |
          v (Verified Browsers)
-    [ Granian / Quart ]
+    [ Granian / Quart ]  --> [ Redis ] / [ microwarp SOCKS5 ]
 ```
 
-- **Static Bypass**: `/static/*` and infra health checks bypass challenges completely.
+- **Static Bypass**: `/static/*` and `/site.webmanifest` bypass Anubis directly to `app:8080` with `Permissions-Policy`, `Cross-Origin-Resource-Policy: same-origin`, and `Cache-Control: public, max-age=86400`.
+- **Site-Wide Security Headers**: `Caddyfile.prod.example` strips `Server`/`Via` and applies `Strict-Transport-Security`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, and `Referrer-Policy` across normal responses as well as `handle_errors` error responses.
 - **Image Proxy Route (`/proxy/pic/*`)**: Shielded by Anubis PoW challenges; behind Anubis, Python serves cached images from local disk in `< 1ms`.
-- **Targeted Bot Policies**: Drops vulnerability probes (`.env`, `.git`, `.php`), denies AI scraper User-Agents, and challenges datacenter / commercial VPN ASNs with lightweight client-side PoW challenges before they reach Python.
+- **Targeted Bot Policies (`botPolicy.yaml.example`)**: Drops unsupported HTTP methods, vulnerability probes (`.env`, `.git`, `.php`), and AI/SEO scrapers; challenges scripting libraries and headless frameworks; scores datacenter/VPN ASNs (`+15`) and targeted GeoIP countries (`+10`); gates `/space/*/json` for datacenter/targeted geos while allowing clean residential RSS/script access; sheds load at `load_1m >= 2.0`; and applies tiered PoW difficulty (`4` to `10`).
+
+---
+
+## 4. Public Instance Deployment (`example/docker/`)
+
+The `example/docker/` directory provides a complete, hardened Docker Compose template for running a public MikuInvidious instance with Caddy, Anubis, Redis, and `microwarp` (Cloudflare WARP SOCKS5 egress).
+
+### Setup Steps
+
+1. **Copy the example files** into your deployment directory:
+
+   ```bash
+   cp example/docker/compose.yml.example compose.yml
+   cp example/docker/Caddyfile.prod.example Caddyfile
+   cp example/docker/botPolicy.yaml.example botPolicy.yaml
+   ```
+
+2. **Provide GeoIP databases** (required by `botPolicy.yaml` for `geoip` and `asns` rules):
+
+   Place `GeoLite2-ASN.mmdb` and `GeoLite2-Country.mmdb` in `./data/geoip/` (mounted read-only to `/var/lib/GeoIP` in `anubis`), or uncomment `geoip.auto_update` in `botPolicy.yaml` with your MaxMind account ID and `MAXMIND_LICENSE_KEY`.
+
+3. **Configure secrets and instance environment** in `.env`:
+
+   ```bash
+   QUART_SECRET_KEY=<random-64-hex>
+   REDIS_PASSWORD=<strong-redis-password>
+   ```
+
+   In `compose.yml`:
+   - Set `SITE_URL` (e.g., `https://miku.example.com`) on `app`, and optionally configure Bilibili credentials (`USE_CRED=true`, `SESSDATA`, `BILI_JCT`, `BUVID3`, `BUVID4`, `DEDEUSERID`).
+   - Set `TARGET_HOST` on `anubis` to your public domain (e.g., `miku.example.com`). Keep `COOKIE_DYNAMIC_DOMAIN=false` so Anubis issues a host-only PoW cookie instead of a wildcard domain cookie.
+   - Keep `TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24` aligned with the `miku_net` subnet (`172.30.0.0/24`).
+
+4. **Configure `Caddyfile` for your domain**:
+   - Replace `yourdomain` with your public domain name and set `email` to your ACME contact address.
+   - If using standard Let's Encrypt instead of a custom ACME CA with External Account Binding, remove `acme_ca` and `acme_eab` from the global options block.
+   - Ensure the `/var/log/caddy` host directory exists and is writable by the Caddy container.
+
+5. **Start the public stack**:
+
+   ```bash
+   docker compose up -d
+   ```
+
+> [!NOTE]
+> `example/docker/compose.yml.example` configures `redis` as an ephemeral `tmpfs` cache (`40mb`, `allkeys-lru`, persistence disabled) and routes `app` outbound traffic through `microwarp:1080` (`HTTP_PROXY` / `HTTPS_PROXY`). If your server uses a clean residential IP and does not need WARP, remove the `microwarp` service and proxy environment variables.
+

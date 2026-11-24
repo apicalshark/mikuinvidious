@@ -170,11 +170,12 @@ Redis 頁面快取存留時間（以分鐘為單位），設為 `0` 即可完全
 
 ## `[rate_limit]`
 
-基於 Redis 權杖桶的客戶端 IP 滑動視窗速率限制。
+針對客戶端 IP 位址的滑動視窗速率限制（單工作程序預設採用有界記憶體儲存，亦可切換為 Redis 後端並在 Redis 異常時自動退避至記憶體 30 秒）。
 
 | 設定鍵值 | 對應環境變數 | 預設值 | 說明 |
 | :--- | :--- | :--- | :--- |
 | `enabled` | `RATE_LIMIT_ENABLED` | `false`（程式預設）/ `true`（`config.toml.sample`、`compose.yml`） | 速率限制器總開關。 |
+| `backend` | `RATE_LIMIT_BACKEND` | `memory` | 速率限制儲存後端：`memory`（行程內有界計數器，建議單工作程序使用）或 `redis`（跨工作程序共用 Redis 計數器，異常時自動退避至記憶體 30 秒）。 |
 | `trusted_proxies` | `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | 以逗號分隔之信任反向代理 IP 位址或 CIDR 網段，僅信任清單內對端所帶入之 `X-Forwarded-For`（`get_client_ip()`）。 |
 
 > [!WARNING]

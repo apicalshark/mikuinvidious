@@ -102,3 +102,6 @@ Caddy 將自動自 Let's Encrypt 或 ZeroSSL 申請並定期自動展延 HTTPS �
 ## 4. 資料中心 IP 提示
 
 若主機架設於雲端機房（如 Hetzner、OVH、DigitalOcean、AWS），Bilibili 可能以 HTTP 412 或 `-352` 進行風控阻擋。根目錄預設的 `compose.yml` 未啟用 WARP；若需透過 Cloudflare WARP 出口連線，請參考 `tools/warp/` 目錄中的指引啟動選用的 WARP 堆疊，或於 `compose.yml` 中設定 `HTTP_PROXY` / `HTTPS_PROXY` 指向家寬或外部 SOCKS5 代理。
+
+> [!TIP]
+> 若要部署包含 Anubis PoW 防爬蟲、GeoIP／ASN 過濾與內建 `microwarp` 的公開實例，請參閱 [使用 `example/docker/` 部署公開實例](reverse-proxy#4-使用-exampledocker-部署公開實例)。
