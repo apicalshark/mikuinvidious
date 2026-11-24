@@ -55,3 +55,18 @@ What does **not** need backup:
 - **Redis**: Redis holds transient caches, temporary tickets, and rate-limiting counters. It can be cleared or discarded at any time.
 - **User Sessions**: Quart cryptographically signs client-side session cookies and CSRF tokens. When `QUART_SECRET_KEY` (or `[server].secret_key`) is unset, an ephemeral key is generated at startup and restarts invalidate sessions; set `QUART_SECRET_KEY` in production if you want sessions to survive restarts.
 - **Image Disk Cache**: The `img_cache` directory automatically rebuilds on demand and prunes itself via LRU policies.
+
+---
+
+## 4. Production Operator Helper Scripts (`tools/`)
+
+The `tools/` directory includes ready-to-use scripts for bootstrapping and maintaining a production server:
+
+| Script / Directory | Purpose | Example Usage |
+| :--- | :--- | :--- |
+| `tools/generate_secrets.py` | Generates `QUART_SECRET_KEY`, `REDIS_PASSWORD`, and optionally `SECRETS_MASTER_KEY`, writing `.env` with `0600` permissions without clobbering existing keys unless `--force` is passed. | `python3 tools/generate_secrets.py --include-master-key --write .env` |
+| `tools/encrypt_secrets.py` | Encrypts Bilibili cookies (`SESSDATA`, `BILI_JCT`, `BUVID3`, `BUVID4`, `DEDEUSERID`) using `SECRETS_MASTER_KEY` for safe storage in `config.toml` or `.env`. | `uv run python tools/encrypt_secrets.py` |
+| `tools/update_geoip.sh` | Downloads and atomically replaces `GeoLite2-ASN.mmdb` and `GeoLite2-Country.mmdb` (from `P3TERX/GeoLite.mmdb`) so Anubis's memory-mapped reader never sees partial writes. Ideal for cron jobs. | `./tools/update_geoip.sh ./data/geoip` |
+| `tools/update_vps_asns.sh` | Fetches the latest `vpsh.txt` datacenter/VPS ASN list (explicitly excluding Cloudflare WARP ASNs `13335` and `209242`) and writes `vpsh_asns.yaml` for Anubis `botPolicy.yaml`. | `./tools/update_vps_asns.sh ./vpsh_asns.yaml` |
+| `tools/warp/` | Standalone Cloudflare WARP (`microwarp`) Docker Compose stacks for datacenter hosts: `tools/warp/compose.yml.example` (host-local) and `tools/warp/app/` (container-to-container `warp-net` override). | `cp tools/warp/app/compose.yml.example tools/warp/app/compose.yml` |
+

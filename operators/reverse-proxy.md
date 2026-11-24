@@ -151,13 +151,20 @@ The `example/docker/` directory provides a complete, hardened Docker Compose tem
 
 2. **Provide GeoIP databases** (required by `botPolicy.yaml` for `geoip` and `asns` rules):
 
-   Place `GeoLite2-ASN.mmdb` and `GeoLite2-Country.mmdb` in `./data/geoip/` (mounted read-only to `/var/lib/GeoIP` in `anubis`), or uncomment `geoip.auto_update` in `botPolicy.yaml` with your MaxMind account ID and `MAXMIND_LICENSE_KEY`.
+   Run the bundled helper script to download `GeoLite2-ASN.mmdb` and `GeoLite2-Country.mmdb` atomically into `./data/geoip/`:
+
+   ```bash
+   ./tools/update_geoip.sh ./data/geoip
+   ```
+
+   *(Optionally, also run `./tools/update_vps_asns.sh ./vpsh_asns.yaml` and uncomment the `vpsh_asns.yaml` import/mount in `botPolicy.yaml` and `compose.yml` for dynamic VPS ASN updates.)*
 
 3. **Configure secrets and instance environment** in `.env`:
 
+   Generate `QUART_SECRET_KEY` and `REDIS_PASSWORD` with `0600` permissions using:
+
    ```bash
-   QUART_SECRET_KEY=<random-64-hex>
-   REDIS_PASSWORD=<strong-redis-password>
+   python3 tools/generate_secrets.py --write .env
    ```
 
    In `compose.yml`:

@@ -151,13 +151,20 @@ reverse_proxy app:8080 {
 
 2. **準備 GeoIP 資料庫**（`botPolicy.yaml` 中的 `geoip` 與 `asns` 規則需要）：
 
-   將 `GeoLite2-ASN.mmdb` 與 `GeoLite2-Country.mmdb` 放入 `./data/geoip/`（會唯讀掛載至 `anubis` 容器的 `/var/lib/GeoIP`），或在 `botPolicy.yaml` 中取消註解 `geoip.auto_update` 並填入 MaxMind 帳號 ID 與 `MAXMIND_LICENSE_KEY`。
+   執行內建腳本即可自動下載並原子替換 `GeoLite2-ASN.mmdb` 與 `GeoLite2-Country.mmdb` 至 `./data/geoip/`：
+
+   ```bash
+   ./tools/update_geoip.sh ./data/geoip
+   ```
+
+   *（若需動態同步最新 VPS ASN 清單，亦可執行 `./tools/update_vps_asns.sh ./vpsh_asns.yaml`，並於 `botPolicy.yaml` 與 `compose.yml` 中取消註解 `vpsh_asns.yaml` 的匯入與掛載。）*
 
 3. **於 `.env` 設定金鑰與實例環境變數**：
 
+   使用內建腳本自動產生 `QUART_SECRET_KEY` 與 `REDIS_PASSWORD` 並以 `0600` 權限寫入 `.env`：
+
    ```bash
-   QUART_SECRET_KEY=<隨機64字元hex>
-   REDIS_PASSWORD=<高強度Redis密碼>
+   python3 tools/generate_secrets.py --write .env
    ```
 
    在 `compose.yml` 中：
