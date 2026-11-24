@@ -196,7 +196,7 @@ class RateLimiter:
 
         try:
             # Use Redis sorted set for sliding window - atomic pipeline
-            pipe = self.redis.pipeline(transaction=False)
+            pipe = self.redis.pipeline()
             # Add current request first
             pipe.zadd(redis_key, {member: now})
             # Remove old entries
@@ -206,7 +206,6 @@ class RateLimiter:
             # Set expiry
             pipe.expire(redis_key, window + 1)
             results = await pipe.execute()
-            self._redis_until = 0.0
 
             current_count = results[2]
 
@@ -245,7 +244,6 @@ class RateLimiter:
         try:
             await self.redis.zremrangebyscore(redis_key, 0, window_start)
             count = await self.redis.zcard(redis_key)
-            self._redis_until = 0.0
             return count
         except Exception as e:
             self._trip_redis_cooldown(e, context="get_current_usage")

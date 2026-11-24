@@ -905,6 +905,155 @@ class TestDownloadJobs(unittest.IsolatedAsyncioTestCase):
         finally:
             download_job._remove_job_tmpdir(job_mkv)
 
+    async def test_durl_fallback_rejects_audio_and_video_only_modes(self):
+        durl_fallback_mock = AsyncMock()
+        with (
+            patch.dict(shared.appconf["site"], {"site_allow_download": True}),
+            patch.dict(shared.appconf["rate_limit"], {"enabled": False}),
+            patch.object(download_job, "_load_dash_data", AsyncMock(return_value=None)),
+            patch.object(download_job, "_proxy_download_durl_fallback", durl_fallback_mock),
+        ):
+            client = app.test_client()
+            for mode in ("audio", "video_only"):
+                resp = await client.get(f"/proxy/download/BV1xx411c7mD/0/80?mode={mode}")
+                self.assertEqual(resp.status_code, 400)
+                self.assertIn("DASH", await resp.get_data(as_text=True))
+            durl_fallback_mock.assert_not_awaited()
+
+        for mode in ("audio", "video_only"):
+            job = download_job._DownloadJob("BV1xx411c7mD", 0, 80, mode=mode)
+            with (
+                patch.object(download_job, "_load_dash_data", AsyncMock(return_value=None)),
+                patch.object(download_job, "_sweep_jobs", AsyncMock()),
+            ):
+                await download_job._run_download_job(job)
+            self.assertEqual(job.state, "error")
+            self.assertIn("DASH", job.error)
+
+    async def test_dash_refresh_declines_mismatched_codecid(self):
+        initial_dash = {
+            "dash": {
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 13,
+                        "height": 1080,
+                        "codecs": "av01.0.08M.08",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v_av1.m4s",
+                        "SegmentBase": {"Initialization": "0-10", "indexRange": "11-20"},
+                    }
+                ],
+                "audio": [
+                    {
+                        "id": 30280,
+                        "codecid": 0,
+                        "bandwidth": 192000,
+                        "codecs": "mp4a.40.2",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/a.m4s",
+                    }
+                ],
+            }
+        }
+        mismatched_codec_dash = {
+            "dash": {
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 7,
+                        "height": 1080,
+                        "codecs": "avc1.640032",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v_avc.m4s",
+                        "SegmentBase": {"Initialization": "0-10", "indexRange": "11-20"},
+                    }
+                ],
+                "audio": initial_dash["dash"]["audio"],
+            }
+        }
+        matching_codec_dash = {
+            "dash": {
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 13,
+                        "height": 1080,
+                        "codecs": "av01.0.08M.08",
+                        "baseUrl": "https://upos-sz-mirrorcos.bilivideo.com/v_av1_fresh.m4s",
+                        "SegmentBase": {"Initialization": "0-10", "indexRange": "11-20"},
+                    }
+                ],
+                "audio": initial_dash["dash"]["audio"],
+            }
+        }
+
+        refresh_results = []
+
+        async def capture_download(*args, **kwargs):
+            cb = kwargs.get("refresh_cb")
+            if cb is not None:
+                refresh_results.append(await cb())
+                refresh_results.append(await cb())
+            return 256
+
+        job = download_job._DownloadJob("BV1xx411c7mD", 0, 80, mode="video_only", video_cid=13)
+        try:
+            with (
+                patch.object(download_job, "_build_dash_cdn_headers", AsyncMock(return_value={})),
+                patch.object(download_job, "_is_safe_dash_url_async", AsyncMock(return_value=True)),
+                patch.object(download_job, "_peek_content_length", AsyncMock(return_value=256)),
+                patch.object(
+                    download_job,
+                    "_refresh_dash_data",
+                    AsyncMock(side_effect=[mismatched_codec_dash, matching_codec_dash]),
+                ),
+                patch.object(download_job, "_download_track_file", side_effect=capture_download),
+                patch.object(download_job, "_remux_video_track", AsyncMock()),
+            ):
+                await download_job._run_dash_job(job, initial_dash)
+
+            self.assertIsNone(refresh_results[0])
+            self.assertTrue(refresh_results[1])
+            self.assertTrue(all(u.endswith("/v_av1_fresh.m4s") for u in refresh_results[1]))
+
+            legacy_refresh_results = []
+
+            async def capture_legacy_download(*args, **kwargs):
+                cb = kwargs.get("refresh_cb")
+                if cb is not None:
+                    legacy_refresh_results.append(await cb())
+                    legacy_refresh_results.append(await cb())
+                return 256
+
+            async def fake_remux_video(vpath, outpath, **kwargs):
+                with open(outpath, "wb") as f:
+                    f.write(b"ok")
+
+            with (
+                patch.dict(shared.appconf["site"], {"site_allow_download": True}),
+                patch.dict(shared.appconf["rate_limit"], {"enabled": False}),
+                patch.object(download_job, "_load_dash_data", AsyncMock(return_value=initial_dash)),
+                patch.object(download_job, "_try_acquire_legacy_ip_admission", AsyncMock(return_value=True)),
+                patch.object(download_job, "_build_dash_cdn_headers", AsyncMock(return_value={})),
+                patch.object(download_job, "_is_safe_dash_url_async", AsyncMock(return_value=True)),
+                patch.object(download_job, "_peek_content_length", AsyncMock(return_value=256)),
+                patch.object(
+                    download_job,
+                    "_refresh_dash_data",
+                    AsyncMock(side_effect=[mismatched_codec_dash, matching_codec_dash]),
+                ),
+                patch.object(download_job, "_download_track_file", side_effect=capture_legacy_download),
+                patch.object(download_job, "_remux_video_track", side_effect=fake_remux_video),
+            ):
+                client = app.test_client()
+                resp = await client.get("/proxy/download/BV1xx411c7mD/0/80?mode=video_only&v_cid=13")
+                self.assertEqual(resp.status_code, 200)
+
+            self.assertEqual(len(legacy_refresh_results), 2)
+            self.assertIsNone(legacy_refresh_results[0])
+            self.assertTrue(legacy_refresh_results[1])
+            self.assertTrue(all(u.endswith("/v_av1_fresh.m4s") for u in legacy_refresh_results[1]))
+        finally:
+            download_job._remove_job_tmpdir(job)
+
 
 class TestDownloadsAllowed(unittest.TestCase):
     def test_downloads_allowed_variants(self):

@@ -1299,8 +1299,8 @@
       });
       if (payload.direct_url) {
         triggerDirectDownload(payload.direct_url);
+        active = { terminal: true, fileUrl: payload.direct_url };
         render({ state: "ready" });
-        active = { terminal: true };
         return;
       }
       if (!resp.ok || !payload.job_id) {

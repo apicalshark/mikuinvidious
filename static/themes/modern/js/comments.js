@@ -13,12 +13,13 @@
         (window.download_options.audios && window.download_options.audios.length > 0) ||
         (window.download_options.progressive && window.download_options.progressive.length > 0))
     );
-    const hasSrc = Boolean(window.supported_src && window.supported_src.length > 0);
     if (window.MikuDownload && typeof window.MikuDownload.setOptions === "function") {
       window.MikuDownload.setOptions(window.download_options || null);
     }
-    if (btn && (hasOptions || hasSrc)) {
-      btn.disabled = false;
+    if (btn) {
+      const form = btn.closest("form");
+      const hasDirectUrl = Boolean(form && form.dataset && form.dataset.directUrl);
+      btn.disabled = !(hasOptions || hasDirectUrl);
     }
   }
 

@@ -1248,7 +1248,7 @@
       setTheater(!current, true);
     }
 
-    if (storageGet(THEATER_STORAGE_KEY) === "1") {
+    if (!isAudio && storageGet(THEATER_STORAGE_KEY) === "1") {
       setTheater(true, false);
     }
 

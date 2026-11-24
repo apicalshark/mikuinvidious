@@ -131,6 +131,11 @@ async def proxy_download(vid, idx, qual):
     max_qn = min(qual, _FREE_DOWNLOAD_MAX_QN) if qual > 0 else _FREE_DOWNLOAD_MAX_QN
     dash_data = await _load_dash_data(vid, idx)
     if not has_valid_dash_tracks(dash_data):
+        if mode != "video":
+            return Response(
+                "Bad Request: audio-only and video-only downloads require DASH streams",
+                status=400,
+            )
         return await _proxy_download_durl_fallback(vid, idx, qual)
 
     if mode == "audio":
@@ -228,7 +233,7 @@ async def proxy_download(vid, idx, qual):
             if track is None:
                 return None
             try:
-                if int(track.get("id") or -1) != qn:
+                if int(track.get("id") or -1) != qn or int(track.get("codecid") or 0) != cid:
                     return None
             except TypeError, ValueError:
                 return None
@@ -907,10 +912,10 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
         if track is None:
             return None
         try:
-            if int(track.get("id") or -1) != qn:
+            if int(track.get("id") or -1) != qn or int(track.get("codecid") or 0) != cid:
                 print(
                     f"[DashProxy] job {job.job_id} refresh changed track id "
-                    f"(want {qn}, got {track.get('id')}), declining"
+                    f"(want {qn}/{cid}, got {track.get('id')}/{track.get('codecid')}), declining"
                 )
                 return None
         except TypeError, ValueError:
@@ -1040,6 +1045,8 @@ async def _run_dash_job(job: _DownloadJob, dash_data: dict):
 
 async def _run_durl_job(job: _DownloadJob):
     """Download fallback for durl-only videos: progressive MP4, no mux step."""
+    if job.mode != "video":
+        raise RuntimeError("Audio-only and video-only downloads require DASH streams")
     try:
         cred = shared.appcred if is_cred_active(shared.appcred) else None
         v = _make_video(job.vid, cred)

@@ -139,7 +139,50 @@ class TestRateLimitFailOpen(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(info2["remaining"], 3)
         self.assertEqual(info3["remaining"], 4)
         self.assertEqual(mock_pipe.execute.await_count, 2)
-        mock_redis.pipeline.assert_called_with(transaction=False)
+        mock_redis.pipeline.assert_called_with()
+
+    async def test_late_redis_success_does_not_clear_active_cooldown(self):
+        import asyncio
+        import time
+        from unittest.mock import patch
+
+        mock_redis = MagicMock()
+        in_flight_started = asyncio.Event()
+        allow_in_flight_finish = asyncio.Event()
+
+        async def slow_execute():
+            in_flight_started.set()
+            await allow_in_flight_finish.wait()
+            return [1, 0, 1, True]
+
+        slow_pipe = MagicMock()
+        slow_pipe.execute = AsyncMock(side_effect=slow_execute)
+        fail_pipe = MagicMock()
+        fail_pipe.execute = AsyncMock(side_effect=ConnectionError("Redis down"))
+        mock_redis.pipeline.side_effect = [slow_pipe, fail_pipe]
+
+        limiter = RateLimiter(mock_redis, redis_cooldown=30.0)
+        base = time.monotonic()
+        clock = [base]
+        with patch("miku.core.rate_limit.time.monotonic", side_effect=lambda: clock[0]):
+            task_slow = asyncio.create_task(limiter.is_allowed("127.0.0.1:/slow", limit=5, window=60))
+            await in_flight_started.wait()
+
+            clock[0] = base + 1.0
+            allowed_fail, _ = await limiter.is_allowed("127.0.0.1:/fail", limit=5, window=60)
+            self.assertTrue(allowed_fail)
+            self.assertEqual(limiter._redis_until, base + 31.0)
+
+            clock[0] = base + 2.0
+            allow_in_flight_finish.set()
+            allowed_slow, _ = await task_slow
+            self.assertTrue(allowed_slow)
+            self.assertEqual(limiter._redis_until, base + 31.0)
+
+            allowed_after, _ = await limiter.is_allowed("127.0.0.1:/after", limit=5, window=60)
+            self.assertTrue(allowed_after)
+
+        self.assertEqual(mock_redis.pipeline.call_count, 2)
 
     async def test_in_memory_mode_enforces_limits_without_redis(self):
         limiter = RateLimiter(None)
