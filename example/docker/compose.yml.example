@@ -66,7 +66,7 @@ services:
       - TARGET=http://app:8080
       - TARGET_HOST=yourdomain.com
       - COOKIE_EXPIRATION_TIME=1h
-      - COOKIE_DYNAMIC_DOMAIN=true
+      - COOKIE_DYNAMIC_DOMAIN=false
       - POLICY_FNAME=/data/cfg/botPolicy.yaml
     volumes:
       - ./botPolicy.yaml:/data/cfg/botPolicy.yaml:ro
