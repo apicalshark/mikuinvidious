@@ -133,6 +133,7 @@ def get_default_config() -> dict[str, Any]:
         },
         "rate_limit": {
             "enabled": os.environ.get("RATE_LIMIT_ENABLED", "false").lower() == "true",
+            "backend": os.environ.get("RATE_LIMIT_BACKEND", "memory").strip().lower(),
             "trusted_proxies": os.environ.get("TRUSTED_PROXIES", "127.0.0.1/8,::1/128"),
         },
         "cache": {

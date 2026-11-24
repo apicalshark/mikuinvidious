@@ -47,7 +47,15 @@ def _coerce_nonneg_int(val) -> int | None:
     return num if num >= 0 else None
 
 
-def generate_vod_mpd(vid, idx, dash_data) -> str | None:
+_VIDEO_CODEC_PRIORITIES: dict[str, dict[int, int]] = {
+    "auto": {13: 0, 12: 1, 7: 2},
+    "av1": {13: 0, 12: 1, 7: 2},
+    "hevc": {12: 0, 7: 1, 13: 2},
+    "avc": {7: 0, 12: 1, 13: 2},
+}
+
+
+def generate_vod_mpd(vid, idx, dash_data, *, audio_only: bool = False, preferred_codec: str = "auto") -> str | None:
     """Generate an ``isoff-on-demand`` MPD for dash.js playback."""
     if not dash_data or not isinstance(dash_data, dict):
         return None
@@ -69,7 +77,7 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
     as_id = 1
 
     # --- Video adaptation sets (one per codec) ---
-    videos = _normalize_track_urls(dash.get("video", []))
+    videos = [] if audio_only else _normalize_track_urls(dash.get("video", []))
     if videos:
         codec_groups: OrderedDict[int, list[tuple[int, int, dict]]] = OrderedDict()
         for video_track in videos:
@@ -80,7 +88,11 @@ def generate_vod_mpd(vid, idx, dash_data) -> str | None:
             if qn is None or qn <= 0 or codecid is None:
                 continue
             codec_groups.setdefault(codecid, []).append((qn, codecid, video_track))
-        for _codecid, tracks in codec_groups.items():
+        priority = _VIDEO_CODEC_PRIORITIES.get((preferred_codec or "auto").lower(), _VIDEO_CODEC_PRIORITIES["auto"])
+        for _codecid, tracks in sorted(
+            codec_groups.items(),
+            key=lambda pair: (priority.get(pair[0], 99), pair[0]),
+        ):
             codecs_str = tracks[0][2].get("codecs") or "avc1.64001F"
             rep_lines: list[str] = []
             for qn, cid, video_track in tracks:
@@ -232,7 +244,13 @@ async def _video_dash_manifest_impl(vid, idx):
                     _manifest_new_refreshing.discard(key)
     if dash_data is None:
         dash_data = await _load_dash_data(vid, idx)
-    mpd_content = generate_vod_mpd(vid, idx, dash_data) if dash_data else None
+    audio_only = request.args.get("audio_only") == "1"
+    preferred_codec = (request.cookies.get("preferred_codec") or "auto").strip().lower()
+    mpd_content = (
+        generate_vod_mpd(vid, idx, dash_data, audio_only=audio_only, preferred_codec=preferred_codec)
+        if dash_data
+        else None
+    )
     if not mpd_content:
         return Response("Not Found", status=404)
     return Response(mpd_content, content_type="application/dash+xml")

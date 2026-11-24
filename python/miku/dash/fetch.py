@@ -25,10 +25,12 @@ def _make_video(vid: str, cred) -> video.Video:
     return video.Video(bvid=vid, credential=cred)
 
 
-def _normalize_track_urls(tracks: list | None) -> list:
+def _normalize_track_urls(tracks: list | dict | None) -> list:
     """Normalize Bilibili's duplicate key spellings (baseUrl/base_url/backup_url)."""
     if not tracks:
         return []
+    if isinstance(tracks, dict):
+        tracks = [tracks]
     out = []
     for t in tracks:
         if not isinstance(t, dict):
@@ -804,12 +806,12 @@ def _lookup_track(dash_data, media_type: str, qn: int, cid: int) -> dict | None:
     if not dash_data or not isinstance(dash_data, dict):
         return None
     dash = dash_data.get("dash") or {}
-    tracks = dash.get(media_type, [])
-    if not tracks and media_type == "audio":
-        tracks = (dash.get("dolby") or {}).get("audio", [])
-        if not tracks:
-            tracks = (dash.get("flac") or {}).get("audio", [])
-    tracks = _normalize_track_urls(tracks)
+    if media_type == "audio":
+        tracks = list(_normalize_track_urls(dash.get("audio")))
+        tracks.extend(_normalize_track_urls((dash.get("dolby") or {}).get("audio")))
+        tracks.extend(_normalize_track_urls((dash.get("flac") or {}).get("audio")))
+    else:
+        tracks = _normalize_track_urls(dash.get(media_type, []))
     for t in tracks:
         if str(t.get("id")) == str(qn) and str(t.get("codecid", 0)) == str(cid):
             return t

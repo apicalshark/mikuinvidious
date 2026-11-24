@@ -119,6 +119,8 @@ class TestUrlSigning(unittest.TestCase):
         self.assertTrue(mpd_url.endswith("/BV1xx411c7mD/0/manifest.mpd"))
         self.assertTrue(verify_dash_manifest_sig(mpd_sig, "BV1xx411c7mD", 0))
         self.assertFalse(verify_dash_manifest_sig(mpd_sig, "BV1xx411c7mD", 1))
+        mpd_audio_url = sign_dash_manifest_url("BV1xx411c7mD", 0, audio_only=True)
+        self.assertEqual(mpd_audio_url, f"{mpd_url}?audio_only=1")
 
         dash_url = sign_dash_track_url("BV1xx411c7mD", 0, "video", 80, 7)
         dash_sig = dash_url.split("/")[4]

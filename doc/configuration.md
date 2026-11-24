@@ -152,11 +152,12 @@ All cached pages emit `X-Cache: HIT` or `X-Cache: MISS`.
 ---
 
 ## `[rate_limit]`
-Sliding-window Redis-backed rate limiting per IP address.
+Sliding-window rate limiting per IP address (bounded in-memory by default for single-worker deployments, with optional Redis backend and automatic 30s in-memory fallback on Redis errors).
 
 | Key | Environment Variable | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master toggle for rate limiting. |
+| `backend` | `RATE_LIMIT_BACKEND` | `memory` | Rate limiter backend: `memory` (bounded in-process buckets) or `redis` (shared Redis counters with 30s in-memory fallback on errors). |
 | `trusted_proxies` | `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | Comma-separated list of IP addresses or CIDR blocks whose `X-Forwarded-For` header is trusted for client IP extraction (`get_client_ip()`). |
 
 > [!IMPORTANT]

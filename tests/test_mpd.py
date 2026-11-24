@@ -82,6 +82,63 @@ class TestMpd(unittest.TestCase):
         self.assertIn('<Initialization range="0-1024"/>', mpd)
         self.assertIn('<Initialization range="0-800"/>', mpd)
 
+    def test_video_adaptation_sets_ordered_av1_hevc_avc(self):
+        dash_data = {
+            "dash": {
+                "duration": 60,
+                "minBufferTime": 1.5,
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 7,
+                        "bandwidth": 2000000,
+                        "width": 1920,
+                        "height": 1080,
+                        "frameRate": "30",
+                        "codecs": "avc1.640028",
+                        "SegmentBase": {"Initialization": "0-100", "indexRange": "101-200"},
+                    },
+                    {
+                        "id": 80,
+                        "codecid": 12,
+                        "bandwidth": 1500000,
+                        "width": 1920,
+                        "height": 1080,
+                        "frameRate": "30",
+                        "codecs": "hev1.1.6.L150.90",
+                        "SegmentBase": {"Initialization": "0-100", "indexRange": "101-200"},
+                    },
+                    {
+                        "id": 80,
+                        "codecid": 13,
+                        "bandwidth": 1200000,
+                        "width": 1920,
+                        "height": 1080,
+                        "frameRate": "30",
+                        "codecs": "av01.0.08M.08",
+                        "SegmentBase": {"Initialization": "0-100", "indexRange": "101-200"},
+                    },
+                ],
+                "audio": [],
+            }
+        }
+        mpd = generate_vod_mpd("BV1xx411c7xx", 0, dash_data)
+        self.assertIsNotNone(mpd)
+        pos_av1 = mpd.find("video_80_13")
+        pos_hevc = mpd.find("video_80_12")
+        pos_avc = mpd.find("video_80_7")
+        self.assertTrue(pos_av1 != -1 and pos_hevc != -1 and pos_avc != -1)
+        self.assertLess(pos_av1, pos_hevc)
+        self.assertLess(pos_hevc, pos_avc)
+
+        mpd_hevc = generate_vod_mpd("BV1xx411c7xx", 0, dash_data, preferred_codec="hevc")
+        self.assertLess(mpd_hevc.find("video_80_12"), mpd_hevc.find("video_80_7"))
+        self.assertLess(mpd_hevc.find("video_80_7"), mpd_hevc.find("video_80_13"))
+
+        mpd_avc = generate_vod_mpd("BV1xx411c7xx", 0, dash_data, preferred_codec="avc")
+        self.assertLess(mpd_avc.find("video_80_7"), mpd_avc.find("video_80_12"))
+        self.assertLess(mpd_avc.find("video_80_12"), mpd_avc.find("video_80_13"))
+
     def test_empty_or_invalid_dash(self):
         self.assertIsNone(generate_vod_mpd("BV1xx411c7xx", 0, None))
         self.assertIsNone(generate_vod_mpd("BV1xx411c7xx", 0, {}))
@@ -458,6 +515,24 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(refresh_mock.await_count, 1)
             self.assertEqual(load_mock.await_count, 1)
 
+            # ?audio_only=1 serves audio-only MPD
+            sample_dash["dash"]["audio"] = [
+                {
+                    "id": 30280,
+                    "codecid": 0,
+                    "bandwidth": 320000,
+                    "codecs": "mp4a.40.2",
+                    "SegmentBase": {"Initialization": "0-800", "indexRange": "801-1200"},
+                }
+            ]
+            audio_only_url = sign_dash_manifest_url("BV1xx411c7xx", 0, audio_only=True)
+            async with app.test_request_context(audio_only_url):
+                resp_audio = await dash_mpd.video_dash_manifest_view("BV1xx411c7xx", 0, sig=good_sig)
+                self.assertEqual(resp_audio.status_code, 200)
+                body_audio = await resp_audio.get_data(as_text=True)
+                self.assertIn('contentType="audio"', body_audio)
+                self.assertNotIn('contentType="video"', body_audio)
+
     async def test_unsigned_and_tampered_dash_routes_return_403(self):
         from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -534,6 +609,43 @@ class TestDashHardening(unittest.IsolatedAsyncioTestCase):
         self.assertIn(sign_dash_track_url("BV1xx411c7xx", 0, "audio", 30232, 0), mpd)
         self.assertNotIn("video_80_", mpd)
         self.assertNotIn("audio_30280_", mpd)
+
+    def test_mpd_audio_only_omits_video_adaptation_sets(self):
+        import xml.etree.ElementTree as ET
+
+        sample_dash = {
+            "dash": {
+                "duration": 60,
+                "minBufferTime": 1.5,
+                "video": [
+                    {
+                        "id": 80,
+                        "codecid": 7,
+                        "bandwidth": 1500000,
+                        "codecs": "avc1.640028",
+                        "SegmentBase": {"Initialization": "0-999", "indexRange": "1000-1500"},
+                    }
+                ],
+                "audio": [
+                    {
+                        "id": 30280,
+                        "codecid": 0,
+                        "bandwidth": 320000,
+                        "codecs": "mp4a.40.2",
+                        "SegmentBase": {"Initialization": "0-800", "indexRange": "801-1200"},
+                    }
+                ],
+            }
+        }
+        mpd = generate_vod_mpd("BV1xx411c7xx", 0, sample_dash, audio_only=True)
+        self.assertIsNotNone(mpd)
+        root = ET.fromstring(mpd)
+        sets = root.findall(".//{urn:mpeg:dash:schema:mpd:2011}AdaptationSet")
+        self.assertEqual(len(sets), 1)
+        self.assertEqual(sets[0].attrib["contentType"], "audio")
+        self.assertEqual(sets[0].attrib["id"], "1")
+        self.assertNotIn("video_80_", mpd)
+        self.assertIn("audio_30280_0", mpd)
 
 
 if __name__ == "__main__":

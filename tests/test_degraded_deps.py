@@ -160,11 +160,51 @@ class DashMemoryCacheTests(_DashCase):
 
 class RedisClientBoundTests(unittest.TestCase):
     def test_client_has_a_bounded_retry_budget(self):
-        kwargs = shared.appredis.connection_pool.connection_kwargs
+        import redis.asyncio as aredis
+        from miku.services.redis import (
+            REDIS_HEALTH_CHECK_INTERVAL,
+            REDIS_POOL_MAX_CONNECTIONS,
+            REDIS_POOL_TIMEOUT,
+        )
+
+        pool = shared.appredis.connection_pool
+        self.assertIsInstance(pool, aredis.BlockingConnectionPool)
+        self.assertEqual(pool.max_connections, REDIS_POOL_MAX_CONNECTIONS)
+        self.assertEqual(pool.timeout, REDIS_POOL_TIMEOUT)
+        kwargs = pool.connection_kwargs
         self.assertEqual(kwargs["socket_timeout"], shared.REDIS_SOCKET_TIMEOUT)
         self.assertEqual(kwargs["socket_connect_timeout"], shared.REDIS_SOCKET_TIMEOUT)
         self.assertLessEqual(shared.REDIS_SOCKET_TIMEOUT, 2.0)
+        self.assertEqual(kwargs["health_check_interval"], REDIS_HEALTH_CHECK_INTERVAL)
+        self.assertIsNone(kwargs["driver_info"])
         self.assertEqual(kwargs["retry"]._retries, 0, "redis-py would retry 10x by default")
+
+    def test_from_url_enforces_fast_fail_and_blocking_pool_settings(self):
+        import redis.asyncio as aredis
+        from miku.services.redis import (
+            REDIS_HEALTH_CHECK_INTERVAL,
+            REDIS_POOL_MAX_CONNECTIONS,
+            REDIS_POOL_TIMEOUT,
+            create_redis_client,
+        )
+
+        client = create_redis_client(
+            {
+                "redis": {
+                    "redis_url": "redis://:pw@redis:6379/0?socket_timeout=30&socket_connect_timeout=30",
+                }
+            }
+        )
+        pool = client.connection_pool
+        self.assertIsInstance(pool, aredis.BlockingConnectionPool)
+        self.assertEqual(pool.max_connections, REDIS_POOL_MAX_CONNECTIONS)
+        self.assertEqual(pool.timeout, REDIS_POOL_TIMEOUT)
+        kwargs = pool.connection_kwargs
+        self.assertEqual(kwargs["socket_timeout"], shared.REDIS_SOCKET_TIMEOUT)
+        self.assertEqual(kwargs["socket_connect_timeout"], shared.REDIS_SOCKET_TIMEOUT)
+        self.assertEqual(kwargs["health_check_interval"], REDIS_HEALTH_CHECK_INTERVAL)
+        self.assertIsNone(kwargs["driver_info"])
+        self.assertEqual(kwargs["retry"]._retries, 0)
 
 
 class TicketCooldownTests(unittest.IsolatedAsyncioTestCase):

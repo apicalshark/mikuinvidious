@@ -1,24 +1,26 @@
 /**
  * Shared comment loading, sub-comment expand/fold, and VOD component bootstrap
- * for video.html and video_listen.html.
+ * for video.html.
  */
 (function () {
   "use strict";
 
   function updateDownloadDropdown() {
-    const select = document.getElementById("download-quality");
     const btn = document.getElementById("download-btn");
-    if (!select || !window.supported_src || window.supported_src.length === 0) return;
-
-    select.innerHTML = "";
-    window.supported_src.forEach((src) => {
-      const opt = document.createElement("option");
-      opt.value = src.quality;
-      opt.textContent = src.new_description;
-      select.appendChild(opt);
-    });
-
-    if (btn) btn.disabled = false;
+    const hasOptions = Boolean(
+      window.download_options &&
+      ((window.download_options.videos && window.download_options.videos.length > 0) ||
+        (window.download_options.audios && window.download_options.audios.length > 0) ||
+        (window.download_options.progressive && window.download_options.progressive.length > 0))
+    );
+    if (window.MikuDownload && typeof window.MikuDownload.setOptions === "function") {
+      window.MikuDownload.setOptions(window.download_options || null);
+    }
+    if (btn) {
+      const form = btn.closest("form");
+      const hasDirectUrl = Boolean(form && form.dataset && form.dataset.directUrl);
+      btn.disabled = !(hasOptions || hasDirectUrl);
+    }
   }
 
   window.updateDownloadDropdown = updateDownloadDropdown;
@@ -84,9 +86,12 @@
     const headers = cspNonce ? { "X-CSP-Nonce": cspNonce } : {};
 
     const playerWrapper = document.getElementById("player-placeholder-wrapper");
-    if (playerWrapper && window.current_vid) {
+    if (playerWrapper && window.current_vid && !window.is_progressive_audio) {
       const ep = encodeURIComponent(window.ep_id || "");
-      fetch(`/api/component/player/${window.current_vid}/${window.idx}?ep_id=${ep}`, { headers })
+      const audioParam = window.is_audio ? "&audio_only=1" : "";
+      fetch(`/api/component/player/${window.current_vid}/${window.idx}?ep_id=${ep}${audioParam}`, {
+        headers,
+      })
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);
           return r.text();
@@ -103,7 +108,7 @@
     }
 
     const commentsContainer = document.getElementById("comments-loader-container");
-    if (commentsContainer && window.current_vid) {
+    if (commentsContainer && window.current_vid && !window.is_progressive_audio) {
       fetch(`/api/component/meta/${window.current_vid}/${window.idx}`, { headers })
         .then((r) => {
           if (!r.ok) throw new Error(`HTTP ${r.status}`);

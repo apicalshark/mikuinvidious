@@ -24,6 +24,7 @@ from miku.dash.download_job import (
     create_download_job,
     proxy_download,
 )
+from miku.dash.download_track import extract_download_options
 from miku.dash.fetch import (
     _select_durl_results,
     fetch_durl_supported_src,
@@ -45,6 +46,7 @@ __all__ = [
     "dash_mpd",
     "dash_proxy_bp",
     "dash_stream",
+    "extract_download_options",
     "fetch_durl_supported_src",
     "generate_vod_mpd",
     "has_valid_dash_tracks",

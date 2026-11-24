@@ -494,6 +494,19 @@ class DashPlayerManager {
     console.log("[DashManager] Initializing DASH:", this.mpdUrl);
     const absoluteUrl = new URL(this.mpdUrl, window.location.href).href;
     this.player = dashjs.MediaPlayer().create();
+    if (typeof this.player.setCustomInitialTrackSelectionFunction === "function") {
+      this.player.setCustomInitialTrackSelectionFunction((tracks) => {
+        if (!Array.isArray(tracks) || tracks.length <= 1 || tracks[0]?.type !== "video") {
+          return tracks;
+        }
+        const order = this._codecPriorityOrder(this._preferredCodec());
+        for (const wanted of order) {
+          const match = tracks.find((t) => this._trackCodecLabel(t) === wanted);
+          if (match) return [match];
+        }
+        return [tracks[0]];
+      });
+    }
     this.player.initialize(this.video, absoluteUrl, false);
     this.player.updateSettings({
       streaming: {
@@ -605,9 +618,12 @@ class DashPlayerManager {
     // the ~44kbps track forever. A manual pick in the Audio row opts out
     // (sticky, like video picks locking video ABR off).
     this.player.on(dashjs.MediaPlayer.events.STREAM_INITIALIZED, () => {
+      this._buildCodecMenu();
+      this._buildVideoMenu();
       this._buildAudioMenu();
       this._applyTierAudio();
       this._applyLockVideo();
+      this._syncQualityUI();
     });
 
     // Keep the quality menu truthful: highlight whatever is actually
@@ -615,9 +631,21 @@ class DashPlayerManager {
     // entry, e.g. when higher tracks fail). Audio follows the video tier.
     this._qualityHandler = (e) => {
       this._syncQualityUI();
+      if (e && e.mediaType === "audio") {
+        this._syncAudioMenu();
+      }
       if (!e || e.mediaType === "video" || e.mediaType == null) this._applyTierAudio();
     };
     this.player.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, this._qualityHandler);
+
+    this._trackChangeHandler = (e) => {
+      if (!e || e.mediaType === "video") {
+        this._buildVideoMenu();
+        this._syncCodecMenu();
+        this._syncQualityUI();
+      }
+    };
+    this.player.on(dashjs.MediaPlayer.events.TRACK_CHANGE_RENDERED, this._trackChangeHandler);
 
     this._onVideoPlaying = () => {
       this._seekPlaybackStarted = true;
@@ -919,13 +947,187 @@ class DashPlayerManager {
     }
   }
 
+  _preferredCodec() {
+    const m = (document.cookie || "").match(/(?:^|;\s*)preferred_codec=([^;]+)/);
+    const cv = m ? String(m[1]).toLowerCase() : "";
+    if (cv === "av1" || cv === "hevc" || cv === "avc" || cv === "auto") return cv;
+    try {
+      if (typeof helpers !== "undefined" && helpers.storage) {
+        const v = String(helpers.storage.get("preferred_codec") || "").toLowerCase();
+        if (v === "av1" || v === "hevc" || v === "avc" || v === "auto") return v;
+      }
+    } catch (e) {
+      void e;
+    }
+    return "auto";
+  }
+
+  _codecPriorityOrder(pref) {
+    if (pref === "hevc") return ["HEVC", "AVC", "AV1"];
+    if (pref === "avc") return ["AVC", "HEVC", "AV1"];
+    return ["AV1", "HEVC", "AVC"];
+  }
+
+  _trackKey(track, fallbackIdx) {
+    return String(track?.id ?? track?.index ?? fallbackIdx);
+  }
+
+  _trackCodecLabel(track) {
+    if (!track) return "VIDEO";
+    const firstId = String(track?.bitrateList?.[0]?.id || "");
+    const raw = String(track?.codec || track?.mimeType || "").toLowerCase();
+    if (raw.includes("av01") || firstId.endsWith("_13")) return "AV1";
+    if (raw.includes("hev") || raw.includes("hvc") || firstId.endsWith("_12")) return "HEVC";
+    if (raw.includes("avc") || firstId.endsWith("_7")) return "AVC";
+    const cleaned = raw.replace(/.*codecs="([^"]+)".*/, "$1");
+    return cleaned ? cleaned.split(".")[0].toUpperCase() : "VIDEO";
+  }
+
+  _buildCodecMenu() {
+    try {
+      if (window.is_audio || !this.player) return;
+      const tracks = this.player.getTracksFor("video") || [];
+      if (tracks.length <= 1) {
+        this._videoTracks = tracks;
+        window.MikuPlayerUI?.setVideoCodecs([], null, null);
+        return;
+      }
+      this._videoTracks = tracks;
+      const cur = this.player.getCurrentTrackFor("video");
+      const curKey = cur ? this._trackKey(cur, Math.max(tracks.indexOf(cur), 0)) : null;
+      const items = tracks.map((trk, i) => ({
+        id: this._trackKey(trk, i),
+        label: this._trackCodecLabel(trk),
+      }));
+      window.MikuPlayerUI?.setVideoCodecs(items, curKey, (id) => {
+        this.setVideoCodec(id);
+      });
+    } catch (e) {
+      console.warn("[DashManager] Could not build codec menu:", e);
+    }
+  }
+
+  _syncCodecMenu() {
+    try {
+      if (window.is_audio || !this.player) return;
+      const tracks = this._videoTracks || this.player.getTracksFor("video") || [];
+      const cur = this.player.getCurrentTrackFor("video");
+      window.MikuPlayerUI?.syncVideoCodec(
+        cur ? this._trackKey(cur, Math.max(tracks.indexOf(cur), 0)) : null
+      );
+    } catch (e) {
+      console.warn("[DashManager] Could not sync codec menu:", e);
+    }
+  }
+
+  setVideoCodec(trackKey) {
+    if (!this.player) return;
+    try {
+      const tracks = this._videoTracks || this.player.getTracksFor("video") || [];
+      const target = tracks.find((t, i) => this._trackKey(t, i) === String(trackKey));
+      if (!target) return;
+      const cur = this.player.getCurrentTrackFor("video");
+      if (cur && this._trackKey(cur, Math.max(tracks.indexOf(cur), 0)) === String(trackKey)) return;
+      const qn = this._repQn(this.player.getCurrentRepresentationForType("video"));
+      this.player.setCurrentTrack(target);
+      this._buildVideoMenu();
+      this._syncCodecMenu();
+      if (qn != null && (this._manualVideoLock || this._lockVideo())) {
+        this.setQuality({ quality: qn });
+      }
+      this._syncQualityUI();
+    } catch (e) {
+      console.warn("[DashManager] Could not switch video codec:", e);
+    }
+  }
+
+  _videoCodecLabel(rep) {
+    if (!rep) return "";
+    const codecs = String(rep.codecs || "").toLowerCase();
+    const id = String(rep.id || "");
+    if (codecs.includes("av01") || id.endsWith("_13")) return "AV1";
+    if (codecs.includes("hev") || codecs.includes("hvc") || id.endsWith("_12")) return "HEVC";
+    if (codecs.includes("avc") || id.endsWith("_7")) return "AVC";
+    return "";
+  }
+
+  _cleanQualityLabel(text) {
+    if (!text) return "";
+    return String(text)
+      .replace(
+        /\s*(?:超高清|超清|高清|清晰|流畅|流暢|标清|標清|极速|極速|高码率|高碼率|高帧率|高幀率)/g,
+        ""
+      )
+      .replace(/(\d+)P\b/g, "$1p")
+      .trim();
+  }
+
+  _parseFrameRate(raw) {
+    if (raw == null || raw === "") return 0;
+    const str = String(raw).trim();
+    if (str.includes("/")) {
+      const [num, den] = str.split("/");
+      const n = Number(num);
+      const d = Number(den);
+      return Number.isFinite(n) && Number.isFinite(d) && d > 0 ? n / d : 0;
+    }
+    const v = Number(str);
+    return Number.isFinite(v) ? v : 0;
+  }
+
+  _videoRepLabel(rep) {
+    if (!rep) return "";
+    const qn = this._repQn(rep);
+    const qnStr = qn != null ? String(qn) : "";
+    const src = (window.supported_src || []).find((s) => String(s.quality) === qnStr);
+    let base =
+      rep.height >= 4320
+        ? "8K"
+        : rep.height >= 2160
+          ? "4K"
+          : rep.height > 0
+            ? `${rep.height}p`
+            : this._cleanQualityLabel(src?.new_description) || qnStr;
+    const fps = this._parseFrameRate(rep.frameRate);
+    if (fps > 30) base += ` ${Math.round(fps)}fps`;
+    const codec = this._videoCodecLabel(rep);
+    return codec ? `${base} (${codec})` : base;
+  }
+
+  _buildVideoMenu() {
+    try {
+      if (window.is_audio || !this.player) return;
+      const reps = this.player.getRepresentationsByType("video") || [];
+      if (!reps.length) return;
+      const sorted = [...reps].sort((a, b) => {
+        const qDiff = Number(this._repQn(b) || 0) - Number(this._repQn(a) || 0);
+        if (qDiff !== 0) return qDiff;
+        return Number(b.bandwidth || 0) - Number(a.bandwidth || 0);
+      });
+      const cur = this.player.getCurrentRepresentationForType("video");
+      const tracks = sorted.map((r) => ({
+        id: r.id,
+        qn: String(this._repQn(r) || ""),
+        label: this._videoRepLabel(r),
+      }));
+      window.MikuPlayerUI?.setVideoTracks(tracks, cur ? cur.id : null, (trk) => {
+        this.setQuality({ repId: trk.id, quality: trk.qn, new_description: trk.label });
+      });
+    } catch (e) {
+      console.warn("[DashManager] Could not build video menu:", e);
+    }
+  }
+
   setQuality(source) {
     if (!this.player) return;
     try {
       // Representations API of the vendored dash.js.
       const reps = this.player.getRepresentationsByType("video") || [];
       let target = null;
-      if (source?.bandwidth != null) {
+      if (source?.repId != null) {
+        target = reps.find((r) => String(r.id) === String(source.repId));
+      }
+      if (!target && source?.bandwidth != null) {
         target = reps.find((r) => Number(r.bandwidth) === Number(source.bandwidth));
       }
       if (!target && source?.quality != null) {
@@ -958,10 +1160,10 @@ class DashPlayerManager {
               ?.quality ?? ""
           );
       if (!qn) return;
-      const src = (window.supported_src || []).find((s) => String(s.quality) === qn);
+      const fullLabel = this._videoRepLabel(rep);
       const label = document.getElementById("current-quality-label");
-      if (label && src) label.innerText = src.new_description;
-      window.MikuPlayerUI?.syncVideoQuality(qn, src ? src.new_description : "");
+      if (label && fullLabel) label.innerText = fullLabel;
+      window.MikuPlayerUI?.syncVideoQuality(qn, fullLabel, rep.id);
     } catch (e) {
       console.warn("[DashManager] Could not sync DASH quality UI:", e);
     }
@@ -1036,6 +1238,11 @@ class DashPlayerManager {
           this.player.off(dashjs.MediaPlayer.events.ERROR, this._errorHandler);
         if (this._qualityHandler)
           this.player.off(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, this._qualityHandler);
+        if (this._trackChangeHandler)
+          this.player.off(
+            dashjs.MediaPlayer.events.TRACK_CHANGE_RENDERED,
+            this._trackChangeHandler
+          );
         this.player.reset();
       } catch (e) {
         console.error("[DashManager] Error during destroy:", e);
@@ -1253,7 +1460,10 @@ async function initMikuPlayer() {
   }
 
   if (controller && window.MikuPlayerUI && typeof window.MikuPlayerUI.mount === "function") {
-    window.MikuPlayerUI.mount(controller, video, { isLive: Boolean(window.is_live) });
+    window.MikuPlayerUI.mount(controller, video, {
+      isLive: Boolean(window.is_live),
+      isAudio: Boolean(window.is_audio),
+    });
   }
 
   if (window.vodBufferController) {
@@ -1262,7 +1472,9 @@ async function initMikuPlayer() {
   }
 
   // 1. Danmaku Setup (Using DOM engine for pixel perfection)
-  initDanmaku(video, danmakuContainer, controller);
+  if (!window.is_audio) {
+    initDanmaku(video, danmakuContainer, controller);
+  }
 
   // 2. Quality Selection Logic
   const playerStartTime = performance.now();
@@ -1627,6 +1839,7 @@ function setupVodQuality(video, list, label) {
   window.MikuPlayerUI?.setupVodMenu({
     sources: window.supported_src,
     isDash: Boolean(window.is_dash),
+    isAudio: Boolean(window.is_audio),
     onSelectVideo: (src) => {
       if (window.is_dash) {
         window.dashManager?.setQuality(src);
@@ -1671,22 +1884,43 @@ function toggleDanmaku() {
 function setupAutoNext(video) {
   const continueCb = document.getElementById("continue");
   const colContinueCb = document.getElementById("collection-continue");
+  const syncAvSwitch = (checked) => {
+    const avswitch = document.getElementById("avswitch");
+    if (!avswitch) return;
+    try {
+      const u = new URL(avswitch.getAttribute("href"), window.location.origin);
+      if (checked) u.searchParams.set("ato", "1");
+      else u.searchParams.delete("ato");
+      avswitch.setAttribute("href", u.pathname + u.search);
+    } catch {
+      /* ignore */
+    }
+  };
   if (continueCb && !continueCb.dataset.atoInit) {
     continueCb.checked = Boolean(window.ato);
     continueCb.dataset.atoInit = "1";
+    continueCb.addEventListener("change", () => syncAvSwitch(continueCb.checked));
   }
   if (colContinueCb && !colContinueCb.dataset.atoInit) {
     colContinueCb.checked = Boolean(window.ato);
     colContinueCb.dataset.atoInit = "1";
+    colContinueCb.addEventListener("change", () => syncAvSwitch(colContinueCb.checked));
   }
   video.addEventListener("ended", function () {
+    const vid = String(window.current_vid || "");
     if (continueCb?.checked && window.idx + 1 < window.total_pages) {
       window.idx += 1;
-      window.location.href = `/video/${window.current_vid}:${window.idx}?ato=1`;
+      if (vid.startsWith("am")) {
+        window.location.href = `/audio_list/${vid}:${window.idx}?ato=1`;
+      } else {
+        const suffix = window.is_audio ? "?listen=1&ato=1" : "?ato=1";
+        window.location.href = `/video/${vid}:${window.idx}${suffix}`;
+      }
       return;
     }
     if (colContinueCb?.checked && colContinueCb.dataset.nextBvid) {
-      window.location.href = `/video/${colContinueCb.dataset.nextBvid}?ato=1`;
+      const suffix = window.is_audio ? "?listen=1&ato=1" : "?ato=1";
+      window.location.href = `/video/${colContinueCb.dataset.nextBvid}${suffix}`;
     }
   });
 }

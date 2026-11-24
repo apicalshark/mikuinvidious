@@ -189,10 +189,11 @@ def verify_subtitle_vtt_sig(sig: str | None, vid: str, idx: int, lan: str) -> bo
     return _verify_sig(sig, "subvtt", f"{vid}:{idx_int}:{lan}")
 
 
-def sign_dash_manifest_url(vid: str, idx: int) -> str:
+def sign_dash_manifest_url(vid: str, idx: int, *, audio_only: bool = False) -> str:
     """Sign ``/video/dash/s/<sig>/<vid>/<idx>/manifest.mpd``."""
     sig = _compute_sig("mpd", f"{vid}:{int(idx)}")
-    return f"/video/dash/s/{sig}/{vid}/{int(idx)}/manifest.mpd"
+    url = f"/video/dash/s/{sig}/{vid}/{int(idx)}/manifest.mpd"
+    return f"{url}?audio_only=1" if audio_only else url
 
 
 def verify_dash_manifest_sig(sig: str | None, vid: str, idx: int) -> bool:

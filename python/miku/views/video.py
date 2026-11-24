@@ -14,7 +14,6 @@ from miku.core.rate_limit import RATE_LIMITS, get_client_ip, ip_family_key, rate
 from miku.core.singleflight import SingleflightGroup
 from miku.core.url_signing import sign_dash_manifest_url
 from miku.dash.common import _is_valid_vid
-from miku.media.extra import video_get_src_for_qn
 from miku.state import (
     app,
     appcred,
@@ -98,132 +97,15 @@ def _bad_vid_response() -> Response:
 @app.route("/video_listen/<vid>:<idx>/")
 @rate_limit(**RATE_LIMITS["normal"], key_func=ip_family_key("video_listen"))
 async def video_listen_view(vid, idx=0):
-    # Validate video ID format
-    import re
-
     if not re.match(r"^(BV[a-zA-Z0-9]{10}|av\d+)$", vid):
         return Response("Invalid video ID format", status=400)
-
-    ato = request.args.get("ato") == "1"
     try:
         idx = int(idx)
         if idx < 0:
             return Response("Invalid video index", status=400)
     except TypeError, ValueError:
         return Response("Invalid video index", status=400)
-    vid = av2bv(vid[2:]) if vid.startswith("av") else vid
-    v = video.Video(bvid=vid, credential=appcred)
-
-    async def get_audio_url():
-        try:
-            exists = await appredis.exists(f"mikuinv_{vid}_{idx}_0")
-        except Exception:
-            exists = False
-        if not exists:
-            try:
-                vsrc = await video_get_src_for_qn(v, idx, 16)
-            except Exception:
-                return
-            if "durl" in vsrc and vsrc["durl"]:
-                try:
-                    await appredis.setex(f"mikuinv_{vid}_{idx}_0", 1800, vsrc["durl"][0]["url"])
-                except Exception:
-                    pass
-
-    cache_ttl = cache_minutes("video_minutes") * 60
-    cache_key = f"video:data:{vid}:{idx}"
-    if cache_ttl > 0:
-        data = await cache_get(cache_key, cache_ttl)
-        if (
-            isinstance(data, dict)
-            and isinstance(data.get("vinfo"), dict)
-            and (data["vinfo"].get("bvid") or data["vinfo"].get("title"))
-            and isinstance(data.get("vtags"), list)
-            and isinstance(data.get("vrelated"), list)
-            and isinstance(data.get("vset"), list)
-            and data.get("vset")
-        ):
-            vinfo, vtags, vrelated, vset = (
-                data["vinfo"],
-                data["vtags"],
-                data["vrelated"],
-                data["vset"],
-            )
-            res_cached = await asyncio.gather(
-                comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE),
-                get_audio_url(),
-                return_exceptions=True,
-            )
-            vcomments = res_cached[0] if isinstance(res_cached[0], dict) else {"page": {"count": 0}, "replies": []}
-            owner_info = await _fetch_owner_meta(vinfo)
-            html = await render_template_with_theme(
-                "video_listen.html",
-                vid=vid,
-                vinfo=vinfo,
-                owner_info=owner_info,
-                vrelated=vrelated[:10],
-                vcomments=vcomments,
-                keywords=",".join(x.get("tag_name", "") for x in vtags if isinstance(x, dict)),
-                vtags=vtags,
-                ato=ato,
-                idx=idx,
-                vset=vset,
-            )
-            return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
-
-    results = await asyncio.gather(
-        v.get_info(),
-        v.get_tags(idx),
-        v.get_related(),
-        comment.get_comments(vid, comment.CommentResourceType.VIDEO, 1, comment.OrderType.LIKE),
-        v.get_pages(),
-        get_audio_url(),
-        return_exceptions=True,
-    )
-
-    # Core data check
-    if isinstance(results[0], BaseException) or not isinstance(results[0], dict):
-        err_msg = str(results[0]) if results[0] else "Bilibili returned empty data (possibly region-restricted)"
-        return await render_template_with_theme(
-            "error.html",
-            status="Audio mode load failed",
-            desc=err_msg,
-            suggest="This content may be region-restricted or removed.",
-        ), 404
-
-    vinfo = results[0]
-    vtags = results[1] if isinstance(results[1], list) else []
-    vrelated = results[2] if isinstance(results[2], list) else []
-    vcomments = results[3] if isinstance(results[3], dict) else {"page": {"count": 0}, "replies": []}
-    vset = results[4] if isinstance(results[4], list) else [{"page": 1, "part": vid}]
-    if (
-        cache_ttl > 0
-        and isinstance(results[1], list)
-        and isinstance(results[2], list)
-        and isinstance(results[4], list)
-        and results[4]
-        and (vinfo.get("bvid") or vinfo.get("title"))
-    ):
-        await cache_set(
-            cache_key,
-            {"vinfo": vinfo, "vtags": vtags, "vrelated": vrelated, "vset": vset},
-            cache_ttl,
-        )
-    owner_info = await _fetch_owner_meta(vinfo)
-    html = await render_template_with_theme(
-        "video_listen.html",
-        vid=vid,
-        vinfo=vinfo,
-        owner_info=owner_info,
-        vrelated=vrelated[:10],
-        vcomments=vcomments,
-        keywords=",".join(x.get("tag_name", "") for x in vtags),
-        vtags=vtags,
-        ato=ato,
-        idx=idx,
-        vset=vset,
-    )
-    return Response(html, status=200, content_type="text/html", headers={"X-Cache": "MISS"})
+    return await _render_video_page(vid, idx, is_audio=True)
 
 
 # --- ASYNC COMPONENT API ---
@@ -342,11 +224,12 @@ async def api_component_player(vid, idx):
         vinfo = {"pic": ""}
 
     dash_data = await get_dash_data()
-    from miku.dash import has_valid_dash_tracks
+    from miku.dash import extract_download_options, has_valid_dash_tracks
 
+    audio_only = request.args.get("audio_only") == "1"
     paywall = bool((dash_data or {}).get("paywall"))
     is_dash = has_valid_dash_tracks(dash_data)
-    dash_url = sign_dash_manifest_url(vid, idx) if is_dash else ""
+    dash_url = sign_dash_manifest_url(vid, idx, audio_only=audio_only) if is_dash else ""
     dash_video_tracks = ((dash_data or {}).get("dash") or {}).get("video") or []
     dash_tracks_by_quality = {}
     for track in dash_video_tracks:
@@ -371,11 +254,13 @@ async def api_component_player(vid, idx):
             for f in (dash_data or {}).get("support_formats") or []
             if isinstance(f, dict) and f.get("quality") is not None and str(f.get("quality")) in dash_tracks_by_quality
         ]
+        download_options = extract_download_options(dash_data)
     else:
         # Progressive (durl) fallback: some UGC uploads return no DASH
         # ``dash`` node at all — only a progressive
         # MP4 ``durl``. Serve those through the native /proxy/video/ path.
         supported_src = await _resolve_progressive_sources(v, vid, idx, dash_data, ep_id, paywall, cid=pgc_cid)
+        download_options = {"videos": [], "audios": [], "progressive": supported_src}
 
     return await render_template_with_theme(
         "components/player_part.html",
@@ -388,6 +273,8 @@ async def api_component_player(vid, idx):
         dash_url=dash_url,
         subtitles=await _get_subtitles(v, idx),
         paywall=paywall,
+        is_audio=audio_only,
+        download_options=download_options,
     )
 
 
@@ -513,21 +400,20 @@ async def api_component_sub_comments(vid, rpid):
 @app.route("/video/<vid>:<idx>/")
 @rate_limit(**RATE_LIMITS["normal"])
 async def video_view(vid, idx=0):
-    # Validate video ID format
-    import re
-
     if not re.match(r"^(BV[a-zA-Z0-9]{10}|av\d+)$", vid):
         return Response("Invalid video ID format", status=400)
-
-    ato = request.args.get("ato") == "1"
     try:
         idx = int(idx)
         if idx < 0:
             return Response("Invalid video index", status=400)
     except TypeError, ValueError:
         return Response("Invalid video index", status=400)
-    if request.args.get("listen") == "1":
-        return await video_listen_view(vid, idx)
+    is_audio = request.args.get("listen") == "1"
+    return await _render_video_page(vid, idx, is_audio=is_audio)
+
+
+async def _render_video_page(vid: str, idx: int, *, is_audio: bool):
+    ato = request.args.get("ato") == "1"
     vid = av2bv(vid[2:]) if vid.startswith("av") else vid
     v = video.Video(bvid=vid, credential=appcred)
 
@@ -707,6 +593,9 @@ async def video_view(vid, idx=0):
         ato=ato,
         idx=idx,
         vset=vset,
+        is_audio=is_audio,
+        is_progressive_audio=False,
+        comment_type=comment.CommentResourceType.VIDEO.value,
     )
     if outcome["stale"]:
         return Response(

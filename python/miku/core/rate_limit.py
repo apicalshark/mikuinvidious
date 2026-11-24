@@ -102,15 +102,39 @@ def ip_family_key(family: str):
 
 
 class RateLimiter:
-    """Redis-based sliding window rate limiter with bounded in-memory fallback."""
+    """Sliding window rate limiter with bounded in-memory storage and Redis cooldown."""
 
     _FALLBACK_MAX_KEYS = 8192
+    _REDIS_COOLDOWN = 30.0
 
-    def __init__(self, redis_client, prefix="ratelimit:", fallback_max_keys: int = _FALLBACK_MAX_KEYS):
+    def __init__(
+        self,
+        redis_client=None,
+        prefix="ratelimit:",
+        fallback_max_keys: int = _FALLBACK_MAX_KEYS,
+        redis_cooldown: float = _REDIS_COOLDOWN,
+    ):
         self.redis = redis_client
         self.prefix = prefix
         self._fallback_max_keys = max(1, fallback_max_keys)
         self._fallback_buckets: OrderedDict[str, deque[float]] = OrderedDict()
+        self._redis_cooldown = max(0.0, float(redis_cooldown))
+        self._redis_until = 0.0
+
+    def _use_redis(self) -> bool:
+        if self.redis is None:
+            return False
+        return self._redis_until <= 0.0 or time.monotonic() >= self._redis_until
+
+    def _trip_redis_cooldown(self, exc: Exception, context: str = "") -> None:
+        self._redis_until = time.monotonic() + self._redis_cooldown
+        cooldown_s = int(self._redis_cooldown)
+        if context:
+            print(
+                f"[RateLimit] Redis error in {context}: {type(exc).__name__}. Using in-memory fallback for {cooldown_s}s."
+            )
+        else:
+            print(f"[RateLimit] Redis error: {type(exc).__name__}. Using in-memory fallback for {cooldown_s}s.")
 
     def _fallback_is_allowed(self, key: str, limit: int, window: int) -> tuple[bool, dict]:
         now_f = time.time()
@@ -162,6 +186,9 @@ class RateLimiter:
         Check if request is allowed under rate limit.
         Returns (allowed, info_dict) where info_dict has 'remaining', 'reset', 'limit'.
         """
+        if not self._use_redis():
+            return self._fallback_is_allowed(key, limit, window)
+
         now = int(time.time())
         window_start = now - window
         redis_key = f"{self.prefix}{key}"
@@ -203,19 +230,23 @@ class RateLimiter:
 
             return True, {"remaining": limit - current_count, "reset": now + window, "limit": limit}
         except Exception as e:
-            print(f"[RateLimit] Redis error: {type(e).__name__}. Using in-memory fallback.")
+            self._trip_redis_cooldown(e)
             return self._fallback_is_allowed(key, limit, window)
 
     async def get_current_usage(self, key: str, window: int) -> int:
         """Get current request count for a key."""
+        if not self._use_redis():
+            return self._fallback_usage(key, window)
+
         now = int(time.time())
         window_start = now - window
         redis_key = f"{self.prefix}{key}"
         try:
             await self.redis.zremrangebyscore(redis_key, 0, window_start)
-            return await self.redis.zcard(redis_key)
+            count = await self.redis.zcard(redis_key)
+            return count
         except Exception as e:
-            print(f"[RateLimit] Redis error in get_current_usage: {type(e).__name__}")
+            self._trip_redis_cooldown(e, context="get_current_usage")
             return self._fallback_usage(key, window)
 
 
@@ -226,7 +257,8 @@ _rate_limiter: RateLimiter = None
 def get_rate_limiter() -> RateLimiter:
     global _rate_limiter
     if _rate_limiter is None:
-        _rate_limiter = RateLimiter(appredis)
+        backend = ((appconf.get("rate_limit") or {}).get("backend") or "memory").strip().lower()
+        _rate_limiter = RateLimiter(appredis if backend == "redis" else None)
     return _rate_limiter
 
 

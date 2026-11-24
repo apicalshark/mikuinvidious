@@ -211,6 +211,7 @@
 
   function createController(root, video, opts) {
     const isLive = Boolean(opts && opts.isLive);
+    const isAudio = Boolean(opts && opts.isAudio);
     const ac = new AbortController();
     const signal = ac.signal;
 
@@ -580,7 +581,11 @@
 
     function visibleMenuItems() {
       const view = settingsList?.querySelector("[data-menu-view]:not([hidden])");
-      return view ? Array.from(view.querySelectorAll("button:not(:disabled)")) : [];
+      return view
+        ? Array.from(view.querySelectorAll("button:not(:disabled)")).filter(
+            (b) => !b.closest(".hidden")
+          )
+        : [];
     }
 
     function switchMenuView(name, dir) {
@@ -784,6 +789,7 @@
         ? options.sources
         : window.supported_src || [];
       const isDash = Boolean(options?.isDash ?? window.is_dash);
+      const audioOnly = Boolean(options?.isAudio ?? isAudio);
       const onSelectVideo = options?.onSelectVideo;
       const sorted = [...sources].sort((a, b) => b.quality - a.quality);
       const currentQn =
@@ -795,58 +801,100 @@
       const main = document.createElement("div");
       main.dataset.menuView = "main";
       main.className = "flex flex-col gap-0.5";
-      main.appendChild(
-        makeMenuNavRow("resolution", t("Resolution"), "data-resolution-value", "video")
-      );
+      if (!audioOnly) {
+        main.appendChild(
+          makeMenuNavRow("resolution", t("Resolution"), "data-resolution-value", "video")
+        );
+      }
       if (isDash) {
         main.appendChild(makeMenuNavRow("audio", t("Audio"), "data-audio-value", "audio"));
       }
       main.appendChild(
         makeMenuNavRow("speed", t("Playback speed"), "data-speed-value", "speed", syncSpeedMenu)
       );
-      main.appendChild(
-        makeMenuNavRow(
-          "danmaku",
-          t("Danmaku size"),
-          "data-danmaku-size-value",
-          "danmaku-size",
-          syncDanmakuSizeMenu
-        )
-      );
+      if (!audioOnly) {
+        main.appendChild(
+          makeMenuNavRow(
+            "danmaku",
+            t("Danmaku size"),
+            "data-danmaku-size-value",
+            "danmaku-size",
+            syncDanmakuSizeMenu
+          )
+        );
+      }
       settingsList.appendChild(main);
 
-      const videoView = document.createElement("div");
-      videoView.dataset.menuView = "video";
-      videoView.className = "flex flex-col gap-0.5";
-      videoView.hidden = true;
-      videoView.appendChild(makeSubmenuHeader(t("Resolution"), "main"));
-      sorted.forEach((src, idx) => {
-        const btn = makeOptionButton(
-          src.new_description,
-          { videoQn: src.quality, qn: src.quality },
-          (clickedBtn) => {
-            if (typeof onSelectVideo === "function") {
-              onSelectVideo(src);
-            }
-            const rv = settingsList.querySelector("[data-resolution-value]");
-            if (rv) rv.textContent = src.new_description;
-            settingsList.querySelectorAll("button[data-video-qn]").forEach((b) => {
-              b.classList.remove("active");
-              b.setAttribute("aria-checked", "false");
-            });
-            clickedBtn.classList.add("active");
-            clickedBtn.setAttribute("aria-checked", "true");
-            closeSettings();
-          }
+      if (!audioOnly) {
+        const videoView = document.createElement("div");
+        videoView.dataset.menuView = "video";
+        videoView.className = "flex flex-col gap-0.5";
+        videoView.hidden = true;
+        videoView.appendChild(makeSubmenuHeader(t("Resolution"), "main"));
+        const codecRowWrap = document.createElement("div");
+        codecRowWrap.dataset.videoCodecRow = "1";
+        codecRowWrap.className = "hidden";
+        codecRowWrap.appendChild(
+          makeMenuNavRow("resolution", t("Codec"), "data-codec-value", "video-codec")
         );
-        const matchesCurrent = isDash ? idx === 0 : currentQn === String(src.quality);
-        if (matchesCurrent) {
-          btn.classList.add("active");
-          btn.setAttribute("aria-checked", "true");
+        const codecSep = document.createElement("div");
+        codecSep.className = "my-1 h-px bg-white/10";
+        codecRowWrap.appendChild(codecSep);
+        videoView.appendChild(codecRowWrap);
+        const videoOpts = document.createElement("div");
+        videoOpts.dataset.videoOptions = "1";
+        videoOpts.className = "flex flex-col gap-0.5";
+        const cleanQualityLabel = (text) =>
+          String(text || "")
+            .replace(
+              /\s*(?:超高清|超清|高清|清晰|流畅|流暢|标清|標清|极速|極速|高码率|高碼率|高帧率|高幀率)/g,
+              ""
+            )
+            .replace(/(\d+)P\b/g, "$1p")
+            .trim();
+        sorted.forEach((src, idx) => {
+          const cleanLabel = cleanQualityLabel(src.new_description) || src.new_description;
+          const btn = makeOptionButton(
+            cleanLabel,
+            { videoQn: src.quality, qn: src.quality },
+            (clickedBtn) => {
+              if (typeof onSelectVideo === "function") {
+                onSelectVideo(src);
+              }
+              const rv = settingsList.querySelector("[data-resolution-value]");
+              if (rv) rv.textContent = cleanLabel;
+              settingsList.querySelectorAll("button[data-video-qn]").forEach((b) => {
+                b.classList.remove("active");
+                b.setAttribute("aria-checked", "false");
+              });
+              clickedBtn.classList.add("active");
+              clickedBtn.setAttribute("aria-checked", "true");
+              closeSettings();
+            }
+          );
+          const matchesCurrent = isDash ? idx === 0 : currentQn === String(src.quality);
+          if (matchesCurrent) {
+            btn.classList.add("active");
+            btn.setAttribute("aria-checked", "true");
+          }
+          videoOpts.appendChild(btn);
+        });
+        videoView.appendChild(videoOpts);
+        settingsList.appendChild(videoView);
+
+        if (isDash) {
+          const videoCodecView = document.createElement("div");
+          videoCodecView.dataset.menuView = "video-codec";
+          videoCodecView.className = "flex flex-col gap-0.5";
+          videoCodecView.hidden = true;
+          videoCodecView.appendChild(makeSubmenuHeader(t("Codec"), "video"));
+          const codecOpts = document.createElement("div");
+          codecOpts.dataset.videoCodecOptions = "1";
+          codecOpts.className = "flex flex-col gap-0.5";
+          videoCodecView.appendChild(codecOpts);
+          settingsList.appendChild(videoCodecView);
         }
-        videoView.appendChild(btn);
-      });
-      settingsList.appendChild(videoView);
+      }
 
       if (isDash) {
         const audioView = document.createElement("div");
@@ -862,19 +910,23 @@
       }
 
       settingsList.appendChild(buildSpeedSubView());
-      settingsList.appendChild(buildDanmakuSizeSubView());
+      if (!audioOnly) {
+        settingsList.appendChild(buildDanmakuSizeSubView());
+        syncDanmakuSizeMenu();
+      }
       syncSpeedMenu();
-      syncDanmakuSizeMenu();
 
-      const activeVideoBtn =
-        settingsList.querySelector("button[data-video-qn].active") ||
-        settingsList.querySelector("button[data-video-qn]");
-      if (activeVideoBtn) {
-        activeVideoBtn.classList.add("active");
-        activeVideoBtn.setAttribute("aria-checked", "true");
-        const rv = settingsList.querySelector("[data-resolution-value]");
-        const span = activeVideoBtn.querySelector("span");
-        if (rv && span) rv.textContent = span.textContent;
+      if (!audioOnly) {
+        const activeVideoBtn =
+          settingsList.querySelector("button[data-video-qn].active") ||
+          settingsList.querySelector("button[data-video-qn]");
+        if (activeVideoBtn) {
+          activeVideoBtn.classList.add("active");
+          activeVideoBtn.setAttribute("aria-checked", "true");
+          const rv = settingsList.querySelector("[data-resolution-value]");
+          const span = activeVideoBtn.querySelector("span");
+          if (rv && span) rv.textContent = span.textContent;
+        }
       }
     }
 
@@ -911,9 +963,72 @@
       }
     }
 
-    function syncVideoQuality(qn, labelText) {
-      if (!settingsList || !qn) return;
-      const btn = settingsList.querySelector(`button[data-qn="${qn}"]`);
+    function setVideoCodecs(codecs, currentId, onSelectCodec) {
+      if (!settingsList) return;
+      const rowWrap = settingsList.querySelector("[data-video-codec-row]");
+      const optsContainer = settingsList.querySelector("[data-video-codec-options]");
+      if (!optsContainer || !rowWrap) return;
+      const list = Array.isArray(codecs) ? codecs : [];
+      rowWrap.classList.toggle("hidden", list.length <= 1);
+      optsContainer.innerHTML = "";
+      for (const item of list) {
+        const btn = makeOptionButton(item.label, { videoCodecId: item.id }, () => {
+          if (typeof onSelectCodec === "function") onSelectCodec(item.id);
+          syncVideoCodec(item.id);
+          closeSettings();
+        });
+        optsContainer.appendChild(btn);
+      }
+      syncVideoCodec(currentId);
+    }
+
+    function syncVideoCodec(currentId) {
+      if (!settingsList) return;
+      settingsList.querySelectorAll("button[data-video-codec-id]").forEach((b) => {
+        const active = currentId != null && String(b.dataset.videoCodecId) === String(currentId);
+        b.classList.toggle("active", active);
+        b.setAttribute("aria-checked", active ? "true" : "false");
+      });
+      if (currentId != null) {
+        const activeBtn = settingsList.querySelector(`button[data-video-codec-id="${currentId}"]`);
+        const cv = settingsList.querySelector("[data-codec-value]");
+        if (activeBtn && cv) {
+          const span = activeBtn.querySelector("span");
+          if (span) cv.textContent = span.textContent;
+        }
+      }
+    }
+
+    function setVideoTracks(tracks, currentId, onSelectVideo) {
+      if (!settingsList) return;
+      const optsContainer = settingsList.querySelector("[data-video-options]");
+      if (!optsContainer) return;
+      optsContainer.innerHTML = "";
+      let activeTrk = null;
+      for (const trk of tracks || []) {
+        if (currentId != null && String(trk.id) === String(currentId)) activeTrk = trk;
+        const btn = makeOptionButton(
+          trk.label,
+          { videoQn: trk.qn, qn: trk.qn, videoRepId: trk.id },
+          () => {
+            if (typeof onSelectVideo === "function") onSelectVideo(trk);
+            syncVideoQuality(trk.qn, trk.label, trk.id);
+            closeSettings();
+          }
+        );
+        optsContainer.appendChild(btn);
+      }
+      if (!activeTrk && tracks && tracks.length) activeTrk = tracks[0];
+      if (activeTrk) {
+        syncVideoQuality(activeTrk.qn, activeTrk.label, activeTrk.id);
+      }
+    }
+
+    function syncVideoQuality(qn, labelText, repId) {
+      if (!settingsList || (!qn && !repId)) return;
+      const btn =
+        (repId != null && settingsList.querySelector(`button[data-video-rep-id="${repId}"]`)) ||
+        settingsList.querySelector(`button[data-qn="${qn}"]`);
       if (btn) {
         settingsList.querySelectorAll("button[data-video-qn]").forEach((b) => {
           b.classList.remove("active");
@@ -1133,7 +1248,7 @@
       setTheater(!current, true);
     }
 
-    if (storageGet(THEATER_STORAGE_KEY) === "1") {
+    if (!isAudio && storageGet(THEATER_STORAGE_KEY) === "1") {
       setTheater(true, false);
     }
 
@@ -1541,7 +1656,8 @@
           if (clickTimer) {
             clearTimeout(clickTimer);
             clickTimer = null;
-            toggleFullscreen();
+            if (!isAudio) toggleFullscreen();
+            else togglePlay(false);
           } else {
             clickTimer = setTimeout(() => {
               clickTimer = null;
@@ -1592,7 +1708,7 @@
         } else if (key === "m" || key === "M") {
           e.preventDefault();
           toggleMute(true);
-        } else if (key === "f" || key === "F") {
+        } else if ((key === "f" || key === "F") && !isAudio) {
           const fullscreen =
             document.fullscreenElement === root || document.webkitFullscreenElement === root;
           if (
@@ -1607,11 +1723,11 @@
             return;
           e.preventDefault();
           toggleFullscreen();
-        } else if (key === "t" || key === "T") {
+        } else if ((key === "t" || key === "T") && !isAudio) {
           if (!document.getElementById("video-layout")) return;
           e.preventDefault();
           toggleTheater();
-        } else if (key === "i" || key === "I") {
+        } else if ((key === "i" || key === "I") && !isAudio) {
           if (
             !document.pictureInPictureEnabled ||
             (document.pictureInPictureElement === video
@@ -1627,7 +1743,7 @@
             e.preventDefault();
             toggleCaptions();
           }
-        } else if (key === "d" || key === "D") {
+        } else if ((key === "d" || key === "D") && !isAudio) {
           if (window.dm && typeof window.toggleDanmaku === "function") {
             e.preventDefault();
             window.toggleDanmaku();
@@ -1773,6 +1889,9 @@
       setDanmakuActive,
       showHud,
       setupVodMenu,
+      setVideoCodecs,
+      syncVideoCodec,
+      setVideoTracks,
       setAudioTracks,
       syncAudioTrack,
       syncVideoQuality,
@@ -1815,14 +1934,23 @@
     setupVodMenu(options) {
       activeInstance?.setupVodMenu(options);
     },
+    setVideoCodecs(codecs, currentId, onSelectCodec) {
+      activeInstance?.setVideoCodecs(codecs, currentId, onSelectCodec);
+    },
+    syncVideoCodec(currentId) {
+      activeInstance?.syncVideoCodec(currentId);
+    },
+    setVideoTracks(tracks, currentId, onSelectVideo) {
+      activeInstance?.setVideoTracks(tracks, currentId, onSelectVideo);
+    },
     setAudioTracks(tracks, currentId, onSelectAudio) {
       activeInstance?.setAudioTracks(tracks, currentId, onSelectAudio);
     },
     syncAudioTrack(currentId) {
       activeInstance?.syncAudioTrack(currentId);
     },
-    syncVideoQuality(qn, labelText) {
-      activeInstance?.syncVideoQuality(qn, labelText);
+    syncVideoQuality(qn, labelText, repId) {
+      activeInstance?.syncVideoQuality(qn, labelText, repId);
     },
     setupLiveMenu(options) {
       activeInstance?.setupLiveMenu(options);

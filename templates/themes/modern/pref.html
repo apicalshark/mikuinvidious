@@ -128,6 +128,62 @@
                     <button id="toggle_lock_video"
                             class="md3-button md3-button-tonal shrink-0">{{ _("Loading...") }}</button>
                 </div>
+
+                <div class="flex items-center justify-between gap-3 p-4 rounded-2xl bg-surface-container">
+                    <div class="text-left pr-3">
+                        <div class="font-bold text-sm text-on-surface">{{ _("Preferred video codec") }}</div>
+                        <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Preferred codec for playback and downloads (falls back automatically if unavailable)") }}</div>
+                    </div>
+                    <div id="preferred_codec_dropdown" class="relative shrink-0">
+                        <button type="button"
+                                id="select_preferred_codec_btn"
+                                aria-label="{{ _('Preferred video codec') }}"
+                                aria-haspopup="listbox"
+                                aria-expanded="false"
+                                class="inline-flex items-center justify-between gap-2.5 min-w-44 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer">
+                            <span id="select_preferred_codec_label"
+                                  class="truncate">{{ _("Auto (AV1 → HEVC → AVC)") }}</span>
+                            <i id="select_preferred_codec_chevron"
+                               class="icon ion-ios-arrow-down text-on-surface-variant transition-transform duration-200 shrink-0"></i>
+                        </button>
+                        <div id="select_preferred_codec_menu"
+                             role="listbox"
+                             class="hidden absolute right-0 top-full mt-2 z-30 min-w-56 rounded-2xl bg-surface-container-high p-1.5 shadow-xl space-y-0.5">
+                            <button type="button"
+                                    role="option"
+                                    aria-selected="false"
+                                    data-codec-value="auto"
+                                    class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer">
+                                <span>{{ _("Auto (AV1 → HEVC → AVC)") }}</span>
+                                <i class="icon ion-md-checkmark text-primary hidden shrink-0"></i>
+                            </button>
+                            <button type="button"
+                                    role="option"
+                                    aria-selected="false"
+                                    data-codec-value="av1"
+                                    class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer">
+                                <span>AV1</span>
+                                <i class="icon ion-md-checkmark text-primary hidden shrink-0"></i>
+                            </button>
+                            <button type="button"
+                                    role="option"
+                                    aria-selected="false"
+                                    data-codec-value="hevc"
+                                    class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer">
+                                <span>HEVC (H.265)</span>
+                                <i class="icon ion-md-checkmark text-primary hidden shrink-0"></i>
+                            </button>
+                            <button type="button"
+                                    role="option"
+                                    aria-selected="false"
+                                    data-codec-value="avc"
+                                    class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer">
+                                <span>AVC (H.264)</span>
+                                <i class="icon ion-md-checkmark text-primary hidden shrink-0"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="pt-2 text-center">

@@ -167,6 +167,10 @@ port = 6379
 
 [rate_limit]
 enabled = true
+# Storage backend for rate limiting ('memory' or 'redis').
+# 'memory' (default) uses bounded in-process sliding windows (recommended for single-worker deployments).
+# 'redis' shares counters across workers and falls back to memory for 30s on Redis errors.
+# backend = 'memory'
 # Comma-separated IPs/CIDRs whose X-Forwarded-For headers are trusted.
 # Defaults to '127.0.0.1/8,::1/128' (loopback only). When running behind
 # Caddy/Nginx in Docker, include the proxy container subnet (compose.yml
