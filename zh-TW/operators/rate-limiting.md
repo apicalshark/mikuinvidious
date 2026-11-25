@@ -61,11 +61,14 @@ uv run python python/main.py
 | 等級 | 配額上限 | 時間視窗 | 適用端點範圍 |
 | :--- | :--- | :--- | :--- |
 | **Strict** | 10 次 | 60 秒 | 敏感管理操作與憑證設定相關端點。 |
+| **Auth** | 5 次 | 300 秒 | 預留給驗證端點（目前尚無路由套用）。 |
 | **Search** | 20 次 | 60 秒 | 分類與關鍵字搜尋端點（`/search`）。 |
 | **Normal** | 60 次 | 60 秒 | 一般影片詳情頁面、個人空間與番劇動漫。 |
 | **Proxy** | 100 次 | 60 秒 | 圖片代理與漸進式媒體串流（`/proxy/pic/*`、`/proxy/video/*`）。 |
 | **Streaming** | 600 次（每 IP）/ 120 次（每目標） | 60 秒 | 高頻分段媒體代理（`/proxy/dash/*`、`/proxy/live_hls`）。 |
 | **Loose** | 300 次 | 60 秒 | 輔助靜態資源。 |
+
+所有具名設定檔（`strict`、`normal`、`loose`、`search`、`proxy`、`auth`）皆可於 `config.toml` 中透過 `[rate_limit.limits.<profile>]`（`limit` 與 `window`）或環境變數 `RATE_LIMIT_<PROFILE>_LIMIT`／`RATE_LIMIT_<PROFILE>_WINDOW` 自訂調整。
 
 當客戶端超出配額時，伺服器回傳 `HTTP 429 Too Many Requests` 與 `Retry-After` 標頭。正常回應亦會附帶標準監控標頭：
 

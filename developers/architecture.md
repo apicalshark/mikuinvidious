@@ -170,6 +170,7 @@ graph TD
 - **`miku/app.py`**: Initializes the Quart application, sets up security headers, registers error handlers, and attaches blueprints.
 - **`miku/state.py`**: Shared singleton runtime state (`appredis`, HTTPX clients, template renderer).
 - **`miku/core/config.py` & `miku/core/app.py`**: Central system configuration (`appconf`) and Quart app factory (`create_app()`).
+- **`miku/core/logging.py`**: Colored, timestamped logging configuration for MikuInvidious and Granian (`LOG_COLOR` / `NO_COLOR`).
 - **`miku/services/`**: Redis pool (`redis.py`), HTTP clients & proxies (`network.py`), caching (`cache.py`), concurrency semaphores (`concurrency.py`), credentials (`credential.py`), and `bili_ticket` lifecycle (`ticket.py`).
 - **`miku/core/csrf.py`**: Token generation, validation, and session binding for state-mutating requests.
 - **`miku/core/rate_limit.py`**: Sliding-window Redis rate limiter with IP validation and explicit CIDR `trusted_proxies` header inspection (no implicit private IP trust).

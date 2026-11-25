@@ -170,6 +170,7 @@ graph TD
 - **`miku/app.py`**：初始化 Quart 應用、配置安全標頭、註冊全域例外處理器並掛載藍圖。
 - **`miku/state.py`**：全域共用執行期狀態（`appredis`、HTTPX 客戶端、範本渲染器）。
 - **`miku/core/config.py` 與 `miku/core/app.py`**：系統組態載入（`appconf`）與 Quart 應用工廠（`create_app()`）。
+- **`miku/core/logging.py`**：MikuInvidious 與 Granian 的彩色、時間戳記日誌組態（支援 `LOG_COLOR` / `NO_COLOR`）。
 - **`miku/services/`**：Redis 連線池（`redis.py`）、HTTP 客戶端與代理（`network.py`）、快取（`cache.py`）、併發信號量（`concurrency.py`）、憑證管理（`credential.py`）與 `bili_ticket` 生命週期（`ticket.py`）。
 - **`miku/core/csrf.py`**：針對狀態變更請求生成並驗證 CSRF 權杖。
 - **`miku/core/rate_limit.py`**：基於 Redis 權杖桶的滑動視窗速率限制器，支援 CIDR 信任代理標頭解析（不再隱式信任私有網路）。

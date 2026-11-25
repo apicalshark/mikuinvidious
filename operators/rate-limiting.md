@@ -61,11 +61,14 @@ Predefined bucket profiles are applied based on endpoint sensitivity:
 | Profile | Limit | Window | Applied Endpoints |
 | :--- | :--- | :--- | :--- |
 | **Strict** | 10 req | 60 sec | Sensitive administrative endpoints and raw credential actions. |
+| **Auth** | 5 req | 300 sec | Reserved for authentication endpoints (currently unused by routes). |
 | **Search** | 20 req | 60 sec | Category and keyword search endpoints (`/search`). |
 | **Normal** | 60 req | 60 sec | General video metadata, user spaces, and Bangumi views. |
 | **Proxy** | 100 req | 60 sec | Image proxies and progressive media fragments (`/proxy/pic/*`, `/proxy/video/*`). |
 | **Streaming** | 600 req (per IP) / 120 req (per target) | 60 sec | High-frequency segmented media proxies (`/proxy/dash/*`, `/proxy/live_hls`). |
 | **Loose** | 300 req | 60 sec | Auxiliary static assets and auxiliary resources. |
+
+All named profiles (`strict`, `normal`, `loose`, `search`, `proxy`, `auth`) can be customized via `[rate_limit.limits.<profile>]` (`limit` and `window`) in `config.toml` or via `RATE_LIMIT_<PROFILE>_LIMIT` / `RATE_LIMIT_<PROFILE>_WINDOW` environment variables.
 
 When a client exceeds the quota, the server responds with `HTTP 429 Too Many Requests` and a `Retry-After` header. Allowed responses include standard telemetry headers:
 

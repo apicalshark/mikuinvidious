@@ -31,9 +31,11 @@ Web 伺服器核心設定（Granian / Quart）。
 | `host` | `SERVER_HOST` | `0.0.0.0` | 監聽 IP 位址（`::` 支援 IPv4/IPv6 雙棧）。 |
 | `port` | `SERVER_PORT` | `8888` | 監聽埠號（Docker 容器內為 8080）。 |
 | `secret_key` | `QUART_SECRET_KEY` | `（暫態產生）` | 用於簽署工作階段 Cookie 與 CSRF 權杖的密鑰。建議於正式環境設定以保留登入與工作階段狀態。 |
-| `debug` | `QUART_DEBUG` | `false` | 啟用 Quart 偵錯模式與程式碼熱重載。 |
+| `debug` | `QUART_DEBUG` | `false` | 啟用 Quart 偵錯模式、程式碼熱重載與 `DEBUG` 日誌層級。 |
 | `access_log` | `SERVER_ACCESS_LOG` | `false` | Granian 請求存取日誌。預設停用，因媒體串流與輪詢會造成日誌洪泛。 |
 | `monitor_fd` | `MONITOR_FD` | `false` | 啟用檔案描述子（File Descriptor）洩漏監控。 |
+| `（無）` | `LOG_COLOR` | `true` | 控制 ANSI 彩色日誌輸出。設為 `false`、`0`、`no`、`never` 或 `off` 可停用色彩。 |
+| `（無）` | `NO_COLOR` | `（未設定）` | 標準 [no-color.org](https://no-color.org/) 覆寫：設為任何非空值時停用 ANSI 彩色日誌。 |
 
 > [!NOTE]
 > **工作階段密鑰與行程黏性（Process Affinity）**：`miku.core.app.create_app()` 會優先使用 `[server].secret_key`（或 `QUART_SECRET_KEY`）；若未設定，則於每次啟動時隨機產生一組 32 位元組的暫態金鑰（`os.urandom(32).hex()`），重啟後現有工作階段與 CSRF 權杖將失效。若執行多個工作行程且未共用金鑰，各行程產生的密鑰不同會導致 Cookie 被拒絕，建議於正式環境設定 `QUART_SECRET_KEY` 或維持單一工作行程。
@@ -177,6 +179,17 @@ Redis 頁面快取存留時間（以分鐘為單位），設為 `0` 即可完全
 | `enabled` | `RATE_LIMIT_ENABLED` | `false`（程式預設）/ `true`（`config.toml.sample`、`compose.yml`） | 速率限制器總開關。 |
 | `backend` | `RATE_LIMIT_BACKEND` | `memory` | 速率限制儲存後端：`memory`（行程內有界計數器，建議單工作程序使用）或 `redis`（跨工作程序共用 Redis 計數器，異常時自動退避至記憶體 30 秒）。 |
 | `trusted_proxies` | `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | 以逗號分隔之信任反向代理 IP 位址或 CIDR 網段，僅信任清單內對端所帶入之 `X-Forwarded-For`（`get_client_ip()`）。 |
+| `limits.<profile>.limit` | `RATE_LIMIT_<PROFILE>_LIMIT` | 見下方 | 各設定檔 `<profile>`（`strict`、`normal`、`loose`、`search`、`proxy`、`auth`）於單一時間視窗內允許之最大請求數。 |
+| `limits.<profile>.window` | `RATE_LIMIT_<PROFILE>_WINDOW` | 見下方 | 各設定檔 `<profile>` 之滑動時間視窗長度（秒）。 |
+
+預設設定檔限制（`[rate_limit.limits.<profile>]`）：
+
+- `strict`：`10` 次請求 / `60` 秒（`RATE_LIMIT_STRICT_LIMIT`、`RATE_LIMIT_STRICT_WINDOW`）
+- `normal`：`60` 次請求 / `60` 秒（`RATE_LIMIT_NORMAL_LIMIT`、`RATE_LIMIT_NORMAL_WINDOW`）
+- `loose`：`300` 次請求 / `60` 秒（`RATE_LIMIT_LOOSE_LIMIT`、`RATE_LIMIT_LOOSE_WINDOW`）
+- `search`：`20` 次請求 / `60` 秒（`RATE_LIMIT_SEARCH_LIMIT`、`RATE_LIMIT_SEARCH_WINDOW`）
+- `proxy`：`100` 次請求 / `60` 秒（`RATE_LIMIT_PROXY_LIMIT`、`RATE_LIMIT_PROXY_WINDOW`）
+- `auth`：`5` 次請求 / `300` 秒（`RATE_LIMIT_AUTH_LIMIT`、`RATE_LIMIT_AUTH_WINDOW`）
 
 > [!WARNING]
 > **反向代理信任（`TRUSTED_PROXIES`）**：`rate_limit.py` **僅**採信符合 `trusted_proxies` 的對端標頭（預設為本機 loopback `127.0.0.1/8,::1/128`，私有網路**不會**被隱式信任）。於 Docker 中搭配 Caddy 或 Nginx 部署時，請將代理容器網段加入 `TRUSTED_PROXIES`（例如 `compose.yml` 將 `miku_net` 固定為 `172.30.0.0/24` 並設定 `TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24`），並確保邊緣代理覆寫或剝除不受信任的 `X-Forwarded-For`。
