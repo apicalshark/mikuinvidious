@@ -101,6 +101,21 @@ class TestMikuLogging(unittest.TestCase):
         self.assertIn("[INFO] [Init] Booting up", lines[0])
         self.assertIn("[ERROR] Something broke", lines[1])
 
+    def test_stream_to_logger_reentrant_handler_falls_back_without_deadlock(self) -> None:
+        target_logger = logging.getLogger("test.miku.stream.reentrant")
+        target_logger.setLevel(logging.DEBUG)
+        target_logger.propagate = False
+        fallback = io.StringIO()
+        stream = StreamToLogger(target_logger, level=logging.INFO, fallback_stream=fallback)
+
+        class ReentrantHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                stream.write("reentrant line\n")
+
+        target_logger.handlers = [ReentrantHandler()]
+        stream.write("outer line\n")
+        self.assertIn("reentrant line\n", fallback.getvalue())
+
     def test_granian_dictconfig_structure(self) -> None:
         cfg = get_granian_log_dictconfig(level="DEBUG", use_color=False)
         self.assertEqual(cfg["version"], 1)

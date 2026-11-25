@@ -18,6 +18,7 @@ class TestRateLimitConfig(unittest.IsolatedAsyncioTestCase):
                 "RATE_LIMIT_NORMAL_LIMIT": "120",
                 "RATE_LIMIT_NORMAL_WINDOW": "30",
                 "RATE_LIMIT_SEARCH_LIMIT": "invalid",
+                "RATE_LIMIT_SEARCH_WINDOW": "60",
             },
         ):
             conf = get_default_config()
@@ -27,7 +28,7 @@ class TestRateLimitConfig(unittest.IsolatedAsyncioTestCase):
     def test_resolve_rate_limit_falls_back_on_invalid_values(self) -> None:
         with patch.dict(
             rate_limit.appconf["rate_limit"],
-            {"limits": {"normal": {"limit": 0, "window": -5}}},
+            {"limits": {"normal": {"limit": float("inf"), "window": -5}}},
         ):
             self.assertEqual(rate_limit.resolve_rate_limit("normal", 60, 60), (60, 60))
 

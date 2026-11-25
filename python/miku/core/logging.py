@@ -152,6 +152,7 @@ class StreamToLogger:
         self._fallback = fallback_stream or sys.__stderr__
         self._buffer = ""
         self._lock = threading.Lock()
+        self._local = threading.local()
 
     @property
     def encoding(self) -> str:
@@ -170,17 +171,45 @@ class StreamToLogger:
     def writable(self) -> bool:
         return True
 
+    def _write_fallback(self, text: str) -> None:
+        if not self._fallback:
+            return
+        try:
+            self._fallback.write(f"{text}\n")
+            self._fallback.flush()
+        except Exception:
+            pass
+
+    def _emit_lines(self, lines: list[str]) -> None:
+        if not lines:
+            return
+        if getattr(self._local, "emitting", False):
+            for cleaned in lines:
+                self._write_fallback(cleaned)
+            return
+        self._local.emitting = True
+        try:
+            for cleaned in lines:
+                level = _infer_level(cleaned, self._level)
+                try:
+                    self._logger.log(level, "%s", cleaned)
+                except Exception:
+                    self._write_fallback(cleaned)
+        finally:
+            self._local.emitting = False
+
     def write(self, data: str) -> int:
         if not data:
             return 0
+        lines: list[str] = []
         with self._lock:
             self._buffer += data
             while "\n" in self._buffer:
                 line, self._buffer = self._buffer.split("\n", 1)
                 cleaned = line.rstrip("\r")
                 if cleaned:
-                    level = _infer_level(cleaned, self._level)
-                    self._logger.log(level, "%s", cleaned)
+                    lines.append(cleaned)
+        self._emit_lines(lines)
         return len(data)
 
     def writelines(self, lines: Any) -> None:
@@ -188,13 +217,13 @@ class StreamToLogger:
             self.write(line)
 
     def flush(self) -> None:
+        cleaned = ""
         with self._lock:
             if self._buffer:
                 cleaned = self._buffer.rstrip("\r\n")
                 self._buffer = ""
-                if cleaned:
-                    level = _infer_level(cleaned, self._level)
-                    self._logger.log(level, "%s", cleaned)
+        if cleaned:
+            self._emit_lines([cleaned])
 
 
 def get_granian_log_dictconfig(level: str = "INFO", use_color: bool | None = None) -> dict[str, Any]:

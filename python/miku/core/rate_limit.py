@@ -275,7 +275,7 @@ _DEFAULT_RATE_LIMITS: dict[str, dict[str, int]] = {
 def _positive_int(value, default: int) -> int:
     try:
         parsed = int(value)
-    except TypeError, ValueError:
+    except TypeError, ValueError, OverflowError:
         return default
     return parsed if parsed > 0 else default
 
