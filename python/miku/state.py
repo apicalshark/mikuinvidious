@@ -8,7 +8,14 @@ for configuration, client pools, caching, and template rendering.
 
 from __future__ import annotations
 
+import sys
+
 from quart import render_template, request
+
+if "unittest" not in sys.modules and "pytest" not in sys.modules:
+    from miku.core.logging import configure_logging
+
+    configure_logging()
 
 from miku.api.client import get_bili_ticket
 from miku.core.app import create_app

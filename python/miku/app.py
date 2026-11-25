@@ -6,8 +6,6 @@ import inspect
 import os
 import re
 import secrets
-import sys
-from datetime import datetime
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
@@ -39,19 +37,18 @@ async def monitor_fd():
             # Count open file descriptors via /proc/self/fd (Linux specific)
             if os.path.exists("/proc/self/fd"):
                 fd_count = len(os.listdir("/proc/self/fd"))
-                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                sys.stderr.write(f"[{timestamp}] Open FDs: {fd_count}\n")
-                sys.stderr.flush()
+                print(f"[Monitor] Open FDs: {fd_count}", flush=True)
         except Exception as e:
-            sys.stderr.write(f"Error monitoring FDs: {e}\n")
-            sys.stderr.flush()
+            print(f"[Monitor] Error monitoring FDs: {e}", flush=True)
         await asyncio.sleep(60)  # Check every 60 seconds
 
 
 @app.before_serving
 async def start_background_tasks():
+    from miku.core.logging import configure_logging
     from miku.dash.download_job import cleanup_orphaned_download_dirs
 
+    configure_logging(debug=app.debug)
     loop = asyncio.get_running_loop()
     loop.set_task_factory(asyncio.eager_task_factory)
     await cleanup_orphaned_download_dirs()

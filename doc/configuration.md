@@ -29,9 +29,11 @@ Configuration for the web server (Granian / Quart).
 | `host` | `SERVER_HOST` | `0.0.0.0` | Host IP address to bind to (`::` for dual-stack IPv4/IPv6). |
 | `port` | `SERVER_PORT` | `8888` | Port to bind to. |
 | `secret_key` | `QUART_SECRET_KEY` | (ephemeral) | Secret key for signing session cookies and CSRF tokens. Recommended in production so sessions survive restarts. |
-| `debug` | `QUART_DEBUG` | `false` | Enables Quart debug mode and auto-reload. |
+| `debug` | `QUART_DEBUG` | `false` | Enables Quart debug mode, auto-reload, and `DEBUG` log level. |
 | `access_log` | `SERVER_ACCESS_LOG` | `false` | Granian per-request access log. Disabled by default because media proxying/polling floods application logs. |
 | `monitor_fd` | `MONITOR_FD` | `false` | Enables file descriptor leak monitoring. |
+| (None) | `LOG_COLOR` | `true` | Controls ANSI colored logs. Set to `false`, `0`, `no`, `never`, or `off` to disable color output. |
+| (None) | `NO_COLOR` | (unset) | Standard [no-color.org](https://no-color.org/) override: when set to any non-empty value, disables ANSI colored logs. |
 
 > [!NOTE]
 > **Session Secret Key:** `miku.core.app.create_app()` uses `[server].secret_key` (or `QUART_SECRET_KEY`) when configured, and otherwise generates an ephemeral 32-byte random hex key (`os.urandom(32).hex()`) at each startup (which resets active sessions and CSRF tokens across restarts). Setting `QUART_SECRET_KEY` is recommended in production.
@@ -159,6 +161,16 @@ Sliding-window rate limiting per IP address (bounded in-memory by default for si
 | `enabled` | `RATE_LIMIT_ENABLED` | `false` | Master toggle for rate limiting. |
 | `backend` | `RATE_LIMIT_BACKEND` | `memory` | Rate limiter backend: `memory` (bounded in-process buckets) or `redis` (shared Redis counters with 30s in-memory fallback on errors). |
 | `trusted_proxies` | `TRUSTED_PROXIES` | `127.0.0.1/8,::1/128` | Comma-separated list of IP addresses or CIDR blocks whose `X-Forwarded-For` header is trusted for client IP extraction (`get_client_ip()`). |
+| `limits.<profile>.limit` | `RATE_LIMIT_<PROFILE>_LIMIT` | See below | Maximum requests allowed per window for profile `<profile>` (`strict`, `normal`, `loose`, `search`, `proxy`, `auth`). |
+| `limits.<profile>.window` | `RATE_LIMIT_<PROFILE>_WINDOW` | See below | Sliding window duration in seconds for profile `<profile>`. |
+
+Default profile limits (`[rate_limit.limits.<profile>]`):
+- `strict`: `10` requests / `60`s (`RATE_LIMIT_STRICT_LIMIT`, `RATE_LIMIT_STRICT_WINDOW`)
+- `normal`: `60` requests / `60`s (`RATE_LIMIT_NORMAL_LIMIT`, `RATE_LIMIT_NORMAL_WINDOW`)
+- `loose`: `300` requests / `60`s (`RATE_LIMIT_LOOSE_LIMIT`, `RATE_LIMIT_LOOSE_WINDOW`)
+- `search`: `20` requests / `60`s (`RATE_LIMIT_SEARCH_LIMIT`, `RATE_LIMIT_SEARCH_WINDOW`)
+- `proxy`: `100` requests / `60`s (`RATE_LIMIT_PROXY_LIMIT`, `RATE_LIMIT_PROXY_WINDOW`)
+- `auth`: `5` requests / `300`s (`RATE_LIMIT_AUTH_LIMIT`, `RATE_LIMIT_AUTH_WINDOW`)
 
 > [!IMPORTANT]
 > **Reverse Proxy Trust (`TRUSTED_PROXIES`):** `rate_limit.py` trusts forwarding headers **only** from peers matching `trusted_proxies` (defaulting to loopback `127.0.0.1/8,::1/128`; private networks are **not** implicitly trusted). When deploying behind Caddy or Nginx in Docker, include the proxy container's subnet in `TRUSTED_PROXIES` (for example, `compose.yml` pins the `miku_net` bridge to `172.30.0.0/24` and sets `TRUSTED_PROXIES=127.0.0.1/8,::1/128,172.30.0.0/24`) so `rate_limit` and `PerIpSlotLimiter` see real client IPs instead of the proxy's IP. Ensure your reverse proxy overwrites/strips untrusted `X-Forwarded-For` headers at the edge.

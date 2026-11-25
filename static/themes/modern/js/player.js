@@ -81,21 +81,17 @@ class LiveStreamManager {
       },
       {
         enableWorker: true,
-        enableStashBuffer: true,
-        stashInitialSize: 1024 * 384,
-        fixAudioTimestampGap: true,
+        enableStashBuffer: false,
+        fixAudioTimestampGap: false,
         autoCleanupSourceBuffer: true,
-        autoCleanupMaxBackwardDuration: 30,
-        autoCleanupMinBackwardDuration: 15,
-        // BUILT-IN LATENCY MANAGEMENT (MPEGTS.JS OFFICIAL)
+        autoCleanupMaxBackwardDuration: 60,
+        autoCleanupMinBackwardDuration: 30,
         isLive: true,
         liveSync: true,
         liveSyncMaxLatency: 5.0,
         liveSyncTargetLatency: 3.0,
         liveSyncPlaybackRate: 1.05,
-        liveBufferLatencyChasing: true,
-        liveBufferLatencyMaxLatency: 8.0,
-        liveBufferLatencyMinRemain: 4.0,
+        liveBufferLatencyChasing: false,
       }
     );
 
