@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
+import httpx
 from quart import Response, g, jsonify, redirect, request, send_from_directory
 
 import miku.media.res as res  # noqa: F401
@@ -499,6 +500,20 @@ async def network_exception_view(e):
         safe_status=f"Upstream network error ({http_status})",
         safe_desc="Upstream server rejected or failed the request.",
         unsafe_desc=f"Upstream network error: {raw_msg}" if raw_msg else "Upstream network request failed.",
+    )
+
+
+@app.errorhandler(httpx.TimeoutException)
+@app.errorhandler(TimeoutError)
+async def upstream_timeout_view(e):
+    raw_msg = str(e or "")
+    print(f"[Timeout] {type(e).__name__}: {raw_msg}" if raw_msg else f"[Timeout] {type(e).__name__}")
+    return await _render_upstream_error(
+        504,
+        raw_msg,
+        safe_status="Upstream timeout (504)",
+        safe_desc="Upstream server timed out while processing the request. Please try again shortly.",
+        unsafe_desc=f"Upstream timeout: {raw_msg}" if raw_msg else "Upstream request timed out.",
     )
 
 

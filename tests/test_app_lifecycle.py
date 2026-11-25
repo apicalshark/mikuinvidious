@@ -108,6 +108,49 @@ class TestUpstreamExceptionHandlers(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(kwargs["status"], "RAW_412_BODY")
             self.assertIn("RAW_412_BODY", kwargs["desc"])
 
+    async def test_upstream_timeout_view_sanitization_and_504(self):
+        import httpx
+
+        render_mock = AsyncMock(return_value="timeout-err")
+        with (
+            patch.object(miku_app, "render_template_with_theme", render_mock),
+            patch.dict(miku_app.appconf["site"], {"site_show_unsafe_error_response": False}),
+        ):
+            for exc in (httpx.ReadTimeout("curl: (28) Operation too slow"), TimeoutError("timed out")):
+                render_mock.reset_mock()
+                async with miku_app.app.test_request_context("/search?q=test"):
+                    body, status_code = await miku_app.upstream_timeout_view(exc)
+                self.assertEqual(body, "timeout-err")
+                self.assertEqual(status_code, 504)
+                kwargs = render_mock.await_args.kwargs
+                self.assertEqual(kwargs["status"], "Upstream timeout (504)")
+                self.assertNotIn("curl: (28)", kwargs["desc"])
+                self.assertNotIn("timed out", kwargs["status"])
+
+        with (
+            patch.object(miku_app, "render_template_with_theme", render_mock),
+            patch.dict(miku_app.appconf["site"], {"site_show_unsafe_error_response": True}),
+        ):
+            render_mock.reset_mock()
+            exc = httpx.ReadTimeout("curl: (28) Operation too slow")
+            async with miku_app.app.test_request_context("/search?q=test"):
+                _, status_code = await miku_app.upstream_timeout_view(exc)
+            self.assertEqual(status_code, 504)
+            kwargs = render_mock.await_args.kwargs
+            self.assertEqual(kwargs["status"], "curl: (28) Operation too slow")
+            self.assertIn("curl: (28) Operation too slow", kwargs["desc"])
+
+    async def test_search_view_timeout_returns_504_instead_of_500(self):
+        import httpx
+
+        client = miku_app.app.test_client()
+        with patch(
+            "miku.views.home.search.search_by_type",
+            AsyncMock(side_effect=httpx.ReadTimeout("curl: (28) Operation too slow")),
+        ):
+            resp = await client.get("/search", query_string={"q": "miku"})
+        self.assertEqual(resp.status_code, 504)
+
 
 class TestShutdownCleanup(unittest.IsolatedAsyncioTestCase):
     async def test_shutdown_cleanup_runs_all_seven_hooks_even_on_failures(self):
