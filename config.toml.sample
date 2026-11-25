@@ -176,3 +176,23 @@ enabled = true
 # Caddy/Nginx in Docker, include the proxy container subnet (compose.yml
 # pins 172.30.0.0/24 via TRUSTED_PROXIES).
 # trusted_proxies = '127.0.0.1/8,::1/128,172.30.0.0/24'
+#
+# Per-profile rate limits (requests per window in seconds).
+# [rate_limit.limits.strict]
+# limit = 10
+# window = 60
+# [rate_limit.limits.normal]
+# limit = 60
+# window = 60
+# [rate_limit.limits.loose]
+# limit = 300
+# window = 60
+# [rate_limit.limits.search]
+# limit = 20
+# window = 60
+# [rate_limit.limits.proxy]
+# limit = 100
+# window = 60
+# [rate_limit.limits.auth]
+# limit = 5
+# window = 300

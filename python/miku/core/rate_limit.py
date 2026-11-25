@@ -262,7 +262,45 @@ def get_rate_limiter() -> RateLimiter:
     return _rate_limiter
 
 
-def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=None):
+_DEFAULT_RATE_LIMITS: dict[str, dict[str, int]] = {
+    "strict": {"limit": 10, "window": 60},
+    "normal": {"limit": 60, "window": 60},
+    "loose": {"limit": 300, "window": 60},
+    "search": {"limit": 20, "window": 60},
+    "proxy": {"limit": 100, "window": 60},
+    "auth": {"limit": 5, "window": 300},
+}
+
+
+def _positive_int(value, default: int) -> int:
+    try:
+        parsed = int(value)
+    except TypeError, ValueError, OverflowError:
+        return default
+    return parsed if parsed > 0 else default
+
+
+def resolve_rate_limit(profile: str | None, default_limit: int, default_window: int) -> tuple[int, int]:
+    """Resolve effective (limit, window) for a profile from appconf, falling back to defaults."""
+    if not profile:
+        return default_limit, default_window
+    limits_conf = (appconf.get("rate_limit") or {}).get("limits") or {}
+    entry = limits_conf.get(profile) if isinstance(limits_conf, dict) else None
+    if not isinstance(entry, dict):
+        return default_limit, default_window
+    return (
+        _positive_int(entry.get("limit"), default_limit),
+        _positive_int(entry.get("window"), default_window),
+    )
+
+
+def rate_limit(
+    limit: int = 60,
+    window: int = 60,
+    key_func=None,
+    exempt_when=None,
+    profile: str | None = None,
+):
     """
     Rate limiting decorator for Quart routes.
 
@@ -271,6 +309,7 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
         window: Time window in seconds
         key_func: Function to generate rate limit key from request (default: IP-based)
         exempt_when: Callable that returns True to exempt from rate limiting
+        profile: Optional named rate limit profile in appconf["rate_limit"]["limits"]
     """
 
     def decorator(f):
@@ -283,6 +322,8 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
             if exempt_when and await exempt_when(request):
                 return await f(*args, **kwargs)
 
+            eff_limit, eff_window = resolve_rate_limit(profile, limit, window)
+
             # Generate rate limit key
             if key_func:
                 key = await key_func(request)
@@ -293,11 +334,11 @@ def rate_limit(limit: int = 60, window: int = 60, key_func=None, exempt_when=Non
 
             try:
                 limiter = get_rate_limiter()
-                allowed, info = await limiter.is_allowed(key, limit, window)
+                allowed, info = await limiter.is_allowed(key, eff_limit, eff_window)
             except Exception as e:
                 print(f"[RateLimit] Unexpected error checking rate limit: {type(e).__name__}: {e}. Failing open.")
                 allowed = True
-                info = {"remaining": limit, "reset": int(time.time()) + window, "limit": limit}
+                info = {"remaining": eff_limit, "reset": int(time.time()) + eff_window, "limit": eff_limit}
 
             # Add rate limit headers
             from quart import g
@@ -333,10 +374,10 @@ async def add_rate_limit_headers(response):
 
 # Predefined rate limit configs for different endpoint types
 RATE_LIMITS = {
-    "strict": {"limit": 10, "window": 60},  # 10 req/min - for sensitive endpoints
-    "normal": {"limit": 60, "window": 60},  # 60 req/min - for normal API endpoints
-    "loose": {"limit": 300, "window": 60},  # 300 req/min - for static content
-    "search": {"limit": 20, "window": 60},  # 20 req/min - for search
-    "proxy": {"limit": 100, "window": 60},  # 100 req/min - for media proxy
-    "auth": {"limit": 5, "window": 300},  # 5 req/5min - for auth endpoints
+    name: {
+        "profile": name,
+        "limit": resolve_rate_limit(name, defaults["limit"], defaults["window"])[0],
+        "window": resolve_rate_limit(name, defaults["limit"], defaults["window"])[1],
+    }
+    for name, defaults in _DEFAULT_RATE_LIMITS.items()
 }

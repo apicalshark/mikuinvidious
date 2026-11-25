@@ -135,6 +135,32 @@ def get_default_config() -> dict[str, Any]:
             "enabled": os.environ.get("RATE_LIMIT_ENABLED", "false").lower() == "true",
             "backend": os.environ.get("RATE_LIMIT_BACKEND", "memory").strip().lower(),
             "trusted_proxies": os.environ.get("TRUSTED_PROXIES", "127.0.0.1/8,::1/128"),
+            "limits": {
+                "strict": {
+                    "limit": _int_env("RATE_LIMIT_STRICT_LIMIT", 10),
+                    "window": _int_env("RATE_LIMIT_STRICT_WINDOW", 60),
+                },
+                "normal": {
+                    "limit": _int_env("RATE_LIMIT_NORMAL_LIMIT", 60),
+                    "window": _int_env("RATE_LIMIT_NORMAL_WINDOW", 60),
+                },
+                "loose": {
+                    "limit": _int_env("RATE_LIMIT_LOOSE_LIMIT", 300),
+                    "window": _int_env("RATE_LIMIT_LOOSE_WINDOW", 60),
+                },
+                "search": {
+                    "limit": _int_env("RATE_LIMIT_SEARCH_LIMIT", 20),
+                    "window": _int_env("RATE_LIMIT_SEARCH_WINDOW", 60),
+                },
+                "proxy": {
+                    "limit": _int_env("RATE_LIMIT_PROXY_LIMIT", 100),
+                    "window": _int_env("RATE_LIMIT_PROXY_WINDOW", 60),
+                },
+                "auth": {
+                    "limit": _int_env("RATE_LIMIT_AUTH_LIMIT", 5),
+                    "window": _int_env("RATE_LIMIT_AUTH_WINDOW", 300),
+                },
+            },
         },
         "cache": {
             "space_minutes": _int_env("SPACE_CACHE_MINUTES", 5),
