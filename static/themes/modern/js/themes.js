@@ -280,11 +280,7 @@ function initPreferences() {
     const storageVal = (helpers.storage.get(storageKey) || "").toLowerCase();
     const hasValidCookie = allowedValues.includes(cookieVal);
     const hasValidStorage = allowedValues.includes(storageVal);
-    let currentValue = hasValidCookie
-      ? cookieVal
-      : hasValidStorage
-        ? storageVal
-        : defaultValue;
+    let currentValue = hasValidCookie ? cookieVal : hasValidStorage ? storageVal : defaultValue;
 
     if (!hasValidCookie && hasValidStorage) {
       writePreferenceCookie(currentValue);
