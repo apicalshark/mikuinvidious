@@ -71,6 +71,30 @@ class BoundedScan(unittest.IsolatedAsyncioTestCase):
         )
         pipe.execute.assert_awaited_once()
 
+    async def test_quality_write_scopes_by_live_format(self):
+        import miku.views.live as views_live
+
+        pipe = MagicMock()
+        pipe.execute = AsyncMock()
+        with patch.object(views_live.appredis, "pipeline", return_value=pipe) as pipeline:
+            await views_live._cache_live_quality(123, 987, "quality-url", "default-url", live_format="hls")
+        pipeline.assert_called_once_with(transaction=True)
+        self.assertEqual(
+            [call.args for call in pipe.setex.call_args_list],
+            [("miku_live_hls_123_987", 1800, "quality-url"), ("miku_live_hls_123", 1800, "default-url")],
+        )
+        pipe.execute.assert_awaited_once()
+
+    async def test_first_live_quality_url_scopes_scan_by_format(self):
+        import miku.media.proxy as proxy
+
+        scan = AsyncMock(return_value=(0, [b"miku_live_hls_123_10000"]))
+        get = AsyncMock(return_value=b"https://hls.example.com/live.m3u8")
+        with patch.object(proxy.appredis, "scan", scan), patch.object(proxy.appredis, "get", get):
+            result = await proxy._first_live_quality_url("123", fmt="hls")
+        self.assertEqual(result, b"https://hls.example.com/live.m3u8")
+        self.assertEqual(scan.await_args.kwargs, {"cursor": 0, "match": "miku_live_hls_123_*", "count": 100})
+
 
 class CacheWrites(unittest.IsolatedAsyncioTestCase):
     async def test_danmaku_only_caches_xml_like_body(self):

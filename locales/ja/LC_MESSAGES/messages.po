@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-24 18:35+0000\n"
+"POT-Creation-Date: 2026-11-26 20:16+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ja\n"
@@ -475,7 +475,7 @@ msgid ""
 "the source code link below."
 msgstr "リクエストを確認してください。サイトの問題だと思われる場合は管理者に連絡してください。管理者の方は下のソースコードリンクから報告を検討してください。"
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:193
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:241
 msgid "Back to home"
 msgstr "ホームに戻る"
 
@@ -942,20 +942,20 @@ msgstr "サーバーとの接続が切れました。再試行してください
 msgid "Creating download task..."
 msgstr "ダウンロードタスクを作成中..."
 
-#: static/themes/modern/js/player.js:284
+#: static/themes/modern/js/player.js:280
 msgid "Stream ended"
 msgstr "配信が終了しました"
 
-#: static/themes/modern/js/player.js:285
+#: static/themes/modern/js/player.js:281
 msgid "Live stream has ended"
 msgstr "ライブ配信が終了しました"
 
-#: static/themes/modern/js/player.js:1725
+#: static/themes/modern/js/player.js:1721
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自動 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1778
+#: static/themes/modern/js/player.js:1775
 msgid "Auto"
 msgstr "自動"
 
@@ -1211,6 +1211,21 @@ msgstr "再生およびダウンロード時に優先するコーデック（利
 #: templates/themes/modern/pref.html:145 templates/themes/modern/pref.html:157
 msgid "Auto (AV1 → HEVC → AVC)"
 msgstr "自動 (AV1 → HEVC → AVC)"
+
+#: templates/themes/modern/pref.html:190 templates/themes/modern/pref.html:196
+msgid "Live player backend"
+msgstr "ライブプレーヤーバックエンド"
+
+#: templates/themes/modern/pref.html:191
+msgid ""
+"Player engine used for live streams (falls back automatically if "
+"unavailable)"
+msgstr "ライブ配信の再生に使用するプレーヤーエンジン（利用できない場合は自動的にフォールバックします）"
+
+#: templates/themes/modern/pref.html:201 templates/themes/modern/pref.html:213
+#, python-format
+msgid "Auto (default: %(backend)s)"
+msgstr "自動（デフォルト: %(backend)s）"
 
 #~ msgid "Personalization settings"
 #~ msgstr "個人設定"

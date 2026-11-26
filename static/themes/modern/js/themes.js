@@ -242,25 +242,39 @@ function initPreferences() {
     }
   }
 
-  const codecDropdown = document.getElementById("preferred_codec_dropdown");
-  const codecBtn = document.getElementById("select_preferred_codec_btn");
-  const codecLabel = document.getElementById("select_preferred_codec_label");
-  const codecChevron = document.getElementById("select_preferred_codec_chevron");
-  const codecMenu = document.getElementById("select_preferred_codec_menu");
-  if (codecDropdown && codecBtn && codecLabel && codecMenu) {
-    const allowedCodecs = ["auto", "av1", "hevc", "avc"];
-    const codecOptions = Array.from(codecMenu.querySelectorAll("[data-codec-value]"));
-    const storedCodec = (
-      getCookie("preferred_codec") ||
-      helpers.storage.get("preferred_codec") ||
-      "auto"
-    ).toLowerCase();
-    let currentCodec = allowedCodecs.includes(storedCodec) ? storedCodec : "auto";
+  const prefDropdownClosers = [];
 
-    function syncCodecDropdown(val) {
-      currentCodec = allowedCodecs.includes(val) ? val : "auto";
-      codecOptions.forEach((opt) => {
-        const active = opt.dataset.codecValue === currentCodec;
+  function initPrefDropdown({
+    dropdownId,
+    btnId,
+    labelId,
+    chevronId,
+    menuId,
+    attrName,
+    datasetKey,
+    storageKey,
+    allowedValues,
+    defaultValue,
+  }) {
+    const dropdown = document.getElementById(dropdownId);
+    const btn = document.getElementById(btnId);
+    const label = document.getElementById(labelId);
+    const chevron = document.getElementById(chevronId);
+    const menu = document.getElementById(menuId);
+    if (!dropdown || !btn || !label || !menu) return;
+
+    const options = Array.from(menu.querySelectorAll(`[${attrName}]`));
+    const stored = (
+      getCookie(storageKey) ||
+      helpers.storage.get(storageKey) ||
+      defaultValue
+    ).toLowerCase();
+    let currentValue = allowedValues.includes(stored) ? stored : defaultValue;
+
+    function syncDropdown(val) {
+      currentValue = allowedValues.includes(val) ? val : defaultValue;
+      options.forEach((opt) => {
+        const active = opt.dataset[datasetKey] === currentValue;
         opt.setAttribute("aria-selected", active ? "true" : "false");
         opt.classList.toggle("bg-primary/15", active);
         opt.classList.toggle("text-primary", active);
@@ -270,57 +284,93 @@ function initPreferences() {
         if (icon) icon.classList.toggle("hidden", !active);
         if (active) {
           const txt = opt.querySelector("span");
-          if (txt) codecLabel.textContent = txt.textContent;
+          if (txt) label.textContent = txt.textContent;
         }
       });
     }
 
-    function setCodecMenuOpen(open) {
-      codecMenu.classList.toggle("hidden", !open);
-      codecBtn.setAttribute("aria-expanded", open ? "true" : "false");
-      if (codecChevron) codecChevron.classList.toggle("rotate-180", open);
+    function setMenuOpen(open) {
+      if (open) {
+        prefDropdownClosers.forEach((close) => {
+          if (close !== closeMenu) close();
+        });
+      }
+      menu.classList.toggle("hidden", !open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      if (chevron) chevron.classList.toggle("rotate-180", open);
     }
 
-    syncCodecDropdown(currentCodec);
+    function closeMenu() {
+      setMenuOpen(false);
+    }
 
-    codecBtn.addEventListener("click", function (e) {
+    prefDropdownClosers.push(closeMenu);
+    syncDropdown(currentValue);
+
+    btn.addEventListener("click", function (e) {
       e.stopPropagation();
-      setCodecMenuOpen(codecMenu.classList.contains("hidden"));
+      setMenuOpen(menu.classList.contains("hidden"));
     });
 
-    codecOptions.forEach((opt) => {
+    options.forEach((opt) => {
       opt.addEventListener("click", function (e) {
         e.stopPropagation();
-        const val = allowedCodecs.includes(opt.dataset.codecValue)
-          ? opt.dataset.codecValue
-          : "auto";
-        syncCodecDropdown(val);
-        helpers.storage.set("preferred_codec", val);
+        const raw = opt.dataset[datasetKey];
+        const val = allowedValues.includes(raw) ? raw : defaultValue;
+        syncDropdown(val);
+        helpers.storage.set(storageKey, val);
         const secureFlag = location.protocol === "https:" ? "; Secure" : "";
         document.cookie =
-          "preferred_codec=" +
+          storageKey +
+          "=" +
           val +
           "; path=/; max-age=" +
           3600 * 24 * 30 +
           "; SameSite=Lax" +
           secureFlag;
-        setCodecMenuOpen(false);
+        closeMenu();
       });
     });
 
     document.addEventListener("click", function (e) {
-      if (!codecDropdown.contains(e.target)) {
-        setCodecMenuOpen(false);
+      if (!dropdown.contains(e.target)) {
+        closeMenu();
       }
     });
 
     document.addEventListener("keydown", function (e) {
-      if (e.key === "Escape" && !codecMenu.classList.contains("hidden")) {
-        setCodecMenuOpen(false);
-        codecBtn.focus();
+      if (e.key === "Escape" && !menu.classList.contains("hidden")) {
+        closeMenu();
+        btn.focus();
       }
     });
   }
+
+  initPrefDropdown({
+    dropdownId: "preferred_codec_dropdown",
+    btnId: "select_preferred_codec_btn",
+    labelId: "select_preferred_codec_label",
+    chevronId: "select_preferred_codec_chevron",
+    menuId: "select_preferred_codec_menu",
+    attrName: "data-codec-value",
+    datasetKey: "codecValue",
+    storageKey: "preferred_codec",
+    allowedValues: ["auto", "av1", "hevc", "avc"],
+    defaultValue: "auto",
+  });
+
+  initPrefDropdown({
+    dropdownId: "live_backend_dropdown",
+    btnId: "select_live_backend_btn",
+    labelId: "select_live_backend_label",
+    chevronId: "select_live_backend_chevron",
+    menuId: "select_live_backend_menu",
+    attrName: "data-live-backend-value",
+    datasetKey: "liveBackendValue",
+    storageKey: "live_backend",
+    allowedValues: ["auto", "mpegts", "hls"],
+    defaultValue: "auto",
+  });
 
   // Material You Palette Picker
   const seedPicker = document.getElementById("m3-seed-picker");

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-24 18:35+0000\n"
+"POT-Creation-Date: 2026-11-26 20:16+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -505,7 +505,7 @@ msgid ""
 "the source code link below."
 msgstr ""
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:193
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:241
 msgid "Back to home"
 msgstr ""
 
@@ -635,6 +635,21 @@ msgstr ""
 
 #: templates/themes/modern/pref.html:145 templates/themes/modern/pref.html:157
 msgid "Auto (AV1 → HEVC → AVC)"
+msgstr ""
+
+#: templates/themes/modern/pref.html:190 templates/themes/modern/pref.html:196
+msgid "Live player backend"
+msgstr ""
+
+#: templates/themes/modern/pref.html:191
+msgid ""
+"Player engine used for live streams (falls back automatically if "
+"unavailable)"
+msgstr ""
+
+#: templates/themes/modern/pref.html:201 templates/themes/modern/pref.html:213
+#, python-format
+msgid "Auto (default: %(backend)s)"
 msgstr ""
 
 #: templates/themes/modern/read.html:12
@@ -1129,20 +1144,20 @@ msgstr ""
 msgid "Creating download task..."
 msgstr ""
 
-#: static/themes/modern/js/player.js:284
+#: static/themes/modern/js/player.js:280
 msgid "Stream ended"
 msgstr ""
 
-#: static/themes/modern/js/player.js:285
+#: static/themes/modern/js/player.js:281
 msgid "Live stream has ended"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1725
+#: static/themes/modern/js/player.js:1721
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr ""
 
-#: static/themes/modern/js/player.js:1778
+#: static/themes/modern/js/player.js:1775
 msgid "Auto"
 msgstr ""
 

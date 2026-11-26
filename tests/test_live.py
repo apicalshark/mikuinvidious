@@ -1048,5 +1048,139 @@ class TestLiveRoomBaseInfo(unittest.IsolatedAsyncioTestCase):
                     await api_live.LiveRoom(6).get_room_base_info()
 
 
+class TestLiveBackendPreference(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        from miku.app import app
+
+        self.client = app.test_client()
+
+    def test_resolve_prefer_hls(self):
+        import miku.views.live as views_live
+
+        with patch.dict(views_live.appconf["live"], {"prefer_hls": False}):
+            self.assertFalse(views_live._resolve_prefer_hls(None))
+            self.assertFalse(views_live._resolve_prefer_hls("auto"))
+            self.assertFalse(views_live._resolve_prefer_hls("mpegts"))
+            self.assertTrue(views_live._resolve_prefer_hls("hls"))
+            self.assertFalse(views_live._resolve_prefer_hls("unknown"))
+
+        with patch.dict(views_live.appconf["live"], {"prefer_hls": True}):
+            self.assertTrue(views_live._resolve_prefer_hls(None))
+            self.assertTrue(views_live._resolve_prefer_hls("auto"))
+            self.assertFalse(views_live._resolve_prefer_hls("mpegts"))
+            self.assertTrue(views_live._resolve_prefer_hls("hls"))
+            self.assertTrue(views_live._resolve_prefer_hls("unknown"))
+
+    async def test_preferences_renders_auto_default_live_backend(self):
+        import miku.app as miku_app
+
+        with patch.dict(miku_app.appconf["live"], {"prefer_hls": False}):
+            resp = await self.client.get("/preferences")
+            self.assertEqual(resp.status_code, 200)
+            html = await resp.get_data(as_text=True)
+            self.assertIn("live_backend_dropdown", html)
+            self.assertIn("Auto (default: mpegts.js)", html)
+
+        with patch.dict(miku_app.appconf["live"], {"prefer_hls": True}):
+            resp = await self.client.get("/preferences")
+            self.assertEqual(resp.status_code, 200)
+            html = await resp.get_data(as_text=True)
+            self.assertIn("Auto (default: hls.js)", html)
+
+    async def test_live_room_view_respects_cookie_and_scopes_cache(self):
+        from unittest.mock import MagicMock
+
+        import miku.views.live as views_live
+
+        fake_info_data = {
+            "room_info": {
+                "title": "Dual Format Room",
+                "description": "Desc",
+                "cover": "",
+                "area_name": "Game",
+                "online": 10,
+                "live_start_time": 0,
+            },
+            "anchor_info": {"base_info": {"uname": "Streamer", "face": ""}},
+        }
+        fake_play_data = {
+            "play_url": {
+                "stream": [
+                    {
+                        "protocol_name": "http_stream",
+                        "format": [
+                            {
+                                "format_name": "flv",
+                                "codec": [
+                                    {
+                                        "codec_name": "avc",
+                                        "base_url": "/live.flv",
+                                        "url_info": [{"host": "https://flv.example.com", "extra": ""}],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "protocol_name": "http_hls",
+                        "format": [
+                            {
+                                "format_name": "fmp4",
+                                "master_url": "https://hls.example.com/live.m3u8",
+                            }
+                        ],
+                    },
+                ],
+                "g_qn_desc": [{"qn": 10000, "desc": "Original"}],
+            }
+        }
+        cache_keys_read = []
+        cache_writes = []
+        rendered = []
+
+        async def fake_cache_get(key, ttl):
+            cache_keys_read.append(key)
+            return None
+
+        async def fake_cache_set(key, val, ttl):
+            cache_writes.append((key, val["live_format"]))
+
+        async def fake_render(tpl, **ctx):
+            rendered.append((ctx.get("live_format"), ctx.get("supported_src")))
+            return "<html>ok</html>"
+
+        mock_play_info = AsyncMock(return_value=fake_play_data)
+        with (
+            patch.dict(views_live.appconf["live"], {"prefer_hls": False}),
+            patch("miku.views.live.cache_get", side_effect=fake_cache_get),
+            patch("miku.views.live.cache_set", side_effect=fake_cache_set),
+            patch("miku.api.live.LiveRoom.get_room_info", new=AsyncMock(return_value=fake_info_data)),
+            patch("miku.api.live.LiveRoom.get_room_play_info_v2", mock_play_info),
+            patch.object(views_live.appredis, "pipeline", return_value=MagicMock(execute=AsyncMock())),
+            patch.object(views_live.appredis, "setex", new=AsyncMock()),
+            patch("miku.views.live.render_template_with_theme", side_effect=fake_render),
+        ):
+            resp_hls = await self.client.get("/live/4366430", headers={"Cookie": "live_backend=hls"})
+            self.assertEqual(resp_hls.status_code, 200)
+            resp_flv = await self.client.get("/live/4366430", headers={"Cookie": "live_backend=mpegts"})
+            self.assertEqual(resp_flv.status_code, 200)
+
+        self.assertEqual(
+            cache_keys_read,
+            [
+                "live:room:4366430:hls",
+                "live:room:4366430:hls",
+                "live:room:4366430:flv",
+                "live:room:4366430:flv",
+            ],
+        )
+        self.assertEqual(cache_writes, [("live:room:4366430:hls", "hls"), ("live:room:4366430:flv", "flv")])
+        self.assertEqual(rendered[0][0], "hls")
+        self.assertEqual(rendered[0][1][0]["url"], "https://hls.example.com/live.m3u8")
+        self.assertEqual(rendered[1][0], "flv")
+        self.assertEqual(rendered[1][1][0]["url"], "https://flv.example.com/live.flv")
+        self.assertEqual(mock_play_info.await_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

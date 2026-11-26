@@ -923,16 +923,17 @@ def _too_many_streams() -> Response:
     )
 
 
-async def _first_live_quality_url(room_id: str):
+async def _first_live_quality_url(room_id: str, fmt: str | None = None):
     """Fallback lookup for ``/proxy/live/<room>`` without a quality.
 
     Bounded ``SCAN`` instead of ``KEYS``: KEYS is O(keyspace) and blocks
     Redis for every caller while it runs.
     """
+    prefix = f"miku_live_{fmt}_{room_id}" if fmt in ("flv", "hls") else f"miku_live_{room_id}"
     cursor = 0
     truncated = False
     for _ in range(8):
-        cursor, keys = await appredis.scan(cursor=cursor, match=f"miku_live_{room_id}_*", count=100)
+        cursor, keys = await appredis.scan(cursor=cursor, match=f"{prefix}_*", count=100)
         # Redis treats COUNT as a hint, so cap follow-up GETs explicitly.
         truncated |= len(keys) > 100
         for key in keys[:100]:
@@ -945,7 +946,7 @@ async def _first_live_quality_url(room_id: str):
     # qualities can also be checked directly without traversing the keyspace.
     if cursor or truncated:
         for quality in ScreenResolution:
-            url = await appredis.get(f"miku_live_{room_id}_{quality.value}")
+            url = await appredis.get(f"{prefix}_{quality.value}")
             if url:
                 return url
     return None
@@ -1216,10 +1217,21 @@ async def proxy_main(subpath):
                 )
 
         if is_live:
-            redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
-            url = await appredis.get(redis_key)
-            if not url and vqn == "default":
-                url = await _first_live_quality_url(room_id)
+            req_fmt = (request.args.get("format") or "").strip().lower()
+            live_fmt = req_fmt if req_fmt in ("flv", "hls") else None
+            url = None
+            if live_fmt:
+                scoped_key = (
+                    f"miku_live_{live_fmt}_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{live_fmt}_{room_id}"
+                )
+                url = await appredis.get(scoped_key)
+                if not url and vqn == "default":
+                    url = await _first_live_quality_url(room_id, live_fmt)
+            if not url:
+                redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
+                url = await appredis.get(redis_key)
+                if not url and vqn == "default":
+                    url = await _first_live_quality_url(room_id)
         else:
             url = await appredis.get(f"mikuinv_{vid}_{vidx}_{vqn}")
 
@@ -1587,8 +1599,11 @@ async def proxy_live_disconnect():
     if not room_id or not client_id:
         return Response("Missing room_id or cid", status=400)
 
-    redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
-    url = await appredis.get(redis_key)
+    scoped_key = f"miku_live_flv_{room_id}_{vqn}" if vqn != "default" else f"miku_live_flv_{room_id}"
+    url = await appredis.get(scoped_key)
+    if not url:
+        redis_key = f"miku_live_{room_id}_{vqn}" if vqn != "default" else f"miku_live_{room_id}"
+        url = await appredis.get(redis_key)
 
     if url:
         if isinstance(url, bytes):

@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-24 18:35+0000\n"
+"POT-Creation-Date: 2026-11-26 20:16+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: zh_CN\n"
@@ -475,7 +475,7 @@ msgid ""
 "the source code link below."
 msgstr "请检查您的请求。如果您认为这是网站问题，请联系管理员。如果您是管理员，请考虑通过下方源代码链接反馈。"
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:193
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:241
 msgid "Back to home"
 msgstr "返回首页"
 
@@ -942,20 +942,20 @@ msgstr "与服务器失去连接，请重试"
 msgid "Creating download task..."
 msgstr "正在创建下载任务..."
 
-#: static/themes/modern/js/player.js:284
+#: static/themes/modern/js/player.js:280
 msgid "Stream ended"
 msgstr "直播流已结束"
 
-#: static/themes/modern/js/player.js:285
+#: static/themes/modern/js/player.js:281
 msgid "Live stream has ended"
 msgstr "直播已结束"
 
-#: static/themes/modern/js/player.js:1725
+#: static/themes/modern/js/player.js:1721
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "自动 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1778
+#: static/themes/modern/js/player.js:1775
 msgid "Auto"
 msgstr "自动"
 
@@ -1211,6 +1211,21 @@ msgstr "播放与下载时优先选用的视频编码（不支持时自动切换
 #: templates/themes/modern/pref.html:145 templates/themes/modern/pref.html:157
 msgid "Auto (AV1 → HEVC → AVC)"
 msgstr "自动 (AV1 → HEVC → AVC)"
+
+#: templates/themes/modern/pref.html:190 templates/themes/modern/pref.html:196
+msgid "Live player backend"
+msgstr "直播播放器后端"
+
+#: templates/themes/modern/pref.html:191
+msgid ""
+"Player engine used for live streams (falls back automatically if "
+"unavailable)"
+msgstr "用于播放直播流的播放器引擎（不支持时自动切换备用方案）"
+
+#: templates/themes/modern/pref.html:201 templates/themes/modern/pref.html:213
+#, python-format
+msgid "Auto (default: %(backend)s)"
+msgstr "自动（默认：%(backend)s）"
 
 #~ msgid "Personalization settings"
 #~ msgstr "个性化设置"

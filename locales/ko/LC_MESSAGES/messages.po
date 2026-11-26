@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: MikuInvidious 0.1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-11-24 18:35+0000\n"
+"POT-Creation-Date: 2026-11-26 20:16+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: ko\n"
@@ -475,7 +475,7 @@ msgid ""
 "the source code link below."
 msgstr "요청을 확인해 주세요. 사이트 문제라고 생각되면 관리자에게 문의하세요. 관리자인 경우 아래 소스 코드 링크를 통해 보고해 주세요."
 
-#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:193
+#: templates/themes/modern/error.html:20 templates/themes/modern/pref.html:241
 msgid "Back to home"
 msgstr "홈으로 돌아가기"
 
@@ -942,20 +942,20 @@ msgstr "서버와의 연결이 끊어졌습니다. 다시 시도해 주세요"
 msgid "Creating download task..."
 msgstr "다운로드 작업을 생성하는 중..."
 
-#: static/themes/modern/js/player.js:284
+#: static/themes/modern/js/player.js:280
 msgid "Stream ended"
 msgstr "스트림 종료"
 
-#: static/themes/modern/js/player.js:285
+#: static/themes/modern/js/player.js:281
 msgid "Live stream has ended"
 msgstr "생방송이 종료되었습니다"
 
-#: static/themes/modern/js/player.js:1725
+#: static/themes/modern/js/player.js:1721
 #, python-format
 msgid "Auto (%(height)sp)"
 msgstr "자동 (%(height)sp)"
 
-#: static/themes/modern/js/player.js:1778
+#: static/themes/modern/js/player.js:1775
 msgid "Auto"
 msgstr "자동"
 
@@ -1211,6 +1211,21 @@ msgstr "재생 및 다운로드 시 우선 사용할 코덱 (지원되지 않으
 #: templates/themes/modern/pref.html:145 templates/themes/modern/pref.html:157
 msgid "Auto (AV1 → HEVC → AVC)"
 msgstr "자동 (AV1 → HEVC → AVC)"
+
+#: templates/themes/modern/pref.html:190 templates/themes/modern/pref.html:196
+msgid "Live player backend"
+msgstr "라이브 플레이어 백엔드"
+
+#: templates/themes/modern/pref.html:191
+msgid ""
+"Player engine used for live streams (falls back automatically if "
+"unavailable)"
+msgstr "라이브 스트림 재생에 사용할 플레이어 엔진 (지원되지 않으면 자동으로 대체됨)"
+
+#: templates/themes/modern/pref.html:201 templates/themes/modern/pref.html:213
+#, python-format
+msgid "Auto (default: %(backend)s)"
+msgstr "자동 (기본값: %(backend)s)"
 
 #~ msgid "No articles yet"
 #~ msgstr "아직 기사가 없습니다"
