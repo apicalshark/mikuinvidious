@@ -1075,14 +1075,14 @@ class TestLiveBackendPreference(unittest.IsolatedAsyncioTestCase):
         import miku.app as miku_app
 
         with patch.dict(miku_app.appconf["live"], {"prefer_hls": False}):
-            resp = await self.client.get("/preferences")
+            resp = await self.client.get("/preferences", headers={"Accept-Language": "en"})
             self.assertEqual(resp.status_code, 200)
             html = await resp.get_data(as_text=True)
             self.assertIn("live_backend_dropdown", html)
             self.assertIn("Auto (default: mpegts.js)", html)
 
         with patch.dict(miku_app.appconf["live"], {"prefer_hls": True}):
-            resp = await self.client.get("/preferences")
+            resp = await self.client.get("/preferences", headers={"Accept-Language": "en"})
             self.assertEqual(resp.status_code, 200)
             html = await resp.get_data(as_text=True)
             self.assertIn("Auto (default: hls.js)", html)
