@@ -464,20 +464,19 @@ async def _build_live_room_data(room_id: int, cache_key: str, *, prefer_hls: boo
     _default_flv, _default_hls = _extract_live_urls(play_data)
     _default_url = _pick_live_url(_default_flv, _default_hls, prefer_hls=use_hls)
     _default_qn = live.ScreenResolution.ORIGINAL.value
-    live_format = "hls" if _default_hls and _default_url == _default_hls else "flv"
+    live_format: str | None = None
     supported_src = []
     if _default_url:
+        live_format = "hls" if _default_hls and _default_url == _default_hls else "flv"
         print(f"[Live] Default room {room_id} QN {_default_qn}: {_default_url[:50]}...")
         await _cache_live_quality(room_id, _default_qn, _default_url, _default_url, live_format=live_format)
         _default_desc = next((d.get("desc", "Default") for d in qn_list if d.get("qn") == _default_qn), "Default")
         supported_src.append({"quality": _default_qn, "new_description": _default_desc, "url": _default_url})
 
     async def get_and_cache_qn(qn_val, qn_name):
+        nonlocal live_format
         try:
-            # Wrap qn_val to satisfy bilibili-api's requirement for an Enum-like object with .value
             wrapped_qn = type("QN", (), {"value": qn_val})()
-            # Single DEFAULT request carries FLV + HLS ladders; prefer FLV
-            # (AVC-assembled), fall back to HLS master (PipePipe 79da4d21).
             try:
                 q_data = await room.get_room_play_info_v2(live_qn=wrapped_qn)
             except Exception:
@@ -487,17 +486,23 @@ async def _build_live_room_data(room_id: int, cache_key: str, *, prefer_hls: boo
                     live_qn=wrapped_qn,
                 )
             flv_url, hls_master = _extract_live_urls(q_data)
-            url = _pick_live_url(flv_url, hls_master, prefer_hls=use_hls)
+            if live_format == "hls":
+                url = hls_master
+            elif live_format == "flv":
+                url = flv_url
+            else:
+                url = _pick_live_url(flv_url, hls_master, prefer_hls=use_hls)
 
-            if not url:
-                # Fallback to HLS-only request if DEFAULT gave nothing
+            if not url and live_format in (None, "hls"):
                 q_data = await room.get_room_play_info_v2(
                     live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4, live_qn=wrapped_qn
                 )
                 _, hls_master = _extract_live_urls(q_data)
-                url = _pick_live_url("", hls_master, prefer_hls=use_hls)
+                url = hls_master
 
             if url:
+                if live_format is None:
+                    live_format = "hls" if hls_master and url == hls_master else "flv"
                 print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
                 default_url = supported_src[0]["url"] if supported_src else url
                 await _cache_live_quality(room_id, qn_val, url, default_url, live_format=live_format)
@@ -554,7 +559,7 @@ async def _build_live_room_data(room_id: int, cache_key: str, *, prefer_hls: boo
     payload = {
         "vinfo": vinfo,
         "supported_src": supported_src,
-        "live_format": live_format,
+        "live_format": live_format or "flv",
     }
     if LIVE_ROOM_CACHE_TTL > 0 and supported_src:
         await cache_set(cache_key, payload, LIVE_ROOM_CACHE_TTL)

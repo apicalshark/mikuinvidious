@@ -1181,6 +1181,172 @@ class TestLiveBackendPreference(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rendered[1][1][0]["url"], "https://flv.example.com/live.flv")
         self.assertEqual(mock_play_info.await_count, 2)
 
+    async def test_secondary_qualities_stay_in_room_live_format(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        import miku.views.live as views_live
+
+        fake_info_data = {
+            "room_info": {
+                "title": "Mixed Quality Room",
+                "description": "Desc",
+                "cover": "",
+                "area_name": "Game",
+                "online": 10,
+                "live_start_time": 0,
+            },
+            "anchor_info": {"base_info": {"uname": "Streamer", "face": ""}},
+        }
+        default_flv_only = {
+            "play_url": {
+                "stream": [
+                    {
+                        "protocol_name": "http_stream",
+                        "format": [
+                            {
+                                "format_name": "flv",
+                                "codec": [{"codec_name": "avc", "url": "https://flv.example.com/10000.flv"}],
+                            }
+                        ],
+                    }
+                ],
+                "g_qn_desc": [
+                    {"qn": 10000, "desc": "Original"},
+                    {"qn": 400, "desc": "BlueRay"},
+                    {"qn": 250, "desc": "High"},
+                ],
+            }
+        }
+        qn400_both = {
+            "play_url": {
+                "stream": [
+                    {
+                        "protocol_name": "http_stream",
+                        "format": [
+                            {
+                                "format_name": "flv",
+                                "codec": [{"codec_name": "avc", "url": "https://flv.example.com/400.flv"}],
+                            }
+                        ],
+                    },
+                    {
+                        "protocol_name": "http_hls",
+                        "format": [{"format_name": "fmp4", "master_url": "https://hls.example.com/400.m3u8"}],
+                    },
+                ]
+            }
+        }
+        qn250_hls_only = {
+            "play_url": {
+                "stream": [
+                    {
+                        "protocol_name": "http_hls",
+                        "format": [{"format_name": "fmp4", "master_url": "https://hls.example.com/250.m3u8"}],
+                    }
+                ]
+            }
+        }
+
+        async def fake_play_info(**kwargs):
+            qn = kwargs.get("live_qn")
+            if qn is None:
+                return default_flv_only
+            if qn.value == 400:
+                return qn400_both
+            return qn250_hls_only
+
+        cached_writes = []
+
+        async def fake_cache_quality(room_id, quality, url, default_url, *, live_format=None):
+            cached_writes.append((quality, url, live_format))
+
+        with (
+            patch.object(views_live, "appcred", SimpleNamespace(sessdata="sess")),
+            patch("miku.views.live.cache_get", new=AsyncMock(return_value=None)),
+            patch("miku.views.live.cache_set", new=AsyncMock()),
+            patch("miku.views.live.asyncio.sleep", new=AsyncMock()),
+            patch("miku.views.live._cache_live_quality", side_effect=fake_cache_quality),
+            patch("miku.api.live.LiveRoom.get_room_info", new=AsyncMock(return_value=fake_info_data)),
+            patch("miku.api.live.LiveRoom.get_room_play_info_v2", side_effect=fake_play_info),
+            patch.object(views_live.appredis, "setex", new=AsyncMock()),
+            patch.object(views_live.appredis, "pipeline", return_value=MagicMock(execute=AsyncMock())),
+        ):
+            payload = await views_live._build_live_room_data(4366430, "live:room:4366430:hls", prefer_hls=True)
+
+        self.assertEqual(payload["live_format"], "flv")
+        self.assertEqual(
+            [(s["quality"], s["url"]) for s in payload["supported_src"]],
+            [(10000, "https://flv.example.com/10000.flv"), (400, "https://flv.example.com/400.flv")],
+        )
+        self.assertEqual(
+            cached_writes,
+            [
+                (10000, "https://flv.example.com/10000.flv", "flv"),
+                (400, "https://flv.example.com/400.flv", "flv"),
+            ],
+        )
+
+    async def test_room_format_derived_from_first_resolved_quality_when_default_empty(self):
+        from types import SimpleNamespace
+
+        import miku.views.live as views_live
+
+        fake_info_data = {
+            "room_info": {
+                "title": "Late HLS Room",
+                "description": "Desc",
+                "cover": "",
+                "area_name": "Game",
+                "online": 10,
+                "live_start_time": 0,
+            },
+            "anchor_info": {"base_info": {"uname": "Streamer", "face": ""}},
+        }
+        empty_default = {
+            "play_url": {
+                "stream": [],
+                "g_qn_desc": [{"qn": 400, "desc": "BlueRay"}],
+            }
+        }
+        qn400_hls = {
+            "play_url": {
+                "stream": [
+                    {
+                        "protocol_name": "http_hls",
+                        "format": [{"format_name": "fmp4", "master_url": "https://hls.example.com/400.m3u8"}],
+                    }
+                ]
+            }
+        }
+
+        async def fake_play_info(**kwargs):
+            if kwargs.get("live_qn") is None:
+                return empty_default
+            return qn400_hls
+
+        setex_mock = AsyncMock()
+        cached_writes = []
+
+        async def fake_cache_quality(room_id, quality, url, default_url, *, live_format=None):
+            cached_writes.append((quality, url, live_format))
+
+        with (
+            patch.object(views_live, "appcred", SimpleNamespace(sessdata="sess")),
+            patch("miku.views.live.cache_get", new=AsyncMock(return_value=None)),
+            patch("miku.views.live.cache_set", new=AsyncMock()),
+            patch("miku.views.live.asyncio.sleep", new=AsyncMock()),
+            patch("miku.views.live._cache_live_quality", side_effect=fake_cache_quality),
+            patch("miku.api.live.LiveRoom.get_room_info", new=AsyncMock(return_value=fake_info_data)),
+            patch("miku.api.live.LiveRoom.get_room_play_info_v2", side_effect=fake_play_info),
+            patch.object(views_live.appredis, "setex", setex_mock),
+        ):
+            payload = await views_live._build_live_room_data(4366430, "live:room:4366430:hls", prefer_hls=True)
+
+        self.assertEqual(payload["live_format"], "hls")
+        self.assertEqual(cached_writes, [(400, "https://hls.example.com/400.m3u8", "hls")])
+        setex_mock.assert_awaited_once_with("miku_live_hls_4366430", 1800, "https://hls.example.com/400.m3u8")
+
 
 if __name__ == "__main__":
     unittest.main()

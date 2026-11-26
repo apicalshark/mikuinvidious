@@ -263,13 +263,32 @@ function initPreferences() {
     const menu = document.getElementById(menuId);
     if (!dropdown || !btn || !label || !menu) return;
 
+    function writePreferenceCookie(val) {
+      const secureFlag = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie =
+        storageKey +
+        "=" +
+        val +
+        "; path=/; max-age=" +
+        3600 * 24 * 30 +
+        "; SameSite=Lax" +
+        secureFlag;
+    }
+
     const options = Array.from(menu.querySelectorAll(`[${attrName}]`));
-    const stored = (
-      getCookie(storageKey) ||
-      helpers.storage.get(storageKey) ||
-      defaultValue
-    ).toLowerCase();
-    let currentValue = allowedValues.includes(stored) ? stored : defaultValue;
+    const cookieVal = (getCookie(storageKey) || "").toLowerCase();
+    const storageVal = (helpers.storage.get(storageKey) || "").toLowerCase();
+    const hasValidCookie = allowedValues.includes(cookieVal);
+    const hasValidStorage = allowedValues.includes(storageVal);
+    let currentValue = hasValidCookie
+      ? cookieVal
+      : hasValidStorage
+        ? storageVal
+        : defaultValue;
+
+    if (!hasValidCookie && hasValidStorage) {
+      writePreferenceCookie(currentValue);
+    }
 
     function syncDropdown(val) {
       currentValue = allowedValues.includes(val) ? val : defaultValue;
@@ -319,15 +338,7 @@ function initPreferences() {
         const val = allowedValues.includes(raw) ? raw : defaultValue;
         syncDropdown(val);
         helpers.storage.set(storageKey, val);
-        const secureFlag = location.protocol === "https:" ? "; Secure" : "";
-        document.cookie =
-          storageKey +
-          "=" +
-          val +
-          "; path=/; max-age=" +
-          3600 * 24 * 30 +
-          "; SameSite=Lax" +
-          secureFlag;
+        writePreferenceCookie(val);
         closeMenu();
       });
     });
