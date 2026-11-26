@@ -354,7 +354,8 @@ async def webmanifest():
 
 @app.route("/preferences")
 async def pref_view():
-    return await render_template_with_theme("pref.html")
+    default_live_backend = "hls.js" if appconf["live"]["prefer_hls"] else "mpegts.js"
+    return await render_template_with_theme("pref.html", default_live_backend=default_live_backend)
 
 
 @app.route("/robots.txt")

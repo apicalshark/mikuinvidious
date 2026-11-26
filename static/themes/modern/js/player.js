@@ -1731,7 +1731,8 @@ function setupLivePlayer(video, list, label) {
       });
     }
   } else if (typeof mpegts !== "undefined" && mpegts.isSupported()) {
-    window.liveManager = new LiveStreamManager(video, liveUrl, list, label);
+    const flvUrl = `${liveUrl}${liveUrl.includes("?") ? "&" : "?"}format=flv`;
+    window.liveManager = new LiveStreamManager(video, flvUrl, list, label);
     window.liveManager.init();
     updateLiveQualityMenu(video, null, window.liveManager, list, label, false);
   }
@@ -1813,7 +1814,7 @@ function updateLiveQualityMenu(video, hls, liveManager, list, label, isHls) {
       onSelect: (item) => {
         const src = item.src;
         if (!src) return;
-        const newUrl = `/proxy/live/${window.current_vid}_${src.quality}`;
+        const newUrl = `/proxy/live/${window.current_vid}_${src.quality}?format=flv`;
         if (label) label.innerText = src.new_description;
         if (window.liveManager) {
           console.log("[Player] Switching live quality to:", src.new_description);

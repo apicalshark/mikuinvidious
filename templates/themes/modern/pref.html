@@ -184,6 +184,54 @@
                         </div>
                     </div>
                 </div>
+
+                <div class="flex items-center justify-between gap-3 p-4 rounded-2xl bg-surface-container">
+                    <div class="text-left pr-3">
+                        <div class="font-bold text-sm text-on-surface">{{ _("Live player backend") }}</div>
+                        <div class="text-xs text-on-surface-variant mt-0.5">{{ _("Player engine used for live streams (falls back automatically if unavailable)") }}</div>
+                    </div>
+                    <div id="live_backend_dropdown" class="relative shrink-0">
+                        <button type="button"
+                                id="select_live_backend_btn"
+                                aria-label="{{ _('Live player backend') }}"
+                                aria-haspopup="listbox"
+                                aria-expanded="false"
+                                class="inline-flex items-center justify-between gap-2.5 min-w-44 rounded-full bg-surface-container-high hover:bg-surface-container-highest text-on-surface px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer">
+                            <span id="select_live_backend_label"
+                                  class="truncate">{{ _("Auto (default: %(backend)s)")|format(backend=default_live_backend) }}</span>
+                            <i id="select_live_backend_chevron"
+                               class="icon ion-ios-arrow-down text-on-surface-variant transition-transform duration-200 shrink-0"></i>
+                        </button>
+                        <div id="select_live_backend_menu"
+                             role="listbox"
+                             class="hidden absolute right-0 top-full mt-2 z-30 min-w-56 rounded-2xl bg-surface-container-high p-1.5 shadow-xl space-y-0.5">
+                            <button type="button"
+                                    role="option"
+                                    aria-selected="false"
+                                    data-live-backend-value="auto"
+                                    class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer">
+                                <span>{{ _("Auto (default: %(backend)s)")|format(backend=default_live_backend) }}</span>
+                                <i class="icon ion-md-checkmark text-primary hidden shrink-0"></i>
+                            </button>
+                            <button type="button"
+                                    role="option"
+                                    aria-selected="false"
+                                    data-live-backend-value="mpegts"
+                                    class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer">
+                                <span>mpegts.js (FLV)</span>
+                                <i class="icon ion-md-checkmark text-primary hidden shrink-0"></i>
+                            </button>
+                            <button type="button"
+                                    role="option"
+                                    aria-selected="false"
+                                    data-live-backend-value="hls"
+                                    class="w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs font-medium text-on-surface hover:bg-surface-container-highest transition-colors cursor-pointer">
+                                <span>hls.js (HLS)</span>
+                                <i class="icon ion-md-checkmark text-primary hidden shrink-0"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="pt-2 text-center">

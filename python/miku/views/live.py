@@ -30,12 +30,13 @@ LIVE_CHAT_LOOKUP_TIMEOUT = 5.0
 live_chat_slots = PerIpSlotLimiter(LIVE_CHAT_MAX_PER_IP)
 
 
-async def _cache_live_quality(room_id, quality, url, default_url):
+async def _cache_live_quality(room_id, quality, url, default_url, *, live_format: str | None = None):
     """Keep the default URL alive for at least as long as each quality URL."""
     try:
+        prefix = f"miku_live_{live_format}_{room_id}" if live_format in ("flv", "hls") else f"miku_live_{room_id}"
         pipe = appredis.pipeline(transaction=True)
-        pipe.setex(f"miku_live_{room_id}_{quality}", 1800, url)
-        pipe.setex(f"miku_live_{room_id}", 1800, default_url)
+        pipe.setex(f"{prefix}_{quality}", 1800, url)
+        pipe.setex(prefix, 1800, default_url)
         await pipe.execute()
     except Exception as e:
         print(f"[Live] Redis error caching quality for room {room_id}: {e}")
@@ -324,13 +325,24 @@ async def live_list_view():
         ), 500
 
 
-def _pick_live_url(flv_url, hls_url):
+def _resolve_prefer_hls(cookie_val: str | None) -> bool:
+    normalized = (cookie_val or "").strip().lower()
+    if normalized == "hls":
+        return True
+    if normalized == "mpegts":
+        return False
+    return bool(appconf["live"]["prefer_hls"])
+
+
+def _pick_live_url(flv_url, hls_url, *, prefer_hls: bool | None = None):
     """Server-side live format policy: FLV first, HLS master fallback.
 
-    Reversed when ``LIVE_PREFER_HLS`` is set. One format per room — the
-    player never switches, so there is nothing to negotiate client-side.
+    Reversed when ``LIVE_PREFER_HLS`` is set or overridden by ``prefer_hls``.
+    One format per room — the player never switches, so there is nothing to
+    negotiate client-side.
     """
-    if appconf["live"]["prefer_hls"]:
+    use_hls = appconf["live"]["prefer_hls"] if prefer_hls is None else prefer_hls
+    if use_hls:
         return hls_url or flv_url
     return flv_url or hls_url
 
@@ -401,11 +413,12 @@ def _extract_live_urls(play_data):
     return flv or flv_hevc, hls_master
 
 
-_live_room_inflight: dict[int, asyncio.Task] = {}
+_live_room_inflight: dict[tuple[int, bool], asyncio.Task] = {}
 
 
-async def _build_live_room_data(room_id: int, cache_key: str) -> dict:
+async def _build_live_room_data(room_id: int, cache_key: str, *, prefer_hls: bool | None = None) -> dict:
     """Fetch and assemble live room metadata and stream URLs (singleflight)."""
+    use_hls = bool(appconf["live"]["prefer_hls"]) if prefer_hls is None else bool(prefer_hls)
     if LIVE_ROOM_CACHE_TTL > 0:
         cached = await cache_get(cache_key, LIVE_ROOM_CACHE_TTL)
         if (
@@ -449,22 +462,21 @@ async def _build_live_room_data(room_id: int, cache_key: str) -> dict:
     # of refetching it: Bilibili -400s rapid parallel getRoomPlayInfo calls
     # from one IP, so per-QN URLs are fetched sequentially below.
     _default_flv, _default_hls = _extract_live_urls(play_data)
-    _default_url = _pick_live_url(_default_flv, _default_hls)
+    _default_url = _pick_live_url(_default_flv, _default_hls, prefer_hls=use_hls)
     _default_qn = live.ScreenResolution.ORIGINAL.value
-    live_format = "hls" if _default_hls and _default_url == _default_hls else "flv"
+    live_format: str | None = None
     supported_src = []
     if _default_url:
+        live_format = "hls" if _default_hls and _default_url == _default_hls else "flv"
         print(f"[Live] Default room {room_id} QN {_default_qn}: {_default_url[:50]}...")
-        await _cache_live_quality(room_id, _default_qn, _default_url, _default_url)
+        await _cache_live_quality(room_id, _default_qn, _default_url, _default_url, live_format=live_format)
         _default_desc = next((d.get("desc", "Default") for d in qn_list if d.get("qn") == _default_qn), "Default")
         supported_src.append({"quality": _default_qn, "new_description": _default_desc, "url": _default_url})
 
     async def get_and_cache_qn(qn_val, qn_name):
+        nonlocal live_format
         try:
-            # Wrap qn_val to satisfy bilibili-api's requirement for an Enum-like object with .value
             wrapped_qn = type("QN", (), {"value": qn_val})()
-            # Single DEFAULT request carries FLV + HLS ladders; prefer FLV
-            # (AVC-assembled), fall back to HLS master (PipePipe 79da4d21).
             try:
                 q_data = await room.get_room_play_info_v2(live_qn=wrapped_qn)
             except Exception:
@@ -474,20 +486,26 @@ async def _build_live_room_data(room_id: int, cache_key: str) -> dict:
                     live_qn=wrapped_qn,
                 )
             flv_url, hls_master = _extract_live_urls(q_data)
-            url = _pick_live_url(flv_url, hls_master)
+            if live_format == "hls":
+                url = hls_master
+            elif live_format == "flv":
+                url = flv_url
+            else:
+                url = _pick_live_url(flv_url, hls_master, prefer_hls=use_hls)
 
-            if not url:
-                # Fallback to HLS-only request if DEFAULT gave nothing
+            if not url and live_format in (None, "hls"):
                 q_data = await room.get_room_play_info_v2(
                     live_protocol=live.LiveProtocol.HLS, live_format=live.LiveFormat.FMP4, live_qn=wrapped_qn
                 )
                 _, hls_master = _extract_live_urls(q_data)
-                url = _pick_live_url("", hls_master)
+                url = hls_master
 
             if url:
+                if live_format is None:
+                    live_format = "hls" if hls_master and url == hls_master else "flv"
                 print(f"[Live] Cached room {room_id} QN {qn_val}: {url[:50]}...")
                 default_url = supported_src[0]["url"] if supported_src else url
-                await _cache_live_quality(room_id, qn_val, url, default_url)
+                await _cache_live_quality(room_id, qn_val, url, default_url, live_format=live_format)
                 return {"quality": qn_val, "new_description": qn_name, "url": url}
         except Exception as e:
             print(f"[Live] Error fetching QN {qn_val} for {room_id}: {e}")
@@ -512,7 +530,7 @@ async def _build_live_room_data(room_id: int, cache_key: str) -> dict:
     if supported_src:
         # Default entry is first; keep the default key in sync.
         try:
-            await appredis.setex(f"miku_live_{room_id}", 1800, supported_src[0]["url"])
+            await appredis.setex(f"miku_live_{live_format}_{room_id}", 1800, supported_src[0]["url"])
         except Exception:
             pass
     else:
@@ -521,7 +539,8 @@ async def _build_live_room_data(room_id: int, cache_key: str) -> dict:
             fb_info = await room.get_room_play_url()
             if "durl" in fb_info and fb_info["durl"]:
                 u = fb_info["durl"][0]["url"]
-                await appredis.setex(f"miku_live_{room_id}", 1800, u)
+                live_format = "flv"
+                await appredis.setex(f"miku_live_flv_{room_id}", 1800, u)
                 supported_src = [{"quality": "default", "new_description": "Default", "url": u}]
         except Exception:
             pass
@@ -540,7 +559,7 @@ async def _build_live_room_data(room_id: int, cache_key: str) -> dict:
     payload = {
         "vinfo": vinfo,
         "supported_src": supported_src,
-        "live_format": live_format,
+        "live_format": live_format or "flv",
     }
     if LIVE_ROOM_CACHE_TTL > 0 and supported_src:
         await cache_set(cache_key, payload, LIVE_ROOM_CACHE_TTL)
@@ -551,7 +570,8 @@ async def _build_live_room_data(room_id: int, cache_key: str) -> dict:
 @rate_limit(**RATE_LIMITS["normal"])
 async def live_room_view(room_id):
     try:
-        cache_key = f"live:room:{room_id}"
+        prefer_hls = _resolve_prefer_hls(request.cookies.get("live_backend"))
+        cache_key = f"live:room:{room_id}:{'hls' if prefer_hls else 'flv'}"
         if LIVE_ROOM_CACHE_TTL > 0:
             cached = await cache_get(cache_key, LIVE_ROOM_CACHE_TTL)
             if (
@@ -576,11 +596,12 @@ async def live_room_view(room_id):
                 )
                 return Response(html, status=200, content_type="text/html", headers={"X-Cache": "HIT"})
 
-        task = _live_room_inflight.get(room_id)
+        inflight_key = (room_id, prefer_hls)
+        task = _live_room_inflight.get(inflight_key)
         if task is None:
-            task = asyncio.create_task(_build_live_room_data(room_id, cache_key))
-            _live_room_inflight[room_id] = task
-            task.add_done_callback(lambda _t, _rid=room_id: _live_room_inflight.pop(_rid, None))
+            task = asyncio.create_task(_build_live_room_data(room_id, cache_key, prefer_hls=prefer_hls))
+            _live_room_inflight[inflight_key] = task
+            task.add_done_callback(lambda _t, _key=inflight_key: _live_room_inflight.pop(_key, None))
         try:
             room_data = await asyncio.shield(task)
         except asyncio.CancelledError:
